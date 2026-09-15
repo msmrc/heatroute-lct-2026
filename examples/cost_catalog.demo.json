@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "id": "57fa7db0-85aa-557b-9dfa-36b094dcdde4",
+  "version": 1,
+  "currency": "RUB",
+  "price_date": "2026-09-07",
+  "estimate_status": "synthetic",
+  "region_scope": "fictional_demo_only",
+  "tax_policy": "excluded_and_not_estimated",
+  "rounding_policy": "ROUND_HALF_UP_2_DECIMALS",
+  "exclusions": [
+    "Actual engineering design",
+    "Permits",
+    "Real surveys",
+    "Any real-market price claim"
+  ],
+  "items": [
+    {
+      "code": "DEMO-TRENCH",
+      "description": "Вымышленные работы на коридор, без труб",
+      "quantity_unit": "m",
+      "per": "corridor_m",
+      "applies_to_method": "open_trench",
+      "rate": "10000.00",
+      "source_reference": "synthetic"
+    },
+    {
+      "code": "DEMO-PIPE",
+      "description": "Вымышленная стоимость одной трубы за метр",
+      "quantity_unit": "m",
+      "per": "pipe_m",
+      "applies_to_method": "all",
+      "rate": "3000.00",
+      "source_reference": "synthetic"
+    },
+    {
+      "code": "DEMO-RESTORATION",
+      "description": "Вымышленное восстановление покрытия",
+      "quantity_unit": "m2",
+      "per": "m2",
+      "applies_to_method": "open_trench",
+      "rate": "1500.00",
+      "source_reference": "synthetic"
+    },
+    {
+      "code": "DEMO-DRILL",
+      "description": "Вымышленный переход на парный коридор, за метр",
+      "quantity_unit": "m",
+      "per": "corridor_m",
+      "applies_to_method": "demo_drilled_crossing",
+      "rate": "40000.00",
+      "source_reference": "synthetic"
+    },
+    {
+      "code": "DEMO-PORTAL-SETUP",
+      "description": "Вымышленная подготовка одного перехода",
+      "quantity_unit": "event",
+      "per": "event",
+      "applies_to_method": "demo_drilled_crossing",
+      "rate": "250000.00",
+      "source_reference": "synthetic"
+    },
+    {
+      "code": "DEMO-BEND",
+      "description": "Вымышленная операция изменения направления парного коридора",
+      "quantity_unit": "item",
+      "per": "item",
+      "applies_to_method": "all",
+      "rate": "5000.00",
+      "source_reference": "synthetic"
+    },
+    {
+      "code": "DEMO-TIE-IN",
+      "description": "Вымышленное присоединение парного коридора",
+      "quantity_unit": "event",
+      "per": "event",
+      "applies_to_method": "demo_tie_in",
+      "rate": "100000.00",
+      "source_reference": "synthetic"
+    }
+  ]
+}

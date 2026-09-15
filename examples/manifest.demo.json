@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "name": "HeatRoute synthetic example pack",
+  "source_type": "synthetic",
+  "is_real_city_data": false,
+  "is_application_implementation": false,
+  "project_id": "7da3179a-3224-5e96-98a4-eebb0b40cd45",
+  "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+  "working_crs": "EPSG:32637",
+  "display_crs": "EPSG:4326",
+  "planning_date": "2027-01-01",
+  "files": [
+    {
+      "path": "canonical_features.demo.geojson",
+      "sha256": "f0fb3edf7e80998b372190c4cf42bd8f273c5fd125ad1bc4b552f1928c1b35a4"
+    },
+    {
+      "path": "rule_profile.demo.json",
+      "sha256": "11dd22d42c9d116bf36bc4deab288db268a5fb229ac13c908de18111df2b984a"
+    },
+    {
+      "path": "cost_catalog.demo.json",
+      "sha256": "31a2092ec2c8688eec614e53097a19fa6eb51c830d33f75fa5f78f60a5f2f1c2"
+    },
+    {
+      "path": "scenario.demo.json",
+      "sha256": "474976b245fb05601ba49b3c0e28a9cf05b5fb77e10757af79f74d50bd50b188"
+    },
+    {
+      "path": "run_request.demo.json",
+      "sha256": "f0a1cd017c60d0741a9ec9dd0a21b4f4e221353798cb6b9d4404dc6a5857854a"
+    },
+    {
+      "path": "raw_buildings.demo.geojson",
+      "sha256": "ef8cbf01f79d5baaff47535f711c144e98e02e7a7d48725d77abd1c42b032c3e"
+    },
+    {
+      "path": "import_mapping.demo.json",
+      "sha256": "4281b2ba1bd597c814c4946a08572b8e88cce587e9dbe48d94548a74c6e852c2"
+    }
+  ],
+  "notes": [
+    "All geometries, permissions, capacities, clearances and prices are invented.",
+    "Canonical fixture coordinates are valid WGS84 GeoJSON; algorithm fixtures elsewhere are explicitly local meters.",
+    "No precomputed route is shipped. Routes must be computed by the implemented backend.",
+    "Neither legal/normative compliance nor engineering feasibility is asserted."
+  ]
+}

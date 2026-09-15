@@ -1,0 +1,983 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "c853a14c-1652-5a5c-b091-2f0542de6fcd",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              37.6233082059,
+              55.7510705295
+            ],
+            [
+              37.6250601834,
+              55.7510901458
+            ],
+            [
+              37.6250096224,
+              55.7525273811
+            ],
+            [
+              37.6232575805,
+              55.7525077637
+            ],
+            [
+              37.6233082059,
+              55.7510705295
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "building",
+        "logical_id": "f6b9678a-2db2-5881-af1c-63bfac5b2cfa",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "B-CENTER",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "external_name": "B-CENTER",
+          "building_role": "existing",
+          "height_m": 12.0,
+          "height_source": "synthetic",
+          "required_load_kw": null
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ac303785-fb7e-5a15-82b8-62457e911bbc",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              37.6261229804,
+              55.7525847655
+            ],
+            [
+              37.6275564737,
+              55.7526007845
+            ],
+            [
+              37.6275359699,
+              55.7531846619
+            ],
+            [
+              37.6261024553,
+              55.7531686425
+            ],
+            [
+              37.6261229804,
+              55.7525847655
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "building",
+        "logical_id": "e2969a01-9c26-5f69-b364-70f51a4cc2ac",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "B-NORTH",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "external_name": "B-NORTH",
+          "building_role": "existing",
+          "height_m": 12.0,
+          "height_source": "synthetic",
+          "required_load_kw": null
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "c9bb55d5-4d10-5025-ab07-5b96dad01d99",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              37.6266718294,
+              55.7505689935
+            ],
+            [
+              37.6277867112,
+              55.7505814489
+            ],
+            [
+              37.6277677893,
+              55.7511204128
+            ],
+            [
+              37.6266528922,
+              55.7511079572
+            ],
+            [
+              37.6266718294,
+              55.7505689935
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "building",
+        "logical_id": "05c9fdaf-2a16-59da-9087-04f09c9ea123",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "B-SOUTH",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "external_name": "B-SOUTH",
+          "building_role": "existing",
+          "height_m": 12.0,
+          "height_source": "synthetic",
+          "required_load_kw": null
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "c48fa903-231a-50c0-9f68-a57e8782ba9c",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              37.6287013552,
+              55.7517598725
+            ],
+            [
+              37.6291791765,
+              55.751765204
+            ],
+            [
+              37.6291697248,
+              55.752034686
+            ],
+            [
+              37.6286919002,
+              55.7520293545
+            ],
+            [
+              37.6287013552,
+              55.7517598725
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "building",
+        "logical_id": "c5514cd1-ad05-5f53-baf3-f43663c3c80c",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "B-TARGET",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "planned",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "external_name": "Демонстрационное новое здание",
+          "building_role": "target",
+          "height_m": 18.0,
+          "height_source": "synthetic",
+          "required_load_kw": 250.0,
+          "availability_date": "2027-01-01"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "cd06b4e4-69b8-590d-b138-04cf8c2ecda8",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              37.6257335878,
+              55.7500642595
+            ],
+            [
+              37.6259724878,
+              55.7500669312
+            ],
+            [
+              37.6258461653,
+              55.7536600206
+            ],
+            [
+              37.6256072434,
+              55.7536573486
+            ],
+            [
+              37.6257335878,
+              55.7500642595
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "road",
+        "logical_id": "1a4937c2-32cd-5bd7-a8f2-e74de55000d7",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "ROAD-01",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "road_class": "demo_road",
+          "surface_type": "asphalt",
+          "width_m": 15.0,
+          "crossing_policy": "portal_only"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "72fbce6f-901e-5af6-acdb-5edb857d8389",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.6199016774,
+            55.7527846376
+          ],
+          [
+            37.6294583502,
+            55.7528915993
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "utility_line",
+        "logical_id": "cdbea42c-237f-54ab-ab5a-2c876612fec6",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "UTILITY-01",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "utility_type": "water",
+          "depth_m": null,
+          "elevation_m": null,
+          "vertical_datum": null,
+          "horizontal_accuracy_m": null
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "d14dfa1f-ef34-5ae0-bfd4-2b7b1dbe9c39",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.6206243842,
+          55.7503664614
+        ]
+      },
+      "properties": {
+        "kind": "network_node",
+        "logical_id": "5235fb3c-f7f3-58f6-8be4-02f5ed34aee2",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "N-40",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "node_type": "junction",
+          "source_network_id": "DEMO-NET",
+          "circuit": "paired_corridor",
+          "elevation_m": null,
+          "pressure_pa": null,
+          "temperature_c": null,
+          "connection_permission": "unknown"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "7b9d56cd-4e20-58d7-aee1-c94d5de62dad",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.6205736614,
+          55.7518036942
+        ]
+      },
+      "properties": {
+        "kind": "network_node",
+        "logical_id": "c42c0bb1-984d-5023-939e-d8beb6550aef",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "N-200",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "node_type": "junction",
+          "source_network_id": "DEMO-NET",
+          "circuit": "paired_corridor",
+          "elevation_m": null,
+          "pressure_pa": null,
+          "temperature_c": null,
+          "connection_permission": "allowed"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "59958238-e834-5e9c-afc8-1165fcfbd6cd",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.6205292753,
+          55.7530612725
+        ]
+      },
+      "properties": {
+        "kind": "network_node",
+        "logical_id": "31bb3297-a024-5ff2-a11a-3adf7bb19fe9",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "N-340",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "node_type": "junction",
+          "source_network_id": "DEMO-NET",
+          "circuit": "paired_corridor",
+          "elevation_m": null,
+          "pressure_pa": null,
+          "temperature_c": null,
+          "connection_permission": "allowed"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "1f27bd11-b48d-551e-bff4-00febcc88a9b",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.6205165928,
+          55.7534205806
+        ]
+      },
+      "properties": {
+        "kind": "network_node",
+        "logical_id": "567ed30a-13e8-5a4d-8e2b-e23d472f4b62",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "N-380",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "node_type": "junction",
+          "source_network_id": "DEMO-NET",
+          "circuit": "paired_corridor",
+          "elevation_m": null,
+          "pressure_pa": null,
+          "temperature_c": null,
+          "connection_permission": "unknown"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "84663a70-1017-5514-a882-89d5e5a1dce5",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.6206243842,
+            55.7503664614
+          ],
+          [
+            37.6205736614,
+            55.7518036942
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "network_edge",
+        "logical_id": "47833d95-f7c1-5002-b21b-4dd638f04232",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "E-40-200",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "from_node_id": "d14dfa1f-ef34-5ae0-bfd4-2b7b1dbe9c39",
+          "to_node_id": "7b9d56cd-4e20-58d7-aee1-c94d5de62dad",
+          "source_network_id": "DEMO-NET",
+          "circuit": "paired_corridor",
+          "diameter_m": null,
+          "material": null,
+          "roughness_m": null,
+          "installation_method": "unknown",
+          "measured_length_m": null,
+          "geometry_length_m": 160.0
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "81cde462-faef-5289-a7fc-9c0f1d19ec78",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.6205736614,
+            55.7518036942
+          ],
+          [
+            37.6205292753,
+            55.7530612725
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "network_edge",
+        "logical_id": "d8afdde2-8274-5869-b30c-b0f23253b296",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "E-200-340",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "from_node_id": "7b9d56cd-4e20-58d7-aee1-c94d5de62dad",
+          "to_node_id": "59958238-e834-5e9c-afc8-1165fcfbd6cd",
+          "source_network_id": "DEMO-NET",
+          "circuit": "paired_corridor",
+          "diameter_m": null,
+          "material": null,
+          "roughness_m": null,
+          "installation_method": "unknown",
+          "measured_length_m": null,
+          "geometry_length_m": 140.0
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "509c74f1-470d-508f-a6fa-65e876257b97",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.6205292753,
+            55.7530612725
+          ],
+          [
+            37.6205165928,
+            55.7534205806
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "network_edge",
+        "logical_id": "e788be44-3937-5b0b-90f2-887bd8b5b474",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "E-340-380",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "from_node_id": "59958238-e834-5e9c-afc8-1165fcfbd6cd",
+          "to_node_id": "1f27bd11-b48d-551e-bff4-00febcc88a9b",
+          "source_network_id": "DEMO-NET",
+          "circuit": "paired_corridor",
+          "diameter_m": null,
+          "material": null,
+          "roughness_m": null,
+          "installation_method": "unknown",
+          "measured_length_m": null,
+          "geometry_length_m": 40.0
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "d83f8684-e81b-5b2a-8aba-91931b69d3e9",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.6205736614,
+          55.7518036942
+        ]
+      },
+      "properties": {
+        "kind": "connection_candidate",
+        "logical_id": "f4399cb4-9395-5b0b-a70b-1a87ffe3b056",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "C-200",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "network_node_id": "7b9d56cd-4e20-58d7-aee1-c94d5de62dad",
+          "permission": "allowed",
+          "permission_source": "synthetic demo scenario, not a real authorization",
+          "available_capacity_kw": {
+            "value": 800.0,
+            "unit": "kW",
+            "evidence_status": "provided",
+            "source_ref": "synthetic:C-200",
+            "note": "Entirely invented demo value"
+          },
+          "capacity_basis": "net_available",
+          "reserved_capacity_kw": null,
+          "compatible_circuit_layouts": [
+            "paired"
+          ],
+          "connection_method": "demo_tie_in",
+          "allowed_connector_length_m": 20.0
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "b97d9fc1-9870-56ea-9002-fdc157977701",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.6205292753,
+          55.7530612725
+        ]
+      },
+      "properties": {
+        "kind": "connection_candidate",
+        "logical_id": "e234dab1-297b-5483-846f-c3efed3c7701",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "C-340",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "network_node_id": "59958238-e834-5e9c-afc8-1165fcfbd6cd",
+          "permission": "allowed",
+          "permission_source": "synthetic demo scenario, not a real authorization",
+          "available_capacity_kw": null,
+          "capacity_basis": "unknown",
+          "reserved_capacity_kw": null,
+          "compatible_circuit_layouts": [
+            "paired"
+          ],
+          "connection_method": "demo_tie_in",
+          "allowed_connector_length_m": 20.0
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "9162fdff-b29e-5219-bc2a-95275deca3ea",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.6255490516,
+            55.7507810961
+          ],
+          [
+            37.6261064952,
+            55.7507873302
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "crossing_portal",
+        "logical_id": "9f7c98c7-55bd-5ab5-91ae-b710af40e21a",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "PORTAL-SOUTH",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "entry_point_wgs84": [
+            37.6255490516,
+            55.7507810961
+          ],
+          "exit_point_wgs84": [
+            37.6261064952,
+            55.7507873302
+          ],
+          "footprint_wgs84": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  37.6255334406,
+                  55.7507719352
+                ],
+                [
+                  37.6261227379,
+                  55.7507785255
+                ],
+                [
+                  37.6261221064,
+                  55.750796491
+                ],
+                [
+                  37.6255328088,
+                  55.7507899007
+                ],
+                [
+                  37.6255334406,
+                  55.7507719352
+                ]
+              ]
+            ]
+          },
+          "applies_to_feature_ids": [
+            "cd06b4e4-69b8-590d-b138-04cf8c2ecda8"
+          ],
+          "method": "demo_drilled_crossing",
+          "width_m": 2.0,
+          "allowed_headings": [
+            0,
+            4
+          ],
+          "length_m": 35.0,
+          "quantity_model_key": "paired_crossing",
+          "approval_status": "demo",
+          "vertical_constraints": null
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "99a0b5c3-5135-584e-88c2-ddfb20e9718a",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.6254732362,
+            55.7529369494
+          ],
+          [
+            37.6260307105,
+            55.752943184
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "crossing_portal",
+        "logical_id": "1ac267cc-0116-510e-944f-2919c0ec0c71",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "PORTAL-NORTH",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "entry_point_wgs84": [
+            37.6254732362,
+            55.7529369494
+          ],
+          "exit_point_wgs84": [
+            37.6260307105,
+            55.752943184
+          ],
+          "footprint_wgs84": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  37.6254576243,
+                  55.7529277885
+                ],
+                [
+                  37.6260469541,
+                  55.7529343793
+                ],
+                [
+                  37.6260463225,
+                  55.7529523448
+                ],
+                [
+                  37.6254569924,
+                  55.7529457539
+                ],
+                [
+                  37.6254576243,
+                  55.7529277885
+                ]
+              ]
+            ]
+          },
+          "applies_to_feature_ids": [
+            "cd06b4e4-69b8-590d-b138-04cf8c2ecda8"
+          ],
+          "method": "demo_drilled_crossing",
+          "width_m": 2.0,
+          "allowed_headings": [
+            0,
+            4
+          ],
+          "length_m": 35.0,
+          "quantity_model_key": "paired_crossing",
+          "approval_status": "demo",
+          "vertical_constraints": null
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "09140576-f202-5598-8a39-f9b3faa92e89",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              37.6285710995,
+              55.7518392951
+            ],
+            [
+              37.6287144461,
+              55.7518408949
+            ],
+            [
+              37.6287106642,
+              55.7519486877
+            ],
+            [
+              37.6285673171,
+              55.7519470879
+            ],
+            [
+              37.6285710995,
+              55.7518392951
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "entry_gate",
+        "logical_id": "b99ad000-56ba-5086-9679-9ecd073f205d",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "ENTRY-GATE",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "target_building_id": "c48fa903-231a-50c0-9f68-a57e8782ba9c",
+          "entry_point_wgs84": [
+            37.6286966277,
+            55.7518946135
+          ],
+          "permitted_heading": "from_west",
+          "max_connector_length_m": 10.0,
+          "exception_rule_ids": [
+            "DEMO-BUILDING-CLEARANCE"
+          ]
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "b4e0d5ac-3270-5590-a047-2d19b55a460e",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              37.62,
+              55.75
+            ],
+            [
+              37.6295559925,
+              55.7501069506
+            ],
+            [
+              37.6294299993,
+              55.7537000454
+            ],
+            [
+              37.6198731288,
+              55.7535930805
+            ],
+            [
+              37.62,
+              55.75
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "kind": "coverage_area",
+        "logical_id": "1f924a3f-05fc-537f-9246-5dd1daec9a00",
+        "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+        "source_id": "COVERAGE-DEMO",
+        "source_type": "synthetic",
+        "source_layer": "heatroute-demo",
+        "lifecycle_status": "existing",
+        "valid_from": null,
+        "valid_to": null,
+        "observed_at": "2026-09-07T00:00:00Z",
+        "quality_flags": [
+          "SYNTHETIC_DATA"
+        ],
+        "raw_properties": {},
+        "attributes": {
+          "covered_kinds": [
+            "building",
+            "road",
+            "network_node",
+            "network_edge",
+            "connection_candidate",
+            "utility_line"
+          ],
+          "completeness": "synthetic",
+          "assertion_source": "Only the invented fixture world; not coverage of actual Moscow infrastructure",
+          "exclusions": []
+        }
+      }
+    }
+  ],
+  "heatroute_metadata": {
+    "schema_version": "canonical-v1",
+    "source_type": "synthetic",
+    "is_real_city_data": false,
+    "note": "All objects are invented. Geographic anchoring is for map display only. No precomputed route is included.",
+    "dataset_version_id": "943bdaac-d4e3-5465-80ec-076ea9bb9264",
+    "working_crs": "EPSG:32637",
+    "local_origin_metric": [
+      413380.7202778102,
+      6179118.146754007
+    ],
+    "local_bounds_m": [
+      0,
+      0,
+      600,
+      400
+    ]
+  }
+}

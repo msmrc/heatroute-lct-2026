@@ -1,0 +1,13 @@
+{
+  "name": "heatroute",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "pnpm --filter @heatroute/web dev",
+    "build": "pnpm --filter @heatroute/web build",
+    "lint": "pnpm --filter @heatroute/web lint",
+    "typecheck": "pnpm --filter @heatroute/web typecheck",
+    "test": "pnpm --filter @heatroute/web test"
+  }
+}
+

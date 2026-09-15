@@ -1,0 +1,4 @@
+PASS: Markdown code fences balanced.
+PASS: Local Markdown file links resolve.
+PASS: All example GeoJSON feature geometries and portal footprints are non-empty and valid according to Shapely.
+NOTE: No application implementation, routing benchmark or engineering approval was performed.

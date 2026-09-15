@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "id": "2d9bb91b-f8d7-5130-bc7a-045ec608859d",
+  "version": 1,
+  "name": "Пример внешних полей и сантиметров",
+  "adapter_name": "geojson",
+  "source_filename": "raw_buildings.demo.geojson",
+  "source_crs": "EPSG:4326",
+  "target_kind": "building",
+  "source_type": "synthetic",
+  "source_id_field": "BID",
+  "fields": {
+    "external_name": {
+      "source_field": "NAME_RU",
+      "transforms": [
+        {
+          "op": "trim"
+        }
+      ]
+    },
+    "height_m": {
+      "source_field": "HEIGHT_CM",
+      "transforms": [
+        {
+          "op": "parse_decimal"
+        },
+        {
+          "op": "unit_convert",
+          "from_unit": "cm",
+          "to_unit": "m",
+          "factor": "0.01"
+        }
+      ]
+    },
+    "lifecycle_status": {
+      "source_field": "STATUS",
+      "transforms": [
+        {
+          "op": "enum_map",
+          "mapping": {
+            "EXIST": "existing",
+            "PLAN": "planned"
+          },
+          "unmapped": "unknown"
+        }
+      ]
+    }
+  },
+  "missing_policy": "report_and_keep_null",
+  "notes": "This separate one-building import is a mapping example, not a complete routable dataset."
+}

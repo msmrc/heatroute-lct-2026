@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0",
+  "use_in_routing": false,
+  "description": "Independent reproduction of the supplied distance-entropy formula. It is NOT a thermal-capacity model.",
+  "coordinates": {
+    "wrong_T_from_screenshot": [
+      [
+        3,
+        3
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        3,
+        1
+      ]
+    ],
+    "correct_T": [
+      [
+        1,
+        3
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        3,
+        3
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        2,
+        1
+      ]
+    ],
+    "U": [
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        3
+      ]
+    ],
+    "X": [
+      [
+        2,
+        3
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        3,
+        2
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "I": [
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        4
+      ],
+      [
+        1,
+        5
+      ]
+    ]
+  },
+  "reference_entropy_bits": {
+    "wrong_T_from_screenshot": 4.232690124499968,
+    "correct_T": 4.242322495350719,
+    "U": 4.242322495350719,
+    "X": 4.271553303163612,
+    "I": 4.146439344671016
+  },
+  "required_observations": [
+    "wrong_T_from_screenshot is not side-connected",
+    "correct_T and U have equal distance entropy",
+    "uniform scaling preserves normalized distance entropy"
+  ]
+}

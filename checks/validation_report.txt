@@ -1,0 +1,8 @@
+PASS: all JSON/GeoJSON files parse; no NaN or Infinity.
+PASS: 7 manifest file hashes match.
+PASS: 19 synthetic features have valid basic geometry structure, unique IDs and consistent references.
+PASS: scenario, profiles, candidate references and HTTP example are consistent.
+PASS: declared unit conversion maps 1200 cm to 12 m.
+PASS: algorithm fixture structure and direct-distance reference are consistent. No route solver is implemented or tested by this script.
+PASS: independent entropy reproduction confirms the disconnected T, T/U collision and scale invariance. This is not a hydraulic calculation.
+DONE: companion examples validated. Application implementation, engineering validity and performance are NOT validated by this script.

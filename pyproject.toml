@@ -1,0 +1,76 @@
+[project]
+name = "heatroute"
+version = "0.1.0"
+description = "Backend-first preliminary district-heating route planner"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "alembic==1.19.2",
+  "celery[redis]==5.6.3",
+  "fastapi==0.141.1",
+  "geoalchemy2==0.20.0",
+  "geopandas==1.1.4",
+  "numpy==2.5.3",
+  "pandapipes==0.14.0",
+  "psycopg[binary]==3.3.5",
+  "pyarrow==25.0.1",
+  "pydantic==2.13.5",
+  "pydantic-settings==2.15.0",
+  "pyogrio==0.13.0",
+  "pyproj==3.7.2",
+  "python-multipart==0.0.32",
+  "redis==6.4.0",
+  "shapely==2.1.2",
+  "sqlalchemy==2.0.52",
+  "uvicorn[standard]==0.52.4",
+]
+
+[dependency-groups]
+dev = [
+  "httpx2==2.12.0",
+  "hypothesis==6.167.1",
+  "mypy==2.3.1",
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "ruff==0.16.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --basetemp=E:/job/.tooling/pytest-heatroute"
+pythonpath = ["apps/api/src"]
+testpaths = ["tests"]
+markers = [
+  "integration: requires live PostGIS and Redis services",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apps/api/src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "apps/api/src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+  "celery.*",
+  "geoalchemy2.*",
+  "geopandas",
+  "geopandas.*",
+  "pandapipes",
+  "pandapipes.*",
+  "pyogrio",
+  "pyogrio.*",
+  "pyarrow",
+  "pyarrow.*",
+  "shapely.*",
+]
+ignore_missing_imports = true

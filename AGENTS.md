@@ -37,3 +37,10 @@ Implement and run documented equivalents of: `make bootstrap`, `make up`, `make 
 These commands are requirements, not existing commands until implemented. Report actual commands, exit codes, passed/failed checks and environment blockers. Never claim tests ran when they did not.
 
 Keep `docs/implementation/progress.md` current. At session end, state the completed milestone, evidence, remaining issues and next actionable step. A plan or a screenshot alone is not completion.
+
+## VPS deployment
+The shared demo VPS is updated only through the documented procedure in
+`docs/operations/VPS_DEPLOYMENT.md`. Before changing it, verify the repository is clean, create a
+database backup, fast-forward `master`, validate the merged Compose config, rebuild, wait for
+health checks and run the smoke checks. Never copy `.env.vps`, `secrets/`, database dumps or SSH
+keys into Git, and never expose the API, PostgreSQL or Redis ports publicly.

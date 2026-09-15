@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-heatroute_dev_only}
       POSTGRES_INITDB_ARGS: --no-sync
     ports:
-      - "${POSTGRES_HOST_PORT:-55432}:5432"
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_HOST_PORT:-55432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -28,7 +28,7 @@ services:
     image: redis:8.2.2-alpine@sha256:59b6e694653476de2c992937ebe1c64182af4728e54bb49e9b7a6c26614d8933
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     ports:
-      - "${REDIS_HOST_PORT:-56379}:6379"
+      - "${REDIS_BIND_ADDRESS:-127.0.0.1}:${REDIS_HOST_PORT:-56379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -76,7 +76,7 @@ services:
       dockerfile: infra/docker/backend.Dockerfile
     environment: *backend-environment
     ports:
-      - "${API_HOST_PORT:-8000}:8000"
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${API_HOST_PORT:-8000}:8000"
     volumes:
       # Bind the ignored local artifact directory so host-side integration tests
       # and container workers resolve the same content-addressed files.
@@ -133,7 +133,7 @@ services:
       context: .
       dockerfile: infra/docker/web.Dockerfile
     ports:
-      - "${WEB_HOST_PORT:-5173}:8080"
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_HOST_PORT:-5173}:8080"
     depends_on:
       api:
         condition: service_healthy

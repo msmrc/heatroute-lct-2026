@@ -18,7 +18,10 @@ test-results/
 
 # Local configuration and artifacts
 .env
+.env.vps
 artifacts/
+backups/
+secrets/
 data/
 tmp/
 output/

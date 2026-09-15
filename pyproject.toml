@@ -38,7 +38,7 @@ dev = [
 package = false
 
 [tool.pytest.ini_options]
-addopts = "-ra --strict-markers --basetemp=E:/job/.tooling/pytest-heatroute"
+addopts = "-ra --strict-markers"
 pythonpath = ["apps/api/src"]
 testpaths = ["tests"]
 markers = [

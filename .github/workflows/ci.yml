@@ -87,7 +87,9 @@ jobs:
           uv sync --frozen
 
       - name: Start application stack
-        run: docker compose up --build -d
+        run: |
+          install -d -m 0777 artifacts
+          docker compose up --build -d
 
       - name: Wait for ready API
         run: |

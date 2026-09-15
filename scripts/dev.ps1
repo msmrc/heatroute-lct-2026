@@ -14,6 +14,8 @@ $env:PNPM_HOME = Join-Path $ToolingRoot 'pnpm\home'
 $env:PNPM_STORE_DIR = Join-Path $ToolingRoot 'pnpm\store'
 $env:npm_config_cache = Join-Path $ToolingRoot 'npm-cache'
 $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $ToolingRoot 'playwright\browsers'
+$env:TEMP = Join-Path $ToolingRoot 'tmp\heatroute'
+$env:TMP = $env:TEMP
 $env:PYTHONPATH = Join-Path $ProjectRoot 'apps\api\src'
 
 function Assert-LastExitCode([string]$CommandName) {
@@ -28,7 +30,8 @@ function Assert-LastExitCode([string]$CommandName) {
     $env:PNPM_HOME,
     $env:PNPM_STORE_DIR,
     $env:npm_config_cache,
-    $env:PLAYWRIGHT_BROWSERS_PATH
+    $env:PLAYWRIGHT_BROWSERS_PATH,
+    $env:TEMP
 ) | ForEach-Object { New-Item -ItemType Directory -Force -Path $_ | Out-Null }
 
 Push-Location $ProjectRoot

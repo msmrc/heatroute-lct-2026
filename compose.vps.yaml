@@ -1,7 +1,7 @@
 name: heatroute
 
 # VPS demo profile. It restores PostgreSQL durability, keeps stateful/internal
-# services on loopback and puts a password-protected gateway in front of the UI.
+# services on loopback and puts a public gateway in front of the UI.
 services:
   db:
     command: ["postgres"]
@@ -36,7 +36,6 @@ services:
       - "0.0.0.0:${PUBLIC_HTTP_PORT:-80}:8080"
     volumes:
       - ./infra/nginx/vps-gateway.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./secrets/htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
       web:
         condition: service_healthy

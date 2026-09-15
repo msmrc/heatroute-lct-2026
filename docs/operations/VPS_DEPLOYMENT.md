@@ -8,17 +8,17 @@
   read-only deploy key configured through local `core.sshCommand`
 - Deployed branch: `master`
 - Compose files: `compose.yaml` + `compose.vps.yaml`
-- Secrets: `/opt/heatroute/.env.vps` and `/opt/heatroute/secrets/htpasswd`
+- Secrets: `/opt/heatroute/.env.vps`
 - Public endpoint: `http://130.49.150.217/`
 
-This is a password-protected **demo** deployment. The application deliberately keeps its internal
-demo principal because the current frontend has no login screen. The gateway is the security
-boundary; do not publish ports 5173, 8000, 55432 or 56379 on a non-loopback address. Before using
-real or sensitive data, add a domain and TLS, implement the login UI, switch to
+This is a public **demo** deployment. The application deliberately keeps its internal demo
+principal because the current frontend has no login screen. Do not publish ports 5173, 8000,
+55432 or 56379 on a non-loopback address. Before using real or sensitive data, add a domain and
+TLS, implement the login UI, switch to
 `HEATROUTE_ENV=production` and `HEATROUTE_DEMO_MODE=false`.
 
-The real `.env.vps`, HTTP password file, SSH keys, volumes and backups are server state. They must
-never be committed or copied into issue/chat logs.
+The real `.env.vps`, SSH keys, volumes and backups are server state. They must never be committed
+or copied into issue/chat logs.
 
 ## Standard agent update procedure
 
@@ -110,6 +110,5 @@ docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml logs -f -
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml restart api worker scheduler web gateway
 ```
 
-Rotate gateway access by replacing `/opt/heatroute/secrets/htpasswd`, then recreate only the
-gateway. Rotate the SSH deploy key in GitHub and on the VPS as one operation. DNS is intentionally
-out of scope until a domain is selected.
+Rotate the SSH deploy key in GitHub and on the VPS as one operation. DNS is intentionally out of
+scope until a domain is selected.

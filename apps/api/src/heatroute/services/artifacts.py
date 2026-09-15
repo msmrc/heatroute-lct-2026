@@ -69,6 +69,11 @@ class LocalArtifactStorage:
             else:
                 os.replace(temporary_path, final_path)
                 created = True
+            # API and worker may run under different numeric UIDs while sharing a
+            # host-mounted artifact root (notably in CI). The root directory is the
+            # access boundary; make completed immutable objects readable across
+            # those service identities only after the atomic move is complete.
+            final_path.chmod(0o644)
             return StoredArtifact(
                 sha256=sha256,
                 size_bytes=size_bytes,

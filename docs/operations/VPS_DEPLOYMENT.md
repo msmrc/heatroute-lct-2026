@@ -27,6 +27,7 @@ delete volumes to fix an update.
 
 ```bash
 cd /opt/heatroute
+umask 022
 test "$(git rev-parse --show-toplevel)" = /opt/heatroute
 test "$(git branch --show-current)" = master
 test -z "$(git status --porcelain)" || { echo 'STOP: VPS checkout is dirty'; exit 1; }

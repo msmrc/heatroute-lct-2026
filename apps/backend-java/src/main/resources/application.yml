@@ -1,0 +1,57 @@
+server:
+  port: ${HEATROUTE_PORT:8000}
+  forward-headers-strategy: framework
+  shutdown: graceful
+  tomcat:
+    max-swallow-size: 3221225472
+
+spring:
+  application:
+    name: heatroute-backend
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  datasource:
+    url: ${HEATROUTE_JDBC_URL:jdbc:postgresql://localhost:55432/heatroute}
+    username: ${HEATROUTE_DATABASE_USER:heatroute}
+    password: ${HEATROUTE_DATABASE_PASSWORD:heatroute_dev_only}
+    hikari:
+      maximum-pool-size: ${HEATROUTE_DB_POOL_SIZE:12}
+      minimum-idle: 1
+      connection-timeout: 3000
+      initialization-fail-timeout: -1
+  servlet:
+    multipart:
+      max-file-size: 3GB
+      max-request-size: 3GB
+      file-size-threshold: 0
+      location: ${HEATROUTE_UPLOAD_TMP:/var/lib/heatroute/tmp}
+  liquibase:
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  pattern:
+    console: '%d{yyyy-MM-dd''T''HH:mm:ss.SSSXXX} level=%p logger=%logger{36} thread=%thread message="%replace(%m){''[\r\n]'','' ''}"%n'

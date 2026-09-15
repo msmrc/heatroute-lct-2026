@@ -15,6 +15,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  java-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "11"
+          cache: maven
+          cache-dependency-path: apps/backend-java/pom.xml
+
+      - name: Verify Java 11 backend
+        working-directory: apps/backend-java
+        run: mvn --batch-mode --no-transfer-progress verify
+
+      - name: Build pinned Java runtime image
+        run: docker build -f infra/docker/backend-java.Dockerfile -t heatroute-backend-java:ci .
+
+      - name: Validate docker-compose 1.29.2 compatible model
+        run: docker compose -f compose.java.yaml config
+
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15

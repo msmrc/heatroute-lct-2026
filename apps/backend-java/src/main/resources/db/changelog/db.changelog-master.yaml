@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20260915-001-java-foundation
+      author: heatroute
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/20260915_001_java_foundation.sql
+            splitStatements: true
+            stripComments: true
+  - changeSet:
+      id: 20260915-002-official-import-contract
+      author: heatroute
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/20260915_002_official_import_contract.sql
+            splitStatements: true
+            stripComments: true

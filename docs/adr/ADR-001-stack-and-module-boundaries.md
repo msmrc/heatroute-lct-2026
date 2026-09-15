@@ -1,6 +1,6 @@
 # ADR-001: stack and module boundaries
 
-- Status: accepted
+- Status: superseded by ADR-005 for the backend runtime; frontend and modular boundaries retained
 - Date: 2026-09-07
 
 ## Decision
@@ -21,4 +21,3 @@ libraries and patterns while keeping the required module boundaries.
 The API and worker share one backend image and codebase. Heavy import/routing/export work
 never runs inside HTTP request handlers. Splitting a module into a service remains possible
 without changing the public API.
-

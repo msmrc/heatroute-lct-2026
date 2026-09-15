@@ -273,10 +273,30 @@ Updated: 2026-09-15
 - GNU Make is not installed on the host; `scripts/dev.ps1` is the Windows entrypoint and
   Make targets are a compatibility facade for CI/Linux.
 
-## Next step
+## Official-TZ Java rebaseline (started 2026-09-15)
 
-M0–M5 and the requested M6/M7 engineering/data slice are locally complete. The next engineering
-gate is organizer-data onboarding: validate topology, elevations, units, boundary conditions,
-threshold sources and construction applicability before connecting the hydraulic adapter to a
-production result. The remaining M6 operations backlog is durable production database settings,
-backup/restore, retention, OIDC and external telemetry.
+The complete organizer task invalidates the old completion percentage. The active plan is now
+R0–R9 in `OFFICIAL_TZ_ROADMAP.md`; old M0–M7 evidence remains useful regression evidence only.
+
+- [x] R0: official gap audit and team roadmap.
+- [x] R0: ADR-005 selects Java 11, Spring Boot 2.6.3 and a side-by-side cutover strategy.
+- [ ] R1: Java foundation, PostgreSQL/PostGIS readiness, Swagger, migrations and durable jobs.
+  Foundation, pinned Java 11 / Spring Boot 2.6.3 runtime, Liquibase, readiness, Swagger,
+  non-root image, Java CI and a Compose 1.29.2-compatible clean-start smoke are verified.
+  Durable asynchronous calculation jobs and the frontend compatibility adapter remain open.
+- [ ] R2: streaming import and exact seven-type official input contract.
+  The service streams features without materializing the collection, validates all seven input
+  types and their geometry/property contracts, detects duplicate IDs and broken typed references,
+  records SHA-256 and reports, and persists valid features in both EPSG:4326 and EPSG:32637 with
+  GiST indexes. The minimal eight-feature fixture and invalid semantic fixture pass. Extended and
+  large-file fixtures, replay/deduplication policy and measured memory evidence remain open.
+- [ ] R3: existing-network topology, automatic candidates and tie-in feasibility.
+- [ ] R4: multi-OKS branched routing and independent validation.
+- [ ] R5: flows, official diameters, maximum continuous lengths and reconstruction to source.
+- [ ] R6: exact restrictions and special crossings.
+- [ ] R7: official costs, score, three alternatives and strict seven-type export.
+- [ ] R8: optional depth rerouting task after mandatory 2D completion.
+- [ ] R9: 3 GB/500 MB/16 GB/50-user evidence, Ubuntu 22 clean deployment and submission kit.
+
+The VPS remains on the last verified Python image until the Java parity gates in ADR-005 pass.
+The next executable step is durable asynchronous jobs plus the R3 existing-network topology gate.

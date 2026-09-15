@@ -9,12 +9,14 @@
 - Deployed branch: `master`
 - Compose files: `compose.yaml` + `compose.vps.yaml`
 - Secrets: `/opt/heatroute/.env.vps`
-- Public endpoint: `http://130.49.150.217/`
+- Public endpoint: `https://130-49-150-217.sslip.io/`
+- Public firewall ports: `22/tcp`, `80/tcp`, `443/tcp`
 
-This is a public **demo** deployment. The application deliberately keeps its internal demo
-principal because the current frontend has no login screen. Do not publish ports 5173, 8000,
-55432 or 56379 on a non-loopback address. Before using real or sensitive data, add a domain and
-TLS, implement the login UI, switch to
+This is a public **demo** deployment. Caddy terminates HTTPS and renews its public certificate
+automatically. The application deliberately keeps its internal demo principal because the current
+frontend has no login screen. Do not publish ports 5173, 8000, 55432 or 56379 on a non-loopback
+address. Before using real or sensitive data, select the permanent domain, implement the login UI,
+and switch to
 `HEATROUTE_ENV=production` and `HEATROUTE_DEMO_MODE=false`.
 
 The real `.env.vps`, SSH keys, volumes and backups are server state. They must never be committed
@@ -71,7 +73,8 @@ docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml ps
 curl --fail --silent http://127.0.0.1:8000/api/v1/health/ready
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml \
   exec -T api python -m heatroute seed-demo --wait 60
-curl --fail --silent --user 'heatroute:THE_DEMO_PASSWORD' http://127.0.0.1/
+curl --fail --silent --resolve 130-49-150-217.sslip.io:443:127.0.0.1 \
+  https://130-49-150-217.sslip.io/
 ```
 
 Report the deployed commit (`git rev-parse HEAD`), Compose service status, readiness response and
@@ -110,5 +113,5 @@ docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml logs -f -
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml restart api worker scheduler web gateway
 ```
 
-Rotate the SSH deploy key in GitHub and on the VPS as one operation. DNS is intentionally out of
-scope until a domain is selected.
+Rotate the SSH deploy key in GitHub and on the VPS as one operation. Provider-managed DNS remains
+out of scope until a permanent domain is selected.

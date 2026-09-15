@@ -1,0 +1,17 @@
+{$HEATROUTE_PUBLIC_HOST:130-49-150-217.sslip.io} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	reverse_proxy web:8080
+}
+
+http://130.49.150.217 {
+	redir https://{$HEATROUTE_PUBLIC_HOST:130-49-150-217.sslip.io}{uri} permanent
+}

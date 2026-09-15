@@ -291,6 +291,11 @@ R0–R9 in `OFFICIAL_TZ_ROADMAP.md`; old M0–M7 evidence remains useful regress
   GiST indexes. The minimal eight-feature fixture and invalid semantic fixture pass. Extended and
   large-file fixtures, replay/deduplication policy and measured memory evidence remain open.
 - [ ] R3: existing-network topology, automatic candidates and tie-in feasibility.
+  The first Java vertical slice validates deterministic upstream traversal to a source, rejects
+  cycles and ambiguous interior XY intersections, counts chamber incidents, creates bounded
+  deterministic candidates and applies the 10 m / four-incident existing-chamber rule. Internal
+  tie-ins split a LineString into two length-preserving parts. Spatially indexed large-network
+  candidate queries and persisted selected tie-ins remain open.
 - [ ] R4: multi-OKS branched routing and independent validation.
 - [ ] R5: flows, official diameters, maximum continuous lengths and reconstruction to source.
 - [ ] R6: exact restrictions and special crossings.

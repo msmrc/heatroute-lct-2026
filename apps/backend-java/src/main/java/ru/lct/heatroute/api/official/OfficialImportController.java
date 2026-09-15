@@ -22,6 +22,8 @@ import ru.lct.heatroute.domain.input.OfficialInputFormatException;
 import ru.lct.heatroute.domain.input.OfficialInputReport;
 import ru.lct.heatroute.domain.input.OfficialImportService;
 import ru.lct.heatroute.domain.input.OfficialImportView;
+import ru.lct.heatroute.domain.topology.TopologyAnalysis;
+import ru.lct.heatroute.domain.topology.TopologyAnalysisService;
 
 @RestController
 @RequestMapping("/api/v1/official/imports")
@@ -29,12 +31,15 @@ import ru.lct.heatroute.domain.input.OfficialImportView;
 public class OfficialImportController {
     private final OfficialGeoJsonInspector inspector;
     private final OfficialImportService importService;
+    private final TopologyAnalysisService topologyAnalysisService;
 
     public OfficialImportController(
             OfficialGeoJsonInspector inspector,
-            OfficialImportService importService) {
+            OfficialImportService importService,
+            TopologyAnalysisService topologyAnalysisService) {
         this.inspector = inspector;
         this.importService = importService;
+        this.topologyAnalysisService = topologyAnalysisService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -62,6 +67,24 @@ public class OfficialImportController {
             throw new ApiException(HttpStatus.NOT_FOUND, "IMPORT_NOT_FOUND", "Official import was not found");
         }
         return result;
+    }
+
+    @GetMapping("/{importId}/topology")
+    @Operation(
+            operationId = "analyzeOfficialTopology",
+            summary = "Validate upstream topology and create deterministic automatic tie-in candidates")
+    public TopologyAnalysis topology(@PathVariable UUID importId) {
+        OfficialImportView imported = importService.find(importId);
+        if (imported == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "IMPORT_NOT_FOUND", "Official import was not found");
+        }
+        if (!"valid".equals(imported.getState())) {
+            throw new ApiException(
+                    HttpStatus.CONFLICT,
+                    "IMPORT_NOT_VALID",
+                    "Topology analysis requires a valid official import");
+        }
+        return topologyAnalysisService.analyze(importId);
     }
 
     @PostMapping(value = "/inspect", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

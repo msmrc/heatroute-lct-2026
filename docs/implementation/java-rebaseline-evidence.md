@@ -14,7 +14,7 @@ The Python implementation remains the production fallback until the cutover gate
 - Runtime container uses pinned Maven and Eclipse Temurin image digests and UID 10001.
 - `compose.java.yaml` intentionally keeps Compose schema 3.8 so it can be parsed by the required
   docker-compose 1.29.2. A fresh named stack reached readiness and was removed with its test volumes.
-- The Java Docker build ran 12 tests with zero failures.
+- The Java Docker build ran 16 tests with zero failures.
 
 ## Verified official input slice
 
@@ -38,10 +38,23 @@ The Python implementation remains the production fallback until the cutover gate
 - Unit tests cover the official special-crossing multipliers, depth multiplier, unconnected-OKS
   penalty and score formula.
 
+## Verified existing-network slice
+
+- Upstream traversal requires every heat-network segment and chamber chain to terminate at a
+  source; cycles and broken chains produce structured topology diagnostics.
+- Pairwise indexed geometry checks reject interior XY crossings while allowing one shared endpoint.
+- Candidate generation is deterministic and bounded to 12 candidates per connection point.
+- A chamber within 10 m of the projected tie-in is reused only when adding the new segment keeps
+  the chamber at no more than four incident segments; otherwise a new chamber is required.
+- An internal line tie-in is snapped and split into two LineStrings without losing or duplicating
+  metric length.
+- A live PostGIS fixture produced one new-chamber line candidate and one existing-chamber candidate
+  for its two future OKS connection points.
+
 ## Still open
 
 - Durable asynchronous calculation jobs and restart recovery.
-- Existing-network topology and automatic tie-in candidates.
+- Spatially indexed large-network candidate search and persisted selected tie-ins.
 - Multi-OKS routing, flow aggregation, reconstruction, exact restrictions and output generation.
 - Large-input memory/load evidence and clean Ubuntu Server 22 acceptance deployment.
 - Frontend cutover to the Java compatibility API.

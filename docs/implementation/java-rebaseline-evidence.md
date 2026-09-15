@@ -14,7 +14,7 @@ The Python implementation remains the production fallback until the cutover gate
 - Runtime container uses pinned Maven and Eclipse Temurin image digests and UID 10001.
 - `compose.java.yaml` intentionally keeps Compose schema 3.8 so it can be parsed by the required
   docker-compose 1.29.2. A fresh named stack reached readiness and was removed with its test volumes.
-- The Java Docker build ran 18 tests with zero failures.
+- The Java Docker build ran 22 tests with zero failures.
 
 ## Verified official input slice
 
@@ -60,6 +60,14 @@ The Python implementation remains the production fallback until the cutover gate
 - A simulated interrupted `running` job with an expired lease was reclaimed after service restart,
   completed successfully and incremented its attempt from 1 to 2.
 - Cancelling a queued job persisted `cancelled` before any expensive topology work started.
+
+## Verified restriction primitives
+
+- The catalog contains the exact hard exclusions and road, tram, gas, power and independent
+  heat-network special-passage clearances, extensions, depth/angle conditions and multipliers.
+- Existing-building clearance changes at the official DU 500 and DU 900 boundaries: 5/7/9 m.
+- A metric route crossing a 20 m road polygon produces a 26 m special segment (3 m outside each
+  side), and the crossing-angle test accepts exactly 45 degrees while rejecting a lower angle.
 
 ## Still open
 

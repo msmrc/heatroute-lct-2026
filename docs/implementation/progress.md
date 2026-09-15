@@ -301,6 +301,10 @@ R0–R9 in `OFFICIAL_TZ_ROADMAP.md`; old M0–M7 evidence remains useful regress
 - [ ] R4: multi-OKS branched routing and independent validation.
 - [ ] R5: flows, official diameters, maximum continuous lengths and reconstruction to source.
 - [ ] R6: exact restrictions and special crossings.
+  The Java domain catalog fixes the official forbidden/special rules, 5/7/9 m existing-building
+  clearances, horizontal/vertical clearances, 45-degree threshold, 3/2 m special extensions and
+  cost multipliers. Geometry tests extract reproducible non-overlapping special segments and cover
+  the exact angle boundary. Full route-search integration and independent final validation remain.
 - [ ] R7: official costs, score, three alternatives and strict seven-type export.
 - [ ] R8: optional depth rerouting task after mandatory 2D completion.
 - [ ] R9: 3 GB/500 MB/16 GB/50-user evidence, Ubuntu 22 clean deployment and submission kit.

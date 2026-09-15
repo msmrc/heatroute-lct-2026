@@ -300,6 +300,10 @@ R0–R9 in `OFFICIAL_TZ_ROADMAP.md`; old M0–M7 evidence remains useful regress
   candidate queries and persisted selected tie-ins remain open.
 - [ ] R4: multi-OKS branched routing and independent validation.
 - [ ] R5: flows, official diameters, maximum continuous lengths and reconstruction to source.
+  The pure Java sizing layer aggregates all downstream OKS flows onto shared trunks, rejects cycles
+  and multiple upstreams, assigns the minimum official DU and tracks same-DU length through
+  intermediate chambers, resetting only when DU changes. Existing-network flow propagation,
+  partial-segment reconstruction and chamber reconstruction remain open.
 - [ ] R6: exact restrictions and special crossings.
   The Java domain catalog fixes the official forbidden/special rules, 5/7/9 m existing-building
   clearances, horizontal/vertical clearances, 45-degree threshold, 3/2 m special extensions and

@@ -14,7 +14,7 @@ The Python implementation remains the production fallback until the cutover gate
 - Runtime container uses pinned Maven and Eclipse Temurin image digests and UID 10001.
 - `compose.java.yaml` intentionally keeps Compose schema 3.8 so it can be parsed by the required
   docker-compose 1.29.2. A fresh named stack reached readiness and was removed with its test volumes.
-- The Java Docker build ran 22 tests with zero failures.
+- The Java Docker build ran 26 tests with zero failures.
 
 ## Verified official input slice
 
@@ -68,6 +68,14 @@ The Python implementation remains the production fallback until the cutover gate
 - Existing-building clearance changes at the official DU 500 and DU 900 boundaries: 5/7/9 m.
 - A metric route crossing a 20 m road polygon produces a 26 m special segment (3 m outside each
   side), and the crossing-angle test accepts exactly 45 degrees while rejecting a lower angle.
+
+## Verified flow and diameter sizing primitives
+
+- Bottom-up traversal sums all downstream OKS flows on shared trunk edges and rejects cycles or
+  more than one upstream edge for a node.
+- Every edge receives the smallest sufficient nominal diameter from the 18-row official table.
+- Continuous same-DU length carries across intermediate chamber nodes and raises an issue above the
+  table limit; the counter resets only when the diameter actually changes.
 
 ## Still open
 

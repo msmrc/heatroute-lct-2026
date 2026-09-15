@@ -15,3 +15,11 @@ databaseChangeLog:
             path: db/changelog/sql/20260915_002_official_import_contract.sql
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 20260915-003-durable-official-jobs
+      author: heatroute
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/20260915_003_durable_official_jobs.sql
+            splitStatements: true
+            stripComments: true

@@ -283,7 +283,9 @@ R0–R9 in `OFFICIAL_TZ_ROADMAP.md`; old M0–M7 evidence remains useful regress
 - [ ] R1: Java foundation, PostgreSQL/PostGIS readiness, Swagger, migrations and durable jobs.
   Foundation, pinned Java 11 / Spring Boot 2.6.3 runtime, Liquibase, readiness, Swagger,
   non-root image, Java CI and a Compose 1.29.2-compatible clean-start smoke are verified.
-  Durable asynchronous calculation jobs and the frontend compatibility adapter remain open.
+  PostgreSQL-backed jobs now cover queued/running/completed/failed/cancelled, atomic claiming,
+  cooperative cancellation and expired-lease recovery after restart. A separate production worker
+  process, calculation-step integration and the frontend compatibility adapter remain open.
 - [ ] R2: streaming import and exact seven-type official input contract.
   The service streams features without materializing the collection, validates all seven input
   types and their geometry/property contracts, detects duplicate IDs and broken typed references,

@@ -14,7 +14,7 @@ The Python implementation remains the production fallback until the cutover gate
 - Runtime container uses pinned Maven and Eclipse Temurin image digests and UID 10001.
 - `compose.java.yaml` intentionally keeps Compose schema 3.8 so it can be parsed by the required
   docker-compose 1.29.2. A fresh named stack reached readiness and was removed with its test volumes.
-- The Java Docker build ran 16 tests with zero failures.
+- The Java Docker build ran 18 tests with zero failures.
 
 ## Verified official input slice
 
@@ -51,9 +51,19 @@ The Python implementation remains the production fallback until the cutover gate
 - A live PostGIS fixture produced one new-chamber line candidate and one existing-chamber candidate
   for its two future OKS connection points.
 
+## Verified durable jobs
+
+- Creating a topology job returns `queued`; the database worker atomically claims it and persists
+  its result and terminal `completed` state.
+- Jobs expose phase, progress, attempt count, timestamps, sanitized errors and a cooperative
+  cancellation flag through the API.
+- A simulated interrupted `running` job with an expired lease was reclaimed after service restart,
+  completed successfully and incremented its attempt from 1 to 2.
+- Cancelling a queued job persisted `cancelled` before any expensive topology work started.
+
 ## Still open
 
-- Durable asynchronous calculation jobs and restart recovery.
+- Separate production worker process and calculation-job steps.
 - Spatially indexed large-network candidate search and persisted selected tie-ins.
 - Multi-OKS routing, flow aggregation, reconstruction, exact restrictions and output generation.
 - Large-input memory/load evidence and clean Ubuntu Server 22 acceptance deployment.

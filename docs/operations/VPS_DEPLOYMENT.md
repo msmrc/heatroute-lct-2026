@@ -4,7 +4,8 @@
 
 - Server: `root@130.49.150.217`
 - Checkout: `/opt/heatroute`
-- Private repository: `git@github-heatroute:msmrc/heatroute-lct-2026.git`
+- Private repository: `git@github.com:msmrc/heatroute-lct-2026.git` with a repository-scoped,
+  read-only deploy key configured through local `core.sshCommand`
 - Deployed branch: `master`
 - Compose files: `compose.yaml` + `compose.vps.yaml`
 - Secrets: `/opt/heatroute/.env.vps` and `/opt/heatroute/secrets/htpasswd`

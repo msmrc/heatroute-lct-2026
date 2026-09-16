@@ -1,6 +1,6 @@
 # Current implementation progress
 
-**Updated:** 2026-09-15
+**Updated:** 2026-09-16
 
 ## Active baseline
 
@@ -21,6 +21,14 @@ and runtime services were removed. The frontend calls only the current official 
   features across the seven required types.
 - Durable topology job `0afabe99-408e-43d4-84b5-148bc8835bb8` completed on attempt 1 and returned
   a valid topology with two deterministic tie-in candidates.
+- GitHub Actions run `35065575662` passed all backend, web and integration gates for commit
+  `6590b46`.
+- Commit `6590b46` is deployed to the VPS. The production Compose project contains only `db`,
+  Java `api`, `web` and `gateway`; all four services are healthy. The former Python API,
+  worker/scheduler, migration container and Redis were removed from the running project.
+- External HTTPS smoke returned HTTP 200, Java readiness reported PostGIS `ok`, and the VPS
+  official fixture import persisted eight valid features. Its topology job completed on attempt 1
+  with two deterministic tie-in candidates.
 
 ## Roadmap truth
 
@@ -48,3 +56,11 @@ all-OKS input assembly, deterministic shared/separate candidate trees and a fram
 tree validator. Do not start depth, MVT or additional file formats before this slice passes.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
+
+## Workstation note
+
+After the latest Windows reboot, local Docker Desktop fails during startup on a stale internal
+AF_UNIX socket. No project volume or Docker data was reset or deleted. CI and the VPS deployment
+are green, so this is a workstation repair item rather than an application blocker. Diagnose it
+separately before relying on local Compose; do not use factory reset or relocate Docker data from
+`E:`.

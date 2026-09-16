@@ -1,6 +1,6 @@
 # Tomorrow handoff — PM and developer
 
-**Prepared:** 2026-09-15
+**Prepared:** 2026-09-16
 **Repository:** `git@github.com:msmrc/heatroute-lct-2026.git`
 **Branch:** `master`
 **Public demo:** `https://130-49-150-217.sslip.io/`
@@ -14,6 +14,8 @@
   endpoints.
 - CI has three gates: Java verify/image, web quality/build, and live Compose smoke.
 - OpenAPI comes from springdoc and is committed at `packages/api-client/openapi.json`.
+- Commit `6590b46` is deployed on the VPS. Production now runs only PostGIS, Java API, web and
+  gateway; the public HTTPS page, Java readiness, official import and topology job were verified.
 
 ## Start in five minutes
 
@@ -89,3 +91,6 @@ Do not mix official costing into the first PR; expose explicit placeholder quant
 - Never commit `.env.vps`, keys, dumps or organizer datasets.
 - VPS updates follow `docs/operations/VPS_DEPLOYMENT.md`; take a DB backup first.
 - Database schema history is now Liquibase under `apps/api/src/main/resources/db/changelog`.
+- On the current Windows workstation Docker Desktop is blocked after reboot by a stale internal
+  socket. CI and VPS are healthy. Do not factory-reset Docker or move its `E:` data; repair the
+  local daemon separately before using the local `up` command.

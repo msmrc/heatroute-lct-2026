@@ -9,6 +9,8 @@ public enum OfficialRestrictionType {
     SOCIAL_AREA("social_area", Set.of("Polygon", "MultiPolygon")),
     PROHIBITED_SITE("prohibited_site", Set.of("Polygon", "MultiPolygon")),
     WATER("water", Set.of("Polygon", "MultiPolygon")),
+    RAILWAY("railway", Set.of("Polygon", "MultiPolygon")),
+    OKS("oks", Set.of("Polygon", "MultiPolygon")),
     ROAD("road", Set.of("Polygon", "MultiPolygon")),
     TRAM_TRACKS("tram_tracks", Set.of("Polygon", "MultiPolygon")),
     GAS_PIPELINE("gas_pipeline", Set.of("LineString", "MultiLineString")),

@@ -31,7 +31,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class OfficialGeoJsonInspector {
-    public static final String CONTRACT_VERSION = "lct-2026-official-input-v1";
+    public static final String CONTRACT_VERSION = "lct-2026-official-input-v2";
+    public static final String STRICT_PROFILE = "strict_official";
+    public static final String PROVIDED_DATASET_PROFILE = "provided_dataset_compatibility";
     private static final int MAX_REPORTED_ERRORS = 1_000;
     private static final Set<Integer> OFFICIAL_DIAMETERS = Set.of(
             50, 65, 80, 100, 125, 150, 200, 250, 300,
@@ -51,6 +53,7 @@ public class OfficialGeoJsonInspector {
         Set<String> futureOksIds = new HashSet<>();
         Set<String> connectedOksIds = new HashSet<>();
         List<OfficialInputError> errors = new ArrayList<>();
+        List<OfficialInputWarning> warnings = new ArrayList<>();
         long featureCount = 0;
         boolean featureCollection = false;
         boolean featuresSeen = false;
@@ -77,7 +80,8 @@ public class OfficialGeoJsonInspector {
                                 references,
                                 futureOksIds,
                                 connectedOksIds,
-                                errors);
+                                errors,
+                                warnings);
                         featureCount++;
                     }
                 } else {
@@ -104,8 +108,17 @@ public class OfficialGeoJsonInspector {
         Map<String, Long> wireCounts = new LinkedHashMap<>();
         Arrays.stream(OfficialObjectType.values()).forEach(type ->
                 wireCounts.put(type.getWireName(), counts.getOrDefault(type, 0L)));
+        String inputProfile = counts.getOrDefault(OfficialObjectType.OKS_FUTURE, 0L) > 0
+                ? STRICT_PROFILE
+                : PROVIDED_DATASET_PROFILE;
         return new OfficialInputReport(
-                CONTRACT_VERSION, hex(digest.digest()), featureCount, wireCounts, errors);
+                CONTRACT_VERSION,
+                inputProfile,
+                hex(digest.digest()),
+                featureCount,
+                wireCounts,
+                errors,
+                warnings);
     }
 
     private void validateFeature(
@@ -116,7 +129,8 @@ public class OfficialGeoJsonInspector {
             List<PendingReference> references,
             Set<String> futureOksIds,
             Set<String> connectedOksIds,
-            List<OfficialInputError> errors) {
+            List<OfficialInputError> errors,
+            List<OfficialInputWarning> warnings) {
         if (feature == null || !feature.isObject()) {
             addError(errors, error("INVALID_FEATURE", index, null, null, "Feature must be an object"));
             return;
@@ -130,7 +144,7 @@ public class OfficialGeoJsonInspector {
             return;
         }
 
-        String featureId = requiredText(properties, "id", index, null, errors);
+        String featureId = requiredIdentifier(properties, "id", index, errors, warnings);
         String objectTypeValue = requiredText(properties, "object_type", index, featureId, errors);
         Optional<OfficialObjectType> objectType = OfficialObjectType.fromWireName(objectTypeValue);
         if (objectType.isEmpty()) {
@@ -158,6 +172,13 @@ public class OfficialGeoJsonInspector {
                     references.add(new PendingReference(
                             index, featureId, "oks_id", oksId,
                             Collections.singleton(OfficialObjectType.OKS_FUTURE)));
+                } else if (isPositiveNumber(properties.get("flow_tph"))) {
+                    addWarning(warnings, warning(
+                            "CONNECTION_POINT_AS_DEMAND",
+                            index,
+                            featureId,
+                            "flow_tph",
+                            "No oks_future/oks_id is present; this point is used as the demand object"));
                 }
             }
             if (objectType.get() == OfficialObjectType.HEAT_NETWORK
@@ -177,7 +198,7 @@ public class OfficialGeoJsonInspector {
         JsonNode geometry = feature.get("geometry");
         String geometryType = geometry == null ? "" : geometry.path("type").asText();
         validateGeometry(geometry, geometryType, objectType.get(), properties, index, featureId, errors);
-        validateProperties(objectType.get(), properties, index, featureId, errors);
+        validateProperties(objectType.get(), properties, index, featureId, errors, warnings);
     }
 
     private void validateReferences(
@@ -283,23 +304,26 @@ public class OfficialGeoJsonInspector {
             JsonNode properties,
             long index,
             String featureId,
-            List<OfficialInputError> errors) {
+            List<OfficialInputError> errors,
+            List<OfficialInputWarning> warnings) {
         switch (type) {
             case HEAT_NETWORK:
                 requiredDiameter(properties, index, featureId, errors);
-                requiredPositiveNumber(properties, "flow_tph", index, featureId, errors);
-                requiredText(properties, "upstream_object_id", index, featureId, errors);
+                optionalCompatibilityNumber(properties, "flow_tph", index, featureId, warnings);
+                optionalCompatibilityText(properties, "upstream_object_id", index, featureId, warnings);
                 break;
             case HEAT_CHAMBER:
-                requiredDiameter(properties, index, featureId, errors);
-                requiredText(properties, "upstream_object_id", index, featureId, errors);
+                optionalCompatibilityDiameter(properties, index, featureId, errors, warnings);
+                optionalCompatibilityText(properties, "upstream_object_id", index, featureId, warnings);
                 break;
             case OKS_FUTURE:
                 requiredPositiveNumber(properties, "flow_tph", index, featureId, errors);
                 requiredPositiveNumber(properties, "heat_load", index, featureId, errors);
                 break;
             case OKS_CONNECTION_POINT:
-                requiredText(properties, "oks_id", index, featureId, errors);
+                if (properties.path("oks_id").asText().isBlank()) {
+                    requiredPositiveNumber(properties, "flow_tph", index, featureId, errors);
+                }
                 break;
             case RESTRICTION:
                 String value = requiredText(properties, "restriction_type", index, featureId, errors);
@@ -308,10 +332,97 @@ public class OfficialGeoJsonInspector {
                             "UNSUPPORTED_RESTRICTION_TYPE", index, featureId, "restriction_type",
                             "Unsupported restriction_type: " + value));
                 }
+                if ("railway".equals(value) || "oks".equals(value)) {
+                    addWarning(warnings, warning(
+                            "COMPATIBILITY_RESTRICTION_ALIAS",
+                            index,
+                            featureId,
+                            "restriction_type",
+                            value + " is accepted from the supplied dataset compatibility profile"));
+                }
                 break;
             default:
                 break;
         }
+    }
+
+    private String requiredIdentifier(
+            JsonNode properties,
+            String field,
+            long index,
+            List<OfficialInputError> errors,
+            List<OfficialInputWarning> warnings) {
+        JsonNode value = properties.get(field);
+        if (value != null && value.isTextual() && !value.textValue().trim().isEmpty()) {
+            return value.textValue();
+        }
+        if (value != null && value.isIntegralNumber()) {
+            String normalized = value.asText();
+            addWarning(warnings, warning(
+                    "NUMERIC_ID_NORMALIZED",
+                    index,
+                    normalized,
+                    field,
+                    "Numeric identifier is normalized to its decimal string representation"));
+            return normalized;
+        }
+        addError(errors, error("MISSING_FIELD", index, null, field, field + " is required"));
+        return "";
+    }
+
+    private void optionalCompatibilityNumber(
+            JsonNode properties,
+            String field,
+            long index,
+            String featureId,
+            List<OfficialInputWarning> warnings) {
+        if (!isPositiveNumber(properties.get(field))) {
+            addWarning(warnings, warning(
+                    "MISSING_EXISTING_NETWORK_VALUE",
+                    index,
+                    featureId,
+                    field,
+                    field + " is absent; reconstruction calculations remain unavailable"));
+        }
+    }
+
+    private void optionalCompatibilityText(
+            JsonNode properties,
+            String field,
+            long index,
+            String featureId,
+            List<OfficialInputWarning> warnings) {
+        if (properties.path(field).asText().isBlank()) {
+            addWarning(warnings, warning(
+                    "MISSING_EXISTING_NETWORK_LINK",
+                    index,
+                    featureId,
+                    field,
+                    field + " is absent; direction to source must be inferred from geometry"));
+        }
+    }
+
+    private void optionalCompatibilityDiameter(
+            JsonNode properties,
+            long index,
+            String featureId,
+            List<OfficialInputError> errors,
+            List<OfficialInputWarning> warnings) {
+        if (properties.get("diameter") == null) {
+            addWarning(warnings, warning(
+                    "MISSING_CHAMBER_DIAMETER",
+                    index,
+                    featureId,
+                    "diameter",
+                    "diameter is absent and must be derived from incident existing-network sections"));
+            return;
+        }
+        requiredDiameter(properties, index, featureId, errors);
+    }
+
+    private boolean isPositiveNumber(JsonNode value) {
+        return value != null && value.isNumber() && Double.isFinite(value.doubleValue())
+                && value.doubleValue() > 0;
     }
 
     private void requiredDiameter(
@@ -360,6 +471,17 @@ public class OfficialGeoJsonInspector {
     private void addError(List<OfficialInputError> errors, OfficialInputError error) {
         if (errors.size() < MAX_REPORTED_ERRORS) {
             errors.add(error);
+        }
+    }
+
+    private OfficialInputWarning warning(
+            String code, long index, String featureId, String field, String message) {
+        return new OfficialInputWarning(code.toUpperCase(Locale.ROOT), index, featureId, field, message);
+    }
+
+    private void addWarning(List<OfficialInputWarning> warnings, OfficialInputWarning warning) {
+        if (warnings.size() < MAX_REPORTED_ERRORS) {
+            warnings.add(warning);
         }
     }
 

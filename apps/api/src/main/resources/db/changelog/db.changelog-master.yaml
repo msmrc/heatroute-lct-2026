@@ -23,3 +23,11 @@ databaseChangeLog:
             path: db/changelog/sql/20260915_003_durable_official_jobs.sql
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 20260916-004-input-profiles
+      author: heatroute
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/20260916_004_input_profiles.sql
+            splitStatements: true
+            stripComments: true

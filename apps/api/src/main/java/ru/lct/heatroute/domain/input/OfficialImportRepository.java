@@ -19,6 +19,8 @@ public class OfficialImportRepository {
             new TypeReference<Map<String, Long>>() {};
     private static final TypeReference<List<OfficialInputError>> ERRORS_TYPE =
             new TypeReference<List<OfficialInputError>>() {};
+    private static final TypeReference<List<OfficialInputWarning>> WARNINGS_TYPE =
+            new TypeReference<List<OfficialInputWarning>>() {};
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
@@ -37,8 +39,8 @@ public class OfficialImportRepository {
         jdbcTemplate.update(
                 "INSERT INTO official_imports "
                         + "(id, state, original_filename, raw_sha256, input_size_bytes, "
-                        + "contract_version, feature_count, feature_counts, errors, completed_at) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, "
+                        + "contract_version, input_profile, feature_count, feature_counts, errors, warnings, completed_at) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, "
                         + "CASE WHEN ? IN ('valid', 'invalid', 'failed', 'cancelled') THEN now() ELSE NULL END)",
                 id,
                 state,
@@ -46,9 +48,11 @@ public class OfficialImportRepository {
                 report.getSha256(),
                 sizeBytes,
                 report.getContractVersion(),
+                report.getInputProfile(),
                 report.getFeatureCount(),
                 json(report.getFeatureCounts()),
                 json(report.getErrors()),
+                json(report.getWarnings()),
                 state);
     }
 
@@ -65,8 +69,8 @@ public class OfficialImportRepository {
     public Optional<OfficialImportView> find(UUID id) {
         List<OfficialImportView> rows = jdbcTemplate.query(
                 "SELECT id, state, original_filename, input_size_bytes, created_at, "
-                        + "contract_version, raw_sha256, feature_count, "
-                        + "feature_counts::text, errors::text "
+                        + "contract_version, input_profile, raw_sha256, feature_count, "
+                        + "feature_counts::text, errors::text, warnings::text "
                         + "FROM official_imports WHERE id = ?",
                 (resultSet, rowNumber) -> map(resultSet),
                 id);
@@ -77,10 +81,12 @@ public class OfficialImportRepository {
         try {
             OfficialInputReport report = new OfficialInputReport(
                     resultSet.getString("contract_version"),
+                    resultSet.getString("input_profile"),
                     resultSet.getString("raw_sha256"),
                     resultSet.getLong("feature_count"),
                     objectMapper.readValue(resultSet.getString("feature_counts"), COUNTS_TYPE),
-                    objectMapper.readValue(resultSet.getString("errors"), ERRORS_TYPE));
+                    objectMapper.readValue(resultSet.getString("errors"), ERRORS_TYPE),
+                    objectMapper.readValue(resultSet.getString("warnings"), WARNINGS_TYPE));
             return new OfficialImportView(
                     resultSet.getObject("id", UUID.class),
                     resultSet.getString("state"),

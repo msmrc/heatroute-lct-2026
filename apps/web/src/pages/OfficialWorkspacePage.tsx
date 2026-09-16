@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -141,6 +141,8 @@ export function OfficialWorkspacePage() {
               <div><dt>Размер</dt><dd>{humanFileSize(currentImport.input_size_bytes)}</dd></div>
               <div><dt>Контракт</dt><dd>{currentImport.report.contract_version}</dd></div>
               <div><dt>Ошибок</dt><dd>{currentImport.report.errors.length}</dd></div>
+              <div><dt>Профиль</dt><dd>{currentImport.report.input_profile === "strict_official" ? "Строгий" : "Датасет"}</dd></div>
+              <div><dt>Предупреждений</dt><dd>{currentImport.report.warnings.length}</dd></div>
             </dl>
             <div className="official-types">
               {Object.entries(currentImport.report.feature_counts).map(([type, count]) => (
@@ -156,8 +158,17 @@ export function OfficialWorkspacePage() {
                 ))}
               </div>
             )}
+            {currentImport.report.warnings.length > 0 && (
+              <div className="official-errors official-warnings">
+                {currentImport.report.warnings.slice(0, 20).map((warning, index) => (
+                  <article key={`${warning.code}-${warning.feature_index}-${index}`}>
+                    <AlertTriangle size={16} /><div><strong>{warning.code}</strong><p>{warning.message}</p><small>feature #{warning.feature_index}{warning.feature_id ? ` · ${warning.feature_id}` : ""}</small></div>
+                  </article>
+                ))}
+              </div>
+            )}
             {currentImport.report.valid && (
-              <div className="official-valid"><CheckCircle2 size={18} /><div><strong>Входной контракт пройден</strong><p>Набор готов к анализу существующей сети и кандидатов врезки.</p></div></div>
+              <div className="official-valid"><CheckCircle2 size={18} /><div><strong>Входной контракт пройден</strong><p>{currentImport.report.input_profile === "strict_official" ? "Набор готов к полному анализу существующей сети и кандидатов врезки." : "Набор принят в compatibility-профиле; ограничения расчёта перечислены в предупреждениях."}</p></div></div>
             )}
           </Card>
 

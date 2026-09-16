@@ -1,7 +1,9 @@
 package ru.lct.heatroute.domain.topology;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Component;
 public class ExistingNetworkTopologyAnalyzer {
     private static final double CHAMBER_SNAP_DISTANCE_M = 10.0;
     private static final double COORDINATE_TOLERANCE_M = 0.01;
+    private static final double GEOMETRIC_SNAP_DISTANCE_M = 1.0;
     private static final int MAX_CANDIDATES_PER_CONNECTION = 12;
 
     public TopologyAnalysis analyze(List<ImportedOfficialFeature> features) {
@@ -40,7 +43,14 @@ public class ExistingNetworkTopologyAnalyzer {
         if (sources.isEmpty()) {
             issues.add(new TopologyIssue("MISSING_SOURCE", null, "At least one source is required"));
         }
-        validateUpstreamChains(networkObjects, issues);
+        boolean hasExplicitUpstream = networkObjects.values().stream()
+                .filter(feature -> !"source".equals(feature.getObjectType()))
+                .anyMatch(feature -> !feature.getAttributes().path("upstream_object_id").asText().isBlank());
+        if (hasExplicitUpstream) {
+            validateUpstreamChains(networkObjects, issues);
+        } else {
+            validateGeometricConnectivity(sources, segments, chambers, issues);
+        }
         validateLineIntersections(segments, issues);
 
         Map<String, Integer> chamberIncidentCounts = incidentCounts(chambers, segments);
@@ -59,6 +69,57 @@ public class ExistingNetworkTopologyAnalyzer {
 
         return new TopologyAnalysis(
                 sources.size(), segments.size(), chambers.size(), issues, candidates);
+    }
+
+    private void validateGeometricConnectivity(
+            List<ImportedOfficialFeature> sources,
+            List<ImportedOfficialFeature> segments,
+            List<ImportedOfficialFeature> chambers,
+            List<TopologyIssue> issues) {
+        Set<String> reachable = new HashSet<>();
+        Deque<ImportedOfficialFeature> queue = new ArrayDeque<>();
+        for (ImportedOfficialFeature segment : segments) {
+            boolean touchesSource = sources.stream().anyMatch(source ->
+                    source.getMetricGeometry().distance(segment.getMetricGeometry())
+                            <= GEOMETRIC_SNAP_DISTANCE_M);
+            if (touchesSource && reachable.add(segment.getFeatureId())) {
+                queue.add(segment);
+            }
+        }
+
+        while (!queue.isEmpty()) {
+            ImportedOfficialFeature current = queue.removeFirst();
+            for (ImportedOfficialFeature candidate : segments) {
+                if (reachable.contains(candidate.getFeatureId())) {
+                    continue;
+                }
+                if (current.getMetricGeometry().distance(candidate.getMetricGeometry())
+                        <= GEOMETRIC_SNAP_DISTANCE_M) {
+                    reachable.add(candidate.getFeatureId());
+                    queue.addLast(candidate);
+                }
+            }
+        }
+
+        for (ImportedOfficialFeature segment : segments) {
+            if (!reachable.contains(segment.getFeatureId())) {
+                issues.add(new TopologyIssue(
+                        "GEOMETRIC_NETWORK_DISCONNECTED",
+                        segment.getFeatureId(),
+                        "Existing segment is not geometrically connected to a source"));
+            }
+        }
+        for (ImportedOfficialFeature chamber : chambers) {
+            boolean onNetwork = segments.stream().anyMatch(segment ->
+                    segment.getMetricGeometry().distance(chamber.getMetricGeometry())
+                            <= GEOMETRIC_SNAP_DISTANCE_M);
+            if (!onNetwork) {
+                issues.add(new TopologyIssue(
+                        "CHAMBER_OFF_NETWORK",
+                        chamber.getFeatureId(),
+                        "Existing chamber is not located on the existing network"));
+            }
+        }
     }
 
     private void validateUpstreamChains(

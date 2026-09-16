@@ -457,7 +457,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .official-report-card, .official-job-card { display: grid; gap: 18px; padding: 20px; }
 .official-report-card > header, .official-job-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .official-report-card h2, .official-job-card h2 { margin-top: 4px; }
-.official-metrics { display: grid; grid-template-columns: repeat(4, 1fr); overflow: hidden; border: 1px solid var(--border-soft); border-radius: 10px; }
+.official-metrics { display: grid; grid-template-columns: repeat(3, 1fr); overflow: hidden; border: 1px solid var(--border-soft); border-radius: 10px; }
 .official-metrics div { display: grid; gap: 4px; padding: 13px; border-right: 1px solid var(--border-soft); }
 .official-metrics div:last-child { border-right: 0; }
 .official-metrics dt { color: var(--muted-foreground); font-size: 12px; }
@@ -475,6 +475,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .official-errors article div { display: grid; gap: 3px; }
 .official-errors strong { font-size: 12px; }
 .official-errors p, .official-errors small { color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
+.official-warnings article { color: var(--warning); }
 .official-job-card .progress-block { margin-top: 2px; }
 .official-result { max-height: 360px; overflow: auto; margin: 0; padding: 13px; border-radius: 9px; background: var(--surface-soft); font-size: 12px; line-height: 1.5; }
 

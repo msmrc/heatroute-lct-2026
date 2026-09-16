@@ -16,12 +16,16 @@ export interface OfficialInputError {
   message: string;
 }
 
+export type OfficialInputWarning = OfficialInputError;
+
 export interface OfficialInputReport {
   contract_version: string;
+  input_profile: "strict_official" | "provided_dataset_compatibility";
   sha256: string;
   feature_count: number;
   feature_counts: Record<string, number>;
   errors: OfficialInputError[];
+  warnings: OfficialInputWarning[];
   valid: boolean;
 }
 

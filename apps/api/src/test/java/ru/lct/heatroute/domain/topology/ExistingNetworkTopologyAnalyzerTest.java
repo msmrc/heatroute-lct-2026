@@ -48,6 +48,31 @@ class ExistingNetworkTopologyAnalyzerTest {
     }
 
     @Test
+    void infersConnectivityForProvidedDatasetProfileWithoutUpstreamLinks() throws Exception {
+        TopologyAnalysis result = analyzer.analyze(List.of(
+                feature("source", "5", "POINT (0 0.1)", "{}"),
+                feature("heat_network", "4", "LINESTRING (0 0, 100 0)", "{\"diameter\":500}"),
+                feature("heat_network", "6", "LINESTRING (100 0, 150 40)", "{\"diameter\":400}"),
+                feature("heat_chamber", "3", "POINT (100 0)", "{}"),
+                feature("oks_connection_point", "1", "POINT (120 50)", "{\"flow_tph\":24.87}")));
+
+        assertThat(result.isValid()).isTrue();
+        assertThat(result.getTieInCandidates()).hasSize(2);
+        assertThat(result.getIssues()).isEmpty();
+    }
+
+    @Test
+    void reportsDisconnectedGeometryWhenUpstreamLinksAreUnavailable() throws Exception {
+        TopologyAnalysis result = analyzer.analyze(List.of(
+                feature("source", "src", "POINT (0 0)", "{}"),
+                feature("heat_network", "connected", "LINESTRING (0 0, 10 0)", "{}"),
+                feature("heat_network", "island", "LINESTRING (50 0, 60 0)", "{}")));
+
+        assertThat(result.getIssues()).extracting(TopologyIssue::getCode)
+                .contains("GEOMETRIC_NETWORK_DISCONNECTED");
+    }
+
+    @Test
     void reusesNearbyChamberOnlyWhileFourthIncidentIsStillAvailable() throws Exception {
         TopologyAnalysis reusable = analyzer.analyze(List.of(
                 feature("source", "src", "POINT (0 0)", "{}"),

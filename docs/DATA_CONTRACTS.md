@@ -4,7 +4,8 @@
 
 `POST /api/v1/official/imports` accepts one multipart field `file` containing a GeoJSON
 `FeatureCollection` in EPSG:4326. Current Java inspection streams features and rejects duplicate
-IDs, invalid geometry/property combinations and broken typed references.
+IDs, invalid geometry/property combinations and broken typed references. Contract v2 reports an
+`input_profile` and separates blocking `errors` from non-blocking `warnings`.
 
 | `object_type` | Geometry | Role |
 |---|---|---|
@@ -19,6 +20,11 @@ IDs, invalid geometry/property combinations and broken typed references.
 The official technical fields are `id`, `object_type`, `diameter`, `flow_tph`, `heat_load`,
 `oks_id`, `restriction_type` and `upstream_object_id`, required according to object type.
 Unknown or missing required values must produce localized errors with feature index/ID and field.
+
+The supplied 2026-09-16 dataset does not match that published table. It is accepted through the
+explicit `provided_dataset_compatibility` profile: numeric IDs are normalized, connection points
+carry their own demand, and missing existing-network reconstruction fields are warnings. No
+missing engineering value is silently invented. See `implementation/SUPPLIED_DATASET_AUDIT.md`.
 
 ## Current Java API
 

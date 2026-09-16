@@ -36,6 +36,11 @@ The Java foundation/import/topology slices work, but the product is not feature-
 public UI currently exposes only what the Java backend actually supports. Do not restore legacy
 screens until equivalent official Java endpoints exist.
 
+The newly supplied dataset is not shaped like the published seven-type contract. Read
+`SUPPLIED_DATASET_AUDIT.md` before changing validation or routing. Use its 17 connection points as
+demand objects under the named compatibility profile; never fabricate missing existing flows or
+upstream links.
+
 Already usable:
 
 - streaming seven-type GeoJSON inspection and PostGIS persistence;
@@ -84,6 +89,8 @@ Do not mix official costing into the first PR; expose explicit placeholder quant
 - supply or approve an official-like fixture with at least two nearby and two distant future OKS;
 - keep optional depth, MVT and extra formats outside P0 until R4–R7 close;
 - review every “complete” claim against `docs/ACCEPTANCE.md`, not old M-stage evidence.
+- ask the organizer to resolve the supplied-dataset mismatch, especially `railway`, direct demand
+  on connection points and the missing existing-network reconstruction attributes.
 
 ## Known operational notes
 

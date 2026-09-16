@@ -30,6 +30,19 @@ and runtime services were removed. The frontend calls only the current official 
   official fixture import persisted eight valid features. Its topology job completed on attempt 1
   with two deterministic tie-in candidates.
 
+## Supplied dataset received on 2026-09-16
+
+- The organizer GeoJSON contains 144 features: 17 demand connection points, 88 restrictions,
+  29 network sections, 9 chambers and one source.
+- It materially differs from the published input table: numeric IDs, no `oks_future`, no `oks_id`,
+  no existing flow/upstream links and no chamber diameters.
+- Input contract v2 now has a named compatibility profile with explicit warnings; the strict
+  official profile remains available.
+- A compact synthetic fixture covers this shape. The organizer file itself is not committed.
+- Topology analysis now falls back to geometric source connectivity when the whole dataset omits
+  upstream links, while preserving explicit-link validation for the strict profile.
+- Full findings and PM questions are in `SUPPLIED_DATASET_AUDIT.md`.
+
 ## Roadmap truth
 
 - R0 — complete: official gap audit, Java decision and team roadmap.

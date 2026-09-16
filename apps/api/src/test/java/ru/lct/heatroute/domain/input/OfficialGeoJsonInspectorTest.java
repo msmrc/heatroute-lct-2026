@@ -30,6 +30,7 @@ class OfficialGeoJsonInspectorTest {
         assertThat(report.getFeatureCount()).isEqualTo(7);
         assertThat(report.getFeatureCounts()).containsEntry("oks_future", 1L);
         assertThat(report.getSha256()).hasSize(64);
+        assertThat(report.getInputProfile()).isEqualTo(OfficialGeoJsonInspector.STRICT_PROFILE);
     }
 
     @Test
@@ -63,6 +64,26 @@ class OfficialGeoJsonInspectorTest {
         assertThat(report.isValid()).isTrue();
         assertThat(report.getFeatureCount()).isEqualTo(8);
         assertThat(report.getFeatureCounts()).containsEntry("oks_future", 2L);
+    }
+
+    @Test
+    void acceptsProvidedDatasetShapeWithExplicitCompatibilityWarnings() {
+        InputStream input = getClass().getResourceAsStream("/fixtures/provided-dataset-compatibility.geojson");
+        assertThat(input).isNotNull();
+
+        OfficialInputReport report = inspector.inspect(input);
+
+        assertThat(report.isValid()).isTrue();
+        assertThat(report.getInputProfile()).isEqualTo(OfficialGeoJsonInspector.PROVIDED_DATASET_PROFILE);
+        assertThat(report.getFeatureCount()).isEqualTo(5);
+        assertThat(report.getWarnings()).extracting(OfficialInputWarning::getCode)
+                .contains(
+                        "NUMERIC_ID_NORMALIZED",
+                        "CONNECTION_POINT_AS_DEMAND",
+                        "COMPATIBILITY_RESTRICTION_ALIAS",
+                        "MISSING_CHAMBER_DIAMETER",
+                        "MISSING_EXISTING_NETWORK_VALUE",
+                        "MISSING_EXISTING_NETWORK_LINK");
     }
 
     @Test

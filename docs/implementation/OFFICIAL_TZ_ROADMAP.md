@@ -109,7 +109,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 |---|---|---|---|---|
 | Backend stack | Java 11, Spring Boot 2.6.3, springdoc 1.7.0 | Тот же стек | Закрыто | P0 |
 | Развёртывание | Java API + PostGIS + web + Caddy; Compose 3.8 | Ubuntu Server 22, docker-compose 1.29.2 | Код адаптирован; clean Ubuntu 22 не проверен | P0 |
-| Вход | Потоковый официальный GeoJSON, семь типов, PostGIS | Тот же контракт, до 3 ГБ | Функционально; нет 3 ГБ evidence | P0 |
+| Вход | Потоковый GeoJSON, строгий и supplied-dataset compatibility profiles, PostGIS | Официальный контракт, до 3 ГБ | Новый файл поддержан без выдумывания отсутствующих значений; нет 3 ГБ evidence | P0 |
 | Расчётная CRS | WGS84 + EPSG:32637 при импорте | Фиксированная EPSG:32637 для метров | Закрыто для импорта | P0 |
 | Объём запуска | Одно здание или point-to-point | Все `oks_future` за один запуск | Не реализовано | P0 |
 | Врезки | Java R3 создаёт deterministic candidates, chamber/line split | Автоматический поиск и выбор | Поиск частично; выбор в R4 | P0 |

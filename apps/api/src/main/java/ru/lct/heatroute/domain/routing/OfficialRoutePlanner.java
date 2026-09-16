@@ -62,7 +62,8 @@ public class OfficialRoutePlanner {
                 chamberIncidentCounts,
                 independentDraft.lengthByDemand);
         RouteVariant shared = finish("shared", "shared_trunk", sharedDraft);
-        if (!edgeSignature(independent).equals(edgeSignature(shared))) {
+        if (sharedDraft.sharedPairCount > 0
+                && !edgeSignature(independent).equals(edgeSignature(shared))) {
             variants.add(shared);
         }
 
@@ -289,6 +290,7 @@ public class OfficialRoutePlanner {
     }
 
     private void addSharedPair(VariantDraft draft, PairPlan plan) {
+        draft.sharedPairCount++;
         RouteNode leftNode = demandNode(plan.left);
         RouteNode rightNode = demandNode(plan.right);
         String pairId = plan.left.id + ":" + plan.right.id;
@@ -482,6 +484,7 @@ public class OfficialRoutePlanner {
         private final List<RouteEdge> edges = new ArrayList<>();
         private final List<RouteConnection> connections = new ArrayList<>();
         private final Map<String, Double> lengthByDemand = new HashMap<>();
+        private int sharedPairCount;
 
         private void addNode(RouteNode node) {
             nodes.putIfAbsent(node.getId(), node);

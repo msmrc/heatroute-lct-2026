@@ -225,6 +225,16 @@ and runtime services were removed. The frontend calls only the current official 
   probe proves and what evidence is still missing. The scripts have not yet been run as acceptance
   evidence.
 
+## R9 Ubuntu 22 / Compose 1.29.2 gate
+
+- CI run `35110318718` passed on a clean `ubuntu-22.04` runner using the checksum-pinned official
+  `docker-compose 1.29.2` binary, not the modern Compose plugin.
+- The job built the pinned Java 11/PostGIS/web images from a clean checkout, applied Liquibase,
+  imported the organizer file, calculated all 17 demands, validated the UI/API contracts and
+  stopped the stack cleanly. VPS deployment remains intentionally unchanged.
+- A restart-recovery assertion is now part of the same gate and must read the completed 17-demand
+  run after restarting the API container. Its first result will be recorded by the next CI run.
+
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.

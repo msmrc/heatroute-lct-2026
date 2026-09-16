@@ -23,6 +23,8 @@ GeoJSON реконструкция честно недоступна из-за �
 не удаляй unique invariant и не загружай идентичные features повторно.
 Расчётные jobs выполняются bounded executor-ом (default 2) с минутным heartbeat lease; R9 probes и
 правила интерпретации evidence находятся в `docs/operations/R9_ACCEPTANCE.md`.
+Clean Ubuntu 22 + checksum-pinned docker-compose 1.29.2 проверяется CI; локальный/VPS deployment
+не выполнять без отдельной команды пользователя.
 R7 component costing и score уже интегрированы; поставленный файл показывает только известную
 стоимость и не получает score без данных реконструкции. Строгий seven-type adapter, независимый
 whitelist/type/reference validator и download endpoint реализованы для contract-complete вариантов;

@@ -110,7 +110,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | Блок | Что есть сейчас | Что требуется | Статус | Приоритет |
 |---|---|---|---|---|
 | Backend stack | Java 11, Spring Boot 2.6.3, springdoc 1.7.0 | Тот же стек | Закрыто | P0 |
-| Развёртывание | Java API + PostGIS + web + Caddy; Compose 3.8 | Ubuntu Server 22, docker-compose 1.29.2 | Код адаптирован; clean Ubuntu 22 не проверен | P0 |
+| Развёртывание | Java API + PostGIS + web + Caddy; Compose 3.8 | Ubuntu Server 22, docker-compose 1.29.2 | Clean Ubuntu 22 + Compose 1.29.2 CI прошёл; VPS не обновлялся | P0 |
 | Вход | Потоковый GeoJSON, строгий и supplied-dataset compatibility profiles, PostGIS | Официальный контракт, до 3 ГБ | Новый файл поддержан без выдумывания отсутствующих значений; нет 3 ГБ evidence | P0 |
 | Расчётная CRS | WGS84 + EPSG:32637 при импорте | Фиксированная EPSG:32637 для метров | Закрыто для импорта | P0 |
 | Объём запуска | Все 17 ОКС переданного набора обрабатываются одним immutable run | Все `oks_future` за один запуск | Функционально реализовано; нужен масштабный evidence | P0 |
@@ -237,7 +237,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
 | R7 | Закрыт по нормативным 2D формулам, strict export/validator/API и official-output map | Scale evidence относится к R9 |
 | R8 | Не начат, optional | Depth rerouting после P0 2D |
-| R9 | Подготовлены bounded workers, heartbeat и probes | Выполнить и зафиксировать limits/load/Ubuntu 22 evidence |
+| R9 | Ubuntu 22/Compose 1.29.2 clean CI прошёл; bounded workers, heartbeat и probes готовы | Limits/load evidence; restart check ожидает следующий CI |
 
 ## 8. Полный roadmap
 

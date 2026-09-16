@@ -57,8 +57,8 @@ missing engineering values are fabricated.
 | Spring Boot 2.6.3 | Exact parent version 2.6.3 | Meets |
 | springdoc-openapi-ui 1.7.0 | Exact dependency and generated OpenAPI snapshot | Meets |
 | PostgreSQL up to 18 or OpenSearch up to 2.18 | PostgreSQL 17 with PostGIS 3.5 | Meets |
-| Ubuntu Server 22 | Demo VPS uses Ubuntu 26.04 | Does not meet acceptance environment yet |
-| docker-compose 1.29.2 | Compose files are exercised only by a modern Compose implementation | Unproven; syntax must be rehearsed with 1.29.2 |
+| Ubuntu Server 22 | Clean `ubuntu-22.04` CI builds and runs the complete stack; demo VPS remains 26.04 and unchanged | Meets in CI; production-like host rehearsal remains |
+| docker-compose 1.29.2 | Checksum-pinned v1.29.2 validates, builds, starts and stops the integration stack | Meets in clean CI |
 | Upload to 3 GB and output to 500 MB | 3 GB multipart limits, streaming feature parsing and incremental validated output exist | Functional, no boundary evidence |
 | Up to 50 users | Hikari pool, durable queue, bounded 1–16 workers and lease heartbeat exist | Functional preparation; 50-user measurement still required |
 | One combined GeoJSON input | Implemented, persisted in WGS84 and EPSG:32637 | Meets for the supplied 233 KB file |

@@ -119,6 +119,19 @@ jobs:
           EXPORT_STATUS=$(curl --silent --output /tmp/export-error.json --write-out '%{http_code}' "http://localhost:8000/api/v1/official/runs/${RUN_ID}/export")
           test "$EXPORT_STATUS" = "409"
           test "$(jq -r '.error.code' /tmp/export-error.json)" = "OFFICIAL_EXPORT_INCOMPLETE"
+      - name: Verify restart recovery
+        run: |
+          .ci/docker-compose restart api
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://localhost:8000/api/v1/health/ready >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://localhost:8000/api/v1/health/ready
+          RECOVERED_RUN=$(curl --fail --silent http://localhost:8000/api/v1/official/runs/latest)
+          test "$(printf '%s' "$RECOVERED_RUN" | jq -r '.state')" = "completed"
+          test "$(printf '%s' "$RECOVERED_RUN" | jq -r '.result.demand_count')" = "17"
       - name: Compose diagnostics
         if: always()
         run: |

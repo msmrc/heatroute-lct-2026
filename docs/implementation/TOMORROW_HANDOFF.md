@@ -89,6 +89,9 @@ resolved by PostgreSQL `ON CONFLICT`; preserve this invariant in all future impo
 Job execution is bounded by `HEATROUTE_JOB_CONCURRENCY` (default 2, hard maximum 16) and active
 leases are renewed every minute. Use `docs/operations/R9_ACCEPTANCE.md` for scale evidence; do not
 call the probes themselves a pass until their generated measurements are archived.
+CI run `35110318718` is the first clean Ubuntu 22/docker-compose 1.29.2 pass. The next CI revision
+also restarts the API and must prove the completed run survives; do not conflate this with a VPS
+deployment, which remains explicitly deferred.
 Do not mix optional depth, MVT or extra formats into this gate.
 
 ## PM: tasks tomorrow

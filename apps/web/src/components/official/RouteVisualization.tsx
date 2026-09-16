@@ -163,8 +163,7 @@ export function RouteVisualization({
 
   return (
     <section className="route-workspace" aria-label="Визуализация рассчитанных маршрутов">
-      <div className="route-workspace-main">
-        <div className="route-map-stage">
+      <div className="route-map-stage">
           <div className="route-variant-tabs route-variant-tabs--floating" role="tablist" aria-label="Варианты маршрута">
             {result.variants.map((item) => (
               <button type="button" role="tab" aria-selected={item.id === variant.id}
@@ -236,8 +235,6 @@ export function RouteVisualization({
               </div>
             </div>
           )}
-        </div>
-
         <aside className="route-workspace-inspector" aria-label="Информация о выбранном объекте">
           <header>
             <div><span>{selectedObject ? "Выбранный объект" : "Текущий вариант"}</span><h2>{selectedObject?.title ?? variantName(variant)}</h2></div>
@@ -271,17 +268,17 @@ export function RouteVisualization({
           )}
           <div className="route-inspector-hint">Нажмите на трассу или объект на карте, чтобы увидеть его данные.</div>
         </aside>
-      </div>
 
-      <footer className="route-results-drawer">
-        <header><strong>Результаты расчёта</strong><span>{variantName(variant)}</span></header>
-        <div className="route-result-metrics">
-          <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
-          <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
-          <article><span>Камер и врезок</span><strong>{variant.nodes.filter((node) => node.chamber).length}</strong><small>{variant.edges.length} участков</small></article>
-          <article className={variant.valid ? "is-success" : "is-danger"}><span>Проверка структуры</span><strong>{variant.valid ? "Пройдена" : "Есть ошибки"}</strong><small>{variant.validation_issues.length} ошибок · {warningCount} предупреждений</small></article>
-        </div>
-      </footer>
+        <footer className="route-results-drawer">
+          <header><strong>Результаты расчёта</strong><span>{variantName(variant)}</span></header>
+          <div className="route-result-metrics">
+            <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
+            <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
+            <article><span>Камер и врезок</span><strong>{variant.nodes.filter((node) => node.chamber).length}</strong><small>{variant.edges.length} участков</small></article>
+            <article className={variant.valid ? "is-success" : "is-danger"}><span>Проверка структуры</span><strong>{variant.valid ? "Пройдена" : "Есть ошибки"}</strong><small>{variant.validation_issues.length} ошибок · {warningCount} предупреждений</small></article>
+          </div>
+        </footer>
+      </div>
     </section>
   );
 }

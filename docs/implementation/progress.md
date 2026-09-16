@@ -11,7 +11,7 @@ and runtime services were removed. The frontend calls only the current official 
 ## Verified in this cutover
 
 - Maven verifies 39 Java tests on the pinned Java 11 runtime.
-- Web ESLint, TypeScript, Vitest (7 tests) and production Vite build pass.
+- Web ESLint, TypeScript, Vitest (8 tests) and production Vite build pass.
 - Compose starts PostGIS, Java API and web; all three become healthy.
 - `/api/v1/health/ready` reports PostGIS ready.
 - Java OpenAPI is saved as `packages/api-client/openapi.json`.
@@ -67,9 +67,11 @@ and runtime services were removed. The frontend calls only the current official 
   truncation. `GET /api/v1/official/runs/latest` powers the dataset-independent “open demo” action.
   This remains an R4 evidence viewer, not the still-missing official seven-type R7 export.
 - The result viewer now uses a map-first planning workspace: route variants and layer controls sit
-  on the map, selected-object details stay in a right inspector, and route totals remain visible in
-  a bottom results drawer. Framework/runtime status, theme controls and developer-only labels were
-  removed from this flow; stack, version, team Dragons and Swagger moved to `/system`.
+  on the map, while selected-object details and route totals live in separate floating islands over
+  one uninterrupted map canvas. The toolbar shows the actual imported filename and the left
+  navigation collapses to an icon rail with persisted state. Framework/runtime status, theme
+  controls and developer-only labels were removed from this flow; stack, version, team Dragons and
+  Swagger moved to `/system`.
 - The map now uses the same MapLibre 5.24 renderer and vector CARTO Positron treatment as the local
   GdeBenzin project: warm background, amber road hierarchy, calm water/parks and Russian labels.
   OpenLayers and the raster OSM tile path were removed from the web dependency graph. Four

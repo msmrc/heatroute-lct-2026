@@ -1,88 +1,88 @@
-# Design QA — GdeBenzin map engine and styling
+# Design QA — map-first workspace islands
 
 - Date: 2026-09-16
-- Source visual truth: `https://pinggi.ru/` and the user-owned implementation at
-  `E:\job\tanos\benzstatus\web\src\islands\MapShell.svelte`
-- Implementation: `http://192.168.1.158:5173/` (local HeatRoute preview)
-- Browser-rendered evidence: Codex in-app browser captures of source and implementation
-- Source pixels: 1280 × 720
-- Implementation pixels: 1280 × 720
-- CSS viewport: 1280 × 720; density normalization: identical browser viewport and capture density
-- State: desktop, completed shared-network calculation, map mode, base/network/route enabled,
-  restrictions disabled
+- Source visual truth: the four user-supplied problem crops:
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-cb51ec42-e38b-474c-9c8c-661aa0535f35.png` — 955 × 124
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-b1b6a2f0-2e48-4f12-ae67-c9d5ad7a3ac5.png` — 896 × 208
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-906b99a7-956a-45ed-a43a-56c07d3a729c.png` — 314 × 728
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-02d16835-aeee-4202-8ef4-88a43c88d3e9.png` — 280 × 921
+- Implementation: `http://192.168.1.158:5173/` local HeatRoute preview
+- Implementation screenshot: Codex in-app browser capture at 1280 × 720
+- Responsive evidence: Codex in-app browser capture at 900 × 800
+- CSS viewport and density: browser viewport override was used for the 900 × 800 pass and reset after capture; source crops were judged at native density
+- State: completed shared-network calculation, MapLibre map mode, expanded/collapsed navigation, selected-route inspector
 
 ## Findings
 
-No actionable P0, P1 or P2 visual differences remain in the cartographic surface. HeatRoute now
-uses the same MapLibre 5.24 renderer, CARTO Positron vector style and GdeBenzin palette logic as the
-source instead of approximating it with a filtered raster tile layer.
+No actionable P0, P1 or P2 mismatch remains against the requested changes. The map is now the
+continuous work surface below the dataset toolbar. The results summary and object inspector are
+separate elevated islands over the map instead of grid tracks that consume map area. The toolbar
+uses the real imported filename, and the left navigation can be collapsed and restored.
 
 ## Full-view comparison evidence
 
-The source and implementation were captured at the same 1280 × 720 viewport and inspected
-together. Both show the same warm off-white ground, amber road hierarchy, pale blue water, muted
-green land use, beige buildings, crisp vector labels and smooth WebGL rendering. HeatRoute keeps
-its own necessary product chrome — route variants, engineering layers, inspector and results —
-while preserving the source map's visual hierarchy.
+The 1280 × 720 implementation was compared with all four source crops in the same review pass.
+The source showed a generic `Официальный GeoJSON` label, a full-width results row outside the map,
+a full-height right column, and a permanently wide sidebar. The final implementation shows
+`!!!_Датасет.geojson`, an uninterrupted cartographic canvas, a compact bottom results island, a
+content-sized right inspector island and a narrow icon rail after collapse.
 
 ## Focused region comparison evidence
 
-The central map regions were compared at native capture size. Road casings/fills, building tone,
-water tone, Russian labels and line sharpness follow the source treatment. HeatRoute route lines
-and engineering nodes remain clearly separated from the amber road network. No separate asset
-crop was necessary because all fidelity-critical content is vector-rendered by the same engine.
+- Toolbar: the hard-coded dataset label is gone; the actual filename is ellipsized only when needed.
+- Results: the four metrics retain their scan order and readable 21 px values inside one floating
+  surface; the map remains visible beneath and around it.
+- Inspector: default and selected-route states both use the same floating surface. Selecting a
+  route exposes its measured length and closing the selection restores variant information.
+- Navigation: the boundary control has accessible expand/collapse names; collapsed state keeps
+  both destinations available as icons and increases map width.
+
+No raster or generated visual assets were required: all target content is application chrome or
+the existing vector map. Existing Lucide icons were retained to match the product's icon family.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: application typography is unchanged; basemap symbols use the source
-  vector style's glyph stack with `name:ru → name → name:latin` fallback. Labels are sharp and do
-  not compete with the engineering result.
-- Spacing and layout rhythm: the map fills the workspace without gutters or clipping. Layers,
-  zoom, attribution and scale controls remain separated from variant tabs and the right inspector.
-- Colors and tokens: background `#f6f5ef`, water `#cfe2ea`, parks `#d9eac6`, residential land
-  `#efebe1` and the amber road hierarchy are ported from GdeBenzin's basemap styling.
-- Image quality and asset fidelity: no raster approximation, placeholder or handcrafted map art is
-  used. CARTO vector tiles are rendered directly by MapLibre GL; linework remains sharp during
-  zoom and pan.
-- Copy and content: Russian place/street labels are preferred. Product layer names remain domain
-  specific: `Карта`, `Теплосеть`, `Ограничения`, `Маршруты`.
-- Accessibility and interactions: the layer menu has an accessible name and checked state; zoom
-  controls are labelled by MapLibre. A calculated route can be selected and exposes its length in
-  the inspector.
+- Fonts and typography: existing Inter/system typography and hierarchy are preserved. The real
+  filename uses the existing 15 px dataset-title treatment; metrics and inspector values retain
+  their established optical weights and line heights.
+- Spacing and layout rhythm: islands use 16 px outer offsets, 16 px radii and a shared shadow;
+  map controls, variant tabs, inspector and results no longer collide at 1280 × 720. At 900 × 800,
+  metrics form a 2 × 2 grid and the inspector becomes internally scrollable without covering the
+  results island.
+- Colors and visual tokens: surfaces use the existing neutral white, border and shadow tokens with
+  translucent backdrop blur. Success, route and basemap colors are unchanged.
+- Image quality and asset fidelity: MapLibre/CARTO remains vector-rendered and sharp. No screenshot,
+  placeholder, CSS art or custom SVG was substituted for UI or map content.
+- Copy and content: the visible dataset name now comes from `original_filename`; domain labels such
+  as `Результаты расчёта`, `Общая сеть`, `Длина` and `Камер и врезок` remain factual.
+- Accessibility and interactions: collapse/expand is a labelled button with persisted state;
+  keyboard focus styles remain visible; tabs and map selection retain their semantic controls.
 
 ## Comparison history
 
-1. Initial pass retained OpenLayers and copied only the palette. User feedback correctly identified
-   this as a P1 mismatch in both implementation and performance intent.
-2. The map was replaced with MapLibre GL 5.24 and the same CARTO Positron source/styling approach
-   used by GdeBenzin. OpenLayers, raster OSM and the compatibility bridge were removed.
-3. Post-fix browser evidence shows the vector basemap, route overlays and object selection working
-   together at 1280 × 720 with no console errors or warnings.
-
-## Implementation checklist
-
-- [x] Same MapLibre major/minor version as GdeBenzin
-- [x] Same CARTO Positron vector source
-- [x] Ported warm palette, road hierarchy and Russian labels
-- [x] Preserved route, network, restriction and node layers
-- [x] Layer visibility changes without map recreation
-- [x] Route object selection updates the inspector
-- [x] Attribution remains visible
-
-## Follow-up polish
-
-- No blocking or follow-up visual work remains. MapLibre is isolated in a lazy route-view chunk,
-  so the upload screen does not download the cartographic engine before it is needed.
+1. Source state: four large layout regions reduced the usable map and the toolbar used a generic
+   file label.
+2. First island pass: results and inspector floated correctly, but the centered variant selector
+   could overlap the map/scheme controls at the desktop breakpoint (P2).
+3. Fix: variant tabs are centered in the unobscured map region, with breakpoint-specific offsets.
+   The 1280 × 720 capture shows clear separation; the 900 × 800 capture shows a usable 2 × 2 result
+   island and scroll-contained inspector.
 
 ## Automated and interaction checks
 
 - TypeScript: passed
 - ESLint: passed
-- Production build: passed; initial JavaScript reduced to 368.65 kB and MapLibre loads on demand
-- Layer menu open/close: passed
-- Basemap visibility toggle: passed
-- Route/network persistence without basemap: passed
-- Route-object selection and 478 m inspector value: passed
+- Vitest: 5 files, 8 tests passed
+- Production build: passed
+- Real imported filename: passed
+- Sidebar collapse, restore and persistence: passed
+- Map resize after sidebar transition: passed
+- Selected-route inspector: passed
+- 900 × 800 responsive layout: passed
 - Browser console errors/warnings: none
+
+## Follow-up polish
+
+No blocking visual work remains for this request.
 
 final result: passed

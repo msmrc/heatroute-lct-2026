@@ -140,7 +140,7 @@ export function OfficialWorkspacePage() {
           <div className="map-workspace-dataset">
             <span className="map-workspace-dataset__icon"><FileJson2 size={18} /></span>
             <div>
-              <strong>Официальный GeoJSON</strong>
+              <strong title={currentImport.original_filename}>{currentImport.original_filename}</strong>
               <small>{currentImport.report.feature_count.toLocaleString("ru-RU")} объектов · {humanFileSize(currentImport.input_size_bytes)}</small>
             </div>
           </div>

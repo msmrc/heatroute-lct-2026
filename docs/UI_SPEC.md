@@ -8,8 +8,8 @@ The web app is a truthful client of the calculation API. The current home screen
 - import counts and localized contract errors;
 - durable topology-job start, progress, cancellation and result;
 - completed-run demo in a map-first workspace with a MapLibre/CARTO vector view of calculated
-  routes and source layers, a route-variant switcher, an object inspector and a compact
-  calculation-results drawer;
+  routes and source layers, a route-variant switcher, floating object-inspector/results islands and
+  a collapsible navigation rail;
 - a deliberately muted basemap that keeps route geometry visually dominant; optional source
   layers live in one compact layer menu and restrictions are hidden by default;
 - a switchable EPSG:32637 engineering schematic;
@@ -42,5 +42,6 @@ GdeBenzin project, keeps required attribution visible and is configurable throug
 `VITE_BASEMAP_STYLE_URL`. Use the tokens in
 `docs/ui/design-system.md`. Base body text is 14 px; secondary text is at least 12 px. Controls
 have visible keyboard focus and accessible names. Motion respects `prefers-reduced-motion`.
-Desktop is primary. At narrower widths the inspector and result drawer move below the map, while
-upload, status, errors and job actions remain usable at 320 px.
+Desktop is primary. At narrower widths the result island switches to a 2 × 2 metric grid and the
+inspector becomes scroll-contained; below 680 px the inspector is hidden to preserve the map task.
+Upload, status, errors and job actions remain usable at 320 px.

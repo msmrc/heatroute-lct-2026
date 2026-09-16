@@ -54,11 +54,13 @@ const result: OfficialCalculationResult = {
 
 describe("RouteVisualization", () => {
   it("opens on the preferred variant and exposes no-route diagnostics when switched", async () => {
-    render(<RouteVisualization result={result} importId="import-1" />);
+    const { container } = render(<RouteVisualization result={result} importId="import-1" />);
 
     expect(screen.getByRole("tab", { name: /Общая сеть/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText(/2 из 2 ОКС/)).toBeTruthy();
     expect(await screen.findByText("Интерактивная карта")).toBeTruthy();
+    expect(container.querySelector(".route-results-drawer")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
+    expect(container.querySelector(".route-workspace-inspector")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
 
     fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
     expect(screen.getByText(/ОКС 2: Маршрут не найден/)).toBeTruthy();

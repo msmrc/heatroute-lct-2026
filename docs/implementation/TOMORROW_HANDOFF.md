@@ -58,8 +58,9 @@ Already usable:
   variant comparison, map-object inspection, no-route diagnostics, a retained metric schematic and
   a latest-completed-run demo endpoint. It renders the internal route graph plus official input
   features and must later be extended by the official R7 seven-type output adapter.
-- map-first result UX with a persistent right inspector and bottom calculation summary. Technical
-  stack, version, team and Swagger live on the separate `/system` page instead of the work screen.
+- map-first result UX with floating inspector/results islands over one uninterrupted map, the real
+  imported filename in the toolbar and a collapsible navigation rail. Technical stack, version,
+  team and Swagger live on the separate `/system` page instead of the work screen.
 
 Still blocking official P0:
 

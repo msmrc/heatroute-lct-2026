@@ -42,6 +42,9 @@ and runtime services were removed. The frontend calls only the current official 
 - Topology analysis now falls back to geometric source connectivity when the whole dataset omits
   upstream links, while preserving explicit-link validation for the strict profile.
 - Full findings and PM questions are in `SUPPLIED_DATASET_AUDIT.md`.
+- Production verification passed on the untouched file: import `valid`, 144 features, zero blocking
+  errors, 323 explicit compatibility warnings. The durable topology job completed on attempt 1
+  with zero issues and 204 deterministic candidates for the 17 demand points.
 
 ## Roadmap truth
 

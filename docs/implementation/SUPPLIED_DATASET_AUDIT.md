@@ -57,3 +57,18 @@ Ask the organizer which artifact is authoritative: the published attribute table
 dataset. Specifically request rules for `railway`, confirmation that `oks_connection_point`
 contains the demand directly, and either the missing existing-network attributes or permission to
 derive topology and omit reconstruction where existing flow is unknown.
+
+## Production verification
+
+Commit `3d41730` was deployed to the VPS and the untouched supplied file was uploaded through the
+public HTTPS API:
+
+- import state: `valid`;
+- contract/profile: `lct-2026-official-input-v2` / `provided_dataset_compatibility`;
+- features: 144; blocking errors: 0; explicit warnings: 323;
+- topology job: `completed`, attempt 1;
+- topology result: one source, 29 network sections, 9 chambers, zero issues and 204 deterministic
+  tie-in candidates for 17 demand points.
+
+This proves ingestion and R3 screening of the supplied file. It does not prove R4 route
+construction, R5 reconstruction or final official export.

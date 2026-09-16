@@ -290,13 +290,15 @@ and runtime services were removed. The frontend calls only the current official 
   explicitly partial with a manual-resolution issue.
 - R9 — substantially closed: exact 3 GiB input and 500 MiB valid-output boundaries pass on Ubuntu
   22 / Java 11 with a 512 MiB heap; 50 concurrent API users and clean Compose 1.29.2 deployment are
-  measured in CI. A representative maximum-topology calculation and production-like Ubuntu 22 host
-  rehearsal remain acceptance items; the current VPS is intentionally not changed.
+  measured in CI. A full 2× supplied-geometry calculation also passes locally with 288 features,
+  34 demands, 408 candidates, 116.141 seconds and 249,833,520 bytes used heap. Organizer approval of
+  the maximum profile and a production-like Ubuntu 22 host rehearsal remain external acceptance
+  items; the current VPS is intentionally not changed.
 
 ## Next change
 
-Close the two externally dependent R9 items: a representative maximum-topology fixture and, if
-required by acceptance, a production-like Ubuntu 22 host rehearsal. A product control for the
+Repeat the automated 2× topology profile on clean Ubuntu 22 / Java 11, then obtain organizer/PM
+approval for the maximum profile and, if required, a production-like Ubuntu 22 host rehearsal. A product control for the
 already parameterized maximum profile depth is a follow-up convenience, not an algorithm gap.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.

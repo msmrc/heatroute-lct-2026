@@ -38,9 +38,10 @@ Current local smoke evidence and open gates are in `implementation/progress.md`.
 | 3 GiB input / ≥500 MiB output / memory below 16 GiB | Passed at streaming layer | Run `35112046184`; maximum-topology calculation remains separate |
 | 50 concurrent users | Passed for public API sessions | Run `35112362689`; 50 simultaneous imports, one durable ID |
 | Ubuntu 22 / docker-compose 1.29.2 / restart recovery | Passed in clean CI | Run `35112362689`; production-like host may still be requested |
-| Representative maximum-topology calculation | Blocked on fixture | Organizer/PM must provide or approve the representative geometry |
+| Full calculation beyond supplied topology | Passed on project 2× profile | 288 features, 34 demands, 408 candidates; organizer/PM must still approve the maximum profile |
 | Supplied-file final reconstruction/score/export | Blocked on source data | Requires missing flow, upstream direction and chamber diameter or a waiver |
 
 Detailed byte/memory and concurrency measurements are in
 `implementation/R9_INPUT_SCALE_EVIDENCE.md` and
-`implementation/R9_CONCURRENCY_EVIDENCE.md`.
+`implementation/R9_CONCURRENCY_EVIDENCE.md`; the complete route measurement is in
+`implementation/R9_TOPOLOGY_SCALE_EVIDENCE.md`.

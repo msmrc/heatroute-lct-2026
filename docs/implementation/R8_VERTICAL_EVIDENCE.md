@@ -39,7 +39,7 @@ Status: functional R8 implementation complete for the published depth rules
 - `OfficialGeoJsonExporterTest` asserts technical-node references, numeric depth properties and
   exact XYZ segmentation.
 - `OfficialVariantEconomicsCalculatorTest` proves piecewise depth pricing across ramps.
-- Full local backend suite: 91 tests, 0 failures, 2 intentional scale skips.
+- Full local backend suite: 92 tests, 0 failures, 3 intentional scale skips.
 - Full web suite: 13 tests, 0 failures; TypeScript typecheck passes.
 
 ## Deliberate boundary

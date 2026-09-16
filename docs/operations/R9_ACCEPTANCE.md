@@ -8,6 +8,11 @@ For the repeatable Java 11 parser boundary, dispatch the manual GitHub Actions w
 `r9-scale`; it generates the same 3 GiB file and ≥500 MiB contract output on Ubuntu 22, then
 preserves both measurement logs without uploading the large input fixture or output bytes.
 
+For an end-to-end geometry calculation, dispatch `r9-topology-scale`. It generates two isolated
+copies of the supplied district, runs all three route strategies for 34 demands on Ubuntu 22 /
+Java 11, captures `/usr/bin/time -v` and preserves the logs. Increase `copies` only after measuring
+the preceding level; the visibility search is intentionally CPU-heavy.
+
 ## 3 GiB streaming boundary
 
 Generate the byte-boundary fixture on a volume with at least 4 GiB free. The generated file keeps
@@ -55,8 +60,8 @@ calculation longer than five minutes cannot be reclaimed while its worker is ali
 
 ## Still required beyond the automated byte/API gates
 
-- a contract-complete, geometry-representative scale fixture from the organizer;
-- end-to-end route throughput and peak RSS on that representative maximum topology;
+- organizer/PM approval of a maximum-topology profile or a replacement organizer fixture; the
+  project-owned 2× supplied-geometry run is automated separately;
 - 50 heavy calculations queued together only if the organizer confirms that this is the intended
   meaning of “up to 50 users” rather than concurrent public API sessions;
 - a production-like Ubuntu Server 22 host rehearsal if clean ephemeral CI is not accepted.
@@ -64,4 +69,5 @@ calculation longer than five minutes cannot be reclaimed while its worker is ali
 Already automated: exact 3 GiB input, at least 500 MiB valid output, 50 simultaneous official-file
 imports with one durable deduplicated result, clean Ubuntu 22 / docker-compose 1.29.2 startup and
 API restart recovery. Evidence is recorded in `docs/implementation/R9_INPUT_SCALE_EVIDENCE.md` and
-`docs/implementation/R9_CONCURRENCY_EVIDENCE.md`.
+`docs/implementation/R9_CONCURRENCY_EVIDENCE.md`; full-calculation scale evidence is in
+`docs/implementation/R9_TOPOLOGY_SCALE_EVIDENCE.md`.

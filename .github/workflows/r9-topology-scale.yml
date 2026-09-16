@@ -1,0 +1,55 @@
+name: r9-topology-scale
+
+on:
+  workflow_dispatch:
+    inputs:
+      copies:
+        description: Number of isolated copies of the supplied district
+        required: true
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  topology-scale:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "11"
+          cache: maven
+          cache-dependency-path: apps/api/pom.xml
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.15.0
+      - name: Generate geometry-representative topology fixture
+        run: |
+          mkdir -p /tmp/heatroute-r9 artifacts
+          node scripts/r9-generate-topology-fixture.mjs \
+            --copies=${{ inputs.copies }} \
+            --output=/tmp/heatroute-r9/topology-scale.geojson \
+            | tee artifacts/r9-topology-fixture.json
+      - name: Calculate all routes with Java 11
+        working-directory: apps/api
+        env:
+          MAVEN_OPTS: -Xmx2048m
+        run: |
+          set -o pipefail
+          EXPECTED_DEMANDS=$((17 * ${{ inputs.copies }}))
+          { /usr/bin/time -v mvn --batch-mode --no-transfer-progress \
+              -Dtest=OfficialTopologyScaleTest \
+              -Dheatroute.scale.topology=/tmp/heatroute-r9/topology-scale.geojson \
+              -Dheatroute.scale.demands=${EXPECTED_DEMANDS} \
+              -Dheatroute.scale.maximumSeconds=600 \
+              test; } 2>&1 | tee ../../artifacts/r9-topology-scale.log
+      - name: Preserve topology measurement
+        uses: actions/upload-artifact@v4
+        with:
+          name: r9-topology-scale-java11-${{ github.sha }}
+          path: artifacts/r9-topology-*
+          if-no-files-found: error
+          retention-days: 30

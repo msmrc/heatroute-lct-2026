@@ -241,7 +241,7 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
 | R7 | Закрыт по нормативным 2D формулам, strict export/validator/API и official-output map | Scale evidence относится к R9 |
 | R8 | Функционально закрыт по опубликованным правилам: vertical solver/validator, separate XY detour, piecewise cost, technical nodes, XYZ и UI | Product control для максимальной глубины; `railway` зависит от разъяснения |
-| R9 | Ubuntu 22/Compose 1.29.2, restart recovery, 3 GiB input, 500 MiB output и 50-user API gates автоматизированы | Representative maximum-topology и production-like host evidence |
+| R9 | Ubuntu 22/Compose 1.29.2, restart recovery, 3 GiB input, 500 MiB output, 50-user API и full 2× topology gates автоматизированы | Organizer-approved maximum profile и production-like host evidence |
 
 ## 8. Полный roadmap
 

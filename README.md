@@ -6,8 +6,9 @@ HeatRoute — монорепозиторий конкурсного решени
 
 ## Текущий состав
 
-- `apps/api` — Java API, официальный GeoJSON-контракт, PostGIS, Liquibase, durable jobs;
-- `apps/web` — React/TypeScript UI для загрузки официального файла и topology job;
+- `apps/api` — Java API, официальный GeoJSON-контракт, PostGIS, Liquibase, durable topology и
+  immutable all-demand calculation runs;
+- `apps/web` — React/TypeScript UI для загрузки официального файла, диагностики и запуска R4;
 - `datasets/official/lct-2026.geojson` — единственный отслеживаемый набор геоданных, побайтовая
   копия файла постановщика задачи;
 - `infra` — pinned Docker images, Nginx и Caddy;

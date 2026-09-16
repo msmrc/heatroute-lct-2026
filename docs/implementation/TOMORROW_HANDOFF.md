@@ -14,8 +14,9 @@
   endpoints.
 - CI has three gates: Java verify/image, web quality/build, and live Compose smoke.
 - OpenAPI comes from springdoc and is committed at `packages/api-client/openapi.json`.
-- Commit `6590b46` is deployed on the VPS. Production now runs only PostGIS, Java API, web and
-  gateway; the public HTTPS page, Java readiness, official import and topology job were verified.
+- Commit `e47cd72` is deployed on the VPS. Production now runs only PostGIS, Java API, web and
+  gateway; public HTTPS, Java readiness, official import, topology and immutable calculation run
+  were verified.
 
 ## Start in five minutes
 
@@ -49,6 +50,10 @@ Already usable:
 - deterministic tie-in candidates and 10 m chamber feasibility rule;
 - durable PostgreSQL topology jobs with progress/cancel/recovery;
 - pure Java official restriction catalog, crossing geometry and DU sizing primitives.
+- immutable R4 runs with deterministic independent/shared variants, partial no-route and a separate
+  tree/chamber/crossing validator;
+- production evidence on the organizer file: the preferred shared variant connects all 17 demands
+  with zero structural validator issues.
 
 Still blocking official P0:
 

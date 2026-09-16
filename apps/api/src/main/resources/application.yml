@@ -47,10 +47,10 @@ management:
 
 springdoc:
   swagger-ui:
-    path: /swagger-ui.html
+    path: /api/v1/swagger-ui.html
     disable-swagger-default-url: true
   api-docs:
-    path: /v3/api-docs
+    path: /api/v1/openapi
 
 logging:
   pattern:

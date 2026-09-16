@@ -33,7 +33,14 @@
 - A positive case proves that a farther non-crossing tie-in is selected instead of the nearest
   crossing candidate.
 - CI uploads the sole official dataset, creates a run, waits for the durable worker and asserts 17
-  demands plus at least one produced variant.
+  demands, at least one produced variant and a non-null independently valid preferred variant.
+
+## Production evidence
+
+Run `660c203d-287a-4fb7-bc8a-eb3debe5f1c0` on the untouched organizer import completed on worker
+attempt 1. The independent strategy connected 16 demands and preserved demand `9` as explicit
+`NO_NON_CROSSING_ROUTE`. The preferred shared strategy connected all 17 demands with 21 sections,
+3,448.671 m total length and zero structural validation issues.
 
 ## Not yet an R4 completion claim
 

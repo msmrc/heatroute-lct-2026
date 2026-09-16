@@ -12,8 +12,8 @@
 6. `AGENTS.md`.
 
 Backend только Java 11 / Spring Boot 2.6.3 в `apps/api`. Не возвращай Python, FastAPI, Celery,
-Alembic или Redis. Не считай старые M0–M7 evidence текущей готовностью. Следующий критический этап
-— R4: multi-OKS routing и независимый validator; конкретная первая задача описана в handoff.
+Alembic или Redis. Не считай старые M0–M7 evidence текущей готовностью. Первый R4 vertical slice
+закрыт; следующий критический этап — obstacle-aware R4/R6 routing, затем подключение R5 sizing.
 
 Быстрая проверка состояния:
 

@@ -21,9 +21,9 @@ and runtime services were removed. The frontend calls only the current official 
   features across the seven required types.
 - Durable topology job `0afabe99-408e-43d4-84b5-148bc8835bb8` completed on attempt 1 and returned
   a valid topology with two deterministic tie-in candidates.
-- GitHub Actions run `35065575662` passed all backend, web and integration gates for commit
-  `6590b46`.
-- Commit `6590b46` is deployed to the VPS. The production Compose project contains only `db`,
+- GitHub Actions run `35073870126` passed all backend, web and integration gates for commit
+  `e47cd72`; integration uploads the official dataset and waits for a real calculation run.
+- Commit `e47cd72` is deployed to the VPS. The production Compose project contains only `db`,
   Java `api`, `web` and `gateway`; all four services are healthy. The former Python API,
   worker/scheduler, migration container and Redis were removed from the running project.
 - External HTTPS smoke returned HTTP 200, Java readiness reported PostGIS `ok`, and the VPS
@@ -50,6 +50,10 @@ and runtime services were removed. The frontend calls only the current official 
 - Repository and production dataset cleanup is complete: the synthetic imports and the obsolete
   pre-compatibility invalid import were removed after a database backup. Production retains one
   valid import with the official SHA-256.
+- Production calculation run `660c203d-287a-4fb7-bc8a-eb3debe5f1c0` completed on attempt 1 for
+  all 17 demands. The independent variant validly connected 16 and preserved one explicit
+  `NO_NON_CROSSING_ROUTE`; the preferred shared variant connected all 17 with 21 sections,
+  3,448.671 m total length and zero validator issues.
 
 ## Roadmap truth
 

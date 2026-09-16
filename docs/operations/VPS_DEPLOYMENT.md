@@ -46,7 +46,7 @@ docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml \
 ```bash
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml ps
 curl --fail --silent http://127.0.0.1:8000/api/v1/health/ready
-curl --fail --silent http://127.0.0.1:8000/v3/api-docs | grep -q '/api/v1/official/imports'
+curl --fail --silent http://127.0.0.1:8000/api/v1/openapi | grep -q '/api/v1/official/imports'
 curl --fail --silent --resolve 130-49-150-217.sslip.io:443:127.0.0.1 \
   https://130-49-150-217.sslip.io/ | grep -q HeatRoute
 ```

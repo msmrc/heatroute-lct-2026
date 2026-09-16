@@ -120,7 +120,7 @@ export function OfficialWorkspacePage() {
           <h1>Проверка исходных данных</h1>
           <p>Один GeoJSON, проверка входа и детерминированный расчёт раздельных и общих трасс для всех ОКС.</p>
         </div>
-        <a className="button-link button-link--outline" href="/swagger-ui.html" target="_blank" rel="noreferrer">Swagger</a>
+        <a className="button-link button-link--outline" href="/api/v1/swagger-ui.html" target="_blank" rel="noreferrer">Swagger</a>
       </header>
 
       <section className="official-hero">

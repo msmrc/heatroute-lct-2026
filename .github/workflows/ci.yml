@@ -57,7 +57,7 @@ jobs:
       - name: Verify public and internal contracts
         run: |
           curl --fail --silent http://localhost:8000/api/v1/health/ready
-          curl --fail --silent http://localhost:8000/v3/api-docs | grep -q '/api/v1/official/imports'
+          curl --fail --silent http://localhost:8000/api/v1/openapi | grep -q '/api/v1/official/imports'
           curl --fail --silent http://localhost:5173/ | grep -q 'HeatRoute'
           IMPORT_JSON=$(curl --fail --silent -F "file=@datasets/official/lct-2026.geojson;type=application/geo+json" http://localhost:8000/api/v1/official/imports)
           IMPORT_ID=$(printf '%s' "$IMPORT_JSON" | jq -r '.id')

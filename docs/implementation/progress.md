@@ -10,8 +10,8 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Verified in this cutover
 
-- Maven verifies 37 Java tests on the pinned Java 11 runtime.
-- Web ESLint, TypeScript, Vitest (4 tests) and production Vite build pass.
+- Maven verifies 39 Java tests on the pinned Java 11 runtime.
+- Web ESLint, TypeScript, Vitest (6 tests) and production Vite build pass.
 - Compose starts PostGIS, Java API and web; all three become healthy.
 - `/api/v1/health/ready` reports PostGIS ready.
 - Java OpenAPI is saved as `packages/api-client/openapi.json`.
@@ -23,12 +23,17 @@ and runtime services were removed. The frontend calls only the current official 
   a valid topology with two deterministic tie-in candidates.
 - GitHub Actions run `35073870126` passed all backend, web and integration gates for commit
   `e47cd72`; integration uploads the official dataset and waits for a real calculation run.
+- GitHub Actions run `35075903157` passed backend, web and integration gates for the visual
+  result viewer and latest-completed-run API in commit `becdaca`.
 - Commit `e47cd72` is deployed to the VPS. The production Compose project contains only `db`,
   Java `api`, `web` and `gateway`; all four services are healthy. The former Python API,
   worker/scheduler, migration container and Redis were removed from the running project.
 - External HTTPS smoke returned HTTP 200, Java readiness reported PostGIS `ok`, and the VPS
   official fixture import persisted eight valid features. Its topology job completed on attempt 1
   with two deterministic tie-in candidates.
+- Commit `becdaca` is deployed to the VPS after a PostgreSQL backup. All four services are healthy;
+  the public latest-run endpoint returns the completed 17-demand official calculation with two
+  variants and the browser viewer renders it without console errors.
 
 ## Supplied dataset received on 2026-09-16
 

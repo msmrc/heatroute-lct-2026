@@ -57,6 +57,92 @@ function warningCount(value: number): string {
   return russianCount(value, "предупреждение", "предупреждения", "предупреждений");
 }
 
+function objectCount(value: number): string {
+  return russianCount(value, "объект", "объекта", "объектов");
+}
+
+interface InputWarningGroup {
+  key: string;
+  title: string;
+  message: string;
+  count: number;
+  exampleIds: string[];
+  sample: OfficialInputWarning;
+}
+
+function inputWarningCopy(warning: OfficialInputWarning): { title: string; message: string } {
+  if (warning.code === "NUMERIC_ID_NORMALIZED") {
+    return {
+      title: "Идентификаторы приведены к строкам",
+      message: "Числовые ID безопасно преобразованы в строковый формат официального контракта.",
+    };
+  }
+  if (warning.code === "CONNECTION_POINT_AS_DEMAND") {
+    return {
+      title: "Точки подключения используются как ОКС",
+      message: "В файле нет отдельных объектов oks_future и связей oks_id, поэтому расход взят непосредственно из точек подключения.",
+    };
+  }
+  if (warning.code === "COMPATIBILITY_RESTRICTION_ALIAS" && warning.message.startsWith("railway ")) {
+    return {
+      title: "Слой railway принят по профилю совместимости",
+      message: "Объект railway учитывается как консервативное ограничение до уточнения правила постановщиком задачи.",
+    };
+  }
+  if (warning.code === "COMPATIBILITY_RESTRICTION_ALIAS") {
+    return {
+      title: "Здания учтены как ограничения",
+      message: "Объекты с типом ограничения oks приняты как существующая застройка и участвуют в проверке допустимых отступов.",
+    };
+  }
+  if (warning.code === "MISSING_EXISTING_NETWORK_LINK") {
+    return {
+      title: "Нет направления существующей сети",
+      message: "В исходном файле отсутствует upstream_object_id. Топология восстанавливается по геометрии, но официальный расчёт реконструкции остаётся недоступен.",
+    };
+  }
+  if (warning.code === "MISSING_EXISTING_NETWORK_VALUE") {
+    return {
+      title: "Нет расходов существующей сети",
+      message: "В исходном файле отсутствует flow_tph, поэтому система не подменяет данные и не публикует финальную реконструкцию.",
+    };
+  }
+  if (warning.code === "MISSING_CHAMBER_DIAMETER") {
+    return {
+      title: "Не указаны диаметры камер",
+      message: "Диаметр камеры отсутствует в исходном файле и может быть определён только по связанным участкам сети.",
+    };
+  }
+  return {
+    title: warning.code.replaceAll("_", " ").toLocaleLowerCase("ru-RU"),
+    message: warning.message,
+  };
+}
+
+function groupInputWarnings(warnings: OfficialInputWarning[]): InputWarningGroup[] {
+  const groups = new Map<string, InputWarningGroup>();
+  warnings.forEach((warning) => {
+    const key = `${warning.code}\u0000${warning.message}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count += 1;
+      if (warning.feature_id && existing.exampleIds.length < 5 && !existing.exampleIds.includes(warning.feature_id)) {
+        existing.exampleIds.push(warning.feature_id);
+      }
+      return;
+    }
+    const copy = inputWarningCopy(warning);
+    groups.set(key, {
+      key,
+      ...copy,
+      count: 1,
+      exampleIds: warning.feature_id ? [warning.feature_id] : [],
+      sample: warning,
+    });
+  });
+  return [...groups.values()].sort((left, right) => right.count - left.count || left.title.localeCompare(right.title, "ru"));
+}
+
 function variantName(variant: OfficialRouteVariant): string {
   if (variant.strategy === "shared_trunk") return "Общая сеть";
   if (variant.strategy === "alternative_tie_ins") return "Альтернативные врезки";
@@ -279,6 +365,7 @@ export function RouteVisualization({
     setSelectedObject(object);
     setSelectedNodeId(null);
   }, []);
+  const inputWarningGroups = useMemo(() => groupInputWarnings(warnings), [warnings]);
 
   if (!variant || !layout) return null;
 
@@ -480,36 +567,42 @@ export function RouteVisualization({
       >
         <div className="validation-dialog-content">
           {calculationIssues.length > 0 && (
-            <div className="validation-warning-list">
-              {calculationIssues.map((issue, index) => (
-                <article key={`${issue.code}-${issue.subject_id ?? issue.edge_id ?? index}`}>
-                  <AlertTriangle size={17} />
-                  <div>
-                    <strong>{calculationIssueTitle(issue)}</strong>
-                    <p>{calculationIssueMessage(issue)}</p>
-                    {(issue.subject_id || issue.edge_id) && <small>Объект: {issue.subject_id ?? issue.edge_id}</small>}
-                  </div>
-                </article>
-              ))}
-            </div>
+            <section className="validation-dialog-section">
+              <header><strong>Расчёт маршрутов</strong><span>{errorCount(calculationIssues.length)}</span></header>
+              <div className="validation-warning-list">
+                {calculationIssues.map((issue, index) => (
+                  <article key={`${issue.code}-${issue.subject_id ?? issue.edge_id ?? index}`}>
+                    <AlertTriangle size={17} />
+                    <div>
+                      <strong>{calculationIssueTitle(issue)}</strong>
+                      <p>{calculationIssueMessage(issue)}</p>
+                      {(issue.subject_id || issue.edge_id) && <small>Объект: {issue.subject_id ?? issue.edge_id}</small>}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
           )}
-          {warnings.length > 0 ? (
-            <div className="validation-warning-list">
-              {warnings.map((warning, index) => (
-                <article key={`${warning.code}-${warning.feature_index}-${index}`}>
-                  <AlertTriangle size={17} />
-                  <div>
-                    <strong>{warning.code}</strong>
-                    <p>{warning.message}</p>
-                    <small>
-                      Объект #{warning.feature_index}
-                      {warning.feature_id ? ` · ${warning.feature_id}` : ""}
-                      {warning.field ? ` · поле ${warning.field}` : ""}
-                    </small>
-                  </div>
-                </article>
-              ))}
-            </div>
+          {inputWarningGroups.length > 0 ? (
+            <section className="validation-dialog-section">
+              <header><strong>Исходные данные</strong><span>{warningCount(warnings.length)}</span></header>
+              <div className="validation-warning-list">
+                {inputWarningGroups.map((group) => (
+                  <article key={group.key}>
+                    <AlertTriangle size={17} />
+                    <div>
+                      <strong>{group.title}</strong>
+                      <p>{group.message}</p>
+                      <small>
+                        {objectCount(group.count)}
+                        {group.exampleIds.length > 0 ? ` · примеры ID: ${group.exampleIds.join(", ")}` : ""}
+                        {group.count === 1 && group.sample.field ? ` · поле ${group.sample.field}` : ""}
+                      </small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
           ) : reconstructionWarnings.length === 0 && depthWarnings.length === 0 ? (
             <div className="validation-dialog-empty">
               <CheckCircle2 size={22} />
@@ -517,35 +610,41 @@ export function RouteVisualization({
             </div>
           ) : null}
           {depthWarnings.length > 0 && (
-            <div className="validation-warning-list">
-              {depthWarnings.map((warning, index) => (
-                <article key={`${warning.edgeId}-${warning.crossing_id ?? index}`}>
-                  <AlertTriangle size={17} />
-                  <div>
-                    <strong>Вертикальный профиль требует решения</strong>
-                    <p>{depthIssueMessage(warning.code, warning.message)}</p>
-                    <small>Участок: {warning.edgeId}{warning.crossing_id ? ` · пересечение ${warning.crossing_id}` : ""}</small>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <section className="validation-dialog-section">
+              <header><strong>Вертикальный профиль</strong><span>{warningCount(depthWarnings.length)}</span></header>
+              <div className="validation-warning-list">
+                {depthWarnings.map((warning, index) => (
+                  <article key={`${warning.edgeId}-${warning.crossing_id ?? index}`}>
+                    <AlertTriangle size={17} />
+                    <div>
+                      <strong>Вертикальный профиль требует решения</strong>
+                      <p>{depthIssueMessage(warning.code, warning.message)}</p>
+                      <small>Участок: {warning.edgeId}{warning.crossing_id ? ` · пересечение ${warning.crossing_id}` : ""}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
           )}
           {primaryReconstructionWarning && (
-            <div className="validation-warning-list">
-              <article>
-                <AlertTriangle size={17} />
-                <div>
-                  <strong>{calculationIssueTitle(primaryReconstructionWarning)}</strong>
-                  <p>{calculationIssueMessage(primaryReconstructionWarning)}</p>
-                  <small>
-                    Затронуто участков: {reconstructionWarnings.length}
-                    {reconstructionWarnings.some((issue) => issue.subject_id)
-                      ? ` · ID ${reconstructionWarnings.map((issue) => issue.subject_id).filter(Boolean).join(", ")}`
-                      : ""}
-                  </small>
-                </div>
-              </article>
-            </div>
+            <section className="validation-dialog-section">
+              <header><strong>Реконструкция</strong><span>{warningCount(1)}</span></header>
+              <div className="validation-warning-list">
+                <article>
+                  <AlertTriangle size={17} />
+                  <div>
+                    <strong>{calculationIssueTitle(primaryReconstructionWarning)}</strong>
+                    <p>{calculationIssueMessage(primaryReconstructionWarning)}</p>
+                    <small>
+                      Затронуто участков: {reconstructionWarnings.length}
+                      {reconstructionWarnings.some((issue) => issue.subject_id)
+                        ? ` · ID ${reconstructionWarnings.map((issue) => issue.subject_id).filter(Boolean).join(", ")}`
+                        : ""}
+                    </small>
+                  </div>
+                </article>
+              </div>
+            </section>
           )}
           <div className="dialog-actions">
             <Button variant="outline" onClick={() => setValidationDialogOpen(false)}>Закрыть</Button>

@@ -6,14 +6,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -32,6 +31,8 @@ import ru.lct.heatroute.domain.depth.OfficialDepthProfileValidator;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
+import ru.lct.heatroute.domain.input.OfficialGeoJsonInspector;
+import ru.lct.heatroute.domain.input.OfficialInputReport;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
@@ -90,52 +91,42 @@ class OfficialDatasetRoutingTest {
                 assertThat(edge.getDepthProfile().getPoints()).hasSizeGreaterThanOrEqualTo(2);
             });
         });
-        writeLocalDemoBundleIfRequested(result);
+        ObjectNode demoBundle = buildLocalDemoBundle(result);
+        JsonNode demoImport = demoBundle.path("import");
+        assertThat(demoImport.path("input_size_bytes").asLong()).isEqualTo(233_277L);
+        assertThat(demoImport.path("report").path("sha256").asText())
+                .isEqualTo("07921d7740c0297a63111846d4b77dfb6ccb33da65ffd7ccb14c5b2d786dd7d0");
+        assertThat(demoImport.path("report").path("warnings")).hasSize(323);
+        writeLocalDemoBundleIfRequested(demoBundle);
     }
 
-    private void writeLocalDemoBundleIfRequested(OfficialCalculationResult result) throws Exception {
-        String outputPath = System.getProperty("heatroute.demo.output", "").trim();
-        if (outputPath.isEmpty()) {
-            return;
-        }
-        JsonNode dataset;
+    private ObjectNode buildLocalDemoBundle(OfficialCalculationResult result) throws Exception {
+        byte[] datasetBytes;
         try (InputStream input = getClass().getResourceAsStream("/official/lct-2026.geojson")) {
             if (input == null) {
                 throw new IllegalStateException("Official dataset test resource is missing");
             }
-            dataset = objectMapper.readTree(input);
+            datasetBytes = input.readAllBytes();
         }
-        Map<String, Integer> featureCounts = new LinkedHashMap<>();
-        for (JsonNode feature : dataset.path("features")) {
-            featureCounts.merge(feature.path("properties").path("object_type").asText(), 1, Integer::sum);
-        }
-        int inputSizeBytes = objectMapper.writeValueAsBytes(dataset).length;
+        JsonNode dataset = objectMapper.readTree(datasetBytes);
+        OfficialInputReport report = new OfficialGeoJsonInspector(objectMapper)
+                .inspect(new ByteArrayInputStream(datasetBytes));
         String now = OffsetDateTime.now().toString();
-
-        ObjectNode report = objectMapper.createObjectNode();
-        report.put("contract_version", "official-lct-2026");
-        report.put("input_profile", "provided_dataset_compatibility");
-        report.put("sha256", "local-official-dataset");
-        report.put("feature_count", dataset.path("features").size());
-        report.set("feature_counts", objectMapper.valueToTree(featureCounts));
-        report.putArray("errors");
-        report.putArray("warnings");
-        report.put("valid", true);
 
         ObjectNode imported = objectMapper.createObjectNode();
         imported.put("id", "local-demo");
         imported.put("state", "valid");
         imported.put("original_filename", "lct-2026.geojson");
-        imported.put("input_size_bytes", inputSizeBytes);
+        imported.put("input_size_bytes", datasetBytes.length);
         imported.put("created_at", now);
-        imported.set("report", report);
+        imported.set("report", objectMapper.valueToTree(report));
 
         ObjectNode run = objectMapper.createObjectNode();
         run.put("id", "local-demo-run");
         run.put("import_id", "local-demo");
         run.put("state", "completed");
         run.put("algorithm_version", result.getAlgorithmVersion());
-        run.put("input_sha256", "local-official-dataset");
+        run.put("input_sha256", report.getSha256());
         run.set("parameters", objectMapper.valueToTree(OfficialRunParameters.defaults()));
         run.set("result", objectMapper.valueToTree(result));
         run.put("created_at", now);
@@ -147,7 +138,14 @@ class OfficialDatasetRoutingTest {
         bundle.set("import", imported);
         bundle.set("run", run);
         bundle.set("map", map);
+        return bundle;
+    }
 
+    private void writeLocalDemoBundleIfRequested(ObjectNode bundle) throws Exception {
+        String outputPath = System.getProperty("heatroute.demo.output", "").trim();
+        if (outputPath.isEmpty()) {
+            return;
+        }
         Path target = Path.of(outputPath).toAbsolutePath().normalize();
         if (target.getParent() != null) {
             Files.createDirectories(target.getParent());

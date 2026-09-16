@@ -828,14 +828,18 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .route-result-metrics u { color: var(--accent); text-decoration: none; }
 
 .validation-dialog-content { display: grid; gap: 18px; padding: 18px 22px 22px; }
+.validation-dialog-section { display: grid; gap: 8px; }
+.validation-dialog-section > header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-inline: 2px; }
+.validation-dialog-section > header strong { font-size: 14px; }
+.validation-dialog-section > header span { color: var(--muted-foreground); font-size: 13px; }
 .validation-warning-list { display: grid; max-height: min(56vh, 520px); overflow: auto; border: 1px solid var(--border-soft); border-radius: 12px; }
 .validation-warning-list article { display: flex; gap: 11px; padding: 13px 14px; border-bottom: 1px solid var(--border-soft); color: var(--warning); content-visibility: auto; contain-intrinsic-size: auto 84px; }
 .validation-warning-list article:last-child { border-bottom: 0; }
 .validation-warning-list article > svg { flex: 0 0 auto; margin-top: 1px; }
 .validation-warning-list article > div { display: grid; min-width: 0; gap: 4px; }
-.validation-warning-list strong { font-size: 12px; }
-.validation-warning-list p { color: var(--foreground); font-size: 12px; line-height: 1.45; }
-.validation-warning-list small { color: var(--muted-foreground); font-size: 11px; overflow-wrap: anywhere; }
+.validation-warning-list strong { font-size: 14px; line-height: 1.35; }
+.validation-warning-list p { color: var(--foreground); font-size: 14px; line-height: 1.5; }
+.validation-warning-list small { color: var(--muted-foreground); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
 .validation-dialog-empty { display: flex; align-items: center; gap: 12px; padding: 18px; border-radius: 12px; background: var(--success-soft); color: var(--success); }
 .validation-dialog-empty div { display: grid; gap: 3px; }
 .validation-dialog-empty strong { font-size: 13px; }
@@ -871,6 +875,10 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .system-links a:hover { background: var(--surface-soft); }
 .system-credit { margin-top: 24px; color: var(--muted-foreground); font-size: 12px; text-align: center; }
 .system-credit strong { color: var(--foreground); }
+
+@media (max-width: 1380px) {
+  .route-map-view-controls { top: 76px; }
+}
 
 @media (max-width: 1180px) {
   .map-workspace-toolbar { grid-template-columns: minmax(200px, 1fr) auto; }

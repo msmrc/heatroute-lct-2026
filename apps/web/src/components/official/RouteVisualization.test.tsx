@@ -115,7 +115,7 @@ describe("RouteVisualization", () => {
     fireEvent.click(screen.getByRole("button", { name: /Открыть результаты проверки/ }));
     expect(screen.getByRole("dialog", { name: "Результаты проверки" })).toBeTruthy();
     expect(screen.getByText("Значение высоты восстановлено по умолчанию")).toBeTruthy();
-    expect(screen.getByText(/Объект #7 · oks-7 · поле height/)).toBeTruthy();
+    expect(screen.getByText(/1 объект · примеры ID: oks-7 · поле height/)).toBeTruthy();
     fireEvent.click(screen.getAllByRole("button", { name: "Закрыть" })[0]!);
     expect(screen.queryByRole("dialog")).toBeNull();
 
@@ -146,5 +146,27 @@ describe("RouteVisualization", () => {
     expect(screen.getByText("Недостаточно данных для реконструкции")).toBeTruthy();
     expect(screen.getByText(/Результат реконструкции не рассчитывался/)).toBeTruthy();
     expect(screen.getByText(/Затронуто участков: 2 · ID 101, 102/)).toBeTruthy();
+  });
+
+  it("groups and localizes repeated input compatibility warnings", () => {
+    render(
+      <RouteVisualization
+        result={result}
+        runId="run-1"
+        importId="import-1"
+        warnings={[1, 2, 3].map((id) => ({
+          code: "NUMERIC_ID_NORMALIZED",
+          feature_index: id - 1,
+          feature_id: String(id),
+          field: "id",
+          message: "Numeric identifier is normalized to its decimal string representation",
+        }))}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /3 предупреждения/ }));
+    expect(screen.getByText("Идентификаторы приведены к строкам")).toBeTruthy();
+    expect(screen.getByText(/3 объекта · примеры ID: 1, 2, 3/)).toBeTruthy();
+    expect(screen.queryByText("Numeric identifier is normalized to its decimal string representation")).toBeNull();
   });
 });

@@ -295,6 +295,12 @@ and runtime services were removed. The frontend calls only the current official 
   rendered 17/17 result and an error-free console. A second visual failure showed that route
   overlays waited for every remote CARTO tile; initialization now uses `style.load`, so calculated
   geometry is visible as soon as the style graph exists. A Vitest lifecycle regression protects it.
+- A responsive browser pass covered 1024×768, 900×700, 640×800 and 390×844. At laptop widths the
+  result island now uses a readable 2×2 metric grid; the longitudinal profile reserves that island's
+  height without overlap. At 900 px and below profile mode removes the redundant overall-results
+  island to keep the engineering chart usable, while map mode retains it. The mobile variant picker
+  stays compact and becomes horizontally scrollable on phone widths instead of hiding the map or
+  clipping route names.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

@@ -886,9 +886,13 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .route-map-view-controls { right: 314px; }
   .route-workspace-inspector { width: 280px; }
   .route-results-drawer { right: 314px; }
+  .route-result-metrics { grid-template-columns: repeat(2, 1fr); }
+  .route-result-metrics > :nth-child(2) { border-right: 0; }
+  .route-result-metrics > :nth-child(-n+2) { border-bottom: 1px solid var(--border-soft); }
   .route-variant-tabs--floating { left: calc((100% - 314px) / 2); }
   .route-variant-tabs--floating button { min-width: 124px; }
   .depth-profile-view, .depth-profile-empty { right: 314px; }
+  .depth-profile-view { padding-bottom: 286px; }
   .system-grid { grid-template-columns: 1fr; }
 }
 
@@ -898,11 +902,10 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .route-map-view-controls { top: 76px; right: 12px; }
   .route-workspace-inspector { top: 132px; right: 12px; width: min(300px, calc(100% - 24px)); max-height: calc(100% - 330px); }
   .route-results-drawer { right: 12px; bottom: 12px; left: 12px; }
-  .route-result-metrics { grid-template-columns: repeat(2, 1fr); }
-  .route-result-metrics > :nth-child(2) { border-right: 0; }
-  .route-result-metrics > :nth-child(-n+2) { border-bottom: 1px solid var(--border-soft); }
   .depth-profile-view, .depth-profile-empty { right: 0; padding-right: 12px; padding-left: 12px; }
-  .depth-profile-view { padding-top: 128px; padding-bottom: 250px; }
+  .depth-profile-view { padding-top: 128px; padding-bottom: 286px; }
+  .route-workspace.is-profile .depth-profile-view { padding-bottom: 12px; }
+  .route-workspace.is-profile .route-results-drawer { display: none; }
 }
 
 @media (max-width: 680px) {
@@ -912,8 +915,9 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .map-workspace-actions button { font-size: 0; }
   .map-workspace-actions button svg { width: 17px; height: 17px; }
   .route-workspace-inspector { display: none; }
-  .route-variant-tabs--floating { top: 10px; left: 10px; max-width: calc(100% - 20px); transform: none; }
-  .route-variant-tabs--floating button { min-width: 0; }
+  .route-variant-tabs--floating { top: 10px; left: 10px; display: flex; max-width: calc(100% - 20px); transform: none; }
+  .route-variant-tabs--floating button { min-width: 0; padding-inline: 8px; }
+  .route-variant-tabs--floating span { font-size: 12px; line-height: 1.25; }
   .route-map-view-controls { top: 76px; right: 10px; }
   .route-workspace .official-map-layer-control { top: 76px; left: 10px; }
   .route-results-drawer { padding-inline: 10px; }
@@ -926,4 +930,10 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .depth-profile-summary > div:nth-child(-n+2) { border-bottom: 1px solid var(--border-soft); }
   .system-product-card { grid-template-columns: auto 1fr; }
   .system-product-card dl { grid-column: 1 / -1; }
+}
+
+@media (max-width: 480px) {
+  .route-variant-tabs--floating { overflow-x: auto; scrollbar-width: none; }
+  .route-variant-tabs--floating::-webkit-scrollbar { display: none; }
+  .route-variant-tabs--floating button { flex: 0 0 142px; }
 }

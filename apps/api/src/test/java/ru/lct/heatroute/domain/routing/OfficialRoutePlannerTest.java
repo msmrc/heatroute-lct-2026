@@ -8,6 +8,10 @@ import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.io.WKTReader;
+import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
+import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
+import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
@@ -15,7 +19,14 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 class OfficialRoutePlannerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final WKTReader wktReader = new WKTReader();
-    private final OfficialRoutePlanner planner = new OfficialRoutePlanner(new OfficialRouteValidator());
+    private final OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
+            new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
+    private final OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
+    private final OfficialRoutePlanner planner = new OfficialRoutePlanner(
+            new OfficialRouteValidator(geometryRules),
+            new OfficialObstacleRouter(geometryRules),
+            pipeCatalog,
+            new OfficialNetworkSizer(pipeCatalog));
 
     @Test
     void nearbyDemandsPreferShorterSharedTrunk() throws Exception {
@@ -121,6 +132,32 @@ class OfficialRoutePlannerTest {
         assertThat(independent.getNodes())
                 .filteredOn(node -> "network-bad".equals(node.getTargetId()))
                 .isEmpty();
+    }
+
+    @Test
+    void producesThreeMateriallyDifferentVariantsWhenAlternativeTieInsExist() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network-a", "LINESTRING (0 -100, 0 100)", "{}"),
+                feature("heat_network", "network-b", "LINESTRING (200 -100, 200 100)", "{}"),
+                feature("oks_connection_point", "cp-a", "POINT (100 0)", "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "cp-b", "POINT (100 10)", "{\"flow_tph\":7}"));
+        TopologyAnalysis topology = topology(List.of(
+                candidate("cp-a", "network-a", 100),
+                candidate("cp-a", "network-b", 100),
+                candidate("cp-b", "network-a", 100),
+                candidate("cp-b", "network-b", 100)));
+
+        OfficialCalculationResult result = planner.plan(features, topology);
+
+        assertThat(result.getVariants()).extracting(RouteVariant::getId)
+                .containsExactly("independent", "shared", "diverse");
+        assertThat(result.getVariants()).allMatch(RouteVariant::isValid);
+        assertThat(result.getVariants().get(0).getNodes())
+                .filteredOn(node -> "network-a".equals(node.getTargetId()))
+                .isNotEmpty();
+        assertThat(result.getVariants().get(2).getNodes())
+                .filteredOn(node -> "network-b".equals(node.getTargetId()))
+                .isNotEmpty();
     }
 
     private TopologyAnalysis topology(List<TieInCandidate> candidates) {

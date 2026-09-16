@@ -62,8 +62,9 @@ function toWgs84(x: number, y: number): [number, number] {
 }
 
 function routeMapBounds(variant: OfficialRouteVariant): OfficialMapBounds {
-  const xs = variant.nodes.map((node) => node.coordinate.xm);
-  const ys = variant.nodes.map((node) => node.coordinate.ym);
+  const routeCoordinates = variant.edges.flatMap((edge) => edge.coordinates ?? []);
+  const xs = [...variant.nodes.map((node) => node.coordinate.xm), ...routeCoordinates.map((coordinate) => coordinate.xm)];
+  const ys = [...variant.nodes.map((node) => node.coordinate.ym), ...routeCoordinates.map((coordinate) => coordinate.ym)];
   const [minLon, minLat] = toWgs84(Math.min(...xs) - MAP_PADDING_METERS, Math.min(...ys) - MAP_PADDING_METERS);
   const [maxLon, maxLat] = toWgs84(Math.max(...xs) + MAP_PADDING_METERS, Math.max(...ys) + MAP_PADDING_METERS);
   return {
@@ -80,22 +81,34 @@ function routeFeatureCollection(variant: OfficialRouteVariant): MapFeatureCollec
     const upstream = nodes.get(edge.upstream_node_id);
     const downstream = nodes.get(edge.downstream_node_id);
     if (!upstream || !downstream) return [];
-    return [{
-      type: "Feature",
+    const fallbackCoordinates = [upstream.coordinate, downstream.coordinate];
+    const baseKind = edge.id.includes(":trunk:") ? "trunk" : "branch";
+    const sections = edge.sections?.length ? edge.sections : [{
+      kind: "base" as const,
+      length_m: edge.length_m,
+      coordinates: edge.coordinates?.length ? edge.coordinates : fallbackCoordinates,
+    }];
+    return sections.flatMap((section, sectionIndex) => section.coordinates.length < 2 ? [] : [{
+      type: "Feature" as const,
       geometry: {
-        type: "LineString",
-        coordinates: [
-          toWgs84(upstream.coordinate.xm, upstream.coordinate.ym),
-          toWgs84(downstream.coordinate.xm, downstream.coordinate.ym),
-        ],
+        type: "LineString" as const,
+        coordinates: section.coordinates.map((coordinate) => toWgs84(coordinate.xm, coordinate.ym)),
       },
       properties: {
         map_layer: "calculated_route",
-        route_kind: edge.id.includes(":trunk:") ? "trunk" : "branch",
-        label: edge.id.includes(":trunk:") ? "Общий ствол" : "Расчётный участок",
-        length_m: edge.length_m,
+        route_kind: section.kind === "special" ? "special" : baseKind,
+        label: section.kind === "special"
+          ? `Специальный переход: ${section.restriction_type ?? "препятствие"}`
+          : edge.id.includes(":trunk:") ? "Общий ствол" : "Расчётный участок",
+        length_m: section.length_m,
+        diameter: edge.diameter ?? null,
+        flow_tph: edge.flow_tph ?? null,
+        crossing_type: section.restriction_type ?? null,
+        crossing_angle_degrees: section.crossing_angle_degrees ?? null,
+        edge_id: edge.id,
+        section_index: sectionIndex,
       },
-    }];
+    }]);
   });
   const points: MapFeatureCollection["features"] = variant.nodes.map((node) => ({
     type: "Feature",
@@ -123,8 +136,8 @@ function addOverlayLayers(map: maplibregl.Map, contextData: FeatureCollection, r
     { id: "source-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "source"], paint: { "circle-radius": 8, "circle-color": "#ef6b3b", "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } },
     { id: "chamber-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_chamber"], paint: { "circle-radius": 4.5, "circle-color": "#34363b", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } },
     { id: "context-points", type: "circle", source: CONTEXT_SOURCE, filter: ["all", ["==", ["geometry-type"], "Point"], ["!", ["in", ["get", "object_type"], ["literal", ["source", "heat_chamber"]]]]], paint: { "circle-radius": 3.5, "circle-color": "#4d9e68", "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.8 } },
-    { id: "route-casing", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": "rgba(255,255,255,.96)", "line-width": ["match", ["get", "route_kind"], "trunk", 8, 6.5] } },
-    { id: "route-line", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": ["match", ["get", "route_kind"], "trunk", "#5e4be2", "#7464e8"], "line-width": ["match", ["get", "route_kind"], "trunk", 4.5, 3.5] } },
+    { id: "route-casing", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": "rgba(255,255,255,.96)", "line-width": ["match", ["get", "route_kind"], "trunk", 8, "special", 9, 6.5] } },
+    { id: "route-line", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": ["match", ["get", "route_kind"], "trunk", "#5e4be2", "special", "#ed6a3b", "#7464e8"], "line-width": ["match", ["get", "route_kind"], "trunk", 4.5, "special", 5, 3.5] } },
     { id: "route-nodes", type: "circle", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_node"], paint: { "circle-radius": ["match", ["get", "node_type"], "demand_connection", 5, 6], "circle-color": ["case", ["==", ["get", "node_type"], "demand_connection"], "#45a55a", ["==", ["get", "root"], true], "#ed6a3b", "#7357f6"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.4 } },
   ];
   layers.forEach((layer) => map.addLayer(layer));
@@ -141,6 +154,8 @@ function selectedObject(feature: MapGeoJSONFeature): SelectedMapObject {
   const details: Array<[string, string]> = [];
   if (typeof properties.length_m === "number") details.push(["Длина", `${Math.round(properties.length_m).toLocaleString("ru-RU")} м`]);
   if (typeof properties.flow_tph === "number") details.push(["Расход", `${properties.flow_tph.toLocaleString("ru-RU")} т/ч`]);
+  if (typeof properties.diameter === "number") details.push(["Диаметр", `ДУ ${properties.diameter}`]);
+  if (typeof properties.crossing_angle_degrees === "number") details.push(["Угол перехода", `${properties.crossing_angle_degrees.toLocaleString("ru-RU")}°`]);
   if (typeof properties.address === "string" && properties.address) details.push(["Адрес", properties.address]);
   if (typeof properties.feature_id === "string" && properties.feature_id) details.push(["ID", properties.feature_id]);
   const fallback = objectType === "heat_network" ? "Существующая теплосеть" : objectType ?? "Объект карты";

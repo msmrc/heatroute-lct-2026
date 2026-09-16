@@ -12,12 +12,24 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 @Component
 public class OfficialRouteValidator {
     private static final double TOLERANCE_M = 0.01;
     private final GeometryFactory geometryFactory = new GeometryFactory();
+    private final OfficialRouteGeometryRules geometryRules;
+
+    public OfficialRouteValidator() {
+        this.geometryRules = null;
+    }
+
+    @Autowired
+    public OfficialRouteValidator(OfficialRouteGeometryRules geometryRules) {
+        this.geometryRules = geometryRules;
+    }
 
     public List<RouteValidationIssue> validate(List<RouteNode> nodes, List<RouteEdge> edges) {
         List<RouteValidationIssue> issues = new ArrayList<>();
@@ -56,6 +68,60 @@ public class OfficialRouteValidator {
         validateRootsAndCycles(nodes, upstreamByDownstream, issues);
         validateChambers(nodes, upstreamByDownstream, childCount, issues);
         validateCrossings(nodeById, edges, issues);
+        issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
+                .thenComparing(issue -> issue.getSubjectId() == null ? "" : issue.getSubjectId()));
+        return issues;
+    }
+
+    public List<RouteValidationIssue> validate(
+            List<RouteNode> nodes,
+            List<RouteEdge> edges,
+            List<ImportedOfficialFeature> features) {
+        List<RouteValidationIssue> issues = new ArrayList<>(validate(nodes, edges));
+        if (geometryRules == null) {
+            return issues;
+        }
+        Map<String, RouteNode> nodesById = new HashMap<>();
+        nodes.forEach(node -> nodesById.put(node.getId(), node));
+        for (RouteEdge edge : edges) {
+            RouteNode upstream = nodesById.get(edge.getUpstreamNodeId());
+            RouteNode downstream = nodesById.get(edge.getDownstreamNodeId());
+            LineString route = line(edge, nodesById);
+            if (route == null || upstream == null || downstream == null) {
+                continue;
+            }
+            if (!edge.getCoordinates().isEmpty()) {
+                if (route.getCoordinateN(0).distance(upstream.getCoordinate().toCoordinate()) > TOLERANCE_M
+                        || route.getCoordinateN(route.getNumPoints() - 1)
+                                .distance(downstream.getCoordinate().toCoordinate()) > TOLERANCE_M) {
+                    issues.add(issue(
+                            "EDGE_GEOMETRY_ENDPOINT_MISMATCH",
+                            edge.getId(),
+                            "Route geometry must begin and end at its declared nodes"));
+                }
+                if (Math.abs(route.getLength() - edge.getLengthM().doubleValue()) > TOLERANCE_M) {
+                    issues.add(issue(
+                            "EDGE_GEOMETRY_LENGTH_MISMATCH",
+                            edge.getId(),
+                            "Route edge length must equal its geometry length"));
+                }
+            }
+            Set<String> exemptions = new HashSet<>();
+            if (upstream.isRoot() && upstream.getTargetId() != null) {
+                exemptions.add(upstream.getTargetId());
+            }
+            if (downstream.isRoot() && downstream.getTargetId() != null) {
+                exemptions.add(downstream.getTargetId());
+            }
+            int diameter = edge.getDiameter() == null ? 50 : edge.getDiameter();
+            List<OfficialRouteGeometryRules.Constraint> constraints = geometryRules.constraints(
+                    features,
+                    diameter,
+                    exemptions,
+                    route.getCoordinateN(0),
+                    route.getCoordinateN(route.getNumPoints() - 1));
+            issues.addAll(geometryRules.validate(edge, route, constraints));
+        }
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
                 .thenComparing(issue -> issue.getSubjectId() == null ? "" : issue.getSubjectId()));
         return issues;
@@ -157,9 +223,13 @@ public class OfficialRouteValidator {
         if (upstream == null || downstream == null) {
             return null;
         }
-        Coordinate[] coordinates = {
-            downstream.getCoordinate().toCoordinate(), upstream.getCoordinate().toCoordinate()
-        };
+        Coordinate[] coordinates = edge.getCoordinates().isEmpty()
+                ? new Coordinate[] {
+                    upstream.getCoordinate().toCoordinate(), downstream.getCoordinate().toCoordinate()
+                }
+                : edge.getCoordinates().stream()
+                        .map(RouteCoordinate::toCoordinate)
+                        .toArray(Coordinate[]::new);
         if (coordinates[0].distance(coordinates[1]) <= TOLERANCE_M) {
             return null;
         }

@@ -10,8 +10,8 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Verified in this cutover
 
-- Maven verifies 39 Java tests on the pinned Java 11 runtime.
-- Web ESLint, TypeScript, Vitest (8 tests) and production Vite build pass.
+- Maven verifies 49 Java tests (the production/CI gate remains pinned to Java 11).
+- Web ESLint, TypeScript, Vitest (9 tests) and production Vite build pass.
 - Compose starts PostGIS, Java API and web; all three become healthy.
 - `/api/v1/health/ready` reports PostGIS ready.
 - Java OpenAPI is saved as `packages/api-client/openapi.json`.
@@ -92,6 +92,29 @@ and runtime services were removed. The frontend calls only the current official 
 - Web verification: TypeScript, ESLint, production build and 9 Vitest tests pass. CI run
   `35089560867` passed web, Java backend and integration jobs. VPS commit `407c0a7` is healthy.
 
+## R4/R6 obstacle-aware checkpoint (local, not deployed)
+
+- The route planner now searches real polylines around buffered forbidden geometry instead of
+  accepting straight endpoint links. Existing OKS clearance is selected from the planned DU
+  (5/7/9 m), and park, social area, prohibited site, water and railway constraints participate in
+  construction as hard obstacles.
+- Road, tram, gas, power and independent heat-network crossings are split into reproducible
+  `base`/`special` sections. The independent final validator rechecks the complete resulting
+  polyline, crossing angle and unrelated constraints after path simplification.
+- One official-dataset run deterministically returns `independent`, `shared` and `diverse`
+  strategies. The preferred independent variant connects all 17 OКС; strategies that cannot
+  connect an object without violating constraints retain the valid partial network and explicit
+  `NO_NON_CROSSING_ROUTE` reason.
+- R5 bottom-up sizing is now applied to every accepted new-network tree. Result edges expose
+  calculated `flow_tph` and DU to the API and visual inspector. Continuous-length violations are
+  preserved as explicit sizing issues; the planner does not yet increase/split DU to resolve them.
+  Propagation into the existing network and reconstruction remain missing.
+- A read-only local demo API can serve the result produced directly from the sole tracked official
+  GeoJSON. The UI was browser-checked at `http://localhost:5174`: all three strategies render on
+  the vector map, switching works, and no console error or Vite overlay is present.
+- This checkpoint has intentionally not been deployed to the VPS. Deployment is deferred until an
+  explicit user command.
+
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
@@ -99,14 +122,15 @@ and runtime services were removed. The frontend calls only the current official 
   replay/deduplication policy and broader official-like fixtures remain acceptance work.
 - R3 — functional vertical slice: topology validation, chamber rule, deterministic candidates and
   line splitting. Indexed large-network search and persistence of selected tie-ins remain.
-- R4 — first vertical slice implemented: immutable all-demand runs, deterministic independent and
-  shared-trunk strategies, partial no-route, an independent tree/crossing/chamber validator and an
-  interactive GIS/result viewer. Obstacle-aware search, normalization/local improvement and
-  three-way diversity remain.
-- R5 — partial: pure sizing/DU/continuous-length rules exist; existing-network flow propagation
-  and reconstruction are not implemented.
-- R6 — partial: catalog and crossing geometry exist; route-search and final-validator integration
-  are not implemented.
+- R4 — functional obstacle-aware checkpoint: immutable all-demand runs, independent/shared/diverse
+  strategies, actual polyline search, simplification, partial no-route, an independent validator
+  and GIS/result viewer. Large-network performance and broader diversity/quality evidence remain.
+- R5 — partial: bottom-up flow/DU sizing and continuous-length diagnostics are connected to
+  accepted new-network trees; automatic resolution of length violations, existing-network flow
+  propagation and reconstruction are not implemented.
+- R6 — functionally integrated for the current rule coverage: dynamic OKS buffers, hard forbidden
+  zones and reproducible special crossings participate in search and final validation. The full
+  positive/boundary/negative test matrix for every official table row remains acceptance work.
 - R7 — primitives only: exact segment/reconstruction rates, depth multiplier, unconnected penalty
   and score exist in Java, but full variant costing, ranking, diversity and strict output export
   are not implemented.
@@ -116,9 +140,12 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Next change
 
-Finish R4/R6 geometry integration: route around forbidden buffers, construct valid special
-passages, normalize the resulting paths and re-run the independent validator. Then connect the
-existing R5 sizing primitive to valid R4 trees. Do not start depth, MVT or additional file formats.
+Finish R5: resolve continuous-length violations by a valid DU transition strategy, then propagate
+added demand through split existing-network parts to the source, sum shared upstream flow, select
+required DU and emit only the sections/chambers that need reconstruction. In parallel, close the
+remaining R6 per-rule boundary matrix and profile the
+obstacle search. Then implement R7 official costs, score and strict seven-type export. Do not start
+depth, MVT or additional file formats before the mandatory 2D gate.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
 The current cross-check against all three organizer artifacts is in `OFFICIAL_ALIGNMENT_AUDIT.md`.

@@ -50,8 +50,11 @@ Already usable:
 - deterministic tie-in candidates and 10 m chamber feasibility rule;
 - durable PostgreSQL topology jobs with progress/cancel/recovery;
 - pure Java official restriction catalog, crossing geometry and DU sizing primitives.
-- immutable R4 runs with deterministic independent/shared variants, partial no-route and a separate
-  tree/chamber/crossing validator;
+- immutable R4 runs with deterministic independent/shared/diverse variants, obstacle-aware
+  polylines, partial no-route and a separate tree/chamber/crossing validator;
+- integrated R6 construction/final validation for dynamic OKS buffers, hard forbidden zones and
+  reproducible base/special crossings;
+- bottom-up `flow_tph`, DU and continuous-length diagnostics on accepted new-network trees;
 - production evidence on the organizer file: the preferred shared variant connects all 17 demands
   with zero structural validator issues.
 - interactive R4 result viewer with MapLibre GL/CARTO vector basemap, PostGIS source context, layer toggles,
@@ -64,28 +67,26 @@ Already usable:
 
 Still blocking official P0:
 
-- obstacle-aware multi-OKS route search and special passages;
-- route normalization/local improvement and a third diverse alternative;
-- reconstruction propagation to source;
-- constraints integrated into routing;
+- reconstruction propagation to source and chamber reconstruction;
+- automatic resolution of the continuous-length sizing issues reported on long branches;
+- the complete positive/boundary/negative R6 matrix for every official table row;
+- large-network performance and broader route-quality/diversity evidence;
 - official component costs, score and alternative diversity;
 - strict seven-type result export;
 - large-file/load/Ubuntu 22 acceptance evidence.
 
 ## Developer: next vertical slice
 
-The first R4 slice is implemented in `domain/routing` and evidenced in `r4-evidence.md`. Continue
-from its normalized directed trees; do not replace the immutable run/job contract.
+Continue from the validated and sized trees in `domain/routing`; do not replace the immutable
+run/job contract. First resolve continuous-length issues through valid DU transitions without
+resetting the counter at an unchanged-DU chamber. Then propagate the added demand from each
+selected tie-in through split existing
+sections to the source, sum shared upstream flows, select required DU and emit reconstruction only
+where the required DU exceeds the supplied baseline. Cover partial tie-ins and chamber
+reconstruction with focused tests. In parallel, finish the missing R6 row-by-row boundary matrix.
 
-Exit criteria:
-
-1. route search treats forbidden buffers as impassable and creates only permitted special passages;
-2. path normalization cannot invalidate clearance, angle, chamber or crossing invariants;
-3. at least three materially different alternatives can be produced when the geometry permits;
-4. every accepted variant passes the independent validator after normalization;
-5. valid trees feed the existing bottom-up sizing primitive without adapter-side reinterpretation.
-
-Do not mix official costing into the first PR; expose explicit placeholder quantities if needed.
+After reconstruction is independently validated, implement official R7 component costs, score and
+strict seven-type streaming export. Do not mix optional depth, MVT or extra formats into this gate.
 
 ## PM: tasks tomorrow
 
@@ -107,7 +108,8 @@ Do not mix official costing into the first PR; expose explicit placeholder quant
   `file -> loader/progress -> completed map` and start the official run automatically.
 - Input warnings remain available from the clickable `Проверка структуры` metric in the result
   island. Keep the full API diagnostics; do not replace them with a fake aggregate.
-- Current deployed baseline is `407c0a7`; CI run `35089560867` passed all jobs.
+- Current deployed baseline is `407c0a7`; the newer R4/R6 checkpoint is local/Git-only. Do not
+  deploy it to the VPS without a separate user command.
 
 - Local Docker data and tool caches must remain on `E:`.
 - Never commit `.env.vps`, keys or dumps. The sole approved organizer dataset is the byte-identical

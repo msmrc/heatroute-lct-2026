@@ -90,6 +90,19 @@ export interface OfficialRouteEdge {
   length_m: number;
   upstream_node_id: string;
   downstream_node_id: string;
+  coordinates?: OfficialRouteCoordinate[];
+  sections?: OfficialRouteSection[];
+  flow_tph?: number | null;
+  diameter?: number | null;
+}
+
+export interface OfficialRouteSection {
+  kind: "base" | "special";
+  length_m: number;
+  coordinates: OfficialRouteCoordinate[];
+  restriction_type?: string | null;
+  restriction_id?: string | null;
+  crossing_angle_degrees?: number | null;
 }
 
 export interface OfficialRouteConnection {
@@ -100,6 +113,13 @@ export interface OfficialRouteConnection {
   reason?: string;
 }
 
+export interface OfficialCalculationIssue {
+  code: string;
+  message: string;
+  subject_id?: string | null;
+  edge_id?: string | null;
+}
+
 export interface OfficialRouteVariant {
   id: string;
   strategy: string;
@@ -108,7 +128,8 @@ export interface OfficialRouteVariant {
   edges: OfficialRouteEdge[];
   connections: OfficialRouteConnection[];
   total_length_m: number;
-  validation_issues: unknown[];
+  validation_issues: OfficialCalculationIssue[];
+  sizing_issues?: OfficialCalculationIssue[];
   no_route_demand_count: number;
   connected_demand_count: number;
 }

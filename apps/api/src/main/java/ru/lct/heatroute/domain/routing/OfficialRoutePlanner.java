@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,23 +15,45 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.operation.distance.DistanceOp;
 import org.springframework.stereotype.Component;
+import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.engineering.PipeCatalogEntry;
+import ru.lct.heatroute.domain.sizing.NetworkSizingResult;
+import ru.lct.heatroute.domain.sizing.NetworkTreeEdge;
+import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
+import ru.lct.heatroute.domain.sizing.SizedNetworkEdge;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
 @Component
 public class OfficialRoutePlanner {
-    public static final String ALGORITHM_VERSION = "r4-heuristic-1";
+    public static final String ALGORITHM_VERSION = "r4-r6-obstacle-aware-2";
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double MIN_SHARED_SAVING_M = 0.01;
+    private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
+    private static final long MAX_SHARED_TARGETS_PER_PAIR = 2;
+    private static final int SHARED_NEIGHBOUR_FACTOR = 2;
+    private static final long MAX_ASSIGNMENT_CANDIDATES = 4;
 
     private final OfficialRouteValidator validator;
+    private final OfficialObstacleRouter obstacleRouter;
+    private final OfficialPipeCatalog pipeCatalog;
+    private final OfficialNetworkSizer networkSizer;
+    private final GeometryFactory geometryFactory = new GeometryFactory();
 
-    public OfficialRoutePlanner(OfficialRouteValidator validator) {
+    public OfficialRoutePlanner(
+            OfficialRouteValidator validator,
+            OfficialObstacleRouter obstacleRouter,
+            OfficialPipeCatalog pipeCatalog,
+            OfficialNetworkSizer networkSizer) {
         this.validator = validator;
+        this.obstacleRouter = obstacleRouter;
+        this.pipeCatalog = pipeCatalog;
+        this.networkSizer = networkSizer;
     }
 
     public OfficialCalculationResult plan(
@@ -43,6 +66,7 @@ public class OfficialRoutePlanner {
                 LinkedHashMap::new));
         Map<String, Integer> chamberIncidentCounts = chamberIncidentCounts(features);
         List<Demand> demands = demands(features, featuresById);
+        OfficialRoutingEnvironment routingEnvironment = obstacleRouter.prepare(features);
         Map<String, List<TieInCandidate>> candidatesByConnection = topology.getTieInCandidates().stream()
                 .collect(Collectors.groupingBy(
                         TieInCandidate::getConnectionPointId,
@@ -50,8 +74,15 @@ public class OfficialRoutePlanner {
                         Collectors.toList()));
 
         VariantDraft independentDraft = independent(
-                demands, candidatesByConnection, featuresById, chamberIncidentCounts);
-        RouteVariant independent = finish("independent", "independent", independentDraft);
+                demands,
+                candidatesByConnection,
+                featuresById,
+                chamberIncidentCounts,
+                routingEnvironment,
+                Collections.emptyMap(),
+                RoutePreference.SHORTEST,
+                "independent");
+        RouteVariant independent = finish("independent", "independent", independentDraft, features);
         List<RouteVariant> variants = new ArrayList<>();
         variants.add(independent);
 
@@ -60,11 +91,31 @@ public class OfficialRoutePlanner {
                 candidatesByConnection,
                 featuresById,
                 chamberIncidentCounts,
-                independentDraft.lengthByDemand);
-        RouteVariant shared = finish("shared", "shared_trunk", sharedDraft);
+                independentDraft.lengthByDemand,
+                routingEnvironment);
+        RouteVariant shared = finish("shared", "shared_trunk", sharedDraft, features);
         if (sharedDraft.sharedPairCount > 0
                 && !edgeSignature(independent).equals(edgeSignature(shared))) {
             variants.add(shared);
+        }
+
+        VariantDraft diverseDraft = independent(
+                demands,
+                candidatesByConnection,
+                featuresById,
+                chamberIncidentCounts,
+                routingEnvironment,
+                independentDraft.targetByDemand,
+                RoutePreference.RIGHT,
+                "diverse");
+        RouteVariant diverse = finish("diverse", "alternative_tie_ins", diverseDraft, features);
+        Set<String> existingSignatures = variants.stream()
+                .map(this::edgeSignature)
+                .collect(Collectors.toSet());
+        if (diverse.getConnectedDemandCount() > 0
+                && diverse.isValid()
+                && existingSignatures.add(edgeSignature(diverse))) {
+            variants.add(diverse);
         }
 
         String preferred = variants.stream()
@@ -83,10 +134,15 @@ public class OfficialRoutePlanner {
             List<Demand> demands,
             Map<String, List<TieInCandidate>> candidatesByConnection,
             Map<String, ImportedOfficialFeature> featuresById,
-            Map<String, Integer> chamberIncidentCounts) {
+            Map<String, Integer> chamberIncidentCounts,
+            OfficialRoutingEnvironment routingEnvironment,
+            Map<String, String> avoidedTargetByDemand,
+            RoutePreference preference,
+            String strategyPrefix) {
         VariantDraft draft = new VariantDraft();
         Map<String, Integer> usedChamberSlots = new HashMap<>();
         for (Demand demand : demands) {
+            String avoidedTarget = avoidedTargetByDemand.get(demand.id);
             Assignment assignment = chooseAssignment(
                     demand,
                     candidatesByConnection.getOrDefault(demand.connectionPointId, List.of()),
@@ -94,7 +150,10 @@ public class OfficialRoutePlanner {
                     chamberIncidentCounts,
                     usedChamberSlots,
                     draft,
-                    "independent:" + demand.id);
+                    strategyPrefix + ":" + demand.id,
+                    routingEnvironment,
+                    avoidedTarget == null ? Collections.emptySet() : Set.of(avoidedTarget),
+                    preference);
             if (assignment == null) {
                 draft.noRoute(
                         demand,
@@ -106,7 +165,7 @@ public class OfficialRoutePlanner {
             if (assignment.chamberTargetId() != null) {
                 usedChamberSlots.merge(assignment.chamberTargetId(), 1, Integer::sum);
             }
-            addDirect(draft, demand, assignment, "independent");
+            addDirect(draft, demand, assignment, strategyPrefix);
         }
         return draft;
     }
@@ -116,23 +175,36 @@ public class OfficialRoutePlanner {
             Map<String, List<TieInCandidate>> candidatesByConnection,
             Map<String, ImportedOfficialFeature> featuresById,
             Map<String, Integer> chamberIncidentCounts,
-            Map<String, Double> independentLengthByDemand) {
-        List<PairPlan> plans = new ArrayList<>();
+            Map<String, Double> independentLengthByDemand,
+            OfficialRoutingEnvironment routingEnvironment) {
+        List<DemandPair> demandPairs = new ArrayList<>();
         for (int leftIndex = 0; leftIndex < demands.size(); leftIndex++) {
             for (int rightIndex = leftIndex + 1; rightIndex < demands.size(); rightIndex++) {
                 Demand left = demands.get(leftIndex);
                 Demand right = demands.get(rightIndex);
+                double distance = left.coordinate.distance(right.coordinate);
+                if (distance <= MAX_SHARED_PAIR_DISTANCE_M) {
+                    demandPairs.add(new DemandPair(left, right, distance));
+                }
+            }
+        }
+        demandPairs.sort(Comparator.comparingDouble((DemandPair pair) -> pair.distanceM)
+                .thenComparing(pair -> pair.left.id)
+                .thenComparing(pair -> pair.right.id));
+        List<PairPlan> plans = new ArrayList<>();
+        int pairLimit = Math.max(1, demands.size() * SHARED_NEIGHBOUR_FACTOR);
+        for (DemandPair pair : demandPairs.stream().limit(pairLimit).collect(Collectors.toList())) {
                 PairPlan plan = bestPairPlan(
-                        left,
-                        right,
+                        pair.left,
+                        pair.right,
                         candidatesByConnection,
                         featuresById,
                         chamberIncidentCounts,
-                        independentLengthByDemand);
+                        independentLengthByDemand,
+                        routingEnvironment);
                 if (plan != null && plan.savingM > MIN_SHARED_SAVING_M) {
                     plans.add(plan);
                 }
-            }
         }
         plans.sort(Comparator.comparingDouble((PairPlan plan) -> plan.savingM).reversed()
                 .thenComparing(plan -> plan.left.id)
@@ -172,7 +244,10 @@ public class OfficialRoutePlanner {
                     chamberIncidentCounts,
                     usedChamberSlots,
                     draft,
-                    "shared:" + demand.id);
+                    "shared:" + demand.id,
+                    routingEnvironment,
+                    Collections.emptySet(),
+                    RoutePreference.SHORTEST);
             if (assignment == null) {
                 draft.noRoute(
                         demand,
@@ -195,10 +270,14 @@ public class OfficialRoutePlanner {
             Map<String, List<TieInCandidate>> candidatesByConnection,
             Map<String, ImportedOfficialFeature> featuresById,
             Map<String, Integer> chamberIncidentCounts,
-            Map<String, Double> independentLengthByDemand) {
+            Map<String, Double> independentLengthByDemand,
+            OfficialRoutingEnvironment routingEnvironment) {
         Double independentLeft = independentLengthByDemand.get(left.id);
         Double independentRight = independentLengthByDemand.get(right.id);
         if (independentLeft == null || independentRight == null) {
+            return null;
+        }
+        if (left.coordinate.distance(right.coordinate) > MAX_SHARED_PAIR_DISTANCE_M) {
             return null;
         }
         Map<String, TieInCandidate> rightByTarget = candidatesByConnection
@@ -206,7 +285,13 @@ public class OfficialRoutePlanner {
                 .stream()
                 .collect(Collectors.toMap(this::targetKey, candidate -> candidate, (a, b) -> a));
         PairPlan best = null;
-        for (TieInCandidate leftCandidate : candidatesByConnection.getOrDefault(left.connectionPointId, List.of())) {
+        List<TieInCandidate> leftCandidates = candidatesByConnection
+                .getOrDefault(left.connectionPointId, List.of())
+                .stream()
+                .sorted(Comparator.comparing(TieInCandidate::getDistanceM).thenComparing(this::targetKey))
+                .limit(MAX_SHARED_TARGETS_PER_PAIR)
+                .collect(Collectors.toList());
+        for (TieInCandidate leftCandidate : leftCandidates) {
             TieInCandidate rightCandidate = rightByTarget.get(targetKey(leftCandidate));
             if (rightCandidate == null) {
                 continue;
@@ -217,16 +302,55 @@ public class OfficialRoutePlanner {
             }
             Coordinate junction = midpoint(left.coordinate, right.coordinate);
             Coordinate targetCoordinate = targetCoordinate(junction, target.getMetricGeometry());
-            double totalLength = left.coordinate.distance(junction)
-                    + right.coordinate.distance(junction)
-                    + junction.distance(targetCoordinate);
+            int leftDiameter = diameterFor(left.flowTph);
+            int rightDiameter = diameterFor(right.flowTph);
+            BigDecimal trunkFlow = left.flowTph.add(right.flowTph);
+            int trunkDiameter = diameterFor(trunkFlow);
+            RoutePath leftPath = obstacleRouter.find(
+                    left.coordinate,
+                    junction,
+                    leftDiameter,
+                    routingEnvironment,
+                    Collections.emptySet(),
+                    RoutePreference.LEFT);
+            RoutePath rightPath = obstacleRouter.find(
+                    right.coordinate,
+                    junction,
+                    rightDiameter,
+                    routingEnvironment,
+                    Collections.emptySet(),
+                    RoutePreference.RIGHT);
+            RoutePath trunkPath = obstacleRouter.find(
+                    junction,
+                    targetCoordinate,
+                    trunkDiameter,
+                    routingEnvironment,
+                    Set.of(leftCandidate.getTargetId()),
+                    RoutePreference.SHORTEST);
+            if (leftPath == null || rightPath == null || trunkPath == null) {
+                continue;
+            }
+            double totalLength = leftPath.lengthM() + rightPath.lengthM() + trunkPath.lengthM();
             double saving = independentLeft + independentRight - totalLength;
             Assignment assignment = new Assignment(
                     leftCandidate,
                     targetCoordinate,
                     rootNode(leftCandidate, targetCoordinate, chamberIncidentCounts,
-                            "shared:" + left.id + ":" + right.id));
-            PairPlan candidate = new PairPlan(left, right, junction, assignment, totalLength, saving);
+                            "shared:" + left.id + ":" + right.id),
+                    trunkPath,
+                    trunkFlow,
+                    trunkDiameter);
+            PairPlan candidate = new PairPlan(
+                    left,
+                    right,
+                    junction,
+                    assignment,
+                    leftPath,
+                    rightPath,
+                    leftDiameter,
+                    rightDiameter,
+                    totalLength,
+                    saving);
             if (best == null
                     || candidate.savingM > best.savingM
                     || (candidate.savingM == best.savingM
@@ -245,24 +369,46 @@ public class OfficialRoutePlanner {
             Map<String, Integer> chamberIncidentCounts,
             Map<String, Integer> usedChamberSlots,
             VariantDraft draft,
-            String rootSuffix) {
+            String rootSuffix,
+            OfficialRoutingEnvironment routingEnvironment,
+            Set<String> avoidedTargets,
+            RoutePreference preference) {
+        int diameter = diameterFor(demand.flowTph);
         return candidates.stream()
                 .sorted(Comparator.comparing(TieInCandidate::getDistanceM)
                         .thenComparing(this::targetKey))
+                .filter(candidate -> !avoidedTargets.contains(candidate.getTargetId()))
                 .filter(candidate -> !"heat_chamber".equals(candidate.getTargetType())
                         || hasChamberCapacity(candidate.getTargetId(), chamberIncidentCounts, usedChamberSlots))
+                .limit(MAX_ASSIGNMENT_CANDIDATES)
                 .map(candidate -> {
                     ImportedOfficialFeature target = featuresById.get(candidate.getTargetId());
                     if (target == null) {
                         return null;
                     }
                     Coordinate coordinate = targetCoordinate(demand.coordinate, target.getMetricGeometry());
+                    RoutePath path = obstacleRouter.find(
+                            demand.coordinate,
+                            coordinate,
+                            diameter,
+                            routingEnvironment,
+                            Set.of(candidate.getTargetId()),
+                            preference,
+                            avoidanceLines(draft));
+                    if (path == null) {
+                        return null;
+                    }
                     return new Assignment(
                             candidate,
                             coordinate,
-                            rootNode(candidate, coordinate, chamberIncidentCounts, rootSuffix));
+                            rootNode(candidate, coordinate, chamberIncidentCounts, rootSuffix),
+                            path,
+                            demand.flowTph,
+                            diameter);
                 })
                 .filter(assignment -> assignment != null)
+                .sorted(Comparator.comparingDouble((Assignment assignment) -> assignment.path.lengthM())
+                        .thenComparing(assignment -> targetKey(assignment.candidate)))
                 .filter(assignment -> canAddDirect(draft, demand, assignment, rootSuffix))
                 .findFirst()
                 .orElse(null);
@@ -313,16 +459,19 @@ public class OfficialRoutePlanner {
         RouteNode demandNode = demandNode(demand);
         draft.addNode(demandNode);
         draft.addNode(assignment.root);
-        double length = demand.coordinate.distance(assignment.targetCoordinate);
+        double length = assignment.path.lengthM();
         if (length <= MIN_EDGE_LENGTH_M) {
             draft.noRoute(demand, "ROUTE_LENGTH_ZERO");
             return;
         }
-        draft.addEdge(new RouteEdge(
+        draft.addEdge(routeEdge(
                 prefix + ":edge:" + demand.id,
                 assignment.root.getId(),
                 demandNode.getId(),
-                length));
+                assignment.path.reversed(),
+                assignment.flowTph,
+                assignment.diameter));
+        draft.targetByDemand.put(demand.id, assignment.candidate.getTargetId());
         draft.connected(demand, length);
     }
 
@@ -343,37 +492,114 @@ public class OfficialRoutePlanner {
         draft.addNode(rightNode);
         draft.addNode(junction);
         draft.addNode(plan.assignment.root);
-        double leftLength = plan.left.coordinate.distance(plan.junction);
-        double rightLength = plan.right.coordinate.distance(plan.junction);
-        double trunkLength = plan.junction.distance(plan.assignment.targetCoordinate);
+        double leftLength = plan.leftPath.lengthM();
+        double rightLength = plan.rightPath.lengthM();
+        double trunkLength = plan.assignment.path.lengthM();
         if (leftLength <= MIN_EDGE_LENGTH_M || rightLength <= MIN_EDGE_LENGTH_M || trunkLength <= MIN_EDGE_LENGTH_M) {
             draft.noRoute(plan.left, "ROUTE_LENGTH_ZERO");
             draft.noRoute(plan.right, "ROUTE_LENGTH_ZERO");
             return;
         }
-        draft.addEdge(new RouteEdge("shared:branch:" + plan.left.id, junction.getId(), leftNode.getId(), leftLength));
-        draft.addEdge(new RouteEdge("shared:branch:" + plan.right.id, junction.getId(), rightNode.getId(), rightLength));
-        draft.addEdge(new RouteEdge(
+        draft.addEdge(routeEdge(
+                "shared:branch:" + plan.left.id,
+                junction.getId(),
+                leftNode.getId(),
+                plan.leftPath.reversed(),
+                plan.left.flowTph,
+                plan.leftDiameter));
+        draft.addEdge(routeEdge(
+                "shared:branch:" + plan.right.id,
+                junction.getId(),
+                rightNode.getId(),
+                plan.rightPath.reversed(),
+                plan.right.flowTph,
+                plan.rightDiameter));
+        draft.addEdge(routeEdge(
                 "shared:trunk:" + pairId,
                 plan.assignment.root.getId(),
                 junction.getId(),
-                trunkLength));
-        draft.connected(plan.left, leftLength + trunkLength / 2.0);
-        draft.connected(plan.right, rightLength + trunkLength / 2.0);
+                plan.assignment.path.reversed(),
+                plan.assignment.flowTph,
+                plan.assignment.diameter));
+        draft.targetByDemand.put(plan.left.id, plan.assignment.candidate.getTargetId());
+        draft.targetByDemand.put(plan.right.id, plan.assignment.candidate.getTargetId());
+        draft.connected(plan.left, leftLength + trunkLength);
+        draft.connected(plan.right, rightLength + trunkLength);
     }
 
-    private RouteVariant finish(String id, String strategy, VariantDraft draft) {
+    private RouteEdge routeEdge(
+            String id,
+            String upstreamNodeId,
+            String downstreamNodeId,
+            RoutePath path,
+            BigDecimal flowTph,
+            int diameter) {
+        List<RouteCoordinate> coordinates = path.coordinates().stream()
+                .map(coordinate -> new RouteCoordinate(coordinate.x, coordinate.y))
+                .collect(Collectors.toList());
+        return new RouteEdge(
+                id,
+                upstreamNodeId,
+                downstreamNodeId,
+                path.lengthM(),
+                coordinates,
+                path.sections(),
+                flowTph,
+                diameter);
+    }
+
+    private RouteVariant finish(
+            String id,
+            String strategy,
+            VariantDraft draft,
+            List<ImportedOfficialFeature> features) {
         List<RouteNode> nodes = draft.nodes.values().stream()
                 .sorted(Comparator.comparing(RouteNode::getId))
                 .collect(Collectors.toList());
         draft.edges.sort(Comparator.comparing(RouteEdge::getId));
         draft.connections.sort(Comparator.comparing(RouteConnection::getDemandId));
-        List<RouteValidationIssue> issues = validator.validate(nodes, draft.edges);
-        BigDecimal totalLength = draft.edges.stream()
+        Map<String, BigDecimal> demandFlowByNode = draft.connections.stream()
+                .filter(connection -> "connected".equals(connection.getStatus()))
+                .collect(Collectors.toMap(
+                        connection -> "demand:" + connection.getDemandId(),
+                        RouteConnection::getFlowTph,
+                        BigDecimal::add,
+                        LinkedHashMap::new));
+        NetworkSizingResult sizing = networkSizer.size(
+                draft.edges.stream()
+                        .map(edge -> new NetworkTreeEdge(
+                                edge.getId(),
+                                edge.getUpstreamNodeId(),
+                                edge.getDownstreamNodeId(),
+                                edge.getLengthM()))
+                        .collect(Collectors.toList()),
+                demandFlowByNode);
+        List<RouteEdge> sizedEdges = draft.edges.stream().map(edge -> {
+            SizedNetworkEdge sized = sizing.getEdges().get(edge.getId());
+            return sized == null ? edge : new RouteEdge(
+                    edge.getId(),
+                    edge.getUpstreamNodeId(),
+                    edge.getDownstreamNodeId(),
+                    edge.getLengthM().doubleValue(),
+                    edge.getCoordinates(),
+                    edge.getSections(),
+                    sized.getFlowTph(),
+                    sized.getDiameter());
+        }).collect(Collectors.toList());
+        List<RouteValidationIssue> issues = validator.validate(nodes, sizedEdges, features);
+        BigDecimal totalLength = sizedEdges.stream()
                 .map(RouteEdge::getLengthM)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(3, RoundingMode.HALF_UP);
-        return new RouteVariant(id, strategy, nodes, draft.edges, draft.connections, totalLength, issues);
+        return new RouteVariant(
+                id,
+                strategy,
+                nodes,
+                sizedEdges,
+                draft.connections,
+                totalLength,
+                issues,
+                sizing.getIssues());
     }
 
     private Map<String, Integer> chamberIncidentCounts(List<ImportedOfficialFeature> features) {
@@ -416,6 +642,24 @@ public class OfficialRoutePlanner {
         return value == null || value.isNull() || !value.isNumber() ? null : value.decimalValue();
     }
 
+    private int diameterFor(BigDecimal flowTph) {
+        if (flowTph == null || flowTph.signum() <= 0) {
+            return pipeCatalog.entries().get(0).getDiameter();
+        }
+        return pipeCatalog.minimumForFlow(flowTph)
+                .map(PipeCatalogEntry::getDiameter)
+                .orElseGet(() -> pipeCatalog.entries().get(pipeCatalog.entries().size() - 1).getDiameter());
+    }
+
+    private List<LineString> avoidanceLines(VariantDraft draft) {
+        return draft.edges.stream()
+                .filter(edge -> edge.getCoordinates().size() >= 2)
+                .map(edge -> geometryFactory.createLineString(edge.getCoordinates().stream()
+                        .map(RouteCoordinate::toCoordinate)
+                        .toArray(Coordinate[]::new)))
+                .collect(Collectors.toList());
+    }
+
     private boolean hasChamberCapacity(
             String chamberId,
             Map<String, Integer> base,
@@ -451,7 +695,11 @@ public class OfficialRoutePlanner {
 
     private String edgeSignature(RouteVariant variant) {
         return variant.getEdges().stream()
-                .map(edge -> edge.getUpstreamNodeId() + "<-" + edge.getDownstreamNodeId())
+                .map(edge -> edge.getUpstreamNodeId()
+                        + "<-" + edge.getDownstreamNodeId()
+                        + ":" + edge.getCoordinates().stream()
+                                .map(coordinate -> coordinate.getXM() + "," + coordinate.getYM())
+                                .collect(Collectors.joining(";")))
                 .sorted()
                 .collect(Collectors.joining("|"));
     }
@@ -480,11 +728,23 @@ public class OfficialRoutePlanner {
         private final TieInCandidate candidate;
         private final Coordinate targetCoordinate;
         private final RouteNode root;
+        private final RoutePath path;
+        private final BigDecimal flowTph;
+        private final int diameter;
 
-        private Assignment(TieInCandidate candidate, Coordinate targetCoordinate, RouteNode root) {
+        private Assignment(
+                TieInCandidate candidate,
+                Coordinate targetCoordinate,
+                RouteNode root,
+                RoutePath path,
+                BigDecimal flowTph,
+                int diameter) {
             this.candidate = candidate;
             this.targetCoordinate = targetCoordinate;
             this.root = root;
+            this.path = path;
+            this.flowTph = flowTph;
+            this.diameter = diameter;
         }
 
         private String chamberTargetId() {
@@ -497,6 +757,10 @@ public class OfficialRoutePlanner {
         private final Demand right;
         private final Coordinate junction;
         private final Assignment assignment;
+        private final RoutePath leftPath;
+        private final RoutePath rightPath;
+        private final int leftDiameter;
+        private final int rightDiameter;
         private final double totalLengthM;
         private final double savingM;
 
@@ -505,14 +769,34 @@ public class OfficialRoutePlanner {
                 Demand right,
                 Coordinate junction,
                 Assignment assignment,
+                RoutePath leftPath,
+                RoutePath rightPath,
+                int leftDiameter,
+                int rightDiameter,
                 double totalLengthM,
                 double savingM) {
             this.left = left;
             this.right = right;
             this.junction = junction;
             this.assignment = assignment;
+            this.leftPath = leftPath;
+            this.rightPath = rightPath;
+            this.leftDiameter = leftDiameter;
+            this.rightDiameter = rightDiameter;
             this.totalLengthM = totalLengthM;
             this.savingM = savingM;
+        }
+    }
+
+    private static class DemandPair {
+        private final Demand left;
+        private final Demand right;
+        private final double distanceM;
+
+        private DemandPair(Demand left, Demand right, double distanceM) {
+            this.left = left;
+            this.right = right;
+            this.distanceM = distanceM;
         }
     }
 
@@ -521,6 +805,7 @@ public class OfficialRoutePlanner {
         private final List<RouteEdge> edges = new ArrayList<>();
         private final List<RouteConnection> connections = new ArrayList<>();
         private final Map<String, Double> lengthByDemand = new HashMap<>();
+        private final Map<String, String> targetByDemand = new HashMap<>();
         private int sharedPairCount;
 
         private VariantDraft copy() {
@@ -529,6 +814,7 @@ public class OfficialRoutePlanner {
             copy.edges.addAll(edges);
             copy.connections.addAll(connections);
             copy.lengthByDemand.putAll(lengthByDemand);
+            copy.targetByDemand.putAll(targetByDemand);
             copy.sharedPairCount = sharedPairCount;
             return copy;
         }

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import ru.lct.heatroute.domain.sizing.NetworkSizingIssue;
 
 public class RouteVariant {
     private final String id;
@@ -13,6 +14,7 @@ public class RouteVariant {
     private final List<RouteConnection> connections;
     private final BigDecimal totalLengthM;
     private final List<RouteValidationIssue> validationIssues;
+    private final List<NetworkSizingIssue> sizingIssues;
 
     public RouteVariant(
             String id,
@@ -21,7 +23,8 @@ public class RouteVariant {
             List<RouteEdge> edges,
             List<RouteConnection> connections,
             BigDecimal totalLengthM,
-            List<RouteValidationIssue> validationIssues) {
+            List<RouteValidationIssue> validationIssues,
+            List<NetworkSizingIssue> sizingIssues) {
         this.id = id;
         this.strategy = strategy;
         this.nodes = immutable(nodes);
@@ -29,6 +32,7 @@ public class RouteVariant {
         this.connections = immutable(connections);
         this.totalLengthM = totalLengthM;
         this.validationIssues = immutable(validationIssues);
+        this.sizingIssues = immutable(sizingIssues);
     }
 
     public String getId() { return id; }
@@ -38,6 +42,7 @@ public class RouteVariant {
     public List<RouteConnection> getConnections() { return connections; }
     public BigDecimal getTotalLengthM() { return totalLengthM; }
     public List<RouteValidationIssue> getValidationIssues() { return validationIssues; }
+    public List<NetworkSizingIssue> getSizingIssues() { return sizingIssues; }
     public boolean isValid() { return validationIssues.isEmpty(); }
     public long getConnectedDemandCount() {
         return connections.stream().filter(connection -> "connected".equals(connection.getStatus())).count();

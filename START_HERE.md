@@ -13,7 +13,9 @@
 
 Backend только Java 11 / Spring Boot 2.6.3 в `apps/api`. Не возвращай Python, FastAPI, Celery,
 Alembic или Redis. Не считай старые M0–M7 evidence текущей готовностью. Первый R4 vertical slice
-закрыт; следующий критический этап — obstacle-aware R4/R6 routing, затем подключение R5 sizing.
+расширен до obstacle-aware R4/R6 routing с тремя стратегиями, а R5 sizing подключён к новой сети.
+Следующий критический этап — propagation/reconstruction существующей сети, затем R7 cost/export.
+Не публикуй текущие изменения на VPS без отдельной команды пользователя.
 
 Быстрая проверка состояния:
 

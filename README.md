@@ -16,10 +16,11 @@ HeatRoute — монорепозиторий конкурсного решени
 - `docs/implementation/OFFICIAL_TZ_ROADMAP.md` — единый roadmap R0–R9;
 - `docs/implementation/TOMORROW_HANDOFF.md` — точка входа для следующей смены.
 
-Сейчас реализованы и проверены foundation, потоковая инспекция/сохранение семи входных типов,
-базовый анализ существующей сети, кандидаты врезки, правила ограничений и чистое Java-ядро
-подбора ДУ. Полный multi-OKS routing, реконструкция, официальный расчёт стоимости/score и строгий
-семитипный экспорт ещё не готовы. Проект нельзя считать закрытым по официальному ТЗ.
+Сейчас реализованы foundation, потоковая инспекция/сохранение входа, анализ существующей сети,
+кандидаты врезки и obstacle-aware multi-OKS routing с тремя стратегиями, независимой проверкой
+ограничений и расчётом расхода/ДУ новой сети. Реконструкция существующей сети, официальный расчёт
+стоимости/score и строгий семитипный экспорт ещё не готовы. Проект нельзя считать закрытым по
+официальному ТЗ.
 
 ## Запуск
 
@@ -41,6 +42,29 @@ pwsh -File scripts/dev.ps1 typecheck
 ```
 
 Все большие tool/cache paths на Windows должны оставаться под `E:\job\.tooling`.
+
+### Локальный просмотр расчёта без Docker/PostGIS
+
+Read-only стенд строит данные из единственного официального GeoJSON тем же Java-ядром и не
+публикует их на VPS:
+
+```powershell
+$root = (Get-Location).Path
+Push-Location apps/api
+mvn "-Dheatroute.demo.output=$root\tmp\local-demo-bundle.json" `
+  -Dtest=OfficialDatasetRoutingTest test
+Pop-Location
+
+# Терминал 1
+node scripts/local-demo-server.mjs tmp/local-demo-bundle.json
+
+# Терминал 2; 5174 не конфликтует с проектом, занимающим 5173
+$env:VITE_DEV_API_PROXY = 'http://127.0.0.1:8000'
+pnpm --filter @heatroute/web dev -- --host 127.0.0.1 --port 5174 --strictPort
+```
+
+Откройте `http://localhost:5174/` и нажмите «Открыть демо». Сгенерированный bundle находится в
+игнорируемом `tmp/`; в Git он не попадает.
 
 ## Документы
 

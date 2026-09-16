@@ -8,13 +8,13 @@ source tree, database migrations, Compose and CI configuration.
 
 The selected production technology matches most mandatory platform requirements and the active
 internal specification now describes the correct contest problem. The application is not yet a
-contest solution end to end: it imports and diagnoses the supplied data, but it does not construct,
-rank or export a valid heating-network variant.
+contest solution end to end: it imports the supplied data and constructs independently validated
+new-network variants, but it does not yet reconstruct, rank or export the official result.
 
-Estimated readiness for the mandatory submission is **about 45% overall**. Platform, import and
-topology foundations are substantially ahead of the domain pipeline. Readiness of the mandatory
-calculation itself is **about 38%**: the first immutable all-demand R4 calculation slice exists,
-but obstacle-aware routing and the R5-R7 orchestration are still absent.
+Estimated readiness for the mandatory submission is **about 50% overall**. Platform, import,
+topology and new-network routing are ahead of reconstruction/export. Readiness of the mandatory
+calculation itself is **about 50%**: obstacle-aware R4/R6 routing and new-network sizing exist, but
+existing-network reconstruction and the R7 calculation/export pipeline are still absent.
 
 ## Sole official dataset
 
@@ -65,8 +65,8 @@ missing engineering values are fabricated.
 | One combined GeoJSON input | Implemented, persisted in WGS84 and EPSG:32637 | Meets for the supplied 233 KB file |
 
 JTS, Proj4J and PostGIS are appropriate supporting libraries for the required geometry. The
-PostgreSQL lease-based job model is a sound foundation, but only `topology_analysis` is executable;
-the database permits a `calculation` job that the worker currently rejects.
+PostgreSQL lease-based job model executes both `topology_analysis` and immutable `calculation`
+jobs; the calculation result now contains route geometry and new-network sizing.
 
 ## Internal specification alignment
 
@@ -92,13 +92,13 @@ Remaining documentation drift:
 | Platform, CI and VPS | Java-only Compose, PostGIS, Caddy, health checks, green CI and public HTTPS | 80% |
 | Input and persistence | Streaming inspector/loader, contract profiles, PostGIS dual CRS, real dataset regression | 75% |
 | Existing topology and tie-in screening | Geometric/upstream validation, segment/chamber candidates, 204 candidates on supplied data | 55% |
-| Multi-OKS routing and tree construction | Immutable runs, independent/shared straight-line heuristics, partial no-route and independent validator; no obstacle-aware search | 40% |
-| Flow, DU and continuous length | Official 18-row catalog and pure tree sizer exist; not connected to a generated network | 45% |
+| Multi-OKS routing and tree construction | Immutable runs, three obstacle-aware strategies, normalization, partial no-route and independent validator | 70% |
+| Flow, DU and continuous length | Tree sizer assigns flow/DU and reports continuous-length violations; auto-resolution is missing | 60% |
 | Reconstruction | Required formula/catalog data exist; no upstream propagation or reconstruction geometry | 10% |
-| Restrictions and special passages | Official rule catalog and geometry helpers exist; not integrated into route search/validation | 35% |
+| Restrictions and special passages | Dynamic buffers and base/special sections are integrated into search/final validation; full row matrix remains | 65% |
 | Cost, penalty and score | Segment, reconstruction, depth, penalty and score primitives exist; no full variant calculator | 40% |
 | Official output | No seven-type result model, serializer, streaming download or schema validator | 5% |
-| UI | Official upload, validation warnings and topology job are visible; no variants/results | 30% |
+| UI | Map-first viewer renders all route variants, source context, details and diagnostics | 70% |
 | Depth bonus | Pipe dimensions/depth multiplier exist; no vertical search or Z output | 10% |
 | Scale and acceptance | Small real file and CI/VPS smoke pass; 3 GB/500 MB/50-user/Ubuntu 22 gates absent | 20% |
 
@@ -111,20 +111,20 @@ Remaining documentation drift:
 - 204 deterministic tie-in candidates are produced for 17 demand points;
 - Java, web and live Compose CI gates pass.
 
-This proves R2 and an R3 vertical slice. It does not prove that a route can be constructed, that
-restrictions are respected by that route, or that the final cost/export is correct.
+The local Java regression additionally proves that the supplied file produces three valid route
+strategies, that the preferred variant connects all 17 demand points and that every accepted edge
+has real polyline sections, flow and DU. This does not prove reconstruction, final cost/export or
+the required scale limits.
 
 ## Critical path to a valid submission
 
-1. **R4/R6 geometry:** obstacle-aware search, special passages, normalization/local improvement
-   and a third materially different alternative; every accepted result must pass the validator.
-2. **R5 engineering integration:** bottom-up flow and DU assignment, continuous-length enforcement,
-   then upstream reconstruction when authoritative existing flow/topology is available.
-3. **R6 route constraints:** forbidden buffers and special passages must participate in search and
-   be checked again independently after route normalization.
-4. **R7 complete variant:** chamber/tie-in/reconstruction costs, penalties, score, up to three
+1. **R5 reconstruction:** propagate added flow from selected tie-ins to the source, size existing
+   parts and emit section/chamber reconstruction without inventing missing baseline values.
+2. **R6 acceptance:** complete the positive/boundary/negative matrix for every official rule and
+   profile the integrated search on denser geometry.
+3. **R7 complete variant:** chamber/tie-in/reconstruction costs, penalties, score, up to three
    materially different variants and strict seven-type streaming GeoJSON.
-5. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then
+4. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then
    produce measured 3 GB input, 500 MB output and 50-user evidence.
 
 The depth task is optional and should start only after the complete two-dimensional P0 pipeline

@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, Focus, MapPin, MapPinned, Network, X, Zoom
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 
 import type {
+  OfficialCalculationIssue,
   OfficialCalculationResult,
   OfficialInputWarning,
   OfficialRouteNode,
@@ -28,7 +29,9 @@ function formatLength(value: number): string {
 }
 
 function variantName(variant: OfficialRouteVariant): string {
-  return variant.strategy === "shared_trunk" ? "Общая сеть" : "Раздельные трассы";
+  if (variant.strategy === "shared_trunk") return "Общая сеть";
+  if (variant.strategy === "alternative_tie_ins") return "Альтернативные врезки";
+  return "Раздельные трассы";
 }
 
 function nodeName(node: OfficialRouteNode): string {
@@ -50,6 +53,21 @@ function noRouteReason(reason?: string): string {
   if (reason === "NO_ROUTE") return "Маршрут не найден";
   if (!reason) return "Маршрут не найден";
   return reason.replaceAll("_", " ").toLocaleLowerCase("ru-RU");
+}
+
+function calculationIssueTitle(issue: OfficialCalculationIssue): string {
+  if (issue.code === "MAX_CONTINUOUS_LENGTH_EXCEEDED") return "Превышена предельная длина";
+  if (issue.code === "FLOW_EXCEEDS_CATALOG") return "Расход выше диапазона диаметров";
+  return issue.code.replaceAll("_", " ").toLocaleLowerCase("ru-RU");
+}
+
+function calculationIssueMessage(issue: OfficialCalculationIssue): string {
+  const continuousLength = issue.message.match(/^Continuous DU (\d+) length ([\d.]+) m exceeds ([\d.]+) m$/);
+  if (continuousLength) {
+    const [, diameter, actual, limit] = continuousLength;
+    return `Непрерывный участок ДУ ${diameter}: ${Number(actual).toLocaleString("ru-RU")} м при допустимых ${Number(limit).toLocaleString("ru-RU")} м.`;
+  }
+  return issue.message;
 }
 
 function RouteNodeGlyph({ node, x, y, selected, onSelect }: {
@@ -137,6 +155,8 @@ export function RouteVisualization({
   if (!variant || !layout) return null;
 
   const noRoute = variant.connections.filter((connection) => connection.status === "no_route");
+  const calculationIssues = [...variant.validation_issues, ...(variant.sizing_issues ?? [])];
+  const calculationValid = variant.valid && calculationIssues.length === 0;
   const independent = result.variants.find((item) => item.strategy === "independent");
   const shared = result.variants.find((item) => item.strategy === "shared_trunk");
 
@@ -256,7 +276,13 @@ export function RouteVisualization({
           ) : (
             <>
               {variant.id === result.preferred_variant_id && <Badge tone="success">Рекомендуемый вариант</Badge>}
-              <p className="route-inspector-summary">{variant.strategy === "shared_trunk" ? "Общий ствол сокращает суммарную длину сети и подключает все доступные ОКС." : "Каждый объект подключается отдельной трассой к подходящей точке врезки."}</p>
+              <p className="route-inspector-summary">{
+                variant.strategy === "shared_trunk"
+                  ? "Общий ствол сокращает суммарную длину сети и подключает все доступные ОКС."
+                  : variant.strategy === "alternative_tie_ins"
+                    ? "Альтернативные точки врезки дают независимый сценарий подключения."
+                    : "Каждый объект подключается отдельной трассой к подходящей точке врезки."
+              }</p>
               <dl className="route-inspector-list">
                 <div><dt>Длина</dt><dd>{formatLength(variant.total_length_m)}</dd></div>
                 <div><dt>Подключено</dt><dd>{variant.connected_demand_count} из {result.demand_count} ОКС</dd></div>
@@ -280,14 +306,14 @@ export function RouteVisualization({
             <article><span>Камер и врезок</span><strong>{variant.nodes.filter((node) => node.chamber).length}</strong><small>{variant.edges.length} участков</small></article>
             <button
               type="button"
-              className={variant.valid ? "is-success" : "is-danger"}
+              className={calculationValid ? "is-success" : "is-danger"}
               aria-haspopup="dialog"
-              aria-label={`Открыть результаты проверки: ${variant.validation_issues.length} ошибок, ${warnings.length} предупреждений`}
+              aria-label={`Открыть результаты проверки: ${calculationIssues.length} ошибок, ${warnings.length} предупреждений`}
               onClick={() => setValidationDialogOpen(true)}
             >
               <span>Проверка структуры</span>
-              <strong>{variant.valid ? "Пройдена" : "Есть ошибки"}</strong>
-              <small>{variant.validation_issues.length} ошибок · <u>{warnings.length} предупреждений</u></small>
+              <strong>{calculationValid ? "Пройдена" : "Требует проверки"}</strong>
+              <small>{calculationIssues.length} ошибок · <u>{warnings.length} предупреждений</u></small>
             </button>
           </div>
         </footer>
@@ -295,10 +321,24 @@ export function RouteVisualization({
       <Dialog
         open={validationDialogOpen}
         title="Результаты проверки"
-        description={`${variant.validation_issues.length} ошибок · ${warnings.length} предупреждений во входных данных`}
+        description={`${calculationIssues.length} ошибок расчёта · ${warnings.length} предупреждений во входных данных`}
         onClose={() => setValidationDialogOpen(false)}
       >
         <div className="validation-dialog-content">
+          {calculationIssues.length > 0 && (
+            <div className="validation-warning-list">
+              {calculationIssues.map((issue, index) => (
+                <article key={`${issue.code}-${issue.subject_id ?? issue.edge_id ?? index}`}>
+                  <AlertTriangle size={17} />
+                  <div>
+                    <strong>{calculationIssueTitle(issue)}</strong>
+                    <p>{calculationIssueMessage(issue)}</p>
+                    {(issue.subject_id || issue.edge_id) && <small>Объект: {issue.subject_id ?? issue.edge_id}</small>}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
           {warnings.length > 0 ? (
             <div className="validation-warning-list">
               {warnings.map((warning, index) => (

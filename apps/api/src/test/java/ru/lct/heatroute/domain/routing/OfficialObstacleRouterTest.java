@@ -1,0 +1,173 @@
+package ru.lct.heatroute.domain.routing;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.io.WKTReader;
+import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
+import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
+import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
+
+class OfficialObstacleRouterTest {
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final WKTReader wktReader = new WKTReader();
+    private final OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(
+            new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
+    private final OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
+
+    @Test
+    void routesAroundEveryForbiddenPolygonType() throws Exception {
+        for (String type : List.of("park", "social_area", "prohibited_site", "water", "railway")) {
+            ImportedOfficialFeature obstacle = restriction(
+                    type,
+                    "blocked-" + type,
+                    "POLYGON ((40 -10, 60 -10, 60 10, 40 10, 40 -10))");
+
+            RoutePath route = router.find(
+                    new Coordinate(0, 0),
+                    new Coordinate(100, 0),
+                    50,
+                    List.of(obstacle),
+                    Collections.emptySet(),
+                    RoutePreference.SHORTEST);
+
+            assertThat(route).as(type).isNotNull();
+            assertThat(route.coordinates()).as(type).hasSizeGreaterThan(2);
+            assertThat(route.lengthM()).as(type).isGreaterThan(100.0);
+            LineString line = rules.line(route.coordinates());
+            double clearance = "railway".equals(type) ? 1.5 : 1.0;
+            assertThat(line.distance(obstacle.getMetricGeometry())).as(type)
+                    .isGreaterThanOrEqualTo(clearance - 0.01);
+        }
+    }
+
+    @Test
+    void appliesDynamicFiveSevenNineMetreOksClearance() throws Exception {
+        ImportedOfficialFeature building = restriction(
+                "oks", "building", "POLYGON ((40 -2, 60 -2, 60 2, 40 2, 40 -2))");
+
+        assertClearance(building, 400, 5.0);
+        assertClearance(building, 500, 7.0);
+        assertClearance(building, 900, 9.0);
+    }
+
+    @Test
+    void createsReproducibleRoadAndUtilitySpecialSections() throws Exception {
+        ImportedOfficialFeature road = restriction(
+                "road", "road-1", "POLYGON ((40 -30, 60 -30, 60 30, 40 30, 40 -30))");
+        ImportedOfficialFeature cable = restriction(
+                "power_cable", "cable-1", "LINESTRING (75 -30, 75 30)");
+
+        RoutePath route = router.find(
+                new Coordinate(0, 0),
+                new Coordinate(100, 0),
+                100,
+                List.of(road, cable),
+                Collections.emptySet(),
+                RoutePreference.SHORTEST);
+
+        assertThat(route).isNotNull();
+        assertThat(route.sections()).filteredOn(section -> "special".equals(section.getKind()))
+                .extracting(RouteSection::getRestrictionType)
+                .containsExactly("road", "power_cable");
+        RouteSection roadSection = route.sections().stream()
+                .filter(section -> "road".equals(section.getRestrictionType()))
+                .findFirst()
+                .orElseThrow();
+        RouteSection cableSection = route.sections().stream()
+                .filter(section -> "power_cable".equals(section.getRestrictionType()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(roadSection.getLengthM()).isEqualByComparingTo("26.000");
+        assertThat(roadSection.getCrossingAngleDegrees()).isEqualByComparingTo("90.000");
+        assertThat(cableSection.getLengthM()).isEqualByComparingTo("4.000");
+        assertThat(route.sections().stream()
+                .map(RouteSection::getLengthM)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add))
+                .isEqualByComparingTo("100.000");
+    }
+
+    @Test
+    void acceptsFortyFiveDegreeRoadCrossingAndRejectsBelowBoundary() throws Exception {
+        ImportedOfficialFeature road = restriction(
+                "road", "road-1", "POLYGON ((40 -100, 60 -100, 60 100, 40 100, 40 -100))");
+        Coordinate start = new Coordinate(0, -50);
+        Coordinate exact = new Coordinate(100, 50);
+        Coordinate below = new Coordinate(100, 69.175);
+
+        List<OfficialRouteGeometryRules.Constraint> exactConstraints = rules.constraints(
+                List.of(road), 100, Set.of(), start, exact);
+        List<OfficialRouteGeometryRules.Constraint> belowConstraints = rules.constraints(
+                List.of(road), 100, Set.of(), start, below);
+
+        assertThat(rules.segmentAllowed(start, exact, exactConstraints)).isTrue();
+        assertThat(rules.segmentAllowed(start, below, belowConstraints)).isFalse();
+    }
+
+    @Test
+    void finalValidatorRejectsAHandCraftedRouteThroughForbiddenArea() throws Exception {
+        ImportedOfficialFeature water = restriction(
+                "water", "water-1", "POLYGON ((40 -10, 60 -10, 60 10, 40 10, 40 -10))");
+        RouteNode root = node("root", 0, 0, true);
+        RouteNode demand = node("demand", 100, 0, false);
+        RouteEdge invalid = new RouteEdge(
+                "edge",
+                "root",
+                "demand",
+                100.0,
+                List.of(new RouteCoordinate(0, 0), new RouteCoordinate(100, 0)),
+                List.of(new RouteSection(
+                        "base",
+                        null,
+                        null,
+                        List.of(new RouteCoordinate(0, 0), new RouteCoordinate(100, 0)),
+                        100,
+                        null)),
+                java.math.BigDecimal.TEN,
+                100);
+
+        OfficialRouteValidator validator = new OfficialRouteValidator(rules);
+
+        assertThat(validator.validate(List.of(root, demand), List.of(invalid), List.of(water)))
+                .extracting(RouteValidationIssue::getCode)
+                .contains("FORBIDDEN_CLEARANCE_VIOLATION");
+    }
+
+    private void assertClearance(ImportedOfficialFeature building, int diameter, double expected) {
+        RoutePath route = router.find(
+                new Coordinate(0, 0),
+                new Coordinate(100, 0),
+                diameter,
+                List.of(building),
+                Collections.emptySet(),
+                RoutePreference.SHORTEST);
+        assertThat(route).isNotNull();
+        assertThat(rules.line(route.coordinates()).distance(building.getMetricGeometry()))
+                .isGreaterThanOrEqualTo(expected - 0.01);
+    }
+
+    private ImportedOfficialFeature restriction(String type, String id, String wkt) throws Exception {
+        return new ImportedOfficialFeature(
+                id,
+                "restriction",
+                objectMapper.readTree("{\"restriction_type\":\"" + type + "\"}"),
+                wktReader.read(wkt));
+    }
+
+    private RouteNode node(String id, double x, double y, boolean root) {
+        return new RouteNode(
+                id,
+                root ? "new_tie_in_chamber" : "demand_connection",
+                new RouteCoordinate(x, y),
+                root,
+                root,
+                root ? 2 : 0,
+                null);
+    }
+}

@@ -1,7 +1,9 @@
 # R8 vertical routing evidence
 
-Date: 2026-09-16  
-Runtime contract: Java 11 / Spring Boot 2.6.3  
+Date: 2026-09-16
+
+Runtime contract: Java 11 / Spring Boot 2.6.3
+
 Status: integrated vertical-profile checkpoint; XY feedback remains open
 
 ## Implemented

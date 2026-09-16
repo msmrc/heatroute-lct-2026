@@ -25,6 +25,10 @@ import org.locationtech.proj4j.CoordinateTransformFactory;
 import org.locationtech.proj4j.ProjCoordinate;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
+import ru.lct.heatroute.domain.depth.OfficialDepthCrossingExtractor;
+import ru.lct.heatroute.domain.depth.OfficialDepthOptimizer;
+import ru.lct.heatroute.domain.depth.OfficialDepthPlanner;
+import ru.lct.heatroute.domain.depth.OfficialDepthProfileValidator;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
@@ -52,7 +56,11 @@ class OfficialDatasetRoutingTest {
                 pipeCatalog,
                 new OfficialNetworkSizer(pipeCatalog),
                 new OfficialExistingNetworkReconstructor(pipeCatalog),
-                new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()));
+                new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()),
+                new OfficialDepthPlanner(
+                        new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipeCatalog),
+                        new OfficialDepthOptimizer(pipeCatalog, new OfficialEconomics()),
+                        new OfficialDepthProfileValidator(pipeCatalog)));
 
         OfficialCalculationResult result = planner.plan(features, topology);
 
@@ -77,6 +85,8 @@ class OfficialDatasetRoutingTest {
                 assertThat(edge.getSections()).isNotEmpty();
                 assertThat(edge.getDiameter()).isNotNull();
                 assertThat(edge.getFlowTph()).isNotNull();
+                assertThat(edge.getDepthProfile()).isNotNull();
+                assertThat(edge.getDepthProfile().getPoints()).hasSizeGreaterThanOrEqualTo(2);
             });
         });
         writeLocalDemoBundleIfRequested(result);

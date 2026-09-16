@@ -94,6 +94,34 @@ export interface OfficialRouteEdge {
   sections?: OfficialRouteSection[];
   flow_tph?: number | null;
   diameter?: number | null;
+  depth_profile?: OfficialDepthProfile | null;
+}
+
+export interface OfficialDepthProfilePoint {
+  station_m: number;
+  depth_m: number;
+}
+
+export interface OfficialDepthCrossingDecision {
+  crossing_id: string;
+  crossing_type: string;
+  passage: "above" | "below";
+  depth_m: number;
+  ramp_start_m: number;
+  plateau_start_m: number;
+  plateau_end_m: number;
+  ramp_end_m: number;
+  vertical_clearance_m: number;
+  required_clearance_m: number;
+}
+
+export interface OfficialDepthProfile {
+  complete: boolean;
+  points: OfficialDepthProfilePoint[];
+  crossings: OfficialDepthCrossingDecision[];
+  issues: OfficialCalculationIssue[];
+  profile_length_3d_m: number;
+  depth_adjusted_cost_meters: number;
 }
 
 export interface OfficialRouteSection {

@@ -6,6 +6,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import ru.lct.heatroute.domain.depth.DepthProfileResult;
 
 public class RouteEdge {
     private final String id;
@@ -18,10 +19,12 @@ public class RouteEdge {
     private final BigDecimal flowTph;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final Integer diameter;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final DepthProfileResult depthProfile;
 
     public RouteEdge(String id, String upstreamNodeId, String downstreamNodeId, double lengthM) {
         this(id, upstreamNodeId, downstreamNodeId, lengthM, Collections.emptyList(),
-                Collections.emptyList(), null, null);
+                Collections.emptyList(), null, null, null);
     }
 
     public RouteEdge(
@@ -33,6 +36,19 @@ public class RouteEdge {
             List<RouteSection> sections,
             BigDecimal flowTph,
             Integer diameter) {
+        this(id, upstreamNodeId, downstreamNodeId, lengthM, coordinates, sections, flowTph, diameter, null);
+    }
+
+    public RouteEdge(
+            String id,
+            String upstreamNodeId,
+            String downstreamNodeId,
+            double lengthM,
+            List<RouteCoordinate> coordinates,
+            List<RouteSection> sections,
+            BigDecimal flowTph,
+            Integer diameter,
+            DepthProfileResult depthProfile) {
         this.id = id;
         this.upstreamNodeId = upstreamNodeId;
         this.downstreamNodeId = downstreamNodeId;
@@ -41,6 +57,7 @@ public class RouteEdge {
         this.sections = Collections.unmodifiableList(new ArrayList<>(sections));
         this.flowTph = flowTph == null ? null : flowTph.setScale(3, RoundingMode.HALF_UP);
         this.diameter = diameter;
+        this.depthProfile = depthProfile;
     }
 
     public String getId() { return id; }
@@ -51,4 +68,5 @@ public class RouteEdge {
     public List<RouteSection> getSections() { return sections; }
     public BigDecimal getFlowTph() { return flowTph; }
     public Integer getDiameter() { return diameter; }
+    public DepthProfileResult getDepthProfile() { return depthProfile; }
 }

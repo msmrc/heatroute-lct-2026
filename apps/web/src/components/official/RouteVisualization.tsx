@@ -1,10 +1,11 @@
-import { AlertTriangle, CheckCircle2, Focus, MapPin, MapPinned, Network, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Focus, MapPin, MapPinned, Network, X, ZoomIn, ZoomOut } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 
 import type {
   OfficialCalculationIssue,
   OfficialCalculationResult,
   OfficialInputWarning,
+  OfficialRouteEdge,
   OfficialRouteNode,
   OfficialRouteVariant,
 } from "../../shared/api";
@@ -137,6 +138,88 @@ function RouteNodeGlyph({ node, x, y, selected, onSelect }: {
   );
 }
 
+function crossingName(type: string): string {
+  if (type === "gas_pipeline") return "Газопровод";
+  if (type === "power_cable") return "Силовой кабель";
+  if (type === "heat_network") return "Тепловая сеть";
+  return type.replaceAll("_", " ");
+}
+
+function DepthProfileView({ edges, selectedId, onSelect }: {
+  edges: OfficialRouteEdge[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  const edge = edges.find((item) => item.id === selectedId) ?? edges[0];
+  const profile = edge?.depth_profile;
+  if (!edge || !profile || profile.points.length < 2) {
+    return <div className="depth-profile-empty"><Activity size={24} /><strong>Продольный профиль недоступен</strong><p>Для выбранного варианта нет рассчитанных высотных данных.</p></div>;
+  }
+  const width = 1000;
+  const height = 590;
+  const left = 76;
+  const right = 42;
+  const top = 104;
+  const bottom = 88;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const maximumDepth = Math.max(4, ...profile.points.map((point) => point.depth_m)) + .5;
+  const x = (station: number) => left + (station / Math.max(edge.length_m, 1)) * plotWidth;
+  const y = (depth: number) => top + (depth / maximumDepth) * plotHeight;
+  const line = profile.points.map((point) => `${x(point.station_m)},${y(point.depth_m)}`).join(" ");
+  const area = `${left},${top} ${line} ${x(edge.length_m)},${top}`;
+  const depthTicks = Array.from({ length: Math.floor(maximumDepth) + 1 }, (_, index) => index);
+  const deepest = Math.max(...profile.points.map((point) => point.depth_m));
+  const shallowest = Math.min(...profile.points.map((point) => point.depth_m));
+
+  return (
+    <div className="depth-profile-view">
+      <header className="depth-profile-header">
+        <div><span>Вертикальная трассировка</span><strong>Продольный профиль</strong></div>
+        <label>
+          <span>Участок</span>
+          <select value={edge.id} onChange={(event) => onSelect(event.target.value)}>
+            {edges.map((item, index) => <option value={item.id} key={item.id}>Участок {index + 1} · {formatLength(item.length_m)} · ДУ {item.diameter ?? "—"}</option>)}
+          </select>
+        </label>
+      </header>
+      <div className="depth-profile-chart">
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Продольный профиль участка ${edge.id}`}>
+          <defs>
+            <linearGradient id="depth-profile-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="var(--accent)" stopOpacity=".04" />
+              <stop offset="1" stopColor="var(--accent)" stopOpacity=".18" />
+            </linearGradient>
+          </defs>
+          <rect x={left} y={top} width={plotWidth} height={plotHeight} rx="12" className="depth-profile-plot" />
+          {depthTicks.map((depth) => <g key={depth}>
+            <line x1={left} x2={width - right} y1={y(depth)} y2={y(depth)} className={depth === 0 ? "depth-profile-surface" : "depth-profile-grid"} />
+            <text x={left - 13} y={y(depth) + 4} textAnchor="end" className="depth-profile-axis-label">{depth} м</text>
+          </g>)}
+          {profile.crossings.map((crossing) => (
+            <g key={crossing.crossing_id}>
+              <rect x={x(crossing.plateau_start_m)} y={top} width={Math.max(3, x(crossing.plateau_end_m) - x(crossing.plateau_start_m))} height={plotHeight} className="depth-profile-crossing-zone" />
+              <line x1={x((crossing.plateau_start_m + crossing.plateau_end_m) / 2)} x2={x((crossing.plateau_start_m + crossing.plateau_end_m) / 2)} y1={top} y2={height - bottom} className="depth-profile-crossing-line" />
+              <text x={x((crossing.plateau_start_m + crossing.plateau_end_m) / 2)} y={top - 18} textAnchor="middle" className="depth-profile-crossing-label">{crossingName(crossing.crossing_type)}</text>
+            </g>
+          ))}
+          <polygon points={area} fill="url(#depth-profile-fill)" />
+          <polyline points={line} className="depth-profile-line" />
+          {profile.points.map((point) => <circle key={`${point.station_m}-${point.depth_m}`} cx={x(point.station_m)} cy={y(point.depth_m)} r="4" className="depth-profile-point" />)}
+          <text x={left} y={height - 44} className="depth-profile-axis-label">0 м</text>
+          <text x={width - right} y={height - 44} textAnchor="end" className="depth-profile-axis-label">{formatLength(edge.length_m)}</text>
+        </svg>
+      </div>
+      <footer className="depth-profile-summary">
+        <div><span>Глубина</span><strong>{shallowest.toLocaleString("ru-RU")}–{deepest.toLocaleString("ru-RU")} м</strong></div>
+        <div><span>Пересечения</span><strong>{profile.crossings.length}</strong></div>
+        <div><span>Длина в 3D</span><strong>{formatLength(profile.profile_length_3d_m)}</strong></div>
+        <div className={profile.complete ? "is-success" : "is-danger"}><span>Проверка профиля</span><strong>{profile.complete ? "Пройдена" : "Требует решения"}</strong></div>
+      </footer>
+    </div>
+  );
+}
+
 export function RouteVisualization({
   result,
   runId,
@@ -153,7 +236,8 @@ export function RouteVisualization({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedMapObject | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [viewMode, setViewMode] = useState<"map" | "schematic">("map");
+  const [viewMode, setViewMode] = useState<"map" | "schematic" | "profile">("map");
+  const [depthEdgeId, setDepthEdgeId] = useState("");
   const [validationDialogOpen, setValidationDialogOpen] = useState(false);
   const variant = result.variants.find((item) => item.id === variantId) ?? defaultVariant;
 
@@ -204,6 +288,10 @@ export function RouteVisualization({
     .reduce((total, section) => total + section.length_m, 0) ?? 0;
   const independent = result.variants.find((item) => item.strategy === "independent");
   const shared = result.variants.find((item) => item.strategy === "shared_trunk");
+  const depthEdges = variant.edges.filter((edge) => edge.depth_profile);
+  const activeDepthEdgeId = depthEdges.some((edge) => edge.id === depthEdgeId)
+    ? depthEdgeId
+    : depthEdges[0]?.id ?? "";
 
   function changeVariant(id: string) {
     setVariantId(id);
@@ -248,6 +336,7 @@ export function RouteVisualization({
             <div className="route-view-switch" role="group" aria-label="Режим визуализации">
               <button type="button" className={viewMode === "map" ? "is-active" : undefined} onClick={() => setViewMode("map")}><MapPinned size={15} /> Карта</button>
               <button type="button" className={viewMode === "schematic" ? "is-active" : undefined} onClick={() => setViewMode("schematic")}><Network size={15} /> Схема</button>
+              <button type="button" className={viewMode === "profile" ? "is-active" : undefined} onClick={() => setViewMode("profile")}><Activity size={15} /> Профиль</button>
             </div>
             {viewMode === "schematic" && (
               <div className="route-zoom-controls">
@@ -263,6 +352,8 @@ export function RouteVisualization({
             <Suspense fallback={<div className="official-map-shell official-map-loading">Загружаем карту…</div>}>
               <OfficialRouteMap runId={runId} importId={importId} variant={variant} onSelect={selectMapObject} />
             </Suspense>
+          ) : viewMode === "profile" ? (
+            <DepthProfileView edges={depthEdges} selectedId={activeDepthEdgeId} onSelect={setDepthEdgeId} />
           ) : (
             <div className="route-canvas-wrap route-canvas-wrap--workspace">
               <svg className="route-canvas" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} role="img" aria-label={`${variantName(variant)}, ${variant.edges.length} участков`}>

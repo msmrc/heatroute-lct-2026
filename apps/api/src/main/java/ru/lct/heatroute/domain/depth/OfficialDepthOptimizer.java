@@ -28,6 +28,7 @@ public class OfficialDepthOptimizer {
     public static final BigDecimal DEPTH_STEP_M = new BigDecimal("0.5");
     public static final BigDecimal MAXIMUM_SLOPE = new BigDecimal("0.10");
     public static final BigDecimal CROSSING_HALF_LENGTH_M = new BigDecimal("2.0");
+    public static final BigDecimal DEFAULT_MAXIMUM_DEPTH_M = new BigDecimal("10.0");
     private static final double EPSILON = 1e-7;
 
     private final OfficialPipeCatalog pipeCatalog;

@@ -19,6 +19,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.operation.distance.DistanceOp;
 import org.springframework.stereotype.Component;
+import ru.lct.heatroute.domain.depth.OfficialDepthPlanner;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.PipeCatalogEntry;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
@@ -36,7 +37,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
 @Component
 public class OfficialRoutePlanner {
-    public static final String ALGORITHM_VERSION = "r7-official-costing-1";
+    public static final String ALGORITHM_VERSION = "r8-depth-profile-1";
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double MIN_SHARED_SAVING_M = 0.01;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
@@ -50,6 +51,7 @@ public class OfficialRoutePlanner {
     private final OfficialNetworkSizer networkSizer;
     private final OfficialExistingNetworkReconstructor reconstructor;
     private final OfficialVariantEconomicsCalculator economicsCalculator;
+    private final OfficialDepthPlanner depthPlanner;
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     public OfficialRoutePlanner(
@@ -58,13 +60,15 @@ public class OfficialRoutePlanner {
             OfficialPipeCatalog pipeCatalog,
             OfficialNetworkSizer networkSizer,
             OfficialExistingNetworkReconstructor reconstructor,
-            OfficialVariantEconomicsCalculator economicsCalculator) {
+            OfficialVariantEconomicsCalculator economicsCalculator,
+            OfficialDepthPlanner depthPlanner) {
         this.validator = validator;
         this.obstacleRouter = obstacleRouter;
         this.pipeCatalog = pipeCatalog;
         this.networkSizer = networkSizer;
         this.reconstructor = reconstructor;
         this.economicsCalculator = economicsCalculator;
+        this.depthPlanner = depthPlanner;
     }
 
     public OfficialCalculationResult plan(
@@ -619,13 +623,25 @@ public class OfficialRoutePlanner {
                     sized.getFlowTph(),
                     sized.getDiameter());
         }).collect(Collectors.toList());
-        List<RouteValidationIssue> issues = validator.validate(nodes, sizedEdges, features);
+        List<RouteEdge> profiledEdges = sizedEdges.stream()
+                .map(edge -> new RouteEdge(
+                        edge.getId(),
+                        edge.getUpstreamNodeId(),
+                        edge.getDownstreamNodeId(),
+                        edge.getLengthM().doubleValue(),
+                        edge.getCoordinates(),
+                        edge.getSections(),
+                        edge.getFlowTph(),
+                        edge.getDiameter(),
+                        depthPlanner.plan(edge, features)))
+                .collect(Collectors.toList());
+        List<RouteValidationIssue> issues = validator.validate(nodes, profiledEdges, features);
         ExistingNetworkReconstructionResult reconstruction = reconstructor.reconstruct(
                 features,
-                tieInLoads(nodes, sizedEdges));
+                tieInLoads(nodes, profiledEdges));
         VariantEconomics economics = economicsCalculator.calculate(
-                nodes, sizedEdges, draft.connections, reconstruction);
-        BigDecimal totalLength = sizedEdges.stream()
+                nodes, profiledEdges, draft.connections, reconstruction);
+        BigDecimal totalLength = profiledEdges.stream()
                 .map(RouteEdge::getLengthM)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(3, RoundingMode.HALF_UP);
@@ -633,7 +649,7 @@ public class OfficialRoutePlanner {
                 id,
                 strategy,
                 nodes,
-                sizedEdges,
+                profiledEdges,
                 draft.connections,
                 totalLength,
                 issues,

@@ -19,6 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.io.WKTReader;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
+import ru.lct.heatroute.domain.depth.OfficialDepthCrossingExtractor;
+import ru.lct.heatroute.domain.depth.OfficialDepthOptimizer;
+import ru.lct.heatroute.domain.depth.OfficialDepthPlanner;
+import ru.lct.heatroute.domain.depth.OfficialDepthProfileValidator;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
@@ -79,6 +83,17 @@ class OfficialGeoJsonExporterTest {
             feature.path("properties").fields().forEachRemaining(field ->
                     assertThat(field.getValue().isNull()).as(field.getKey()).isFalse());
         });
+        assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "heat_network".equals(
+                        feature.path("properties").path("object_type").asText())))
+                .allSatisfy(feature -> {
+                    assertThat(feature.path("properties").path("depth_start").decimalValue())
+                            .isGreaterThanOrEqualTo(new BigDecimal("0.7"));
+                    assertThat(feature.path("properties").path("depth_end").decimalValue())
+                            .isGreaterThanOrEqualTo(new BigDecimal("0.7"));
+                    assertThat(feature.path("geometry").path("coordinates"))
+                            .allSatisfy(position -> assertThat(position.size()).isEqualTo(3));
+                });
         JsonNode summary = StreamSupport.stream(output.path("features").spliterator(), false)
                 .filter(feature -> "variant_summary".equals(
                         feature.path("properties").path("object_type").asText()))
@@ -185,7 +200,11 @@ class OfficialGeoJsonExporterTest {
                 pipeCatalog,
                 new ru.lct.heatroute.domain.sizing.OfficialNetworkSizer(pipeCatalog),
                 new OfficialExistingNetworkReconstructor(pipeCatalog),
-                new OfficialVariantEconomicsCalculator(pipeCatalog, economics));
+                new OfficialVariantEconomicsCalculator(pipeCatalog, economics),
+                new OfficialDepthPlanner(
+                        new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipeCatalog),
+                        new OfficialDepthOptimizer(pipeCatalog, economics),
+                        new OfficialDepthProfileValidator(pipeCatalog)));
     }
 
     private ImportedOfficialFeature feature(

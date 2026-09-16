@@ -10,6 +10,10 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.io.WKTReader;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
+import ru.lct.heatroute.domain.depth.OfficialDepthCrossingExtractor;
+import ru.lct.heatroute.domain.depth.OfficialDepthOptimizer;
+import ru.lct.heatroute.domain.depth.OfficialDepthPlanner;
+import ru.lct.heatroute.domain.depth.OfficialDepthProfileValidator;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
@@ -31,7 +35,15 @@ class OfficialRoutePlannerTest {
             pipeCatalog,
             new OfficialNetworkSizer(pipeCatalog),
             new OfficialExistingNetworkReconstructor(pipeCatalog),
-            new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()));
+            new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()),
+            depthPlanner());
+
+    private OfficialDepthPlanner depthPlanner() {
+        return new OfficialDepthPlanner(
+                new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipeCatalog),
+                new OfficialDepthOptimizer(pipeCatalog, new OfficialEconomics()),
+                new OfficialDepthProfileValidator(pipeCatalog));
+    }
 
     @Test
     void nearbyDemandsPreferShorterSharedTrunk() throws Exception {

@@ -18,6 +18,7 @@ import ru.lct.heatroute.domain.routing.RouteConnection;
 import ru.lct.heatroute.domain.routing.RouteEdge;
 import ru.lct.heatroute.domain.routing.RouteNode;
 import ru.lct.heatroute.domain.routing.RouteSection;
+import ru.lct.heatroute.domain.depth.DepthProfileResult;
 
 @Component
 public class OfficialVariantEconomicsCalculator {
@@ -90,17 +91,40 @@ public class OfficialVariantEconomicsCalculator {
 
     private BigDecimal edgeCost(RouteEdge edge) {
         PipeCatalogEntry pipe = pipeCatalog.byDiameter(edge.getDiameter()).orElseThrow();
+        DepthProfileResult profile = edge.getDepthProfile();
         if (edge.getSections().isEmpty()) {
             return economics.newNetworkCost(
-                    pipe, edge.getLengthM(), SpecialCrossingType.BASE, TWO_DIMENSIONAL_DEPTH_M);
+                    pipe,
+                    edge.getLengthM(),
+                    SpecialCrossingType.BASE,
+                    profile == null
+                            ? TWO_DIMENSIONAL_DEPTH_M
+                            : profile.averageDepth(BigDecimal.ZERO, edge.getLengthM()));
         }
-        return edge.getSections().stream()
-                .map(section -> economics.newNetworkCost(
-                        pipe,
-                        section.getLengthM(),
-                        crossingType(section),
-                        TWO_DIMENSIONAL_DEPTH_M))
+        BigDecimal result = BigDecimal.ZERO;
+        BigDecimal sectionTotal = edge.getSections().stream()
+                .map(RouteSection::getLengthM)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal cumulative = BigDecimal.ZERO;
+        for (int index = 0; index < edge.getSections().size(); index++) {
+            RouteSection section = edge.getSections().get(index);
+            BigDecimal station = edge.getLengthM().multiply(cumulative)
+                    .divide(sectionTotal, 12, RoundingMode.HALF_UP);
+            cumulative = cumulative.add(section.getLengthM());
+            BigDecimal end = index == edge.getSections().size() - 1
+                    ? edge.getLengthM()
+                    : edge.getLengthM().multiply(cumulative)
+                            .divide(sectionTotal, 12, RoundingMode.HALF_UP);
+            BigDecimal averageDepth = profile == null
+                    ? TWO_DIMENSIONAL_DEPTH_M
+                    : profile.averageDepth(station, end);
+            result = result.add(economics.newNetworkCost(
+                    pipe,
+                    section.getLengthM(),
+                    crossingType(section),
+                    averageDepth));
+        }
+        return result;
     }
 
     private BigDecimal newChamberCost(List<RouteNode> nodes, List<RouteEdge> edges) {

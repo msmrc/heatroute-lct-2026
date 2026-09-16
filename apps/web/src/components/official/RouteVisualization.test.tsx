@@ -47,7 +47,39 @@ const result: OfficialCalculationResult = {
         { id: "root", root: true, chamber: true, node_type: "existing_chamber_tie_in", target_id: "100", coordinate: { xm: 0, ym: 0 }, base_incident_sections: 2 },
         { id: "demand", root: false, chamber: false, node_type: "demand_connection", target_id: "1", coordinate: { xm: 100, ym: 100 }, base_incident_sections: 0 },
       ],
-      edges: [{ id: "shared:trunk:1", length_m: 900, upstream_node_id: "root", downstream_node_id: "demand" }],
+      edges: [{
+        id: "shared:trunk:1",
+        length_m: 900,
+        upstream_node_id: "root",
+        downstream_node_id: "demand",
+        diameter: 100,
+        depth_profile: {
+          complete: true,
+          points: [
+            { station_m: 0, depth_m: 3 },
+            { station_m: 440, depth_m: 3 },
+            { station_m: 448, depth_m: 3.8 },
+            { station_m: 452, depth_m: 3.8 },
+            { station_m: 460, depth_m: 3 },
+            { station_m: 900, depth_m: 3 },
+          ],
+          crossings: [{
+            crossing_id: "gas-1",
+            crossing_type: "gas_pipeline",
+            passage: "below",
+            depth_m: 3.8,
+            ramp_start_m: 440,
+            plateau_start_m: 448,
+            plateau_end_m: 452,
+            ramp_end_m: 460,
+            vertical_clearance_m: .6,
+            required_clearance_m: .2,
+          }],
+          issues: [],
+          profile_length_3d_m: 900.08,
+          depth_adjusted_cost_meters: 901.4,
+        },
+      }],
     },
   ],
 };
@@ -74,6 +106,11 @@ describe("RouteVisualization", () => {
     expect(await screen.findByText("Интерактивная карта")).toBeTruthy();
     expect(container.querySelector(".route-results-drawer")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
     expect(container.querySelector(".route-workspace-inspector")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /Профиль/ }));
+    expect(screen.getByText("Продольный профиль")).toBeTruthy();
+    expect(screen.getByRole("img", { name: /Продольный профиль участка shared:trunk:1/ })).toBeTruthy();
+    expect(screen.getByText("Газопровод")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Открыть результаты проверки/ }));
     expect(screen.getByRole("dialog", { name: "Результаты проверки" })).toBeTruthy();

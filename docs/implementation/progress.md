@@ -277,6 +277,11 @@ and runtime services were removed. The frontend calls only the current official 
   route tab; the responsive top controls are now separated. A real Chromium smoke opens the demo,
   switches to `Альтернативные врезки`, opens the grouped modal and renders the longitudinal profile
   with no console errors or warnings.
+- Clean Ubuntu 22 run `35129162919` is the release checkpoint for those contest-path fixes. Web,
+  Java 11 backend and integration jobs all passed; integration repeated the 50-user import race,
+  real calculation, public/internal contracts and restart recovery. The immutable organizer file
+  now reproduces preferred independent 17/17, shared 16/17 and diverse 14/17; team/demo documents
+  use those current figures rather than the superseded first-slice result.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

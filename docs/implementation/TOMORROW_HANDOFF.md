@@ -59,8 +59,9 @@ Already usable:
 - bottom-up `flow_tph` and automatic DU selection across all flow/continuous-length catalog rows;
 - upstream propagation, partial/common-section reconstruction and used-chamber reconstruction for
   contract-complete existing-network input;
-- production evidence on the organizer file: the preferred shared variant connects all 17 demands
-  with zero structural validator issues.
+- current reproducible evidence on the organizer file: the preferred independent variant connects
+  all 17 demands with zero structural validator issues; shared connects 16 and diverse 14 while
+  preserving explicit no-route diagnostics for the remaining objects.
 - interactive result viewer with MapLibre GL/CARTO vector basemap, PostGIS source context, layer
   toggles, variant comparison, map-object inspection, no-route diagnostics, a retained metric
   schematic and a latest-completed-run demo endpoint. Complete variants render through the strict
@@ -94,7 +95,8 @@ Job execution is bounded by `HEATROUTE_JOB_CONCURRENCY` (default 2, hard maximum
 leases are renewed every minute. Use `docs/operations/R9_ACCEPTANCE.md` for scale evidence; do not
 call the probes themselves a pass until their generated measurements are archived.
 Manual run `35112046184` proves exact 3 GiB input and ≥500 MiB valid output on Ubuntu 22 / Java 11
-under `-Xmx512m`. Final clean-stack run `35120982320` passes backend/web/integration; topology run
+under `-Xmx512m`. Final clean-stack run `35129162919` passes backend/web/integration, including the
+50-user import race, the real calculation, schema/API contracts and restart recovery; topology run
 `35120995991` passes 288 features, 34/34 demands and three variants in 2:14.65 with 406,608 KiB
 peak RSS. Do not conflate this with a VPS deployment, which remains explicitly deferred.
 Do not mix MVT or extra formats into the remaining external acceptance gate.

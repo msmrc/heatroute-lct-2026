@@ -80,19 +80,20 @@ validation, feature-by-feature preflight and incremental Jackson download are al
 R7 is closed against the normative appendix tables and formulas. Section 10.8 explicitly calls its
 numbers illustrative and differs by 19/33 RUB; keep the golden expectations derived from tables
 4.1, 5.1, 8 and 9. Complete variants are fetched per `variant_id` and rendered from the strict
-official output model. Next, profile the integrated route search on a denser in-code fixture. The published
-2D R6 row-by-row matrix is complete; do not fold unresolved `railway` semantics or optional depth
-into that claim.
+official output model. Dense constraint lookup now uses adaptive JTS STRtree and is locked by a
+1,001-constraint/20,000-query fixture. Next, close the measured R2/R9 maximum-scale gates. The
+published 2D R6 row-by-row matrix is complete; do not fold unresolved `railway` semantics or
+optional depth into that claim.
 Do not mix optional depth, MVT or extra formats into this gate.
 
 ## PM: tasks tomorrow
 
-- verify the exact per-output-type fields against the organizer appendix and approve a machine-
-  readable JSON Schema before R7;
+- approve whether the independent exact output validator is sufficient for submission or whether
+  the submission kit also needs a separately published JSON Schema;
 - confirm whether Ubuntu 22 is mandatory for judging even though the current demo VPS uses a
   newer Ubuntu release;
-- supply or approve an official-like fixture with at least two nearby and two distant future OKS;
-- keep optional depth, MVT and extra formats outside P0 until R4–R7 close;
+- supply or approve an official-like maximum-scale fixture and load-test environment;
+- keep optional depth, MVT and extra formats outside P0 until R9 closes;
 - review every “complete” claim against `docs/ACCEPTANCE.md`, not old M-stage evidence.
 - ask the organizer to resolve the supplied-dataset mismatch, especially `railway`, direct demand
   on connection points and the missing existing-network reconstruction attributes.

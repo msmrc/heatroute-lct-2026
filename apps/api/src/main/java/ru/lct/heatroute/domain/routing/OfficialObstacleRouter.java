@@ -15,6 +15,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
+import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.ConstraintIndex;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 @Component
@@ -75,16 +76,17 @@ public class OfficialObstacleRouter {
                 Collections.emptySet(),
                 start,
                 end));
-        if (rules.segmentAllowed(start, end, constraints)) {
+        ConstraintIndex constraintIndex = rules.index(constraints);
+        if (rules.segmentAllowed(start, end, constraintIndex)) {
             return path(List.of(start, end), constraints);
         }
         for (double expansion : CORRIDOR_EXPANSIONS) {
-            List<Coordinate> nodes = navigationNodes(start, end, constraints, expansion);
-            List<Coordinate> candidate = shortestPath(nodes, constraints, preference, start, end);
+            List<Coordinate> nodes = navigationNodes(start, end, constraintIndex, expansion);
+            List<Coordinate> candidate = shortestPath(nodes, constraintIndex, preference, start, end);
             if (!candidate.isEmpty()) {
-                List<Coordinate> normalized = normalize(candidate, constraints);
+                List<Coordinate> normalized = normalize(candidate, constraintIndex);
                 LineString line = rules.line(normalized);
-                if (rules.lineAllowed(line, constraints)) {
+                if (rules.lineAllowed(line, constraintIndex)) {
                     return path(normalized, constraints);
                 }
             }
@@ -103,14 +105,14 @@ public class OfficialObstacleRouter {
     private List<Coordinate> navigationNodes(
             Coordinate start,
             Coordinate end,
-            List<Constraint> constraints,
+            ConstraintIndex constraints,
             double expansionM) {
         List<Coordinate> result = new ArrayList<>();
         result.add(new Coordinate(start));
         result.add(new Coordinate(end));
         Envelope corridor = new Envelope(start, end);
         corridor.expandBy(expansionM);
-        for (Constraint constraint : constraints) {
+        for (Constraint constraint : constraints.query(corridor)) {
             if (!constraint.rule().isForbidden()
                     || !constraint.blocked().getEnvelopeInternal().intersects(corridor)) {
                 continue;
@@ -132,7 +134,7 @@ public class OfficialObstacleRouter {
 
     private List<Coordinate> shortestPath(
             List<Coordinate> nodes,
-            List<Constraint> constraints,
+            ConstraintIndex constraints,
             RoutePreference preference,
             Coordinate start,
             Coordinate end) {
@@ -206,7 +208,7 @@ public class OfficialObstacleRouter {
         return preferredSide ? 0.985 : 1.015;
     }
 
-    private List<Coordinate> normalize(List<Coordinate> path, List<Constraint> constraints) {
+    private List<Coordinate> normalize(List<Coordinate> path, ConstraintIndex constraints) {
         List<Coordinate> normalized = new ArrayList<>();
         int current = 0;
         normalized.add(new Coordinate(path.get(0)));

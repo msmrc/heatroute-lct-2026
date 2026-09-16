@@ -1,13 +1,17 @@
 package ru.lct.heatroute.domain.routing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.io.WKTReader;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
@@ -137,6 +141,45 @@ class OfficialObstacleRouterTest {
         assertThat(validator.validate(List.of(root, demand), List.of(invalid), List.of(water)))
                 .extracting(RouteValidationIssue::getCode)
                 .contains("FORBIDDEN_CLEARANCE_VIOLATION");
+    }
+
+    @Test
+    void spatialIndexKeepsDenseConstraintLookupsBoundedWithoutChangingDecisions() throws Exception {
+        List<ImportedOfficialFeature> features = new ArrayList<>();
+        features.add(restriction(
+                "water", "near", "POLYGON ((40 -10, 60 -10, 60 10, 40 10, 40 -10))"));
+        for (int row = 0; row < 25; row++) {
+            for (int column = 0; column < 40; column++) {
+                double x = 1000 + column * 10;
+                double y = 1000 + row * 10;
+                features.add(restriction(
+                        "park",
+                        "far-" + row + "-" + column,
+                        "POLYGON ((" + x + " " + y + ", " + (x + 1) + " " + y + ", "
+                                + (x + 1) + " " + (y + 1) + ", " + x + " " + (y + 1) + ", "
+                                + x + " " + y + "))"));
+            }
+        }
+
+        List<OfficialRouteGeometryRules.Constraint> constraints = rules.baseConstraints(features, 100);
+        OfficialRouteGeometryRules.ConstraintIndex index = rules.index(constraints);
+        Coordinate start = new Coordinate(0, 0);
+        Coordinate blockedEnd = new Coordinate(100, 0);
+        Coordinate clearEnd = new Coordinate(30, 0);
+
+        assertThat(index.query(new Envelope(start, blockedEnd))).hasSize(1);
+        assertThat(rules.segmentAllowed(start, blockedEnd, index))
+                .isEqualTo(rules.segmentAllowed(start, blockedEnd, constraints))
+                .isFalse();
+        assertThat(rules.segmentAllowed(start, clearEnd, index))
+                .isEqualTo(rules.segmentAllowed(start, clearEnd, constraints))
+                .isTrue();
+
+        assertTimeout(Duration.ofSeconds(5), () -> {
+            for (int iteration = 0; iteration < 20_000; iteration++) {
+                assertThat(rules.segmentAllowed(start, clearEnd, index)).isTrue();
+            }
+        });
     }
 
     private void assertClearance(ImportedOfficialFeature building, int diameter, double expected) {

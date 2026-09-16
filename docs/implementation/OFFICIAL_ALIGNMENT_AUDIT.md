@@ -6,15 +6,14 @@ source tree, database migrations, Compose and CI configuration.
 
 ## Executive conclusion
 
-The selected production technology matches most mandatory platform requirements and the active
-internal specification now describes the correct contest problem. The application is not yet a
-contest solution end to end: it imports the supplied data and constructs independently validated
-new-network variants, but it does not yet reconstruct, rank or export the official result.
-
-Estimated readiness for the mandatory submission is **about 50% overall**. Platform, import,
-topology and new-network routing are ahead of reconstruction/export. Readiness of the mandatory
-calculation itself is **about 50%**: obstacle-aware R4/R6 routing and new-network sizing exist, but
-existing-network reconstruction and the R7 calculation/export pipeline are still absent.
+The selected production technology matches the mandatory platform requirements and the active
+internal specification describes the contest problem. For contract-complete input, the mandatory
+2D calculation is implemented end to end: import, topology, multi-OKS routing, sizing,
+reconstruction, restrictions, cost/rank, strict seven-type output and map rendering. The remaining
+submission blockers are measured scale/parallel-load evidence and rehearsal on the exact Ubuntu 22
+and docker-compose 1.29.2 acceptance environment. The supplied organizer file itself cannot prove
+reconstruction or official export because it omits the required existing-network baseline and
+direction fields; the product exposes that incompleteness instead of fabricating values.
 
 ## Sole official dataset
 
@@ -60,7 +59,7 @@ missing engineering values are fabricated.
 | PostgreSQL up to 18 or OpenSearch up to 2.18 | PostgreSQL 17 with PostGIS 3.5 | Meets |
 | Ubuntu Server 22 | Demo VPS uses Ubuntu 26.04 | Does not meet acceptance environment yet |
 | docker-compose 1.29.2 | Compose files are exercised only by a modern Compose implementation | Unproven; syntax must be rehearsed with 1.29.2 |
-| Upload to 3 GB and output to 500 MB | 3 GB multipart limits and streaming feature parsing exist; output is absent | Partial, no boundary evidence |
+| Upload to 3 GB and output to 500 MB | 3 GB multipart limits, streaming feature parsing and incremental validated output exist | Functional, no boundary evidence |
 | Up to 50 users | Hikari pool and durable jobs exist | Unproven; no load test and worker shares API JVM |
 | One combined GeoJSON input | Implemented, persisted in WGS84 and EPSG:32637 | Meets for the supplied 233 KB file |
 
@@ -75,13 +74,12 @@ the organizer PDF/DOCX above internal assumptions. They correctly require all-OK
 shared trunks, tree invariants, sizing, reconstruction, exact costs, partial no-route behavior and
 strict seven-type export.
 
-Remaining documentation drift:
+Remaining documentation/acceptance drift:
 
 - historical M-stage evidence describes a removed Python prototype and is not acceptance proof;
-- old progress text understated the implemented catalog/economics primitives;
 - the internal strict input model is faithful to the appendix but not to the supplied file;
-- the exact official output fields are described in the appendix but are not yet encoded as JSON
-  Schema/golden export tests;
+- the output contract is enforced by an independent exact whitelist/type/reference validator and
+  golden all-seven-type fixtures; a separately published JSON Schema remains a submission-kit task;
 - optional hydraulics, MVT, Shapefile and GeoParquet work from the old prototype is outside the
   mandatory contest path and must not displace R4-R7.
 
@@ -89,16 +87,16 @@ Remaining documentation drift:
 
 | Area | Evidence in the active Java project | Readiness |
 |---|---|---:|
-| Platform, CI and VPS | Java-only Compose, PostGIS, Caddy, health checks, green CI and public HTTPS | 80% |
+| Platform, CI and VPS | Java-only Compose, PostGIS, Caddy, health checks, green CI and public HTTPS | 85% |
 | Input and persistence | Streaming inspector/loader, contract profiles, PostGIS dual CRS, real dataset regression | 75% |
-| Existing topology and tie-in screening | Geometric/upstream validation, segment/chamber candidates, 204 candidates on supplied data | 55% |
-| Multi-OKS routing and tree construction | Immutable runs, three obstacle-aware strategies, normalization, partial no-route and independent validator | 70% |
+| Existing topology and tie-in screening | Geometric/upstream validation, segment/chamber candidates, 204 candidates on supplied data | 80% |
+| Multi-OKS routing and tree construction | Immutable runs, three obstacle-aware strategies, normalization, partial no-route and independent validator | 85% |
 | Flow, DU and continuous length | Tree sizer aggregates flow and automatically selects DU for all 18 flow/length boundaries | 90% |
 | Reconstruction | Upstream propagation, partial/common sections and chamber reconstruction pass strict fixtures; supplied data lacks baseline fields | 80% |
-| Restrictions and special passages | Dynamic buffers and base/special sections are integrated into search/final validation; full row matrix remains | 65% |
-| Cost, penalty and score | Exact component totals, length, score and rank are integrated; incomplete reconstruction withholds final score | 85% |
-| Official output | No seven-type result model, serializer, streaming download or schema validator | 5% |
-| UI | Map-first viewer renders all route variants, source context, details and diagnostics | 70% |
+| Restrictions and special passages | Dynamic buffers, base/special sections and the full published 2D boundary matrix are integrated | 90% |
+| Cost, penalty and score | Exact component totals, length, score and rank are integrated; incomplete reconstruction withholds final score | 95% |
+| Official output | Strict seven-type adapter, independent validator, incremental download and map consumer | 90% |
+| UI | Map-first viewer renders official output when available and an explicit internal preview for incomplete input | 85% |
 | Depth bonus | Pipe dimensions/depth multiplier exist; no vertical search or Z output | 10% |
 | Scale and acceptance | Small real file and CI/VPS smoke pass; 3 GB/500 MB/50-user/Ubuntu 22 gates absent | 20% |
 
@@ -119,7 +117,8 @@ network omits flow and upstream direction. Exact component costing is integrated
 seven-type adapter and validator pass on contract-complete inline fixtures, while the supplied file
 correctly receives `OFFICIAL_EXPORT_INCOMPLETE`. Export generation now uses a feature-by-feature
 preflight plus incremental Jackson writer. Complete variants are rendered from that same official
-output contract. The appendix golden example and required scale limits remain open.
+output contract. The normative appendix arithmetic is locked by a golden test; only the required
+scale/environment evidence remains open.
 
 ## Critical path to a valid submission
 
@@ -132,8 +131,9 @@ DU 200 road crossing and 15,152,250 RUB for 75 m of DU 250 reconstruction, not t
 three decimals). A golden test locks these table/formula results and also records the -19/-33 RUB
 differences, so the implementation cannot silently drift toward the inconsistent example numbers.
 
-1. **R4/R9 performance:** profile the integrated search on denser geometry and record reproducible
-   time/memory evidence; the published 2D R6 boundary matrix is now complete.
+1. **R4/R9 performance:** adaptive JTS STRtree lookup is covered by a deterministic fixture with
+   1,001 constraints and 20,000 bounded segment checks. End-to-end time/memory/load evidence at
+   the official maximums is still required; the published 2D R6 boundary matrix is complete.
 2. **R7 complete variant:** closed against the normative appendix tables/formulas with the section
    10.8 illustrative-value discrepancy documented; serialization, validation, download and map
    consumption are implemented. Remaining scale proof belongs to R9.

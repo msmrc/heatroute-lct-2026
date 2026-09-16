@@ -16,6 +16,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.linearref.LengthIndexedLine;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
+import org.locationtech.jts.index.strtree.STRtree;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
@@ -26,6 +27,9 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 public class OfficialRouteGeometryRules {
     static final double EPSILON_M = 0.01;
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
+    private static final Comparator<Constraint> CONSTRAINT_ORDER = Comparator
+            .comparing((Constraint item) -> item.type)
+            .thenComparing(item -> item.id);
 
     private final OfficialConstraintCatalog catalog;
     private final OfficialCrossingGeometry crossingGeometry;
@@ -74,9 +78,12 @@ public class OfficialRouteGeometryRules {
             }
             result.add(new Constraint(feature.getFeatureId(), type, source, blocked, rule));
         }
-        result.sort(Comparator.comparing((Constraint item) -> item.type)
-                .thenComparing(item -> item.id));
+        result.sort(CONSTRAINT_ORDER);
         return result;
+    }
+
+    ConstraintIndex index(List<Constraint> constraints) {
+        return new ConstraintIndex(constraints);
     }
 
     List<Constraint> applicableConstraints(
@@ -117,11 +124,15 @@ public class OfficialRouteGeometryRules {
     }
 
     boolean segmentAllowed(Coordinate start, Coordinate end, List<Constraint> constraints) {
+        return segmentAllowed(start, end, index(constraints));
+    }
+
+    boolean segmentAllowed(Coordinate start, Coordinate end, ConstraintIndex constraints) {
         if (start.distance(end) <= EPSILON_M) {
             return false;
         }
         LineString segment = geometryFactory.createLineString(new Coordinate[] {start, end});
-        for (Constraint constraint : constraints) {
+        for (Constraint constraint : constraints.query(segment.getEnvelopeInternal())) {
             if (constraint.rule.isForbidden()) {
                 if (intersectsInterior(segment, constraint)) {
                     return false;
@@ -138,6 +149,10 @@ public class OfficialRouteGeometryRules {
     }
 
     boolean lineAllowed(LineString line, List<Constraint> constraints) {
+        return lineAllowed(line, index(constraints));
+    }
+
+    boolean lineAllowed(LineString line, ConstraintIndex constraints) {
         for (int index = 0; index < line.getNumPoints() - 1; index++) {
             if (!segmentAllowed(line.getCoordinateN(index), line.getCoordinateN(index + 1), constraints)) {
                 return false;
@@ -379,6 +394,33 @@ public class OfficialRouteGeometryRules {
         Geometry blocked() { return blocked; }
         PreparedGeometry preparedBlocked() { return preparedBlocked; }
         SpatialConstraintRule rule() { return rule; }
+    }
+
+    static final class ConstraintIndex {
+        private static final int LINEAR_SCAN_THRESHOLD = 256;
+        private final List<Constraint> all;
+        private final STRtree tree;
+
+        private ConstraintIndex(List<Constraint> constraints) {
+            all = List.copyOf(constraints);
+            if (constraints.size() < LINEAR_SCAN_THRESHOLD) {
+                tree = null;
+            } else {
+                tree = new STRtree();
+                for (Constraint constraint : constraints) {
+                    Geometry indexed = constraint.rule.isForbidden() ? constraint.blocked : constraint.source;
+                    if (indexed != null && !indexed.isEmpty()) {
+                        tree.insert(indexed.getEnvelopeInternal(), constraint);
+                    }
+                }
+                tree.build();
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Constraint> query(org.locationtech.jts.geom.Envelope envelope) {
+            return tree == null ? all : (List<Constraint>) tree.query(envelope);
+        }
     }
 
     private static final class Span {

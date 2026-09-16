@@ -108,7 +108,8 @@ and runtime services were removed. The frontend calls only the current official 
 - R5 bottom-up sizing is now applied to every accepted new-network tree. Result edges expose
   calculated `flow_tph` and DU to the API and visual inspector. Continuous-length violations are
   preserved as explicit sizing issues; the planner does not yet increase/split DU to resolve them.
-  Propagation into the existing network and reconstruction remain missing.
+  At this historical checkpoint propagation into the existing network and reconstruction were
+  still missing; the following R5 checkpoint supersedes that limitation.
 - A read-only local demo API can serve the result produced directly from the sole tracked official
   GeoJSON. The UI was browser-checked at `http://localhost:5174`: all three strategies render on
   the vector map, switching works, and no console error or Vite overlay is present.
@@ -167,15 +168,13 @@ and runtime services were removed. The frontend calls only the current official 
   same strict output types used by download. `variant_summary` is correctly omitted from spatial
   layers. The internal nodes/edges conversion remains only as a preview fallback for the supplied
   incomplete dataset or a transient official-layer request failure.
-- Current verification after the official-map switch: 69 Java tests and 13 web tests, ESLint,
+- Current verification after the dense-index checkpoint: 71 Java tests and 13 web tests, ESLint,
   TypeScript, production build and local browser smoke all pass.
 - Export performs a feature-by-feature preflight and then writes with Jackson `JsonGenerator`; the
   full output tree is not retained. The all-seven-type fixture includes existing-chamber
   reconstruction. Spring MVC streaming uses a bounded 2–16 thread executor with a 64-request queue
   and 15-minute timeout instead of the unbounded fallback. Measured 500 MB/50-user evidence remains
   before the R9 gate can be called complete.
-- Verification: 63 Java tests and 12 web tests pass together with ESLint, TypeScript and the
-  production Vite build.
 
 ## R6 full 2D boundary matrix (local, not deployed)
 
@@ -191,19 +190,32 @@ and runtime services were removed. The frontend calls only the current official 
   the final validator rejects a crossing omitted from special sections.
 - `railway` is tested separately as the supplied-dataset compatibility rule (1.5 m forbidden
   clearance), not represented as a published official row while organizer clarification is open.
-- Full backend verification: 69 tests, zero failures; the official dataset routing case retains
+- Full backend verification: 71 tests, zero failures; the official dataset routing case retains
   the prepared-geometry performance path.
+
+## R4 dense-geometry lookup checkpoint (local, not deployed)
+
+- Candidate segment checks now use an adaptive JTS `STRtree`: the small organizer dataset retains
+  the lower-overhead linear prepared-geometry path, while dense constraint sets query only
+  envelopes intersecting the candidate segment or navigation corridor.
+- A deterministic fixture builds 1,001 constraints, proves indexed and linear decisions identical
+  for blocked and clear segments, verifies that only the nearby object is returned and completes
+  20,000 indexed checks inside a five-second budget.
+- This closes the missing dense lookup primitive, not R9: 3 GB input, 500 MB output, 50 parallel
+  users and the exact Ubuntu 22/docker-compose 1.29.2 environment still need measured evidence.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
 - R2 — functionally implemented for the current contract fixture; large-file memory measurement,
   replay/deduplication policy and broader official-like fixtures remain acceptance work.
-- R3 — functional vertical slice: topology validation, chamber rule, deterministic candidates and
-  line splitting. Indexed large-network search and persistence of selected tie-ins remain.
+- R3 — functional vertical slice: topology validation, chamber rule, deterministic candidates,
+  line splitting and adaptive dense-constraint lookup. Persistence of selected tie-ins and
+  maximum-scale evidence remain.
 - R4 — functional obstacle-aware checkpoint: immutable all-demand runs, independent/shared/diverse
   strategies, actual polyline search, simplification, partial no-route, an independent validator
-  and GIS/result viewer. Large-network performance and broader diversity/quality evidence remain.
+  and GIS/result viewer. Dense constraint lookup is indexed; end-to-end maximum-scale performance
+  and broader diversity/quality evidence remain.
 - R5 — functionally complete for contract-complete input: bottom-up flow/DU sizing, automatic
   continuous-length promotion, upstream propagation, partial/common-section reconstruction and
   chamber reconstruction are covered by focused tests. The supplied organizer file cannot produce
@@ -222,8 +234,9 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Next change
 
-Profile the obstacle search on denser geometry, then close R2/R9 scale and deployment evidence. Do not start
-depth, MVT or additional file formats before the mandatory 2D gate.
+Close R2/R9 scale and deployment evidence: streamed 3 GB input, incremental 500 MB output,
+50-user load and a clean Ubuntu 22/docker-compose 1.29.2 rehearsal. Do not start depth, MVT or
+additional file formats before that mandatory gate.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
 The current cross-check against all three organizer artifacts is in `OFFICIAL_ALIGNMENT_AUDIT.md`.

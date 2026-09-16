@@ -116,18 +116,18 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | Объём запуска | Все 17 ОКС переданного набора обрабатываются одним immutable run | Все `oks_future` за один запуск | Функционально реализовано; нужен масштабный evidence | P0 |
 | Врезки | R3 candidates используются R4 planner; разные стратегии выбирают разные подключения | Автоматический поиск и выбор | Функционально реализовано | P0 |
 | Совместное подключение | Independent/shared/diverse деревья, общие участки и partial no-route | Общие участки, разделение потоков, отдельные подключения | Функциональный checkpoint; нужна расширенная quality-приёмка | P0 |
-| Камеры | Generic network nodes | Разветвления только в камерах, максимум четыре примыкающих участка | Не реализовано | P0 |
-| Геометрия | JTS visibility search, buffered constraints, shortcut normalization и final validation | Прямые рациональные участки, отсутствие зигзагов и пересечений вне узлов | Функционально на переданном наборе; нужна performance-приёмка | P0 |
+| Камеры | Явные route nodes и независимый validator | Разветвления только в камерах, максимум четыре примыкающих участка | Реализовано и покрыто тестами | P0 |
+| Геометрия | JTS visibility search, adaptive STRtree, buffered constraints, shortcut normalization и final validation | Прямые рациональные участки, отсутствие зигзагов и пересечений вне узлов | Функционально; нужна предельная performance-приёмка | P0 |
 | Расходы | Bottom-up sizing подключён к принятым деревьям R4 | Сумма `flow_tph` подключённых через участок ОКС | Реализовано для новой сети | P0 |
-| Диаметры | Официальный Java-каталог назначает DU каждому рассчитанному участку | Точная таблица из 18 ДУ | Реализовано для новой сети; реконструкция остаётся | P0 |
-| Предельная длина | Java same-DU tracking применяется к рассчитанным деревьям и выдаёт sizing issues | Сброс только при смене ДУ | Контроль есть; planner ещё не устраняет превышения | P0 |
-| Существующая сеть | Generic topology и screening | Распространение расхода по `upstream_object_id` и частичная реконструкция | Не реализовано | P0 |
-| Ограничения | Динамические OKS buffers и запретные типы участвуют в search и final validation | Точная таблица по десяти типам | Интегрировано; не закрыта полная тестовая матрица | P0 |
-| Специальные проходы | `base`/`special` строятся и перепроверяются на итоговой геометрии | `base`/`special`, официальные границы и коэффициенты | Интегрировано; нужны тесты каждой строки | P0 |
-| Стоимость | Версионируемый общий каталог, synthetic rates | Официальные ставки по ДУ, камеры, врезки, реконструкция, штрафы | Не реализовано | P0 |
-| Ранжирование | Несколько objective profiles | `S = 0,7 * C/25 000 000 + 0,3 * L/100` | Не реализовано | P0 |
-| Неподключённые ОКС | Generic no-route outcome | Частичный результат, список ID и штраф по каждому ОКС | Частично | P0 |
-| Выход | Centerline/corridor и внутренний passport | Семь официальных `object_type` и строгие поля без лишних `null` | Не соответствует | P0 |
+| Диаметры | Официальный Java-каталог назначает DU каждому рассчитанному и реконструируемому участку | Точная таблица из 18 ДУ | Реализовано | P0 |
+| Предельная длина | Bottom-up sizing автоматически повышает DU с непрерывным same-DU tracking | Сброс только при смене ДУ | Реализовано и покрыто всеми границами каталога | P0 |
+| Существующая сеть | Upstream propagation, partial/common sections и камеры | Распространение расхода по `upstream_object_id` и частичная реконструкция | Реализовано для contract-complete input; supplied file неполон | P0 |
+| Ограничения | Динамические OKS buffers и запретные типы участвуют в search и final validation | Точная опубликованная 2D-таблица | Полная exact/boundary/negative matrix | P0 |
+| Специальные проходы | `base`/`special` строятся и перепроверяются на итоговой геометрии | `base`/`special`, официальные границы и коэффициенты | Реализовано по каждой опубликованной строке | P0 |
+| Стоимость | Версионируемый официальный каталог | Ставки по ДУ, камеры, врезки, реконструкция, штрафы | Реализовано; appendix golden зафиксирован | P0 |
+| Ранжирование | Официальный score и deterministic rank | `S = 0,7 * C/25 000 000 + 0,3 * L/100` | Реализовано | P0 |
+| Неподключённые ОКС | Partial result, ID/reason и официальный penalty | Частичный результат, список ID и штраф по каждому ОКС | Реализовано | P0 |
+| Выход | Строгий adapter/validator и incremental download | Семь официальных `object_type` и строгие поля без лишних `null` | Реализовано; scale evidence остаётся | P0 |
 | Глубина | Проверка заданного пользователем профиля | Отдельная автоматическая перетрассировка с выбором глубины | Не реализовано | P1/бонус |
 | Большие файлы | Streaming parser и лимит 3 ГБ | Вход 3 ГБ и выход 500 МБ без whole-file heap | Не измерено на пределе | P0 |
 | Нагрузка | Не проверена | До 50 пользователей | Не подтверждено | P0 |
@@ -231,8 +231,8 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R0 | Закрыт | — |
 | R1 | Закрыт для текущего single-process контура | Вынести worker перед нагрузочным тестом |
 | R2 | Функционально частично закрыт | 3 ГБ memory evidence, replay/dedup, дополнительные inline cases |
-| R3 | Функциональный vertical slice | Indexed large-network search, persisted selected tie-ins |
-| R4 | Функциональный obstacle-aware checkpoint + три стратегии + GIS | Performance, quality/diversity fixtures и persisted selected tie-ins |
+| R3 | Функциональный vertical slice | Persisted selected tie-ins и предельный scale evidence |
+| R4 | Obstacle-aware checkpoint + три стратегии + GIS + adaptive STRtree | End-to-end performance и broader quality/diversity evidence |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
 | R7 | Закрыт по нормативным 2D формулам, strict export/validator/API и official-output map | Scale evidence относится к R9 |

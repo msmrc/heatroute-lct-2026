@@ -80,6 +80,18 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Roadmap truth
 
+## UX update — direct upload and diagnostics (2026-09-16)
+
+- Valid GeoJSON uploads now start the calculation immediately. The technical import/report screen
+  is skipped in the happy path; one loader covers validation, queueing and calculation until the
+  map result is ready.
+- The result validation metric is clickable and opens all import warnings in a scroll-contained,
+  keyboard-accessible modal with code, message, object and field context.
+- Enabled buttons and links expose a pointer cursor. The sidebar toggle is contained within the
+  navigation rail and no longer overlaps the dataset icon in either sidebar state.
+- Web verification: TypeScript, ESLint, production build and 9 Vitest tests pass. CI run
+  `35089560867` passed web, Java backend and integration jobs. VPS commit `407c0a7` is healthy.
+
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.

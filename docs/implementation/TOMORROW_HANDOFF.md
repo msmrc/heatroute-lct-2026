@@ -101,6 +101,14 @@ Do not mix official costing into the first PR; expose explicit placeholder quant
 
 ## Known operational notes
 
+## Latest product-flow decision (2026-09-16)
+
+- Do not reintroduce the import/report page into the valid-file happy path. Upload must proceed as
+  `file -> loader/progress -> completed map` and start the official run automatically.
+- Input warnings remain available from the clickable `Проверка структуры` metric in the result
+  island. Keep the full API diagnostics; do not replace them with a fake aggregate.
+- Current deployed baseline is `407c0a7`; CI run `35089560867` passed all jobs.
+
 - Local Docker data and tool caches must remain on `E:`.
 - Never commit `.env.vps`, keys or dumps. The sole approved organizer dataset is the byte-identical
   `datasets/official/lct-2026.geojson`; do not add copies or synthetic dataset files.

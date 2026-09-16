@@ -1,85 +1,84 @@
-# Design QA — map-first workspace islands
+# Design QA — upload flow and validation warnings
 
 - Date: 2026-09-16
-- Source visual truth: the four user-supplied problem crops:
-  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-cb51ec42-e38b-474c-9c8c-661aa0535f35.png` — 955 × 124
-  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-b1b6a2f0-2e48-4f12-ae67-c9d5ad7a3ac5.png` — 896 × 208
-  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-906b99a7-956a-45ed-a43a-56c07d3a729c.png` — 314 × 728
-  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-02d16835-aeee-4202-8ef4-88a43c88d3e9.png` — 280 × 921
-- Implementation: `http://192.168.1.158:5173/` local HeatRoute preview
-- Implementation screenshot: Codex in-app browser capture at 1280 × 720
-- Responsive evidence: Codex in-app browser capture at 900 × 800
-- CSS viewport and density: browser viewport override was used for the 900 × 800 pass and reset after capture; source crops were judged at native density
-- State: completed shared-network calculation, MapLibre map mode, expanded/collapsed navigation, selected-route inspector
+- Source visual truth: the five user-supplied problem crops:
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-df6a1a30-3dcf-4152-adfd-2c9d66c71729.png` — upload action affordance
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-c0bfae52-2c95-419f-af85-0251cd4770b4.png` — validation metric
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-9066197d-b075-426b-a148-2fc1f9510031.png` — overlapping sidebar/dataset icons
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-9220292d-8f81-43b4-b94c-eda917e4d387.png` — intermediate report screen
+  - `C:\Users\dragon\AppData\Local\Temp\codex-clipboard-4006897d-3902-401e-bec4-0a4e8e57a35c.png` — full map workspace
+- Implementation: `https://130-49-150-217.sslip.io/`, commit `407c0a7`
+- Implementation screenshot: Codex in-app browser capture of the public map and open warnings dialog at 1118 × 909
+- CSS viewport and density: desktop browser viewport at device scale 1; source crops retained at native density
+- State: completed shared-network calculation, expanded and collapsed navigation, validation dialog open and closed
 
 ## Findings
 
-No actionable P0, P1 or P2 mismatch remains against the requested changes. The map is now the
-continuous work surface below the dataset toolbar. The results summary and object inspector are
-separate elevated islands over the map instead of grid tracks that consume map area. The toolbar
-uses the real imported filename, and the left navigation can be collapsed and restored.
+No actionable P0, P1 or P2 mismatch remains against the requested changes. All interactive
+buttons now expose a pointer cursor, the validation metric is a semantic dialog trigger, the
+sidebar control no longer overlaps the dataset tile, and valid uploads transition through one
+loader directly into the completed map workspace.
 
 ## Full-view comparison evidence
 
-The 1280 × 720 implementation was compared with all four source crops in the same review pass.
-The source showed a generic `Официальный GeoJSON` label, a full-width results row outside the map,
-a full-height right column, and a permanently wide sidebar. The final implementation shows
-`!!!_Датасет.geojson`, an uninterrupted cartographic canvas, a compact bottom results island, a
-content-sized right inspector island and a narrow icon rail after collapse.
+The public 1118 × 909 implementation was compared with all five source crops. The final expanded
+state keeps the upload action, dataset title and sidebar control in separate hit areas. The
+collapsed state replaces the brand row with the menu control instead of letting two floating
+tiles collide. The map, inspector and result island retain the previously approved proportions.
 
 ## Focused region comparison evidence
 
-- Toolbar: the hard-coded dataset label is gone; the actual filename is ellipsized only when needed.
-- Results: the four metrics retain their scan order and readable 21 px values inside one floating
-  surface; the map remains visible beneath and around it.
-- Inspector: default and selected-route states both use the same floating surface. Selecting a
-  route exposes its measured length and closing the selection restores variant information.
-- Navigation: the boundary control has accessible expand/collapse names; collapsed state keeps
-  both destinations available as icons and increases map width.
+- Validation metric: the full tile is now a keyboard-focusable button with hover/active feedback;
+  the visible warning count remains part of the label.
+- Dialog: clicking the metric opens a 520 px modal with the real 323 warnings, including code,
+  message, feature index/id and field. The list scrolls independently and uses `content-visibility`
+  for the long result set.
+- Sidebar/header boundary: the toggle is contained inside the sidebar; expanded and collapsed
+  states no longer overlap the dataset icon.
+- Upload path: the valid-upload test proves `createOfficialRun(importId)` runs immediately. The
+  report screen is skipped; the user sees a single progress surface until the run completes.
 
-No raster or generated visual assets were required: all target content is application chrome or
-the existing vector map. Existing Lucide icons were retained to match the product's icon family.
+No new raster or generated assets were required. Existing Lucide icons and the established
+HeatRoute component tokens were retained.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: existing Inter/system typography and hierarchy are preserved. The real
-  filename uses the existing 15 px dataset-title treatment; metrics and inspector values retain
-  their established optical weights and line heights.
-- Spacing and layout rhythm: islands use 16 px outer offsets, 16 px radii and a shared shadow;
-  map controls, variant tabs, inspector and results no longer collide at 1280 × 720. At 900 × 800,
-  metrics form a 2 × 2 grid and the inspector becomes internally scrollable without covering the
-  results island.
-- Colors and visual tokens: surfaces use the existing neutral white, border and shadow tokens with
-  translucent backdrop blur. Success, route and basemap colors are unchanged.
-- Image quality and asset fidelity: MapLibre/CARTO remains vector-rendered and sharp. No screenshot,
-  placeholder, CSS art or custom SVG was substituted for UI or map content.
-- Copy and content: the visible dataset name now comes from `original_filename`; domain labels such
-  as `Результаты расчёта`, `Общая сеть`, `Длина` and `Камер и врезок` remain factual.
-- Accessibility and interactions: collapse/expand is a labelled button with persisted state;
-  keyboard focus styles remain visible; tabs and map selection retain their semantic controls.
+- Fonts and typography: existing Inter/system hierarchy, weights and 11–25 px UI scale remain
+  unchanged. Modal metadata uses the same small-text optical weight as the workspace.
+- Spacing and layout rhythm: the dialog uses the established 16 px radius and 20–22 px paddings;
+  the sidebar toggle now has an internal 15/20 px inset instead of a negative offset.
+- Colors and visual tokens: warning, success, accent, border and surface tokens are reused without
+  introducing a parallel palette.
+- Image quality and asset fidelity: the vector basemap and Lucide icons remain sharp; no bitmap,
+  placeholder, handwritten SVG or CSS-drawn icon was introduced.
+- Copy and content: warning content is returned by the Java API without invented summaries. The
+  loader states say what the system is doing and that results open automatically.
+- Accessibility and interactions: validation uses `aria-haspopup=dialog`; the dialog is labelled,
+  closes from both buttons, backdrop and `Escape`; all enabled buttons/links/role-buttons show a
+  pointer; the sidebar control keeps explicit expand/collapse names.
 
 ## Comparison history
 
-1. Source state: four large layout regions reduced the usable map and the toolbar used a generic
-   file label.
-2. First island pass: results and inspector floated correctly, but the centered variant selector
-   could overlap the map/scheme controls at the desktop breakpoint (P2).
-3. Fix: variant tabs are centered in the unobscured map region, with breakpoint-specific offsets.
-   The 1280 × 720 capture shows clear separation; the 900 × 800 capture shows a usable 2 × 2 result
-   island and scroll-contained inspector.
+1. Source state: warning count was static, generic buttons did not consistently expose pointer,
+   sidebar and dataset icons visually collided, and upload stopped at a technical report (P1/P2).
+2. First implementation: warning dialog and direct upload-to-run path were added; sidebar toggle
+   was moved inside the navigation rail and the collapsed brand was suppressed.
+3. Post-fix public capture: the dialog shows live warnings, `Escape` restores the map, and both
+   sidebar states keep the header clear. No remaining P0/P1/P2 issue was observed.
 
 ## Automated and interaction checks
 
 - TypeScript: passed
 - ESLint: passed
-- Vitest: 5 files, 8 tests passed
+- Vitest: 6 files, 9 tests passed
 - Production build: passed
-- Real imported filename: passed
-- Sidebar collapse, restore and persistence: passed
-- Map resize after sidebar transition: passed
-- Selected-route inspector: passed
-- 900 × 800 responsive layout: passed
-- Browser console errors/warnings: none
+- GitHub Actions run `35089560867`: passed (web, backend, integration)
+- Valid upload immediately starts calculation: passed
+- Intermediate report skipped for valid input: passed
+- Warning dialog open/content/close: passed
+- Dialog `Escape` close on public site: passed
+- Expanded/collapsed sidebar icon separation: passed
+- VPS health, OpenAPI and HTTPS smoke: passed
 
 ## Follow-up polish
 

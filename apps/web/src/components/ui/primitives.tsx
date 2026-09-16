@@ -6,7 +6,7 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useId, useRef } from "react";
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../shared/cn";
@@ -151,21 +151,90 @@ export function Dialog({
   children: ReactNode;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+
+    const dialog = dialogRef.current;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
+
+    function getFocusableElements() {
+      return Array.from(dialog?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+        .filter((element) => element.getAttribute("aria-hidden") !== "true");
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, open]);
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        dialog?.focus();
+        return;
+      }
+
+      const firstElement = focusableElements[0]!;
+      const lastElement = focusableElements.at(-1)!;
+      const activeElement = document.activeElement;
+      if (event.shiftKey && (activeElement === firstElement || !dialog?.contains(activeElement))) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && (activeElement === lastElement || !dialog?.contains(activeElement))) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    const focusableElements = getFocusableElements();
+    (focusableElements[0] ?? dialog)?.focus();
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [open]);
 
   if (!open) return null;
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+      <section
+        ref={dialogRef}
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
+      >
         <header>
-          <div><h2 id="dialog-title">{title}</h2>{description && <p>{description}</p>}</div>
+          <div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId}>{description}</p>}</div>
           <button className="icon-button" type="button" aria-label="Закрыть" onClick={onClose}><X size={17} /></button>
         </header>
         {children}

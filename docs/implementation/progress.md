@@ -301,6 +301,14 @@ and runtime services were removed. The frontend calls only the current official 
   island to keep the engineering chart usable, while map mode retains it. The mobile variant picker
   stays compact and becomes horizontally scrollable on phone widths instead of hiding the map or
   clipping route names.
+- A fresh official-file browser journey then covered upload, automatic calculation, all route
+  variants, structured no-route diagnostics, the depth profile, warning details, navigation collapse
+  and the system-information screen. It exposed an accessibility defect in the warning dialog:
+  keyboard focus remained on the map behind the overlay. The shared dialog primitive now provides
+  initial focus, wraparound focus trapping, Escape handling, focus restoration and background-scroll
+  locking. Variant tabs now support arrow/Home/End navigation with a single tab stop, while the
+  map/schematic/profile switch publishes its selected state. Focus behavior is protected by Vitest
+  and was rechecked in Chromium; the full journey produced no console errors or warnings.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

@@ -1,5 +1,6 @@
 import { Activity, AlertTriangle, CheckCircle2, Focus, MapPin, MapPinned, Network, X, ZoomIn, ZoomOut } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import type {
   OfficialCalculationIssue,
@@ -402,6 +403,26 @@ export function RouteVisualization({
     setZoom(1);
   }
 
+  function handleVariantTabKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, index: number) {
+    let targetIndex: number | undefined;
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      targetIndex = (index - 1 + result.variants.length) % result.variants.length;
+    } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      targetIndex = (index + 1) % result.variants.length;
+    } else if (event.key === "Home") {
+      targetIndex = 0;
+    } else if (event.key === "End") {
+      targetIndex = result.variants.length - 1;
+    }
+    if (targetIndex === undefined) return;
+
+    event.preventDefault();
+    const targetVariant = result.variants[targetIndex];
+    if (!targetVariant) return;
+    changeVariant(targetVariant.id);
+    document.getElementById(`route-variant-tab-${targetVariant.id}`)?.focus();
+  }
+
   function selectSchematicNode(node: OfficialRouteNode) {
     setSelectedNodeId(node.id);
     setSelectedObject({
@@ -423,10 +444,11 @@ export function RouteVisualization({
     <section className={`route-workspace is-${viewMode}`} aria-label="Визуализация рассчитанных маршрутов">
       <div className="route-map-stage">
           <div className="route-variant-tabs route-variant-tabs--floating" role="tablist" aria-label="Варианты маршрута">
-            {result.variants.map((item) => (
+            {result.variants.map((item, index) => (
               <button type="button" role="tab" aria-selected={item.id === variant.id}
+                id={`route-variant-tab-${item.id}`} tabIndex={item.id === variant.id ? 0 : -1}
                 className={item.id === variant.id ? "is-active" : undefined} key={item.id}
-                onClick={() => changeVariant(item.id)}>
+                onClick={() => changeVariant(item.id)} onKeyDown={(event) => handleVariantTabKeyDown(event, index)}>
                 <span>{variantName(item)}</span>
                 <small>{formatLength(item.total_length_m)}</small>
                 {item.rank ? <i>место {item.rank}</i> : item.id === result.preferred_variant_id && <i>рекомендуем</i>}
@@ -436,9 +458,9 @@ export function RouteVisualization({
 
           <div className="route-map-view-controls">
             <div className="route-view-switch" role="group" aria-label="Режим визуализации">
-              <button type="button" className={viewMode === "map" ? "is-active" : undefined} onClick={() => setViewMode("map")}><MapPinned size={15} /> Карта</button>
-              <button type="button" className={viewMode === "schematic" ? "is-active" : undefined} onClick={() => setViewMode("schematic")}><Network size={15} /> Схема</button>
-              <button type="button" className={viewMode === "profile" ? "is-active" : undefined} onClick={() => setViewMode("profile")}><Activity size={15} /> Профиль</button>
+              <button type="button" aria-pressed={viewMode === "map"} className={viewMode === "map" ? "is-active" : undefined} onClick={() => setViewMode("map")}><MapPinned size={15} /> Карта</button>
+              <button type="button" aria-pressed={viewMode === "schematic"} className={viewMode === "schematic" ? "is-active" : undefined} onClick={() => setViewMode("schematic")}><Network size={15} /> Схема</button>
+              <button type="button" aria-pressed={viewMode === "profile"} className={viewMode === "profile" ? "is-active" : undefined} onClick={() => setViewMode("profile")}><Activity size={15} /> Профиль</button>
             </div>
             {viewMode === "schematic" && (
               <div className="route-zoom-controls">

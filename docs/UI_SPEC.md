@@ -49,6 +49,11 @@ GdeBenzin project, keeps required attribution visible and is configurable throug
 `VITE_BASEMAP_STYLE_URL`. Use the tokens in
 `docs/ui/design-system.md`. Base body text is 14 px; secondary text is at least 12 px. Controls
 have visible keyboard focus and accessible names. Motion respects `prefers-reduced-motion`.
+Route variants use the WAI-ARIA tab keyboard model: one tab stop, arrow navigation with wraparound,
+and Home/End jumps. Validation details are a true modal dialog: focus enters the dialog, stays
+inside while it is open, returns to the triggering metric on close, Escape closes it and background
+page scrolling is suspended. Map/schematic/profile controls expose their pressed state to assistive
+technology.
 Desktop is primary. At 1180 px and below the result island switches to a 2 × 2 metric grid and the
 inspector becomes scroll-contained. At 900 px and below the profile becomes a focused view without
 the redundant result island; below 680 px the inspector is hidden to preserve the map task. On

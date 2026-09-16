@@ -112,14 +112,27 @@ describe("RouteVisualization", () => {
     expect(screen.getByRole("img", { name: /Продольный профиль участка shared:trunk:1/ })).toBeTruthy();
     expect(screen.getByText("Газопровод")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: /Открыть результаты проверки/ }));
+    const validationTrigger = screen.getByRole("button", { name: /Открыть результаты проверки/ });
+    validationTrigger.focus();
+    fireEvent.click(validationTrigger);
     expect(screen.getByRole("dialog", { name: "Результаты проверки" })).toBeTruthy();
     expect(screen.getByText("Значение высоты восстановлено по умолчанию")).toBeTruthy();
     expect(screen.getByText(/1 объект · примеры ID: oks-7 · поле height/)).toBeTruthy();
-    fireEvent.click(screen.getAllByRole("button", { name: "Закрыть" })[0]!);
+    const closeButtons = screen.getAllByRole("button", { name: "Закрыть" });
+    expect(document.activeElement).toBe(closeButtons[0]);
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(closeButtons.at(-1));
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(closeButtons[0]);
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(validationTrigger);
 
-    fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
+    const selectedVariantTab = screen.getByRole("tab", { name: /Общая сеть/ });
+    selectedVariantTab.focus();
+    fireEvent.keyDown(selectedVariantTab, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: /Раздельные трассы/ }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: /Раздельные трассы/ }));
     expect(screen.getByText(/ОКС 2: Маршрут не найден/)).toBeTruthy();
   });
 

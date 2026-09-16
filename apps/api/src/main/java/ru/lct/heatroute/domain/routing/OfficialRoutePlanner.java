@@ -19,6 +19,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.operation.distance.DistanceOp;
 import org.springframework.stereotype.Component;
+import ru.lct.heatroute.domain.depth.DepthProfileResult;
 import ru.lct.heatroute.domain.depth.OfficialDepthPlanner;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.PipeCatalogEntry;
@@ -602,39 +603,12 @@ public class OfficialRoutePlanner {
                         RouteConnection::getFlowTph,
                         BigDecimal::add,
                         LinkedHashMap::new));
-        NetworkSizingResult sizing = networkSizer.size(
-                draft.edges.stream()
-                        .map(edge -> new NetworkTreeEdge(
-                                edge.getId(),
-                                edge.getUpstreamNodeId(),
-                                edge.getDownstreamNodeId(),
-                                edge.getLengthM()))
-                        .collect(Collectors.toList()),
-                demandFlowByNode);
-        List<RouteEdge> sizedEdges = draft.edges.stream().map(edge -> {
-            SizedNetworkEdge sized = sizing.getEdges().get(edge.getId());
-            return sized == null ? edge : new RouteEdge(
-                    edge.getId(),
-                    edge.getUpstreamNodeId(),
-                    edge.getDownstreamNodeId(),
-                    edge.getLengthM().doubleValue(),
-                    edge.getCoordinates(),
-                    edge.getSections(),
-                    sized.getFlowTph(),
-                    sized.getDiameter());
-        }).collect(Collectors.toList());
-        List<RouteEdge> profiledEdges = sizedEdges.stream()
-                .map(edge -> new RouteEdge(
-                        edge.getId(),
-                        edge.getUpstreamNodeId(),
-                        edge.getDownstreamNodeId(),
-                        edge.getLengthM().doubleValue(),
-                        edge.getCoordinates(),
-                        edge.getSections(),
-                        edge.getFlowTph(),
-                        edge.getDiameter(),
-                        depthPlanner.plan(edge, features)))
-                .collect(Collectors.toList());
+        NetworkSizingResult initialSizing = sizeRoutes(draft.edges, demandFlowByNode);
+        List<RouteEdge> sizedEdges = applySizing(draft.edges, initialSizing);
+        List<RouteEdge> depthReroutedEdges = rerouteDepthConflicts(nodes, sizedEdges, features);
+        NetworkSizingResult sizing = sizeRoutes(depthReroutedEdges, demandFlowByNode);
+        List<RouteEdge> profiledEdges = withDepthProfiles(
+                applySizing(depthReroutedEdges, sizing), features);
         List<RouteValidationIssue> issues = validator.validate(nodes, profiledEdges, features);
         ExistingNetworkReconstructionResult reconstruction = reconstructor.reconstruct(
                 features,
@@ -657,6 +631,121 @@ public class OfficialRoutePlanner {
                 reconstruction,
                 economics,
                 null);
+    }
+
+    private NetworkSizingResult sizeRoutes(
+            List<RouteEdge> edges,
+            Map<String, BigDecimal> demandFlowByNode) {
+        return networkSizer.size(
+                edges.stream()
+                        .map(edge -> new NetworkTreeEdge(
+                                edge.getId(),
+                                edge.getUpstreamNodeId(),
+                                edge.getDownstreamNodeId(),
+                                edge.getLengthM()))
+                        .collect(Collectors.toList()),
+                demandFlowByNode);
+    }
+
+    private List<RouteEdge> applySizing(
+            List<RouteEdge> edges,
+            NetworkSizingResult sizing) {
+        return edges.stream().map(edge -> {
+            SizedNetworkEdge sized = sizing.getEdges().get(edge.getId());
+            return sized == null ? edge : new RouteEdge(
+                    edge.getId(),
+                    edge.getUpstreamNodeId(),
+                    edge.getDownstreamNodeId(),
+                    edge.getLengthM().doubleValue(),
+                    edge.getCoordinates(),
+                    edge.getSections(),
+                    sized.getFlowTph(),
+                    sized.getDiameter());
+        }).collect(Collectors.toList());
+    }
+
+    private List<RouteEdge> withDepthProfiles(
+            List<RouteEdge> edges,
+            List<ImportedOfficialFeature> features) {
+        return edges.stream()
+                .map(edge -> withDepthProfile(edge, depthPlanner.plan(edge, features)))
+                .collect(Collectors.toList());
+    }
+
+    private List<RouteEdge> rerouteDepthConflicts(
+            List<RouteNode> nodes,
+            List<RouteEdge> sizedEdges,
+            List<ImportedOfficialFeature> features) {
+        Map<String, RouteNode> nodesById = nodes.stream().collect(Collectors.toMap(
+                RouteNode::getId,
+                node -> node,
+                (left, right) -> left,
+                LinkedHashMap::new));
+        OfficialRoutingEnvironment environment = obstacleRouter.prepare(features);
+        List<RouteEdge> result = new ArrayList<>(sizedEdges);
+        for (int index = 0; index < result.size(); index++) {
+            RouteEdge edge = result.get(index);
+            DepthProfileResult profile = depthPlanner.plan(edge, features);
+            if (profile.isComplete()) continue;
+            Set<String> failedUtilityIds = profile.getIssues().stream()
+                    .map(issue -> issue.getCrossingId())
+                    .filter(java.util.Objects::nonNull)
+                    .map(value -> value.replaceFirst("#\\d+$", ""))
+                    .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+            if (failedUtilityIds.isEmpty()) continue;
+            RouteNode upstream = nodesById.get(edge.getUpstreamNodeId());
+            RouteNode downstream = nodesById.get(edge.getDownstreamNodeId());
+            if (upstream == null || downstream == null) continue;
+            Set<String> exemptions = java.util.stream.Stream.of(
+                            upstream.getTargetId(), downstream.getTargetId())
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toSet());
+            List<LineString> acceptedRoutes = result.stream()
+                    .filter(other -> !other.getId().equals(edge.getId()))
+                    .filter(other -> other.getCoordinates().size() >= 2)
+                    .map(this::routeLine)
+                    .collect(Collectors.toList());
+            RoutePath rerouted = obstacleRouter.findAvoidingDepthConflicts(
+                    upstream.getCoordinate().toCoordinate(),
+                    downstream.getCoordinate().toCoordinate(),
+                    edge.getDiameter(),
+                    environment,
+                    exemptions,
+                    failedUtilityIds,
+                    acceptedRoutes);
+            if (rerouted == null || rerouted.lengthM() <= MIN_EDGE_LENGTH_M) continue;
+            RouteEdge candidate = routeEdge(
+                    edge.getId(),
+                    edge.getUpstreamNodeId(),
+                    edge.getDownstreamNodeId(),
+                    rerouted,
+                    edge.getFlowTph(),
+                    edge.getDiameter());
+            DepthProfileResult candidateProfile = depthPlanner.plan(candidate, features);
+            if (candidateProfile.isComplete()) {
+                result.set(index, withDepthProfile(candidate, candidateProfile));
+            }
+        }
+        return result;
+    }
+
+    private RouteEdge withDepthProfile(RouteEdge edge, DepthProfileResult profile) {
+        return new RouteEdge(
+                edge.getId(),
+                edge.getUpstreamNodeId(),
+                edge.getDownstreamNodeId(),
+                edge.getLengthM().doubleValue(),
+                edge.getCoordinates(),
+                edge.getSections(),
+                edge.getFlowTph(),
+                edge.getDiameter(),
+                profile);
+    }
+
+    private LineString routeLine(RouteEdge edge) {
+        return geometryFactory.createLineString(edge.getCoordinates().stream()
+                .map(RouteCoordinate::toCoordinate)
+                .toArray(Coordinate[]::new));
     }
 
     private List<TieInLoad> tieInLoads(List<RouteNode> nodes, List<RouteEdge> edges) {

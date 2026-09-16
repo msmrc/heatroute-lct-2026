@@ -123,6 +123,35 @@ public class OfficialRouteGeometryRules {
         return result;
     }
 
+    List<Constraint> depthAvoidanceConstraints(
+            List<ImportedOfficialFeature> features,
+            Set<String> featureIds) {
+        List<Constraint> result = new ArrayList<>();
+        for (ImportedOfficialFeature feature : features) {
+            if (!featureIds.contains(feature.getFeatureId())) continue;
+            String type = constraintType(feature);
+            SpatialConstraintRule original = type == null ? null : catalog.find(type).orElse(null);
+            Geometry source = feature.getMetricGeometry();
+            if (original == null || original.isForbidden() || source == null || source.isEmpty()) continue;
+            double clearance = Math.max(
+                    0.0,
+                    original.getHorizontalClearanceM().doubleValue() - CLEARANCE_BOUNDARY_EPSILON_M);
+            Geometry blocked = source.buffer(clearance, 4);
+            SpatialConstraintRule avoidance = new SpatialConstraintRule(
+                    type,
+                    true,
+                    original.getHorizontalClearanceM().toPlainString(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    "1.00");
+            result.add(new Constraint(feature.getFeatureId(), type, source, blocked, avoidance));
+        }
+        result.sort(CONSTRAINT_ORDER);
+        return result;
+    }
+
     boolean segmentAllowed(Coordinate start, Coordinate end, List<Constraint> constraints) {
         return segmentAllowed(start, end, index(constraints));
     }

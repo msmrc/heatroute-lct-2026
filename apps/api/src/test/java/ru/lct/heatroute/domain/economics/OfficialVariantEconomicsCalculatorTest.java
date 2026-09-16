@@ -6,6 +6,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import ru.lct.heatroute.domain.depth.DepthProfilePoint;
+import ru.lct.heatroute.domain.depth.DepthProfileResult;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.reconstruction.ChamberReconstruction;
@@ -128,6 +130,50 @@ class OfficialVariantEconomicsCalculatorTest {
                 .isEqualByComparingTo("-19");
         assertThat(result.getReconstructionCost().subtract(new BigDecimal("15152283")))
                 .isEqualByComparingTo("-33");
+    }
+
+    @Test
+    void pricesEveryLinearDepthIntervalInsteadOfUsingOneAverageForTheWholeEdge() {
+        RouteSection base = new RouteSection(
+                "base", null, null, List.of(coordinate(0, 0), coordinate(100, 0)), 100, null);
+        DepthProfileResult profile = new DepthProfileResult(
+                true,
+                List.of(
+                        point("0", "3"),
+                        point("40", "3"),
+                        point("50", "4"),
+                        point("60", "3"),
+                        point("100", "3")),
+                List.of(),
+                List.of(),
+                new BigDecimal("100.100"),
+                new BigDecimal("104.000"));
+        RouteEdge edge = new RouteEdge(
+                "depth-edge", "start", "end", 100,
+                List.of(coordinate(0, 0), coordinate(100, 0)), List.of(base),
+                new BigDecimal("3.5"), 50, profile);
+
+        VariantEconomics result = calculator.calculate(
+                List.of(),
+                List.of(edge),
+                List.of(),
+                new ExistingNetworkReconstructionResult(List.of(), List.of(), List.of()));
+
+        var pipe = pipeCatalog.byDiameter(50).orElseThrow();
+        BigDecimal expected = officialEconomics.newNetworkCost(
+                        pipe, new BigDecimal("80"),
+                        ru.lct.heatroute.domain.engineering.SpecialCrossingType.BASE,
+                        new BigDecimal("3"))
+                .add(officialEconomics.newNetworkCost(
+                        pipe, new BigDecimal("20"),
+                        ru.lct.heatroute.domain.engineering.SpecialCrossingType.BASE,
+                        new BigDecimal("3.5")));
+
+        assertThat(result.getConstructionCost()).isEqualByComparingTo(expected);
+    }
+
+    private DepthProfilePoint point(String station, String depth) {
+        return new DepthProfilePoint(new BigDecimal(station), new BigDecimal(depth));
     }
 
     private RouteCoordinate coordinate(double x, double y) {

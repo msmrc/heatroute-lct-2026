@@ -111,6 +111,33 @@ class OfficialRoutePlannerTest {
     }
 
     @Test
+    void impossibleVerticalCrossingTriggersSeparatePlanDetour() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (0 -10, 0 10)", "{}"),
+                feature("restriction", "cable", "LINESTRING (95 -20, 95 20)",
+                        "{\"restriction_type\":\"power_cable\"}"),
+                feature("oks_connection_point", "cp", "POINT (100 0)", "{\"flow_tph\":5}"));
+
+        RouteVariant variant = planner.plan(
+                features,
+                topology(List.of(candidate("cp", "network", 100))))
+                .getVariants().get(0);
+
+        assertThat(variant.getEdges()).singleElement().satisfies(edge -> {
+            assertThat(edge.getDepthProfile().getIssues())
+                    .as("coordinates %s", edge.getCoordinates())
+                    .extracting(
+                            ru.lct.heatroute.domain.depth.DepthProfileIssue::getCode,
+                            ru.lct.heatroute.domain.depth.DepthProfileIssue::getCrossingId)
+                    .isEmpty();
+            assertThat(edge.getLengthM()).isGreaterThan(new java.math.BigDecimal("100"));
+            assertThat(edge.getCoordinates()).hasSizeGreaterThan(2);
+            assertThat(edge.getDepthProfile().isComplete()).isTrue();
+            assertThat(edge.getDepthProfile().getCrossings()).isEmpty();
+        });
+    }
+
+    @Test
     void normalizedResultIsByteStableForSameInput() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),

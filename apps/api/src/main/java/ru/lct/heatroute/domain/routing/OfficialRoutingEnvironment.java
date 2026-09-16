@@ -30,4 +30,8 @@ final class OfficialRoutingEnvironment {
                 ignored -> rules.baseConstraints(features, diameter));
         return rules.applicableConstraints(base, exemptFeatureIds, start, end);
     }
+
+    List<Constraint> depthAvoidanceConstraints(Set<String> featureIds) {
+        return rules.depthAvoidanceConstraints(features, featureIds);
+    }
 }

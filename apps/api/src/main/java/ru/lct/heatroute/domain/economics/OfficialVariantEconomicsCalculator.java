@@ -115,14 +115,33 @@ public class OfficialVariantEconomicsCalculator {
                     ? edge.getLengthM()
                     : edge.getLengthM().multiply(cumulative)
                             .divide(sectionTotal, 12, RoundingMode.HALF_UP);
-            BigDecimal averageDepth = profile == null
-                    ? TWO_DIMENSIONAL_DEPTH_M
-                    : profile.averageDepth(station, end);
-            result = result.add(economics.newNetworkCost(
-                    pipe,
-                    section.getLengthM(),
-                    crossingType(section),
-                    averageDepth));
+            if (profile == null) {
+                result = result.add(economics.newNetworkCost(
+                        pipe,
+                        section.getLengthM(),
+                        crossingType(section),
+                        TWO_DIMENSIONAL_DEPTH_M));
+                continue;
+            }
+            List<BigDecimal> cuts = new ArrayList<>();
+            cuts.add(station);
+            profile.getPoints().stream()
+                    .map(point -> point.getStationM())
+                    .filter(point -> point.compareTo(station) > 0 && point.compareTo(end) < 0)
+                    .forEach(cuts::add);
+            cuts.add(end);
+            for (int piece = 1; piece < cuts.size(); piece++) {
+                BigDecimal pieceStart = cuts.get(piece - 1);
+                BigDecimal pieceEnd = cuts.get(piece);
+                BigDecimal pieceLength = section.getLengthM()
+                        .multiply(pieceEnd.subtract(pieceStart))
+                        .divide(end.subtract(station), 12, RoundingMode.HALF_UP);
+                result = result.add(economics.newNetworkCost(
+                        pipe,
+                        pieceLength,
+                        crossingType(section),
+                        profile.averageDepth(pieceStart, pieceEnd)));
+            }
         }
         return result;
     }

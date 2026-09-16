@@ -61,6 +61,26 @@ public class OfficialObstacleRouter {
                 Collections.emptyList());
     }
 
+    RoutePath findAvoidingDepthConflicts(
+            Coordinate start,
+            Coordinate end,
+            int diameter,
+            OfficialRoutingEnvironment environment,
+            Set<String> exemptFeatureIds,
+            Set<String> failedUtilityIds,
+            List<LineString> acceptedRoutes) {
+        List<Constraint> additional = environment.depthAvoidanceConstraints(failedUtilityIds);
+        return find(
+                start,
+                end,
+                diameter,
+                environment,
+                exemptFeatureIds,
+                RoutePreference.SHORTEST,
+                acceptedRoutes,
+                additional);
+    }
+
     RoutePath find(
             Coordinate start,
             Coordinate end,
@@ -69,11 +89,36 @@ public class OfficialObstacleRouter {
             Set<String> exemptFeatureIds,
             RoutePreference preference,
             List<LineString> acceptedRoutes) {
+        return find(
+                start,
+                end,
+                diameter,
+                environment,
+                exemptFeatureIds,
+                preference,
+                acceptedRoutes,
+                Collections.emptyList());
+    }
+
+    private RoutePath find(
+            Coordinate start,
+            Coordinate end,
+            int diameter,
+            OfficialRoutingEnvironment environment,
+            Set<String> exemptFeatureIds,
+            RoutePreference preference,
+            List<LineString> acceptedRoutes,
+            List<Constraint> additionalConstraints) {
         List<Constraint> constraints = new ArrayList<>(environment.constraints(
                 diameter, exemptFeatureIds, start, end));
         constraints.addAll(rules.applicableConstraints(
                 rules.routeAvoidanceConstraints(acceptedRoutes),
                 Collections.emptySet(),
+                start,
+                end));
+        constraints.addAll(rules.applicableConstraints(
+                additionalConstraints,
+                exemptFeatureIds,
                 start,
                 end));
         ConstraintIndex constraintIndex = rules.index(constraints);

@@ -98,6 +98,38 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
+    void depthConflictCreatesSeparateHorizontalDetourAroundUtility() throws Exception {
+        ImportedOfficialFeature cable = restriction(
+                "power_cable", "cable-1", "LINESTRING (50 -20, 50 20)");
+        OfficialRoutingEnvironment environment = router.prepare(List.of(cable));
+
+        RoutePath direct = router.find(
+                new Coordinate(0, 0),
+                new Coordinate(100, 0),
+                100,
+                environment,
+                Set.of(),
+                RoutePreference.SHORTEST);
+        RoutePath detour = router.findAvoidingDepthConflicts(
+                new Coordinate(0, 0),
+                new Coordinate(100, 0),
+                100,
+                environment,
+                Set.of(),
+                Set.of("cable-1"),
+                List.of());
+
+        assertThat(direct).isNotNull();
+        assertThat(direct.lengthM()).isEqualTo(100.0);
+        assertThat(detour).isNotNull();
+        assertThat(detour.lengthM()).isGreaterThan(100.0);
+        assertThat(rules.line(detour.coordinates()).distance(cable.getMetricGeometry()))
+                .isGreaterThanOrEqualTo(1.99);
+        assertThat(detour.sections()).noneMatch(section ->
+                "cable-1".equals(section.getRestrictionId()));
+    }
+
+    @Test
     void acceptsFortyFiveDegreeRoadCrossingAndRejectsBelowBoundary() throws Exception {
         ImportedOfficialFeature road = restriction(
                 "road", "road-1", "POLYGON ((40 -100, 60 -100, 60 100, 40 100, 40 -100))");

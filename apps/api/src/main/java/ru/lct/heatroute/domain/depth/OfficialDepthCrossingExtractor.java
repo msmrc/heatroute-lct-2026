@@ -53,9 +53,10 @@ public class OfficialDepthCrossingExtractor {
                     || !route.getEnvelopeInternal().intersects(source.getEnvelopeInternal())) continue;
             Geometry intersection = route.intersection(source);
             if (intersection.isEmpty()) continue;
+            List<Double> stations = crossingStations(indexed, intersection, maximumStation);
+            if (stations.isEmpty()) continue;
             ExistingUtility utility = existingUtility(feature, type, issues);
             if (utility == null) continue;
-            List<Double> stations = crossingStations(indexed, intersection, maximumStation);
             for (int index = 0; index < stations.size(); index++) {
                 String id = stations.size() == 1
                         ? feature.getFeatureId()

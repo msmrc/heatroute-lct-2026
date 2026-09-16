@@ -121,6 +121,41 @@ class OfficialGeoJsonExporterTest {
     }
 
     @Test
+    void splitsDepthChangesIntoReferencedTechnicalNodesAndExactXyzSegments() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (500000 6170000)", "{}"),
+                feature("heat_network", "network", "LINESTRING (500000 6169990, 500000 6170010)",
+                        "{\"upstream_object_id\":\"source\",\"flow_tph\":2,\"diameter\":50}"),
+                feature("restriction", "gas", "LINESTRING (500050 6169980, 500050 6170020)",
+                        "{\"restriction_type\":\"gas_pipeline\"}"),
+                feature("oks_connection_point", "cp", "POINT (500100 6170000)",
+                        "{\"flow_tph\":5}"));
+        OfficialCalculationResult result = planner().plan(
+                features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true))));
+
+        ObjectNode output = exporter.export(objectMapper.valueToTree(result), features);
+
+        assertThat(validator.validate(output)).isEmpty();
+        List<JsonNode> newNetwork = StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "heat_network".equals(
+                        feature.path("properties").path("object_type").asText()))
+                .collect(Collectors.toList());
+        assertThat(newNetwork).hasSizeGreaterThan(3);
+        assertThat(newNetwork).anySatisfy(feature -> assertThat(
+                feature.path("properties").path("depth_start").decimalValue())
+                .isNotEqualByComparingTo(feature.path("properties").path("depth_end").decimalValue()));
+        assertThat(newNetwork).allSatisfy(feature -> assertThat(feature.path("geometry").path("coordinates"))
+                .allSatisfy(position -> assertThat(position.size()).isEqualTo(3)));
+        assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "technical_node".equals(
+                        feature.path("properties").path("object_type").asText()))
+                .map(feature -> feature.path("properties").path("id").asText()))
+                .anyMatch(id -> id.contains(":depth:"));
+    }
+
+    @Test
     void scopesTopologyAndReconstructionIdsAcrossMultipleVariants() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("source", "source", "POINT (500000 6170000)", "{}"),

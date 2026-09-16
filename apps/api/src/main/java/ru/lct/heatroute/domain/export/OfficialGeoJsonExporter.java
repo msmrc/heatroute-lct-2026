@@ -197,48 +197,56 @@ public class OfficialGeoJsonExporter {
             BigDecimal sectionEnd = index == sections.size() - 1
                     ? edgeLength
                     : edgeLength.multiply(cumulative).divide(sectionTotal, 12, RoundingMode.HALF_UP);
-            BigDecimal depthStart = depthAt(depthProfile, sectionStart);
-            BigDecimal depthEnd = depthAt(depthProfile, sectionEnd);
-            BigDecimal averageDepth = averageDepth(depthProfile, sectionStart, sectionEnd);
-            String previousBoundary = outputId(variantId,
-                    "technical:" + edge.path("id").asText() + ":" + index);
-            String nextBoundary = outputId(variantId,
-                    "technical:" + edge.path("id").asText() + ":" + (index + 1));
-            String startNode = index == 0
-                    ? outputId(variantId, edge.path("upstream_node_id").asText())
-                    : previousBoundary;
-            String endNode = index == sections.size() - 1
-                    ? outputId(variantId, edge.path("downstream_node_id").asText())
-                    : nextBoundary;
-            if (index > 0) {
-                technicalNodes.putIfAbsent(previousBoundary, firstCoordinate(section.path("coordinates")));
-            }
-            if (index < sections.size() - 1) {
-                technicalNodes.putIfAbsent(nextBoundary, lastCoordinate(section.path("coordinates")));
-            }
             String kind = section.path("kind").asText("base");
             SpecialCrossingType crossing = crossingType(kind, section.path("restriction_type").asText(null));
-            BigDecimal length = section.path("length_m").decimalValue();
-            BigDecimal cost = economics.newNetworkCost(pipe, length, crossing, averageDepth);
-            ObjectNode properties = properties(
-                    "network:" + variantId + ":" + edge.path("id").asText() + ":" + index,
-                    "heat_network",
-                    variantId);
-            properties.put("start_node_id", startNode);
-            properties.put("end_node_id", endNode);
-            properties.set("flow_tph", edge.path("flow_tph"));
-            properties.put("diameter", diameter);
-            properties.set("length", section.path("length_m"));
-            properties.put("laying_method", kind);
-            properties.set("cost", objectMapper.valueToTree(cost));
-            properties.set("depth_start", objectMapper.valueToTree(depthStart));
-            properties.set("depth_end", objectMapper.valueToTree(depthEnd));
-            output.accept(feature(lineGeometry(
-                    section.path("coordinates"),
-                    depthProfile,
-                    sectionStart,
-                    sectionEnd,
-                    pipe.getEnvelopeHeightM()), properties));
+            List<BigDecimal> cuts = profileCuts(depthProfile, sectionStart, sectionEnd);
+            for (int piece = 1; piece < cuts.size(); piece++) {
+                BigDecimal pieceStart = cuts.get(piece - 1);
+                BigDecimal pieceEnd = cuts.get(piece);
+                String startNode = pieceStart.signum() == 0
+                        ? outputId(variantId, edge.path("upstream_node_id").asText())
+                        : technicalNodeId(variantId, edge.path("id").asText(), pieceStart);
+                String endNode = pieceEnd.compareTo(edgeLength) == 0
+                        ? outputId(variantId, edge.path("downstream_node_id").asText())
+                        : technicalNodeId(variantId, edge.path("id").asText(), pieceEnd);
+                if (pieceStart.signum() > 0) {
+                    technicalNodes.putIfAbsent(startNode, metricAtStation(
+                            section.path("coordinates"), sectionStart, sectionEnd, pieceStart));
+                }
+                if (pieceEnd.compareTo(edgeLength) < 0) {
+                    technicalNodes.putIfAbsent(endNode, metricAtStation(
+                            section.path("coordinates"), sectionStart, sectionEnd, pieceEnd));
+                }
+                BigDecimal length = section.path("length_m").decimalValue()
+                        .multiply(pieceEnd.subtract(pieceStart))
+                        .divide(sectionEnd.subtract(sectionStart), 12, RoundingMode.HALF_UP);
+                BigDecimal depthStart = depthAt(depthProfile, pieceStart);
+                BigDecimal depthEnd = depthAt(depthProfile, pieceEnd);
+                BigDecimal cost = economics.newNetworkCost(
+                        pipe, length, crossing, averageDepth(depthProfile, pieceStart, pieceEnd));
+                ObjectNode properties = properties(
+                        "network:" + variantId + ":" + edge.path("id").asText()
+                                + ":" + index + ":" + (piece - 1),
+                        "heat_network",
+                        variantId);
+                properties.put("start_node_id", startNode);
+                properties.put("end_node_id", endNode);
+                properties.set("flow_tph", edge.path("flow_tph"));
+                properties.put("diameter", diameter);
+                properties.set("length", objectMapper.valueToTree(length));
+                properties.put("laying_method", kind);
+                properties.set("cost", objectMapper.valueToTree(cost));
+                properties.set("depth_start", objectMapper.valueToTree(depthStart));
+                properties.set("depth_end", objectMapper.valueToTree(depthEnd));
+                output.accept(feature(lineGeometry(
+                        section.path("coordinates"),
+                        depthProfile,
+                        sectionStart,
+                        sectionEnd,
+                        pieceStart,
+                        pieceEnd,
+                        pipe.getEnvelopeHeightM()), properties));
+            }
         }
     }
 
@@ -397,29 +405,103 @@ public class OfficialGeoJsonExporter {
             JsonNode depthProfile,
             BigDecimal sectionStart,
             BigDecimal sectionEnd,
+            BigDecimal pieceStart,
+            BigDecimal pieceEnd,
             BigDecimal envelopeHeightM) {
         ObjectNode geometry = objectMapper.createObjectNode();
         geometry.put("type", "LineString");
         ArrayNode coordinates = geometry.putArray("coordinates");
         double total = coordinateLength(metricCoordinates);
+        BigDecimal sectionSpan = sectionEnd.subtract(sectionStart);
+        java.util.SortedSet<BigDecimal> fractions = new java.util.TreeSet<>();
+        BigDecimal pieceStartFraction = pieceStart.subtract(sectionStart)
+                .divide(sectionSpan, 12, RoundingMode.HALF_UP);
+        BigDecimal pieceEndFraction = pieceEnd.subtract(sectionStart)
+                .divide(sectionSpan, 12, RoundingMode.HALF_UP);
+        fractions.add(pieceStartFraction);
+        fractions.add(pieceEndFraction);
         double cumulative = 0.0;
         for (int index = 0; index < metricCoordinates.size(); index++) {
-            JsonNode coordinate = metricCoordinates.path(index);
-            if (index > 0) cumulative += coordinateDistance(metricCoordinates.path(index - 1), coordinate);
+            if (index > 0) cumulative += coordinateDistance(
+                    metricCoordinates.path(index - 1), metricCoordinates.path(index));
             BigDecimal fraction = total <= 1e-9
                     ? BigDecimal.ZERO
                     : BigDecimal.valueOf(cumulative / total);
+            if (fraction.compareTo(pieceStartFraction) > 0 && fraction.compareTo(pieceEndFraction) < 0) {
+                fractions.add(fraction);
+            }
+        }
+        depthProfile.path("points").forEach(point -> {
+            BigDecimal station = point.path("station_m").decimalValue();
+            if (station.compareTo(pieceStart) > 0 && station.compareTo(pieceEnd) < 0) {
+                fractions.add(station.subtract(sectionStart)
+                        .divide(sectionSpan, 12, RoundingMode.HALF_UP));
+            }
+        });
+        for (BigDecimal fraction : fractions) {
             BigDecimal station = sectionStart.add(sectionEnd.subtract(sectionStart).multiply(fraction));
             BigDecimal depth = depthAt(depthProfile, station);
             BigDecimal axisZ = depth.add(envelopeHeightM.divide(new BigDecimal("2"), 12, RoundingMode.HALF_UP))
                     .negate().setScale(3, RoundingMode.HALF_UP);
-            double[] wgs = transform(coordinate.path("xm").asDouble(), coordinate.path("ym").asDouble());
+            double[] metric = metricAtFraction(metricCoordinates, fraction.doubleValue(), total);
+            double[] wgs = transform(metric[0], metric[1]);
             ArrayNode position = coordinates.addArray();
             position.add(wgs[0]);
             position.add(wgs[1]);
             position.add(axisZ);
         }
         return geometry;
+    }
+
+    private List<BigDecimal> profileCuts(JsonNode profile, BigDecimal start, BigDecimal end) {
+        java.util.SortedSet<BigDecimal> cuts = new java.util.TreeSet<>();
+        cuts.add(start);
+        profile.path("points").forEach(point -> {
+            BigDecimal station = point.path("station_m").decimalValue();
+            if (station.compareTo(start) > 0 && station.compareTo(end) < 0) cuts.add(station);
+        });
+        cuts.add(end);
+        return new ArrayList<>(cuts);
+    }
+
+    private String technicalNodeId(String variantId, String edgeId, BigDecimal station) {
+        return outputId(variantId, "technical:" + edgeId + ":depth:" + station
+                .setScale(3, RoundingMode.HALF_UP).toPlainString());
+    }
+
+    private double[] metricAtStation(
+            JsonNode coordinates,
+            BigDecimal sectionStart,
+            BigDecimal sectionEnd,
+            BigDecimal station) {
+        BigDecimal fraction = station.subtract(sectionStart)
+                .divide(sectionEnd.subtract(sectionStart), 12, RoundingMode.HALF_UP);
+        return metricAtFraction(coordinates, fraction.doubleValue(), coordinateLength(coordinates));
+    }
+
+    private double[] metricAtFraction(JsonNode coordinates, double fraction, double totalLength) {
+        if (coordinates.isEmpty()) return new double[]{0.0, 0.0};
+        if (coordinates.size() == 1 || totalLength <= 1e-9 || fraction <= 0.0) {
+            return coordinate(coordinates.path(0));
+        }
+        if (fraction >= 1.0) return coordinate(coordinates.path(coordinates.size() - 1));
+        double target = totalLength * fraction;
+        double cumulative = 0.0;
+        for (int index = 1; index < coordinates.size(); index++) {
+            JsonNode left = coordinates.path(index - 1);
+            JsonNode right = coordinates.path(index);
+            double length = coordinateDistance(left, right);
+            if (cumulative + length + 1e-9 >= target) {
+                double local = length <= 1e-9 ? 0.0 : (target - cumulative) / length;
+                return new double[]{
+                        left.path("xm").asDouble()
+                                + (right.path("xm").asDouble() - left.path("xm").asDouble()) * local,
+                        left.path("ym").asDouble()
+                                + (right.path("ym").asDouble() - left.path("ym").asDouble()) * local};
+            }
+            cumulative += length;
+        }
+        return coordinate(coordinates.path(coordinates.size() - 1));
     }
 
     private BigDecimal depthAt(JsonNode profile, BigDecimal station) {
@@ -481,14 +563,6 @@ public class OfficialGeoJsonExporter {
 
     private double[] coordinate(JsonNode coordinate) {
         return new double[]{coordinate.path("xm").asDouble(), coordinate.path("ym").asDouble()};
-    }
-
-    private double[] firstCoordinate(JsonNode coordinates) {
-        return coordinate(coordinates.path(0));
-    }
-
-    private double[] lastCoordinate(JsonNode coordinates) {
-        return coordinate(coordinates.path(coordinates.size() - 1));
     }
 
     private double[] transform(double x, double y) {

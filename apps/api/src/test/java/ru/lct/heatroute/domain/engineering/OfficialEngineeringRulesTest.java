@@ -51,4 +51,13 @@ class OfficialEngineeringRulesTest {
         assertThat(economics.score(new BigDecimal("25000000"), new BigDecimal("100")))
                 .isEqualByComparingTo("1.000000000");
     }
+
+    @Test
+    void appliesOfficialChamberDiameterBandsAndTieInRate() {
+        assertThat(economics.chamberCost(200)).isEqualByComparingTo("3000000");
+        assertThat(economics.chamberCost(250)).isEqualByComparingTo("5000000");
+        assertThat(economics.chamberCost(600)).isEqualByComparingTo("8000000");
+        assertThat(economics.chamberCost(1200)).isEqualByComparingTo("12000000");
+        assertThat(economics.tieInCost()).isEqualByComparingTo("5000000");
+    }
 }

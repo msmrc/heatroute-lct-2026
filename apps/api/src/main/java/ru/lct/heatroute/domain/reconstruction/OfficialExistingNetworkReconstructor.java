@@ -125,12 +125,14 @@ public class OfficialExistingNetworkReconstructor {
                             new SegmentContribution(start, end, load.getAddedFlowTph()));
                 }
             } else if ("heat_chamber".equals(cursor.getObjectType())) {
-                if (!hasPositiveNumber(cursor.getAttributes(), "diameter")) {
-                    issues.add(unavailable(cursor.getFeatureId(),
-                            "Existing heat-chamber diameter is required"));
-                    return null;
+                if (first) {
+                    if (!hasPositiveNumber(cursor.getAttributes(), "diameter")) {
+                        issues.add(unavailable(cursor.getFeatureId(),
+                                "Existing heat-chamber diameter is required"));
+                        return null;
+                    }
+                    trace.chamberIds.add(cursor.getFeatureId());
                 }
-                trace.chamberIds.add(cursor.getFeatureId());
             } else {
                 issues.add(unavailable(cursor.getFeatureId(), "Unsupported object in upstream chain"));
                 return null;

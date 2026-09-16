@@ -235,7 +235,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R4 | Функциональный obstacle-aware checkpoint + три стратегии + GIS | Performance, quality/diversity fixtures и persisted selected tie-ins |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
 | R6 | Search/final-validator integration для текущего покрытия | Полная positive/boundary/negative матрица каждой строки |
-| R7 | Не начат | Official costs/score/diversity/seven-type export |
+| R7 | Component costs/score/rank подключены | Strict seven-type export, streaming и contract tests |
 | R8 | Не начат, optional | Depth rerouting после P0 2D |
 | R9 | Не начат | Limits/load/Ubuntu 22/submission kit |
 
@@ -575,7 +575,7 @@ special-проходы, сохраняет partial no-route и независи�
 автоматически подбирает ДУ с учётом непрерывной длины; upstream propagation, partial/common-section
 reconstruction и реконструкция камер закрыты тестами на строгом контракте. Поставленный файл не
 содержит baseline/direction полей и возвращает явный статус unavailable. Следующий инкремент —
-полная R6 boundary-матрица и официальный R7 cost/score/export.
+полная R6 boundary-матрица и завершение R7 strict export/contract validation.
 Текущий checkpoint не публиковался на VPS; развёртывание выполняется только отдельной командой.
 
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.

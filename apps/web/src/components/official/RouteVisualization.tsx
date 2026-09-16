@@ -28,6 +28,13 @@ function formatLength(value: number): string {
     : `${Math.round(value).toLocaleString("ru-RU")} м`;
 }
 
+function formatMoney(value: number): string {
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} млрд ₽`;
+  }
+  return `${(value / 1_000_000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн ₽`;
+}
+
 function russianCount(value: number, one: string, few: string, many: string): string {
   const modulo100 = value % 100;
   const modulo10 = value % 10;
@@ -230,7 +237,7 @@ export function RouteVisualization({
                 onClick={() => changeVariant(item.id)}>
                 <span>{variantName(item)}</span>
                 <small>{formatLength(item.total_length_m)}</small>
-                {item.id === result.preferred_variant_id && <i>рекомендуем</i>}
+                {item.rank ? <i>место {item.rank}</i> : item.id === result.preferred_variant_id && <i>рекомендуем</i>}
               </button>
             ))}
           </div>
@@ -325,6 +332,8 @@ export function RouteVisualization({
                 <div><dt>Участков</dt><dd>{variant.edges.length}</dd></div>
                 <div><dt>Камер и врезок</dt><dd>{variant.nodes.filter((node) => node.chamber).length}</dd></div>
                 <div><dt>Реконструкция</dt><dd>{variant.reconstruction?.available === false ? "Нет исходных данных" : formatLength(reconstructionLength)}</dd></div>
+                <div><dt>{variant.economics?.complete ? "Стоимость" : "Известная стоимость"}</dt><dd>{variant.economics ? formatMoney(variant.economics.calculated_cost) : "—"}</dd></div>
+                <div><dt>Итоговый показатель</dt><dd>{variant.economics?.score != null ? variant.economics.score.toLocaleString("ru-RU", { maximumFractionDigits: 3 }) : "Нужны данные реконструкции"}</dd></div>
               </dl>
             </>
           )}
@@ -340,7 +349,7 @@ export function RouteVisualization({
           <div className="route-result-metrics">
             <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
             <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
-            <article><span>Реконструкция</span><strong>{variant.reconstruction?.available === false ? "—" : formatLength(reconstructionLength)}</strong><small>{variant.reconstruction?.network_sections.length ?? 0} участков · {variant.reconstruction?.chambers.length ?? 0} камер</small></article>
+            <article><span>{variant.economics?.complete ? "Стоимость" : "Известная стоимость"}</span><strong>{variant.economics ? formatMoney(variant.economics.calculated_cost) : "—"}</strong><small>{variant.economics?.score != null ? `показатель ${variant.economics.score.toLocaleString("ru-RU", { maximumFractionDigits: 3 })}` : "без реконструкции"}</small></article>
             <button
               type="button"
               className={calculationValid ? "is-success" : "is-danger"}

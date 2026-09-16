@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import ru.lct.heatroute.domain.economics.VariantEconomics;
 import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
 import ru.lct.heatroute.domain.sizing.NetworkSizingIssue;
 
@@ -17,6 +19,9 @@ public class RouteVariant {
     private final List<RouteValidationIssue> validationIssues;
     private final List<NetworkSizingIssue> sizingIssues;
     private final ExistingNetworkReconstructionResult reconstruction;
+    private final VariantEconomics economics;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final Integer rank;
 
     public RouteVariant(
             String id,
@@ -27,7 +32,9 @@ public class RouteVariant {
             BigDecimal totalLengthM,
             List<RouteValidationIssue> validationIssues,
             List<NetworkSizingIssue> sizingIssues,
-            ExistingNetworkReconstructionResult reconstruction) {
+            ExistingNetworkReconstructionResult reconstruction,
+            VariantEconomics economics,
+            Integer rank) {
         this.id = id;
         this.strategy = strategy;
         this.nodes = immutable(nodes);
@@ -37,6 +44,8 @@ public class RouteVariant {
         this.validationIssues = immutable(validationIssues);
         this.sizingIssues = immutable(sizingIssues);
         this.reconstruction = reconstruction;
+        this.economics = economics;
+        this.rank = rank;
     }
 
     public String getId() { return id; }
@@ -48,12 +57,20 @@ public class RouteVariant {
     public List<RouteValidationIssue> getValidationIssues() { return validationIssues; }
     public List<NetworkSizingIssue> getSizingIssues() { return sizingIssues; }
     public ExistingNetworkReconstructionResult getReconstruction() { return reconstruction; }
+    public VariantEconomics getEconomics() { return economics; }
+    public Integer getRank() { return rank; }
     public boolean isValid() { return validationIssues.isEmpty(); }
     public long getConnectedDemandCount() {
         return connections.stream().filter(connection -> "connected".equals(connection.getStatus())).count();
     }
     public long getNoRouteDemandCount() {
         return connections.stream().filter(connection -> "no_route".equals(connection.getStatus())).count();
+    }
+
+    public RouteVariant withRank(int assignedRank) {
+        return new RouteVariant(
+                id, strategy, nodes, edges, connections, totalLengthM,
+                validationIssues, sizingIssues, reconstruction, economics, assignedRank);
     }
 
     private static <T> List<T> immutable(List<T> source) {

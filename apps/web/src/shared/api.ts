@@ -149,6 +149,22 @@ export interface OfficialReconstructionResult {
   issues: OfficialCalculationIssue[];
 }
 
+export interface OfficialVariantEconomics {
+  complete: boolean;
+  construction_cost: number;
+  chamber_construction_cost: number;
+  tie_in_cost: number;
+  reconstruction_cost: number;
+  chamber_reconstruction_cost: number;
+  unconnected_penalty: number;
+  calculated_cost: number;
+  new_network_length: number;
+  reconstruction_length: number;
+  length: number;
+  score?: number | null;
+  incomplete_reasons: string[];
+}
+
 export interface OfficialRouteVariant {
   id: string;
   strategy: string;
@@ -160,6 +176,8 @@ export interface OfficialRouteVariant {
   validation_issues: OfficialCalculationIssue[];
   sizing_issues?: OfficialCalculationIssue[];
   reconstruction?: OfficialReconstructionResult;
+  economics?: OfficialVariantEconomics;
+  rank?: number | null;
   no_route_demand_count: number;
   connected_demand_count: number;
 }

@@ -11,6 +11,8 @@ import org.locationtech.jts.io.WKTReader;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.engineering.OfficialEconomics;
+import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
@@ -28,7 +30,8 @@ class OfficialRoutePlannerTest {
             new OfficialObstacleRouter(geometryRules),
             pipeCatalog,
             new OfficialNetworkSizer(pipeCatalog),
-            new OfficialExistingNetworkReconstructor(pipeCatalog));
+            new OfficialExistingNetworkReconstructor(pipeCatalog),
+            new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()));
 
     @Test
     void nearbyDemandsPreferShorterSharedTrunk() throws Exception {
@@ -176,6 +179,9 @@ class OfficialRoutePlannerTest {
                 .getVariants().get(0);
 
         assertThat(variant.getReconstruction().isAvailable()).isTrue();
+        assertThat(variant.getEconomics().isComplete()).isTrue();
+        assertThat(variant.getEconomics().getScore()).isNotNull();
+        assertThat(variant.getRank()).isEqualTo(1);
         assertThat(variant.getReconstruction().getNetworkSections()).singleElement().satisfies(section -> {
             assertThat(section.getExistingFeatureId()).isEqualTo("network");
             assertThat(section.getLengthM()).isEqualByComparingTo("50");

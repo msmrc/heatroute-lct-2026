@@ -135,6 +135,18 @@ and runtime services were removed. The frontend calls only the current official 
   smoke at `http://localhost:5174` confirms 17/17 connected OKS, three variants, zero calculation
   errors and zero console warnings/errors.
 
+## R7 costing checkpoint (local, not deployed)
+
+- Exact official rates now cover base/special new-network sections, reconstruction by required DU,
+  new chambers in the 3/5/8/12 million bands, 5 million per independent tie-in, reconstructed used
+  tie-in chambers and the per-OKS unconnected penalty.
+- Every variant exposes component totals, new/reconstruction/combined length and calculated cost.
+  Contract-complete variants receive official score and deterministic rank; variants whose
+  reconstruction baseline is unavailable expose known cost but deliberately withhold score/rank.
+- The local UI displays the known cost and explains why the final score is unavailable for the
+  supplied organizer file. The checkpoint passes 59 Java tests, 10 web tests, lint, typecheck,
+  production build and browser smoke without console errors.
+
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
@@ -152,17 +164,16 @@ and runtime services were removed. The frontend calls only the current official 
 - R6 — functionally integrated for the current rule coverage: dynamic OKS buffers, hard forbidden
   zones and reproducible special crossings participate in search and final validation. The full
   positive/boundary/negative test matrix for every official table row remains acceptance work.
-- R7 — primitives only: exact segment/reconstruction rates, depth multiplier, unconnected penalty
-  and score exist in Java, but full variant costing, ranking, diversity and strict output export
-  are not implemented.
+- R7 — partial: full component costing, length totals, score and deterministic rank are integrated.
+  Strict seven-type GeoJSON export, streaming response and output contract validator remain.
 - R8 — not implemented; optional after mandatory 2D.
 - R9 — not complete: no 3 GB/500 MB/50-user evidence and current VPS OS is not the required
   Ubuntu Server 22 acceptance target.
 
 ## Next change
 
-Implement R7 official component costs, penalties, score, ranking and strict seven-type export on
-top of the now-sized/reconstructed variants. In parallel, close the remaining R6 per-rule boundary
+Finish R7 with the strict seven-type GeoJSON adapter, streaming response and exact-field contract
+tests. In parallel, close the remaining R6 per-rule boundary
 matrix and profile the obstacle search. Do not start
 depth, MVT or additional file formats before the mandatory 2D gate.
 

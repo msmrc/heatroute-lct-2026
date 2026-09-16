@@ -26,6 +26,8 @@ import org.locationtech.proj4j.ProjCoordinate;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.engineering.OfficialEconomics;
+import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
 import ru.lct.heatroute.domain.topology.ExistingNetworkTopologyAnalyzer;
@@ -49,7 +51,8 @@ class OfficialDatasetRoutingTest {
                 new OfficialObstacleRouter(geometryRules),
                 pipeCatalog,
                 new OfficialNetworkSizer(pipeCatalog),
-                new OfficialExistingNetworkReconstructor(pipeCatalog));
+                new OfficialExistingNetworkReconstructor(pipeCatalog),
+                new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()));
 
         OfficialCalculationResult result = planner.plan(features, topology);
 
@@ -65,6 +68,8 @@ class OfficialDatasetRoutingTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(preferred.getConnectedDemandCount()).isEqualTo(17);
+        assertThat(preferred.getEconomics().isComplete()).isFalse();
+        assertThat(preferred.getEconomics().getScore()).isNull();
         assertThat(result.getVariants()).allSatisfy(variant -> {
             assertThat(variant.getEdges()).isNotEmpty();
             assertThat(variant.getEdges()).allSatisfy(edge -> {

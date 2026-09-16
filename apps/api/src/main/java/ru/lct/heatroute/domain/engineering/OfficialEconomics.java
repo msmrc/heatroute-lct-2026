@@ -10,6 +10,7 @@ public class OfficialEconomics {
     private static final BigDecimal SCORE_LENGTH_DENOMINATOR = new BigDecimal("100");
     private static final BigDecimal UNCONNECTED_BASE = new BigDecimal("100000000");
     private static final BigDecimal UNCONNECTED_FLOW_RATE = new BigDecimal("500000");
+    private static final BigDecimal TIE_IN_COST = new BigDecimal("5000000");
 
     public BigDecimal newNetworkCost(
             PipeCatalogEntry pipe,
@@ -26,6 +27,20 @@ public class OfficialEconomics {
     public BigDecimal reconstructionCost(PipeCatalogEntry pipe, BigDecimal lengthM) {
         requireNonNegative(lengthM, "length_m");
         return money(pipe.getReconstructionRubPerM().multiply(lengthM));
+    }
+
+    public BigDecimal chamberCost(int maximumDiameter) {
+        if (maximumDiameter <= 0 || maximumDiameter > 1400) {
+            throw new IllegalArgumentException("maximum_diameter must be between 1 and 1400");
+        }
+        if (maximumDiameter <= 200) return new BigDecimal("3000000.00");
+        if (maximumDiameter <= 500) return new BigDecimal("5000000.00");
+        if (maximumDiameter <= 1000) return new BigDecimal("8000000.00");
+        return new BigDecimal("12000000.00");
+    }
+
+    public BigDecimal tieInCost() {
+        return TIE_IN_COST.setScale(2, RoundingMode.UNNECESSARY);
     }
 
     public BigDecimal unconnectedPenalty(BigDecimal flowTph) {

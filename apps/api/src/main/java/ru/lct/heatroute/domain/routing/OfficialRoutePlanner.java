@@ -21,6 +21,8 @@ import org.locationtech.jts.operation.distance.DistanceOp;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.PipeCatalogEntry;
+import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
+import ru.lct.heatroute.domain.economics.VariantEconomics;
 import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
 import ru.lct.heatroute.domain.reconstruction.TieInLoad;
@@ -34,7 +36,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
 @Component
 public class OfficialRoutePlanner {
-    public static final String ALGORITHM_VERSION = "r5-upstream-reconstruction-1";
+    public static final String ALGORITHM_VERSION = "r7-official-costing-1";
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double MIN_SHARED_SAVING_M = 0.01;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
@@ -47,6 +49,7 @@ public class OfficialRoutePlanner {
     private final OfficialPipeCatalog pipeCatalog;
     private final OfficialNetworkSizer networkSizer;
     private final OfficialExistingNetworkReconstructor reconstructor;
+    private final OfficialVariantEconomicsCalculator economicsCalculator;
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     public OfficialRoutePlanner(
@@ -54,12 +57,14 @@ public class OfficialRoutePlanner {
             OfficialObstacleRouter obstacleRouter,
             OfficialPipeCatalog pipeCatalog,
             OfficialNetworkSizer networkSizer,
-            OfficialExistingNetworkReconstructor reconstructor) {
+            OfficialExistingNetworkReconstructor reconstructor,
+            OfficialVariantEconomicsCalculator economicsCalculator) {
         this.validator = validator;
         this.obstacleRouter = obstacleRouter;
         this.pipeCatalog = pipeCatalog;
         this.networkSizer = networkSizer;
         this.reconstructor = reconstructor;
+        this.economicsCalculator = economicsCalculator;
     }
 
     public OfficialCalculationResult plan(
@@ -124,15 +129,37 @@ public class OfficialRoutePlanner {
             variants.add(diverse);
         }
 
-        String preferred = variants.stream()
+        Map<String, Integer> rankById = new HashMap<>();
+        List<RouteVariant> rankable = variants.stream()
                 .filter(RouteVariant::isValid)
-                .sorted(Comparator
-                        .comparingLong(RouteVariant::getConnectedDemandCount).reversed()
-                        .thenComparing(RouteVariant::getTotalLengthM)
+                .filter(variant -> variant.getEconomics().isComplete())
+                .sorted(Comparator.comparing((RouteVariant variant) -> variant.getEconomics().getScore())
                         .thenComparing(RouteVariant::getId))
+                .collect(Collectors.toList());
+        for (int index = 0; index < rankable.size(); index++) {
+            rankById.put(rankable.get(index).getId(), index + 1);
+        }
+        variants = variants.stream()
+                .map(variant -> rankById.containsKey(variant.getId())
+                        ? variant.withRank(rankById.get(variant.getId()))
+                        : variant)
+                .collect(Collectors.toList());
+        String preferred = variants.stream()
+                .filter(variant -> Integer.valueOf(1).equals(variant.getRank()))
                 .map(RouteVariant::getId)
                 .findFirst()
                 .orElse(null);
+        if (preferred == null) {
+            preferred = variants.stream()
+                        .filter(RouteVariant::isValid)
+                        .sorted(Comparator
+                                .comparingLong(RouteVariant::getConnectedDemandCount).reversed()
+                                .thenComparing(RouteVariant::getTotalLengthM)
+                                .thenComparing(RouteVariant::getId))
+                        .map(RouteVariant::getId)
+                        .findFirst()
+                        .orElse(null);
+        }
         return new OfficialCalculationResult(ALGORITHM_VERSION, demands.size(), variants, preferred);
     }
 
@@ -596,6 +623,8 @@ public class OfficialRoutePlanner {
         ExistingNetworkReconstructionResult reconstruction = reconstructor.reconstruct(
                 features,
                 tieInLoads(nodes, sizedEdges));
+        VariantEconomics economics = economicsCalculator.calculate(
+                nodes, sizedEdges, draft.connections, reconstruction);
         BigDecimal totalLength = sizedEdges.stream()
                 .map(RouteEdge::getLengthM)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -609,7 +638,9 @@ public class OfficialRoutePlanner {
                 totalLength,
                 issues,
                 sizing.getIssues(),
-                reconstruction);
+                reconstruction,
+                economics,
+                null);
     }
 
     private List<TieInLoad> tieInLoads(List<RouteNode> nodes, List<RouteEdge> edges) {

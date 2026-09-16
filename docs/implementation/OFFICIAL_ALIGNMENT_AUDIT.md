@@ -96,7 +96,7 @@ Remaining documentation drift:
 | Flow, DU and continuous length | Tree sizer aggregates flow and automatically selects DU for all 18 flow/length boundaries | 90% |
 | Reconstruction | Upstream propagation, partial/common sections and chamber reconstruction pass strict fixtures; supplied data lacks baseline fields | 80% |
 | Restrictions and special passages | Dynamic buffers and base/special sections are integrated into search/final validation; full row matrix remains | 65% |
-| Cost, penalty and score | Segment, reconstruction, depth, penalty and score primitives exist; no full variant calculator | 40% |
+| Cost, penalty and score | Exact component totals, length, score and rank are integrated; incomplete reconstruction withholds final score | 85% |
 | Official output | No seven-type result model, serializer, streaming download or schema validator | 5% |
 | UI | Map-first viewer renders all route variants, source context, details and diagnostics | 70% |
 | Depth bonus | Pipe dimensions/depth multiplier exist; no vertical search or Z output | 10% |
@@ -121,8 +121,8 @@ network omits flow and upstream direction. Final cost/export and required scale 
 
 1. **R6 acceptance:** complete the positive/boundary/negative matrix for every official rule and
    profile the integrated search on denser geometry.
-2. **R7 complete variant:** chamber/tie-in/reconstruction costs, penalties, score, up to three
-   materially different variants and strict seven-type streaming GeoJSON.
+2. **R7 complete variant:** finish strict seven-type streaming GeoJSON and exact output-field
+   validation for the already costed/ranked variants.
 3. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then
    produce measured 3 GB input, 500 MB output and 50-user evidence.
 

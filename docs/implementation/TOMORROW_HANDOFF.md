@@ -78,9 +78,8 @@ Still blocking official P0:
 ## Developer: next vertical slice
 
 Continue from `RouteVariant.reconstruction`; do not replace the immutable run/job contract.
-Implement official R7 component costs for new sections, tie-ins, new chambers, reconstructed
-sections/chambers and unconnected penalties. Calculate length/score, rank only valid materially
-different variants, then serialize and independently validate the strict seven-type GeoJSON.
+R7 component costs, length, score and rank are already integrated. Continue by serializing and
+independently validating the strict seven-type GeoJSON, then expose it as a streaming download.
 In parallel, finish the missing R6 row-by-row boundary matrix. Do not mix optional depth, MVT or
 extra formats into this gate.
 

@@ -47,7 +47,7 @@ jobs:
               -Dheatroute.scale.maximumSeconds=600 \
               test; } 2>&1 | tee ../../artifacts/r9-topology-scale.log
       - name: Preserve topology measurement
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: r9-topology-scale-java11-${{ github.sha }}
           path: artifacts/r9-topology-*

@@ -50,7 +50,7 @@ jobs:
               test; } 2>&1 | tee ../../artifacts/r9-output-500mib-java11.log
       - name: Preserve measurement log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: r9-scale-java11-${{ github.sha }}
           path: artifacts/r9-*.log

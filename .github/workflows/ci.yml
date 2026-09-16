@@ -90,7 +90,7 @@ jobs:
             --timeout-ms=600000 \
             --output=artifacts/r9-load-50-ci.json
       - name: Preserve 50-user measurement
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: r9-load-50-${{ github.sha }}
           path: artifacts/r9-load-50-ci.json

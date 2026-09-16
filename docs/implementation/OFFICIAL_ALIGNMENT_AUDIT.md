@@ -9,9 +9,10 @@ source tree, database migrations, Compose and CI configuration.
 The selected production technology matches the mandatory platform requirements and the active
 internal specification describes the contest problem. For contract-complete input, the mandatory
 2D calculation is implemented end to end: import, topology, multi-OKS routing, sizing,
-reconstruction, restrictions, cost/rank, strict seven-type output and map rendering. The remaining
-submission blockers are measured scale/parallel-load evidence and rehearsal on the exact Ubuntu 22
-and docker-compose 1.29.2 acceptance environment. The supplied organizer file itself cannot prove
+reconstruction, restrictions, cost/rank, strict seven-type output and map rendering. Exact 3 GiB
+input and 500 MiB output byte boundaries pass on clean Ubuntu 22 / Java 11, and the complete stack
+is rehearsed there with docker-compose 1.29.2; 50 concurrent public API sessions also pass.
+Representative maximum-topology acceptance evidence remains. The supplied organizer file itself cannot prove
 reconstruction or official export because it omits the required existing-network baseline and
 direction fields; the product exposes that incompleteness instead of fabricating values.
 
@@ -59,8 +60,8 @@ missing engineering values are fabricated.
 | PostgreSQL up to 18 or OpenSearch up to 2.18 | PostgreSQL 17 with PostGIS 3.5 | Meets |
 | Ubuntu Server 22 | Clean `ubuntu-22.04` CI builds and runs the complete stack; demo VPS remains 26.04 and unchanged | Meets in CI; production-like host rehearsal remains |
 | docker-compose 1.29.2 | Checksum-pinned v1.29.2 validates, builds, starts and stops the integration stack | Meets in clean CI |
-| Upload to 3 GB and output to 500 MB | 3 GB multipart limits, streaming feature parsing and incremental validated output exist | Functional, no boundary evidence |
-| Up to 50 users | Hikari pool, durable queue, bounded 1–16 workers and lease heartbeat exist | Functional preparation; 50-user measurement still required |
+| Upload to 3 GB and output to 500 MB | Streaming parser and incremental validated writer pass exact 3 GiB / ≥500 MiB probes with `-Xmx512m` on Java 11 | Byte boundary meets; representative full-calculation topology scale remains |
+| Up to 50 users | 50 concurrent imports pass on clean stack; Hikari, bounded 1–16 workers and lease heartbeat protect calculations | API-session gate meets; 50 heavy queued calculations need organizer interpretation |
 | One combined GeoJSON input | Implemented, persisted in WGS84 and EPSG:32637 | Meets for the supplied 233 KB file |
 
 JTS, Proj4J and PostGIS are appropriate supporting libraries for the required geometry. The
@@ -98,7 +99,7 @@ Remaining documentation/acceptance drift:
 | Official output | Strict seven-type adapter, independent validator, incremental download and map consumer | 90% |
 | UI | Map-first viewer renders official output when available and an explicit internal preview for incomplete input | 85% |
 | Depth bonus | Pipe dimensions/depth multiplier exist; no vertical search or Z output | 10% |
-| Scale and acceptance | Small real file and CI/VPS smoke pass; 3 GB/500 MB/50-user/Ubuntu 22 gates absent | 20% |
+| Scale and acceptance | Clean Ubuntu 22 / Compose 1.29.2 and restart gate, exact 3 GiB input, ≥500 MiB valid output and 50 concurrent API users pass | 80% |
 
 ## What is already proven on the supplied data
 
@@ -132,13 +133,14 @@ three decimals). A golden test locks these table/formula results and also record
 differences, so the implementation cannot silently drift toward the inconsistent example numbers.
 
 1. **R4/R9 performance:** adaptive JTS STRtree lookup is covered by a deterministic fixture with
-   1,001 constraints and 20,000 bounded segment checks. End-to-end time/memory/load evidence at
-   the official maximums is still required; the published 2D R6 boundary matrix is complete.
+   1,001 constraints and 20,000 bounded segment checks. Byte-size boundaries are measured, while
+   geometry-representative maximum-topology time/memory evidence is still required; the published
+   2D R6 boundary matrix is complete.
 2. **R7 complete variant:** closed against the normative appendix tables/formulas with the section
    10.8 illustrative-value discrepancy documented; serialization, validation, download and map
    consumption are implemented. Remaining scale proof belongs to R9.
-3. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then
-   produce measured 3 GB input, 500 MB output and 50-user evidence.
+3. **R9 acceptance:** preserve the passing Ubuntu 22 / docker-compose 1.29.2, byte-boundary and
+   50-user API gates, then finish representative maximum-topology evidence.
 
 The depth task is optional and should start only after the complete two-dimensional P0 pipeline
 passes on both a strict appendix-shaped fixture constructed in code and the supplied organizer file.

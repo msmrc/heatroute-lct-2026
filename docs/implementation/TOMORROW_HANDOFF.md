@@ -12,7 +12,8 @@
 - The old Python application, Alembic, Celery/Redis services, Python tests and lockfiles are gone.
 - The web app calls the Java official import/job contract and no longer calls legacy project/run
   endpoints.
-- CI has three gates: Java verify/image, web quality/build, and live Compose smoke.
+- CI has Java verify/image, web quality/build and clean Ubuntu 22 / Compose 1.29.2 integration
+  gates, including 50 concurrent imports, a real all-OKS calculation and restart recovery.
 - OpenAPI comes from springdoc and is committed at `packages/api-client/openapi.json`.
 - Commit `e47cd72` is deployed on the VPS. Production now runs only PostGIS, Java API, web and
   gateway; public HTTPS, Java readiness, official import, topology and immutable calculation run
@@ -33,9 +34,9 @@ set `$env:WEB_HOST_PORT='5174'` for the smoke rather than killing an unknown pro
 
 ## Current reality
 
-The Java foundation/import/topology slices work, but the product is not feature-complete. The
-public UI currently exposes only what the Java backend actually supports. Do not restore legacy
-screens until equivalent official Java endpoints exist.
+The mandatory 2D Java pipeline is implemented end to end on contract-complete fixtures. The public
+UI exposes only what the backend can prove. Do not restore legacy screens or fabricate missing
+organizer fields.
 
 The newly supplied dataset is not shaped like the published seven-type contract. Read
 `SUPPLIED_DATASET_AUDIT.md` before changing validation or routing. Use its 17 connection points as
@@ -59,18 +60,19 @@ Already usable:
   contract-complete existing-network input;
 - production evidence on the organizer file: the preferred shared variant connects all 17 demands
   with zero structural validator issues.
-- interactive R4 result viewer with MapLibre GL/CARTO vector basemap, PostGIS source context, layer toggles,
-  variant comparison, map-object inspection, no-route diagnostics, a retained metric schematic and
-  a latest-completed-run demo endpoint. It renders the internal route graph plus official input
-  features and must later be extended by the official R7 seven-type output adapter.
+- interactive result viewer with MapLibre GL/CARTO vector basemap, PostGIS source context, layer
+  toggles, variant comparison, map-object inspection, no-route diagnostics, a retained metric
+  schematic and a latest-completed-run demo endpoint. Complete variants render through the strict
+  R7 seven-type adapter; the supplied incomplete file intentionally uses the internal preview.
 - map-first result UX with floating inspector/results islands over one uninterrupted map, the real
   imported filename in the toolbar and a collapsible navigation rail. Technical stack, version,
   team and Swagger live on the separate `/system` page instead of the work screen.
 
 Still blocking official P0:
 
-- large-network performance and broader route-quality/diversity evidence;
-- large-file/load/Ubuntu 22 acceptance evidence.
+- organizer-approved representative maximum-topology performance/quality evidence;
+- organizer clarification of `railway` and missing reconstruction attributes;
+- production-like Ubuntu 22 host rehearsal only if clean ephemeral CI is not accepted.
 
 ## Developer: next vertical slice
 
@@ -89,8 +91,9 @@ resolved by PostgreSQL `ON CONFLICT`; preserve this invariant in all future impo
 Job execution is bounded by `HEATROUTE_JOB_CONCURRENCY` (default 2, hard maximum 16) and active
 leases are renewed every minute. Use `docs/operations/R9_ACCEPTANCE.md` for scale evidence; do not
 call the probes themselves a pass until their generated measurements are archived.
-CI run `35110318718` is the first clean Ubuntu 22/docker-compose 1.29.2 pass. The next CI revision
-also restarts the API and must prove the completed run survives; do not conflate this with a VPS
+Manual run `35112046184` proves exact 3 GiB input and ≥500 MiB valid output on Ubuntu 22 / Java 11
+under `-Xmx512m`. CI run `35112362689` passes backend/web/integration, 50 concurrent API imports,
+the real 17-demand calculation and persistence after API restart. Do not conflate this with a VPS
 deployment, which remains explicitly deferred.
 Do not mix optional depth, MVT or extra formats into this gate.
 
@@ -100,7 +103,7 @@ Do not mix optional depth, MVT or extra formats into this gate.
   the submission kit also needs a separately published JSON Schema;
 - confirm whether Ubuntu 22 is mandatory for judging even though the current demo VPS uses a
   newer Ubuntu release;
-- supply or approve an official-like maximum-scale fixture and load-test environment;
+- supply or approve an official-like maximum-topology fixture and load-test environment;
 - keep optional depth, MVT and extra formats outside P0 until R9 closes;
 - review every “complete” claim against `docs/ACCEPTANCE.md`, not old M-stage evidence.
 - ask the organizer to resolve the supplied-dataset mismatch, especially `railway`, direct demand
@@ -114,8 +117,8 @@ Do not mix optional depth, MVT or extra formats into this gate.
   `file -> loader/progress -> completed map` and start the official run automatically.
 - Input warnings remain available from the clickable `Проверка структуры` metric in the result
   island. Keep the full API diagnostics; do not replace them with a fake aggregate.
-- Current deployed baseline is `407c0a7`; the newer R4/R6 checkpoint is local/Git-only. Do not
-  deploy it to the VPS without a separate user command.
+- The VPS intentionally remains on an older demonstrated baseline. Current checkpoints are
+  Git/local/CI-only; do not deploy them without a separate user command.
 
 - Local Docker data and tool caches must remain on `E:`.
 - Never commit `.env.vps`, keys or dumps. The sole approved organizer dataset is the byte-identical

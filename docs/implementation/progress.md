@@ -10,7 +10,8 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Verified in this cutover
 
-- Maven verifies 49 Java tests (the production/CI gate remains pinned to Java 11).
+- Maven verifies 75 Java tests plus opt-in scale probes (the production/CI gate remains pinned to
+  Java 11).
 - Web ESLint, TypeScript, Vitest (9 tests) and production Vite build pass.
 - Compose starts PostGIS, Java API and web; all three become healthy.
 - `/api/v1/health/ready` reports PostGIS ready.
@@ -65,7 +66,8 @@ and runtime services were removed. The frontend calls only the current official 
   route variants, or return to the EPSG:32637 engineering diagram. The bounded
   `GET /api/v1/official/imports/{id}/map` endpoint caps a viewport at 10,000 features and reports
   truncation. `GET /api/v1/official/runs/latest` powers the dataset-independent “open demo” action.
-  This remains an R4 evidence viewer, not the still-missing official seven-type R7 export.
+  Complete variants render from the strict seven-type R7 adapter; the supplied incomplete dataset
+  intentionally uses the internal R4 preview because official reconstruction fields are absent.
 - The result viewer now uses a map-first planning workspace: route variants and layer controls sit
   on the map, while selected-object details and route totals live in separate floating islands over
   one uninterrupted map canvas. The toolbar shows the actual imported filename and the left
@@ -173,8 +175,8 @@ and runtime services were removed. The frontend calls only the current official 
 - Export performs a feature-by-feature preflight and then writes with Jackson `JsonGenerator`; the
   full output tree is not retained. The all-seven-type fixture includes existing-chamber
   reconstruction. Spring MVC streaming uses a bounded 2–16 thread executor with a 64-request queue
-  and 15-minute timeout instead of the unbounded fallback. Measured 500 MB/50-user evidence remains
-  before the R9 gate can be called complete.
+  and 15-minute timeout instead of the unbounded fallback. The writer/validator now has measured
+  500 MiB evidence on Java 11; full-calculation scale and the 50-user gate remain separate checks.
 
 ## R6 full 2D boundary matrix (local, not deployed)
 
@@ -201,8 +203,9 @@ and runtime services were removed. The frontend calls only the current official 
 - A deterministic fixture builds 1,001 constraints, proves indexed and linear decisions identical
   for blocked and clear segments, verifies that only the nearby object is returned and completes
   20,000 indexed checks inside a five-second budget.
-- This closes the missing dense lookup primitive, not R9: 3 GB input, 500 MB output, 50 parallel
-  users and the exact Ubuntu 22/docker-compose 1.29.2 environment still need measured evidence.
+- This closes the missing dense lookup primitive, not the geometry-complexity part of R9. Byte-size
+  input/output boundaries and the exact Ubuntu 22/docker-compose 1.29.2 environment are now
+  measured separately; maximum-topology route quality remains open.
 
 ## R2 deterministic replay checkpoint (local, not deployed)
 
@@ -210,8 +213,8 @@ and runtime services were removed. The frontend calls only the current official 
   the existing durable import and does not reload identical features into PostGIS.
 - PostgreSQL enforces the invariant with a unique `(contract_version, raw_sha256)` index;
   `INSERT ... ON CONFLICT DO NOTHING` resolves concurrent uploads without a check-then-insert race.
-- Unit coverage proves both an ordinary replay and the concurrent-conflict winner path. Maximum
-  3 GB memory evidence remains an R2/R9 gate and is not implied by this checkpoint.
+- Unit coverage proves both an ordinary replay and the concurrent-conflict winner path. The exact
+  3 GiB streaming boundary is measured separately; representative maximum-topology work remains.
 
 ## R9 bounded-worker preparation (local, not deployed)
 
@@ -222,8 +225,8 @@ and runtime services were removed. The frontend calls only the current official 
   heartbeat behavior, preventing a long calculation from being reclaimed and executed twice.
 - `scripts/r9-generate-byte-boundary.mjs` and `scripts/r9-concurrency.mjs` provide reproducible
   3 GiB transport and 50-user probes; `docs/operations/R9_ACCEPTANCE.md` states exactly what each
-  probe proves and what evidence is still missing. The scripts have not yet been run as acceptance
-  evidence.
+  probe proves and what evidence is still missing. The 3 GiB/500 MiB byte-boundary workflow passed;
+  the 50-user measurement is now enforced by the clean-stack CI gate.
 
 ## R9 Ubuntu 22 / Compose 1.29.2 gate
 
@@ -232,15 +235,22 @@ and runtime services were removed. The frontend calls only the current official 
 - The job built the pinned Java 11/PostGIS/web images from a clean checkout, applied Liquibase,
   imported the organizer file, calculated all 17 demands, validated the UI/API contracts and
   stopped the stack cleanly. VPS deployment remains intentionally unchanged.
-- A restart-recovery assertion is now part of the same gate and must read the completed 17-demand
-  run after restarting the API container. Its first result will be recorded by the next CI run.
+- Run `35112362689` passed the restart-recovery assertion: after the real 17-demand calculation,
+  CI restarted the API container and read the same completed result from PostgreSQL. The assertion
+  remains mandatory in every integration run.
 - Local 3 GiB parser preflight on commit `915d42f` passed under `-Xmx512m`: 4,308 ms and
   42,005,872 bytes reported peak heap. This is recorded in `R9_INPUT_SCALE_EVIDENCE.md`; the manual
   Java 11/Ubuntu 22 run `35111560434` also passed with 40,650,752 bytes peak heap and 357,272 KiB
   maximum process RSS.
 - The extracted production stream writer and exact validator passed a local 524,781,467-byte
-  output probe under the same 512 MiB heap cap in 6,386 ms. The Java 11 workflow rerun remains
-  required before closing that byte boundary.
+  output probe under the same 512 MiB heap cap in 6,386 ms. Clean Ubuntu 22 / Temurin Java 11 run
+  `35112046184` repeated it in 6,942 ms with 104,260,560 bytes reported peak heap and 267,096 KiB
+  maximum process RSS. The same run repeated the exact 3 GiB input probe and passed.
+- Clean-stack run `35112362689` accepted 50 simultaneous organizer-file imports in 3.674 seconds;
+  p95 response latency was 3,614 ms and all responses resolved to one durable import ID. This
+  proves 50 concurrent public API sessions and the deduplication race, not 50 simultaneously
+  executing heavy calculations. Backend, web, integration, real calculation and restart recovery
+  all completed successfully in the same run. Exact evidence is in `R9_CONCURRENCY_EVIDENCE.md`.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
@@ -268,14 +278,16 @@ and runtime services were removed. The frontend calls only the current official 
   The section 10.8 illustrative-number discrepancy is documented and the normative arithmetic is
   locked by a golden test.
 - R8 — not implemented; optional after mandatory 2D.
-- R9 — not complete: no 3 GB/500 MB/50-user evidence and current VPS OS is not the required
-  Ubuntu Server 22 acceptance target.
+- R9 — substantially closed: exact 3 GiB input and 500 MiB valid-output boundaries pass on Ubuntu
+  22 / Java 11 with a 512 MiB heap; 50 concurrent API users and clean Compose 1.29.2 deployment are
+  measured in CI. A representative maximum-topology calculation and production-like Ubuntu 22 host
+  rehearsal remain acceptance items; the current VPS is intentionally not changed.
 
 ## Next change
 
-Close R2/R9 scale and deployment evidence: streamed 3 GB input, incremental 500 MB output,
-50-user load and a clean Ubuntu 22/docker-compose 1.29.2 rehearsal. Do not start depth, MVT or
-additional file formats before that mandatory gate.
+Close the remaining R9 evidence: representative maximum-topology/full-calculation scale and a
+production-like Ubuntu 22 host rehearsal. Do not start depth, MVT or additional file formats before
+that mandatory gate.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
 The current cross-check against all three organizer artifacts is in `OFFICIAL_ALIGNMENT_AUDIT.md`.

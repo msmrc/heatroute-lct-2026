@@ -53,10 +53,15 @@ Set `HEATROUTE_JOB_CONCURRENCY` only after measuring CPU and peak heap. The appl
 to 1–16 and defaults to 2. Every active job renews its PostgreSQL lease once per minute, so a
 calculation longer than five minutes cannot be reclaimed while its worker is alive.
 
-## Still required for a pass
+## Still required beyond the automated byte/API gates
 
 - a contract-complete, geometry-representative scale fixture from the organizer;
-- a strict output reaching the 500 MB boundary;
-- peak RSS below the agreed 16 GB machine limit;
-- all 50 queued runs completed without duplicate execution or lost state;
-- clean Ubuntu Server 22 and docker-compose 1.29.2 deployment/restart evidence.
+- end-to-end route throughput and peak RSS on that representative maximum topology;
+- 50 heavy calculations queued together only if the organizer confirms that this is the intended
+  meaning of “up to 50 users” rather than concurrent public API sessions;
+- a production-like Ubuntu Server 22 host rehearsal if clean ephemeral CI is not accepted.
+
+Already automated: exact 3 GiB input, at least 500 MiB valid output, 50 simultaneous official-file
+imports with one durable deduplicated result, clean Ubuntu 22 / docker-compose 1.29.2 startup and
+API restart recovery. Evidence is recorded in `docs/implementation/R9_INPUT_SCALE_EVIDENCE.md` and
+`docs/implementation/R9_CONCURRENCY_EVIDENCE.md`.

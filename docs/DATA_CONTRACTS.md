@@ -74,5 +74,7 @@ omitting it downloads every ranked alternative in one FeatureCollection.
 - Upload limit: 3 GB; output limit: 500 MB.
 - Input inspection is streaming. Export performs a feature-by-feature preflight contract pass and
   then writes the FeatureCollection incrementally with Jackson `JsonGenerator`; the complete output
-  tree is not retained. Measured 3 GB input / 500 MB output evidence remains mandatory R9 work.
+  tree is not retained. Clean Ubuntu 22 / Java 11 probes reached exactly 3 GiB input and at least
+  500 MiB valid output under a 512 MiB heap cap; geometry-complex maximum-topology evidence remains
+  a separate R9 item.
 - Every result records input SHA-256, contract/catalog/algorithm versions and assumptions.

@@ -24,13 +24,14 @@ spooling, PostGIS loading of a geometry-complex 3 GiB dataset, routing at maximu
 50-user behavior. Those claims require separate probes.
 
 The manual `r9-scale` GitHub workflow repeated the same measurement on clean Ubuntu 22, Temurin
-Java 11 and `-Xmx512m`. Run `35111560434` passed in 60 seconds and preserved the logs as artifact
-`r9-input-3gib-java11-b50cce654541f72996f0d0498e779684cd31caac`:
+Java 11 and `-Xmx512m`. The final combined run `35112046184` passed in 68 seconds and preserved
+both input and output logs as artifact
+`r9-scale-java11-832609c5d366ca8fe6e50f12ceac413642cb7c2f`:
 
-- inspector elapsed: 4,497 ms;
-- reported peak heap: 40,650,752 bytes;
-- maximum process RSS from `/usr/bin/time -v`: 357,272 KiB;
-- total Maven step wall time: 22.11 seconds;
+- inspector elapsed: 4,545 ms;
+- reported peak heap: 44,502,016 bytes;
+- maximum process RSS from `/usr/bin/time -v`: 357,664 KiB;
+- total Maven step wall time: 26.20 seconds;
 - streamed SHA-256 matches the local run exactly.
 
 This closes the 3 GiB parser/hash byte boundary on the required Java 11/Ubuntu 22 runtime. Full
@@ -48,6 +49,15 @@ with valid WGS84 technical nodes, network features, references and one variant s
 - no output collection or file was retained; a counting sink received the streamed bytes;
 - contract validation completed with zero issues.
 
-This proves the production writer/validator layer at the required byte boundary, not that a single
-real calculation will naturally produce a 500 MiB result. The manual `r9-scale` workflow now repeats
-this probe on Temurin Java 11 and must pass before the output byte boundary is marked complete.
+The same clean Ubuntu 22 / Temurin Java 11 run `35112046184` repeated the output probe:
+
+- generated output: 524,781,467 bytes;
+- writer/validator elapsed: 6,942 ms;
+- reported peak heap: 104,260,560 bytes;
+- maximum process RSS from `/usr/bin/time -v`: 267,096 KiB;
+- total Maven step wall time: 13.22 seconds;
+- result: Maven build and strict contract validation passed.
+
+This closes the production writer/validator byte boundary on the required runtime. It does not
+claim that the supplied 144-feature calculation naturally produces a 500 MiB result, and it does
+not replace a geometry-representative maximum-topology dataset.

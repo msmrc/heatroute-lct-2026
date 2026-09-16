@@ -64,6 +64,8 @@ scoping across multiple alternatives. Optional Z fields remain an R8 concern.
 Only valid variants with complete economics and an integer rank are exportable. If the supplied
 compatibility-profile file cannot establish reconstruction baselines, the endpoint returns
 `409 OFFICIAL_EXPORT_INCOMPLETE`; it never publishes a plausible-looking partial official result.
+The optional `variant_id` query limits the same validated contract to one alternative for the map;
+omitting it downloads every ranked alternative in one FeatureCollection.
 
 ## Coordinate and size rules
 

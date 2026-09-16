@@ -136,6 +136,15 @@ class OfficialGeoJsonExporterTest {
         assertThat(ids).doesNotHaveDuplicates();
         assertThat(ids).anyMatch(id -> id.startsWith("variant-a:"));
         assertThat(ids).anyMatch(id -> id.startsWith("variant-b:"));
+
+        exporter.validateVariant(calculation, features, "variant-b");
+        ByteArrayOutputStream selectedOutput = new ByteArrayOutputStream();
+        exporter.writeValidatedVariant(calculation, features, "variant-b", selectedOutput);
+        JsonNode selected = objectMapper.readTree(selectedOutput.toByteArray());
+        assertThat(validator.validate(selected)).isEmpty();
+        assertThat(StreamSupport.stream(selected.path("features").spliterator(), false)
+                .map(feature -> feature.path("properties").path("variant_id").asText())
+                .distinct()).containsExactly("variant-b");
     }
 
     @Test

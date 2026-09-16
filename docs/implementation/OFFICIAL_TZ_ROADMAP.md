@@ -235,7 +235,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R4 | Функциональный obstacle-aware checkpoint + три стратегии + GIS | Performance, quality/diversity fixtures и persisted selected tie-ins |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
-| R7 | Costs/score/rank + strict seven-type adapter/validator + incremental API | Official-output map source и acceptance arithmetic fixture из приложения |
+| R7 | Costs/score/rank + strict seven-type export/validator/API + official-output map | Acceptance arithmetic fixture из приложения |
 | R8 | Не начат, optional | Depth rerouting после P0 2D |
 | R9 | Не начат | Limits/load/Ubuntu 22/submission kit |
 
@@ -426,8 +426,10 @@ positive/boundary/negative поведение проверяются для че
 а IDs узлов/реконструкции scoped по варианту. Поставленный организатором файл намеренно не
 экспортируется из-за отсутствующих baseline/direction данных реконструкции. Экспорт проходит
 feature-by-feature preflight и инкрементально пишется `JsonGenerator`; all-seven-type fixture
-включает реконструкцию камеры. До gate остаются визуализация именно экспортной модели и golden
-арифметический пример из технического приложения.
+включает реконструкцию камеры. Для complete/ranked варианта карта запрашивает отфильтрованный
+`variant_id` через тот же валидированный adapter; внутренний preview остаётся только для заведомо
+неполного supplied dataset. До gate остаётся golden-арифметический пример из технического
+приложения.
 
 Задачи:
 

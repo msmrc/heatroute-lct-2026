@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import ru.lct.heatroute.api.error.ApiException;
@@ -89,10 +90,12 @@ public class OfficialJobController {
 
     @GetMapping(value = "/runs/{runId}/export", produces = "application/geo+json")
     @Operation(operationId = "downloadOfficialRun", summary = "Stream the strict seven-type official GeoJSON")
-    public ResponseEntity<StreamingResponseBody> export(@PathVariable UUID runId) {
+    public ResponseEntity<StreamingResponseBody> export(
+            @PathVariable UUID runId,
+            @RequestParam(name = "variant_id", required = false) String variantId) {
         final OfficialExportPayload payload;
         try {
-            payload = exportService.prepare(runId);
+            payload = exportService.prepare(runId, variantId);
         } catch (IllegalStateException exception) {
             if (exception.getMessage() != null
                     && exception.getMessage().startsWith("OFFICIAL_EXPORT_INCOMPLETE")) {

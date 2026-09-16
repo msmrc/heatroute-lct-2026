@@ -189,7 +189,7 @@ export function OfficialWorkspacePage() {
 
   if (currentImport && currentRun?.state === "completed" && currentRun.result) {
     const exportReady = currentRun.result.variants.some((variant) =>
-      variant.rank != null && variant.economics?.complete === true);
+      variant.valid && variant.rank != null && variant.economics?.complete === true);
     return (
       <div className="official-map-workspace">
         <header className="map-workspace-toolbar">
@@ -228,6 +228,7 @@ export function OfficialWorkspacePage() {
         </header>
         <RouteVisualization
           result={currentRun.result}
+          runId={currentRun.id}
           importId={currentRun.import_id}
           warnings={currentImport.report.warnings}
         />

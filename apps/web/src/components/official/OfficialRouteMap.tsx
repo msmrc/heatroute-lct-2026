@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { FeatureCollection, LineString, Point } from "geojson";
+import type { FeatureCollection } from "geojson";
 import { Check, Layers3, LoaderCircle } from "lucide-react";
 import maplibregl, {
   type LayerSpecification,
@@ -11,11 +11,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
   getOfficialMap,
+  getOfficialVariantOutput,
   type OfficialMapBounds,
   type OfficialRouteNode,
   type OfficialRouteVariant,
 } from "../../shared/api";
 import { applyGdeBenzinBasemapStyle, BASEMAP_STYLE_URL } from "./heatRouteBasemap";
+import { officialRouteFeatureCollection, type MapFeatureCollection } from "./officialOutputMap";
 
 const METRIC_CRS = "EPSG:32637";
 const WGS84_CRS = "EPSG:4326";
@@ -37,9 +39,6 @@ interface MapLayersState {
   network: boolean;
   route: boolean;
 }
-
-type JsonProperties = Record<string, string | number | boolean | null>;
-type MapFeatureCollection = FeatureCollection<Point | LineString, JsonProperties>;
 
 const OVERLAY_LAYERS: Record<Exclude<keyof MapLayersState, "base">, string[]> = {
   restrictions: ["restriction-fill", "restriction-line"],
@@ -214,7 +213,8 @@ function setLayerVisibility(map: maplibregl.Map, ids: string[], visible: boolean
   }
 }
 
-export function OfficialRouteMap({ importId, variant, onSelect }: {
+export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
+  runId: string;
   importId: string;
   variant: OfficialRouteVariant;
   onSelect?: (object: SelectedMapObject | null) => void;
@@ -226,7 +226,20 @@ export function OfficialRouteMap({ importId, variant, onSelect }: {
   const [layerMenuOpen, setLayerMenuOpen] = useState(false);
   const layerVisibilityRef = useRef(layers);
   const bounds = useMemo(() => routeMapBounds(variant), [variant]);
-  const routeData = useMemo(() => routeFeatureCollection(variant), [variant]);
+  const officialOutputEnabled = variant.valid && variant.rank != null && variant.economics?.complete === true;
+  const officialOutput = useQuery({
+    queryKey: ["official-output-map", runId, variant.id],
+    queryFn: ({ signal }) => getOfficialVariantOutput(runId, variant.id, signal),
+    enabled: officialOutputEnabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: 1,
+  });
+  const routeData = useMemo(
+    () => officialOutput.data
+      ? officialRouteFeatureCollection(officialOutput.data, variant.id)
+      : routeFeatureCollection(variant),
+    [officialOutput.data, variant],
+  );
   const context = useQuery({
     queryKey: ["official-map", importId, bounds],
     queryFn: ({ signal }) => getOfficialMap(importId, bounds, signal),
@@ -245,7 +258,7 @@ export function OfficialRouteMap({ importId, variant, onSelect }: {
   }, [layers]);
 
   useEffect(() => {
-    if (!targetRef.current || context.isPending) return;
+    if (!targetRef.current || context.isPending || (officialOutputEnabled && officialOutput.isPending)) return;
     const emptyContext: FeatureCollection = { type: "FeatureCollection", features: [] };
     const contextData = context.data
       ? context.data as unknown as FeatureCollection
@@ -297,7 +310,7 @@ export function OfficialRouteMap({ importId, variant, onSelect }: {
       mapRef.current = null;
       map.remove();
     };
-  }, [bounds, context.data, context.isPending, onSelect, routeData]);
+  }, [bounds, context.data, context.isPending, officialOutput.isPending, officialOutputEnabled, onSelect, routeData]);
 
   function toggleLayer(layer: keyof MapLayersState) {
     setLayers((current) => ({ ...current, [layer]: !current[layer] }));
@@ -328,6 +341,8 @@ export function OfficialRouteMap({ importId, variant, onSelect }: {
         )}
       </div>
       {context.isPending && <div className="official-map-state"><LoaderCircle className="is-spinning" size={16} /> Загружаем инженерные слои…</div>}
+      {officialOutputEnabled && officialOutput.isPending && <div className="official-map-state"><LoaderCircle className="is-spinning" size={16} /> Готовим официальный результат…</div>}
+      {officialOutputEnabled && officialOutput.isError && <div className="official-map-state is-warning">Официальный слой не загрузился, показан расчётный preview</div>}
       {context.isError && <div className="official-map-state is-error">Карта доступна, исходные слои не загрузились</div>}
       {context.data?.truncated && <div className="official-map-state is-warning">Показаны первые 10 000 объектов в окне</div>}
     </div>

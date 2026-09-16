@@ -139,10 +139,12 @@ function RouteNodeGlyph({ node, x, y, selected, onSelect }: {
 
 export function RouteVisualization({
   result,
+  runId,
   importId,
   warnings = EMPTY_WARNINGS,
 }: {
   result: OfficialCalculationResult;
+  runId: string;
   importId: string;
   warnings?: OfficialInputWarning[];
 }) {
@@ -259,7 +261,7 @@ export function RouteVisualization({
 
           {viewMode === "map" ? (
             <Suspense fallback={<div className="official-map-shell official-map-loading">Загружаем карту…</div>}>
-              <OfficialRouteMap importId={importId} variant={variant} onSelect={selectMapObject} />
+              <OfficialRouteMap runId={runId} importId={importId} variant={variant} onSelect={selectMapObject} />
             </Suspense>
           ) : (
             <div className="route-canvas-wrap route-canvas-wrap--workspace">

@@ -118,15 +118,15 @@ chamber reconstruction. The supplied file itself cannot prove reconstruction bec
 network omits flow and upstream direction. Exact component costing is integrated. A strict
 seven-type adapter and validator pass on contract-complete inline fixtures, while the supplied file
 correctly receives `OFFICIAL_EXPORT_INCOMPLETE`. Export generation now uses a feature-by-feature
-preflight plus incremental Jackson writer. Official-output UI, appendix golden example and required
-scale limits remain open.
+preflight plus incremental Jackson writer. Complete variants are rendered from that same official
+output contract. The appendix golden example and required scale limits remain open.
 
 ## Critical path to a valid submission
 
 1. **R4/R9 performance:** profile the integrated search on denser geometry and record reproducible
    time/memory evidence; the published 2D R6 boundary matrix is now complete.
-2. **R7 complete variant:** drive the map from the validated seven-type model and reproduce the
-   organizer appendix arithmetic example as a golden test.
+2. **R7 complete variant:** reproduce the organizer appendix arithmetic example as a golden test;
+   strict output serialization, validation, download and map consumption are implemented.
 3. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then
    produce measured 3 GB input, 500 MB output and 50-user evidence.
 

@@ -163,11 +163,17 @@ and runtime services were removed. The frontend calls only the current official 
   `409 OFFICIAL_EXPORT_INCOMPLETE`, because its reconstruction baseline is absent.
 - The workspace exposes the download only when a variant has complete economics and rank. For the
   organizer demo it shows a disabled, explanatory action rather than downloading a partial file.
+- Complete ranked alternatives are requested with `variant_id` and rendered on the map from the
+  same strict output types used by download. `variant_summary` is correctly omitted from spatial
+  layers. The internal nodes/edges conversion remains only as a preview fallback for the supplied
+  incomplete dataset or a transient official-layer request failure.
+- Current verification after the official-map switch: 69 Java tests and 13 web tests, ESLint,
+  TypeScript, production build and local browser smoke all pass.
 - Export performs a feature-by-feature preflight and then writes with Jackson `JsonGenerator`; the
   full output tree is not retained. The all-seven-type fixture includes existing-chamber
   reconstruction. Spring MVC streaming uses a bounded 2–16 thread executor with a 64-request queue
-  and 15-minute timeout instead of the unbounded fallback. Measured 500 MB/50-user evidence and
-  using the official output as the map source remain before the R7/R9 gates can be called complete.
+  and 15-minute timeout instead of the unbounded fallback. Measured 500 MB/50-user evidence remains
+  before the R9 gate can be called complete.
 - Verification: 63 Java tests and 12 web tests pass together with ESLint, TypeScript and the
   production Vite build.
 
@@ -207,16 +213,16 @@ and runtime services were removed. The frontend calls only the current official 
   The supplied `railway` alias remains conservative pending organizer clarification; vertical
   depth rules belong to optional R8.
 - R7 — partial: full component costing, length totals, score/rank, strict seven-type adapter,
-  independent output validator and incremental download are integrated. Appendix arithmetic golden
-  evidence and official-output map rendering remain.
+  independent output validator, incremental download and official-output map rendering are
+  integrated. Appendix arithmetic golden evidence remains.
 - R8 — not implemented; optional after mandatory 2D.
 - R9 — not complete: no 3 GB/500 MB/50-user evidence and current VPS OS is not the required
   Ubuntu Server 22 acceptance target.
 
 ## Next change
 
-Finish R7 by making the map consume the validated official model and adding the organizer appendix
-arithmetic golden. Then profile the obstacle search on denser geometry. Do not start
+Finish R7 with the organizer appendix arithmetic golden. Then profile the obstacle search on denser
+geometry. Do not start
 depth, MVT or additional file formats before the mandatory 2D gate.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.

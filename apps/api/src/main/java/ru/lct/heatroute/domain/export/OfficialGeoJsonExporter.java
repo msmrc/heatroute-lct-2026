@@ -60,14 +60,23 @@ public class OfficialGeoJsonExporter {
         ObjectNode collection = objectMapper.createObjectNode();
         collection.put("type", "FeatureCollection");
         ArrayNode output = collection.putArray("features");
-        forEachFeature(calculation, inputFeatures, output::add);
+        forEachFeature(calculation, inputFeatures, null, output::add);
         assertValid(validator.validate(collection));
         return collection;
     }
 
     public void validate(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures) {
         OfficialOutputContractValidator.ValidationSession session = validator.begin();
-        forEachFeature(calculation, inputFeatures, session::accept);
+        forEachFeature(calculation, inputFeatures, null, session::accept);
+        assertValid(session.finish());
+    }
+
+    public void validateVariant(
+            JsonNode calculation,
+            List<ImportedOfficialFeature> inputFeatures,
+            String variantId) {
+        OfficialOutputContractValidator.ValidationSession session = validator.begin();
+        forEachFeature(calculation, inputFeatures, variantId, session::accept);
         assertValid(session.finish());
     }
 
@@ -80,7 +89,32 @@ public class OfficialGeoJsonExporter {
             generator.writeStringField("type", "FeatureCollection");
             generator.writeArrayFieldStart("features");
             try {
-                forEachFeature(calculation, inputFeatures, feature -> {
+                forEachFeature(calculation, inputFeatures, null, feature -> {
+                    try {
+                        generator.writeTree(feature);
+                    } catch (IOException exception) {
+                        throw new UncheckedIOException(exception);
+                    }
+                });
+            } catch (UncheckedIOException exception) {
+                throw exception.getCause();
+            }
+            generator.writeEndArray();
+            generator.writeEndObject();
+        }
+    }
+
+    public void writeValidatedVariant(
+            JsonNode calculation,
+            List<ImportedOfficialFeature> inputFeatures,
+            String variantId,
+            OutputStream outputStream) throws IOException {
+        try (JsonGenerator generator = objectMapper.getFactory().createGenerator(outputStream)) {
+            generator.writeStartObject();
+            generator.writeStringField("type", "FeatureCollection");
+            generator.writeArrayFieldStart("features");
+            try {
+                forEachFeature(calculation, inputFeatures, variantId, feature -> {
                     try {
                         generator.writeTree(feature);
                     } catch (IOException exception) {
@@ -98,6 +132,7 @@ public class OfficialGeoJsonExporter {
     private void forEachFeature(
             JsonNode calculation,
             List<ImportedOfficialFeature> inputFeatures,
+            String selectedVariantId,
             Consumer<ObjectNode> output) {
         Map<String, ImportedOfficialFeature> inputById = inputFeatures.stream().collect(Collectors.toMap(
                 ImportedOfficialFeature::getFeatureId,
@@ -108,7 +143,9 @@ public class OfficialGeoJsonExporter {
         calculation.path("variants").forEach(variant -> {
             if (variant.path("valid").asBoolean()
                     && variant.path("economics").path("complete").asBoolean()
-                    && variant.path("rank").isInt()) {
+                    && variant.path("rank").isInt()
+                    && (selectedVariantId == null
+                            || selectedVariantId.equals(variant.path("id").asText()))) {
                 variants.add(variant);
             }
         });

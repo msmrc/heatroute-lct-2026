@@ -10,17 +10,24 @@ public final class OfficialExportPayload {
     private final OfficialGeoJsonExporter exporter;
     private final JsonNode calculation;
     private final List<ImportedOfficialFeature> inputFeatures;
+    private final String variantId;
 
     OfficialExportPayload(
             OfficialGeoJsonExporter exporter,
             JsonNode calculation,
-            List<ImportedOfficialFeature> inputFeatures) {
+            List<ImportedOfficialFeature> inputFeatures,
+            String variantId) {
         this.exporter = exporter;
         this.calculation = calculation;
         this.inputFeatures = List.copyOf(inputFeatures);
+        this.variantId = variantId;
     }
 
     public void writeTo(OutputStream outputStream) throws IOException {
-        exporter.writeValidated(calculation, inputFeatures, outputStream);
+        if (variantId == null) {
+            exporter.writeValidated(calculation, inputFeatures, outputStream);
+        } else {
+            exporter.writeValidatedVariant(calculation, inputFeatures, variantId, outputStream);
+        }
     }
 }

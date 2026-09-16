@@ -13,6 +13,9 @@ The web app is a truthful client of the calculation API. The current home screen
 - a deliberately muted basemap that keeps route geometry visually dominant; optional source
   layers live in one compact layer menu and restrictions are hidden by default;
 - a switchable EPSG:32637 engineering schematic;
+- strict official-output layers for complete/ranked variants, fetched per `variant_id`; incomplete
+  organizer data stays on an explicitly non-exportable calculation preview;
+- conditional download of the validated seven-type GeoJSON;
 - a separate system-information page for product version, team, stack and API documentation.
 
 Runtime/framework labels, readiness badges, Swagger links and theme controls do not belong on the
@@ -21,15 +24,15 @@ planning workspace. Technical details stay on `/system`; the route screen uses d
 Legacy project/scenario/run screens were removed during cutover because their endpoints did not
 exist in the official Java API. Do not restore a screen before its Java contract and tests exist.
 
-## Planned R4–R7 surface
+## Remaining P0 surface
 
 1. Run list/detail for one immutable official import.
-2. Extend the current route/source-layer map with candidates, reconstruction and the strict R7
-   output layers.
+2. Add bounded/paged official-output delivery if acceptance-scale maps exceed a practical browser
+   GeoJSON payload.
 3. Comparison of up to three materially different variants.
 4. Structured no-route list and independent validation findings.
 5. Flow, DU, length, chamber, cost and score drill-down.
-6. Download of the strict official GeoJSON.
+6. Add the appendix golden-result evidence to the report surface.
 
 The UI never calculates authoritative routes, costs or engineering validity. It visualizes server
 results and preserves explicit unknown/partial/error states.

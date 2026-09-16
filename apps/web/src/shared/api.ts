@@ -202,6 +202,11 @@ export interface OfficialMapFeatureCollection {
   truncated: boolean;
 }
 
+export interface OfficialOutputFeatureCollection {
+  type: "FeatureCollection";
+  features: unknown[];
+}
+
 const configuredApiBase: unknown = import.meta.env.VITE_API_BASE_URL;
 const rawBase = typeof configuredApiBase === "string" ? configuredApiBase : "/api/v1";
 const absoluteBase = rawBase.startsWith("/") ? `${window.location.origin}${rawBase}` : rawBase;
@@ -209,6 +214,15 @@ export const API_BASE = absoluteBase.replace(/\/$/, "");
 
 export function officialExportUrl(runId: string): string {
   return `${API_BASE}/official/runs/${runId}/export`;
+}
+
+export function getOfficialVariantOutput(
+  runId: string,
+  variantId: string,
+  signal?: AbortSignal,
+): Promise<OfficialOutputFeatureCollection> {
+  const query = new URLSearchParams({ variant_id: variantId });
+  return request(`/official/runs/${encodeURIComponent(runId)}/export?${query}`, { signal });
 }
 
 export class ApiError extends Error {

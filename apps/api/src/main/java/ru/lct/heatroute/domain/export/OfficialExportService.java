@@ -25,7 +25,7 @@ public class OfficialExportService {
     }
 
     @Transactional(readOnly = true)
-    public OfficialExportPayload prepare(UUID runId) {
+    public OfficialExportPayload prepare(UUID runId, String variantId) {
         OfficialRunView run = runService.find(runId);
         if (run == null) {
             return null;
@@ -34,7 +34,11 @@ public class OfficialExportService {
             throw new IllegalStateException("OFFICIAL_EXPORT_INCOMPLETE: calculation run is not completed");
         }
         List<ImportedOfficialFeature> features = featureRepository.findByImport(run.getImportId());
-        exporter.validate(run.getResult(), features);
-        return new OfficialExportPayload(exporter, run.getResult(), features);
+        if (variantId == null) {
+            exporter.validate(run.getResult(), features);
+        } else {
+            exporter.validateVariant(run.getResult(), features, variantId);
+        }
+        return new OfficialExportPayload(exporter, run.getResult(), features, variantId);
     }
 }

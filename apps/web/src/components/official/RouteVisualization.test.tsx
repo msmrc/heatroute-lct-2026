@@ -57,6 +57,7 @@ describe("RouteVisualization", () => {
     const { container } = render(
       <RouteVisualization
         result={result}
+        runId="run-1"
         importId="import-1"
         warnings={[{
           code: "FIELD_DEFAULTED",
@@ -102,7 +103,7 @@ describe("RouteVisualization", () => {
       }),
     };
 
-    render(<RouteVisualization result={withReconstructionWarnings} importId="import-1" />);
+    render(<RouteVisualization result={withReconstructionWarnings} runId="run-1" importId="import-1" />);
 
     fireEvent.click(screen.getByRole("button", { name: /1 предупреждение/ }));
     expect(screen.getByText("Недостаточно данных для реконструкции")).toBeTruthy();

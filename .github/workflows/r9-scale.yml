@@ -23,10 +23,11 @@ jobs:
           node-version: 22.15.0
       - name: Generate exact 3 GiB streaming fixture
         run: |
+          mkdir -p /tmp/heatroute-r9 artifacts
           node scripts/r9-generate-byte-boundary.mjs \
             --source=datasets/official/lct-2026.geojson \
             --output=/tmp/heatroute-r9/official-3gib.geojson \
-            --bytes=3221225472 | tee /tmp/heatroute-r9/generator.json
+            --bytes=3221225472 | tee artifacts/r9-input-3gib-generator.log
       - name: Inspect 3 GiB with Java 11 and 512 MiB heap
         working-directory: apps/api
         run: |
@@ -43,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: r9-input-3gib-java11-${{ github.sha }}
-          path: artifacts/r9-input-3gib-java11.log
+          path: artifacts/r9-input-3gib-*.log
           if-no-files-found: error
           retention-days: 30
       - name: Remove generated fixture

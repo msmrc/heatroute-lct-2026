@@ -18,6 +18,8 @@
 - A separate validator rechecks duplicate IDs, unknown endpoints, multiple upstream edges, cycles,
   incomplete upstream paths, branches without chambers, chamber degree above four and crossings
   outside a common node.
+- Candidate selection tries farther R3 tie-ins when the nearest straight connection would cross an
+  already accepted new section; if every candidate conflicts, only that demand becomes no-route.
 - The official UI can queue the full run and display its immutable run/job provenance and result.
 
 ## Automated evidence
@@ -28,6 +30,8 @@
 - Repeated execution produces identical serialized topology.
 - Negative validator cases cover cycle, multiple upstreams, branch without chamber, degree overflow
   and an interior crossing.
+- A positive case proves that a farther non-crossing tie-in is selected instead of the nearest
+  crossing candidate.
 - CI uploads the sole official dataset, creates a run, waits for the durable worker and asserts 17
   demands plus at least one produced variant.
 

@@ -93,9 +93,14 @@ public class OfficialRoutePlanner {
                     featuresById,
                     chamberIncidentCounts,
                     usedChamberSlots,
+                    draft,
                     "independent:" + demand.id);
             if (assignment == null) {
-                draft.noRoute(demand, "NO_TIE_IN_CANDIDATE");
+                draft.noRoute(
+                        demand,
+                        candidatesByConnection.getOrDefault(demand.connectionPointId, List.of()).isEmpty()
+                                ? "NO_TIE_IN_CANDIDATE"
+                                : "NO_NON_CROSSING_ROUTE");
                 continue;
             }
             if (assignment.chamberTargetId() != null) {
@@ -145,6 +150,9 @@ public class OfficialRoutePlanner {
                     && !hasChamberCapacity(chamberTargetId, chamberIncidentCounts, usedChamberSlots)) {
                 continue;
             }
+            if (!canAddSharedPair(draft, plan)) {
+                continue;
+            }
             paired.add(plan.left.id);
             paired.add(plan.right.id);
             if (chamberTargetId != null) {
@@ -163,9 +171,14 @@ public class OfficialRoutePlanner {
                     featuresById,
                     chamberIncidentCounts,
                     usedChamberSlots,
+                    draft,
                     "shared:" + demand.id);
             if (assignment == null) {
-                draft.noRoute(demand, "NO_TIE_IN_CANDIDATE");
+                draft.noRoute(
+                        demand,
+                        candidatesByConnection.getOrDefault(demand.connectionPointId, List.of()).isEmpty()
+                                ? "NO_TIE_IN_CANDIDATE"
+                                : "NO_NON_CROSSING_ROUTE");
                 continue;
             }
             if (assignment.chamberTargetId() != null) {
@@ -231,6 +244,7 @@ public class OfficialRoutePlanner {
             Map<String, ImportedOfficialFeature> featuresById,
             Map<String, Integer> chamberIncidentCounts,
             Map<String, Integer> usedChamberSlots,
+            VariantDraft draft,
             String rootSuffix) {
         return candidates.stream()
                 .sorted(Comparator.comparing(TieInCandidate::getDistanceM)
@@ -249,8 +263,31 @@ public class OfficialRoutePlanner {
                             rootNode(candidate, coordinate, chamberIncidentCounts, rootSuffix));
                 })
                 .filter(assignment -> assignment != null)
+                .filter(assignment -> canAddDirect(draft, demand, assignment, rootSuffix))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private boolean canAddDirect(
+            VariantDraft draft,
+            Demand demand,
+            Assignment assignment,
+            String prefix) {
+        VariantDraft simulation = draft.copy();
+        int before = simulation.edges.size();
+        addDirect(simulation, demand, assignment, prefix);
+        return simulation.edges.size() == before + 1 && isStructurallyValid(simulation);
+    }
+
+    private boolean canAddSharedPair(VariantDraft draft, PairPlan plan) {
+        VariantDraft simulation = draft.copy();
+        int before = simulation.edges.size();
+        addSharedPair(simulation, plan);
+        return simulation.edges.size() == before + 3 && isStructurallyValid(simulation);
+    }
+
+    private boolean isStructurallyValid(VariantDraft draft) {
+        return validator.validate(new ArrayList<>(draft.nodes.values()), draft.edges).isEmpty();
     }
 
     private RouteNode rootNode(
@@ -485,6 +522,16 @@ public class OfficialRoutePlanner {
         private final List<RouteConnection> connections = new ArrayList<>();
         private final Map<String, Double> lengthByDemand = new HashMap<>();
         private int sharedPairCount;
+
+        private VariantDraft copy() {
+            VariantDraft copy = new VariantDraft();
+            copy.nodes.putAll(nodes);
+            copy.edges.addAll(edges);
+            copy.connections.addAll(connections);
+            copy.lengthByDemand.putAll(lengthByDemand);
+            copy.sharedPairCount = sharedPairCount;
+            return copy;
+        }
 
         private void addNode(RouteNode node) {
             nodes.putIfAbsent(node.getId(), node);

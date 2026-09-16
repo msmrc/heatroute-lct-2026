@@ -80,6 +80,8 @@ jobs:
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.state')" = "completed"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.demand_count')" = "17"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.variants | length >= 1')" = "true"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.preferred_variant_id != null')" = "true"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].valid] | any')" = "true"
       - name: Compose diagnostics
         if: always()
         run: |

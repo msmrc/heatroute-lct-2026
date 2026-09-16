@@ -10,7 +10,7 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Verified in this cutover
 
-- Maven verifies 36 Java tests on the pinned Java 11 runtime.
+- Maven verifies 37 Java tests on the pinned Java 11 runtime.
 - Web ESLint, TypeScript, Vitest (4 tests) and production Vite build pass.
 - Compose starts PostGIS, Java API and web; all three become healthy.
 - `/api/v1/health/ready` reports PostGIS ready.

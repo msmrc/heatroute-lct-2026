@@ -98,6 +98,31 @@ class OfficialRoutePlannerTest {
         assertThat(second).isEqualTo(first);
     }
 
+    @Test
+    void selectsFartherTieInWhenNearestCandidateWouldCrossAnAcceptedRoute() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network-a", "LINESTRING (10 10, 10 20)", "{}"),
+                feature("heat_network", "network-bad", "LINESTRING (0 10, 0 20)", "{}"),
+                feature("heat_network", "network-good", "LINESTRING (20 0, 20 5)", "{}"),
+                feature("oks_connection_point", "cp-a", "POINT (0 0)", "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "cp-b", "POINT (10 0)", "{\"flow_tph\":7}"));
+        TopologyAnalysis topology = topology(List.of(
+                candidate("cp-a", "network-a", 1),
+                candidate("cp-b", "network-bad", 1),
+                candidate("cp-b", "network-good", 2)));
+
+        RouteVariant independent = planner.plan(features, topology).getVariants().get(0);
+
+        assertThat(independent.isValid()).isTrue();
+        assertThat(independent.getConnectedDemandCount()).isEqualTo(2);
+        assertThat(independent.getNodes())
+                .filteredOn(node -> "network-good".equals(node.getTargetId()))
+                .hasSize(1);
+        assertThat(independent.getNodes())
+                .filteredOn(node -> "network-bad".equals(node.getTargetId()))
+                .isEmpty();
+    }
+
     private TopologyAnalysis topology(List<TieInCandidate> candidates) {
         return new TopologyAnalysis(1, 1, 0, Collections.emptyList(), candidates);
     }

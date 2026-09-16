@@ -224,7 +224,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R1 | Закрыт для текущего single-process контура | Вынести worker перед нагрузочным тестом |
 | R2 | Функционально частично закрыт | 3 ГБ memory evidence, replay/dedup, дополнительные inline cases |
 | R3 | Функциональный vertical slice | Indexed large-network search, persisted selected tie-ins |
-| R4 | Не начат | Multi-OKS forest, shared trunks, variants, independent validator |
+| R4 | Первый vertical slice | Obstacle-aware search, normalization, third diverse variant |
 | R5 | Частично | Reconstruction propagation и chamber reconstruction |
 | R6 | Частично | Интеграция правил в search и final validation |
 | R7 | Не начат | Official costs/score/diversity/seven-type export |
@@ -561,14 +561,11 @@ P0 считается завершённым только если одновр�
 
 Не продолжать глубину, MVT, дополнительные форматы или косметическую доработку UI до R4–R7.
 
-Следующий рабочий инкремент — первый R4 vertical slice:
-
-1. immutable official run и job orchestration;
-2. все `oks_future` из одного импорта;
-3. deterministic separate/shared candidate forests;
-4. partial no-route;
-5. независимый validator циклов, upstream, камер, степени и пересечений;
-6. positive/negative fixtures и стабильная нормализованная топология.
+Первый R4 vertical slice закрыт: immutable run, all-demand orchestration, separate/shared
+эвристики, partial no-route и независимый validator находятся в Java-контуре и CI. Следующий
+инкремент — obstacle-aware search с правилами R6, нормализация/локальные улучшения и третий
+содержательно отличный вариант. После этого существующий R5 sizing primitive подключается к
+валидным деревьям.
 
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.
 Повторная сверка технологий, внутреннего ТЗ, официальных документов и реального файла находится в

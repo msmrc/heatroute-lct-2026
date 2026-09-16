@@ -59,6 +59,27 @@ jobs:
           curl --fail --silent http://localhost:8000/api/v1/health/ready
           curl --fail --silent http://localhost:8000/v3/api-docs | grep -q '/api/v1/official/imports'
           curl --fail --silent http://localhost:5173/ | grep -q 'HeatRoute'
+          IMPORT_JSON=$(curl --fail --silent -F "file=@datasets/official/lct-2026.geojson;type=application/geo+json" http://localhost:8000/api/v1/official/imports)
+          IMPORT_ID=$(printf '%s' "$IMPORT_JSON" | jq -r '.id')
+          test "$(printf '%s' "$IMPORT_JSON" | jq -r '.report.feature_count')" = "144"
+          RUN_JSON=$(curl --fail --silent -X POST "http://localhost:8000/api/v1/official/imports/${IMPORT_ID}/runs")
+          RUN_ID=$(printf '%s' "$RUN_JSON" | jq -r '.id')
+          JOB_ID=$(printf '%s' "$RUN_JSON" | jq -r '.job_id')
+          for attempt in $(seq 1 60); do
+            JOB_JSON=$(curl --fail --silent "http://localhost:8000/api/v1/official/jobs/${JOB_ID}")
+            JOB_STATE=$(printf '%s' "$JOB_JSON" | jq -r '.state')
+            if [ "$JOB_STATE" = "completed" ]; then break; fi
+            if [ "$JOB_STATE" = "failed" ] || [ "$JOB_STATE" = "cancelled" ]; then
+              printf '%s\n' "$JOB_JSON"
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$JOB_STATE" = "completed"
+          RESULT_JSON=$(curl --fail --silent "http://localhost:8000/api/v1/official/runs/${RUN_ID}")
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '.state')" = "completed"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.demand_count')" = "17"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.variants | length >= 1')" = "true"
       - name: Compose diagnostics
         if: always()
         run: |

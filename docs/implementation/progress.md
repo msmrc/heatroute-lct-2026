@@ -10,7 +10,7 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Verified in this cutover
 
-- Maven tests pass locally with 28 Java tests; CI verifies them on the pinned Java 11 runtime.
+- Maven verifies 36 Java tests on the pinned Java 11 runtime.
 - Web ESLint, TypeScript, Vitest (4 tests) and production Vite build pass.
 - Compose starts PostGIS, Java API and web; all three become healthy.
 - `/api/v1/health/ready` reports PostGIS ready.
@@ -60,7 +60,9 @@ and runtime services were removed. The frontend calls only the current official 
   replay/deduplication policy and broader official-like fixtures remain acceptance work.
 - R3 — functional vertical slice: topology validation, chamber rule, deterministic candidates and
   line splitting. Indexed large-network search and persistence of selected tie-ins remain.
-- R4 — not implemented: multi-OKS routing/tree construction and final independent validator.
+- R4 — first vertical slice implemented: immutable all-demand runs, deterministic independent and
+  shared-trunk strategies, partial no-route and an independent tree/crossing/chamber validator.
+  Obstacle-aware search, normalization/local improvement and three-way diversity remain.
 - R5 — partial: pure sizing/DU/continuous-length rules exist; existing-network flow propagation
   and reconstruction are not implemented.
 - R6 — partial: catalog and crossing geometry exist; route-search and final-validator integration
@@ -74,9 +76,9 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Next change
 
-Implement the first R4 vertical slice described in `TOMORROW_HANDOFF.md`: immutable run record,
-all-OKS input assembly, deterministic shared/separate candidate trees and a framework-independent
-tree validator. Do not start depth, MVT or additional file formats before this slice passes.
+Finish R4/R6 geometry integration: route around forbidden buffers, construct valid special
+passages, normalize the resulting paths and re-run the independent validator. Then connect the
+existing R5 sizing primitive to valid R4 trees. Do not start depth, MVT or additional file formats.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
 The current cross-check against all three organizer artifacts is in `OFFICIAL_ALIGNMENT_AUDIT.md`.

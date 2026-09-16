@@ -11,10 +11,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.routing.OfficialCalculationService;
+import ru.lct.heatroute.domain.routing.OfficialCalculationResult;
 import ru.lct.heatroute.domain.run.OfficialRunRepository;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 import ru.lct.heatroute.domain.topology.TopologyAnalysisService;
@@ -53,14 +55,34 @@ class OfficialJobWorkerTest {
         verify(topologyService, never()).analyze(job.getImportId());
     }
 
+    @Test
+    void completesCalculationJobAndItsImmutableRun() {
+        UUID runId = UUID.randomUUID();
+        OfficialJobView job = runningJob("calculation", runId);
+        OfficialCalculationResult result = new OfficialCalculationResult("r4-test", 0, List.of(), null);
+        when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
+        when(repository.isCancellationRequested(job.getId())).thenReturn(false);
+        when(calculationService.calculate(job.getImportId())).thenReturn(result);
+
+        worker.poll();
+
+        verify(runRepository).markRunning(runId);
+        verify(runRepository).markCompleted(eq(runId), isA(JsonNode.class));
+        verify(repository).markCompleted(eq(job.getId()), isA(JsonNode.class));
+    }
+
     private OfficialJobView runningJob() {
+        return runningJob("topology_analysis", null);
+    }
+
+    private OfficialJobView runningJob(String jobType, UUID runId) {
         return new OfficialJobView(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                null,
-                "topology_analysis",
+                runId,
+                jobType,
                 "running",
-                "topology_analysis",
+                jobType,
                 0,
                 1,
                 1,

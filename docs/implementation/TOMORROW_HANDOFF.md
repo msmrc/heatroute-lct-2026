@@ -52,31 +52,26 @@ Already usable:
 
 Still blocking official P0:
 
-- joint multi-OKS routing and shared trunks;
-- valid tree/chamber construction and independent final validator;
+- obstacle-aware multi-OKS route search and special passages;
+- route normalization/local improvement and a third diverse alternative;
 - reconstruction propagation to source;
 - constraints integrated into routing;
 - official component costs, score and alternative diversity;
 - strict seven-type result export;
 - large-file/load/Ubuntu 22 acceptance evidence.
 
-## Developer: first vertical slice tomorrow
+## Developer: next vertical slice
 
-Create an immutable `official_run` aggregate and a pure-Java R4 service that accepts every future
-OKS and the R3 candidate set. For the first slice it must produce deterministic candidate forests
-for two strategies: independent connections and one shared-trunk heuristic. Add a separate
-validator that rejects cycles, multiple upstreams, branch points without chambers, more than four
-incident sections and crossings outside a common node.
+The first R4 slice is implemented in `domain/routing` and evidenced in `r4-evidence.md`. Continue
+from its normalized directed trees; do not replace the immutable run/job contract.
 
 Exit criteria:
 
-1. fixture with two nearby OKS prefers a shared section when cheaper;
-2. fixture with distant OKS retains separate paths;
-3. impossible OKS becomes a partial/no-route item without discarding others;
-4. same input/version gives byte-stable normalized topology;
-5. controller queues the run through the existing durable job mechanism;
-6. all new invariants have negative tests;
-7. progress and `OFFICIAL_TZ_ROADMAP.md` are updated honestly.
+1. route search treats forbidden buffers as impassable and creates only permitted special passages;
+2. path normalization cannot invalidate clearance, angle, chamber or crossing invariants;
+3. at least three materially different alternatives can be produced when the geometry permits;
+4. every accepted variant passes the independent validator after normalization;
+5. valid trees feed the existing bottom-up sizing primitive without adapter-side reinterpretation.
 
 Do not mix official costing into the first PR; expose explicit placeholder quantities if needed.
 

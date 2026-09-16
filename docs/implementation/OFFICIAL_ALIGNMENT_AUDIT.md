@@ -11,10 +11,10 @@ internal specification now describes the correct contest problem. The applicatio
 contest solution end to end: it imports and diagnoses the supplied data, but it does not construct,
 rank or export a valid heating-network variant.
 
-Estimated readiness for the mandatory submission is **about 40% overall**. Platform, import and
+Estimated readiness for the mandatory submission is **about 45% overall**. Platform, import and
 topology foundations are substantially ahead of the domain pipeline. Readiness of the mandatory
-calculation itself is **about 30%** because reusable sizing, constraint and economics primitives
-exist, but R4 route construction and the R5-R7 orchestration that consumes them are absent.
+calculation itself is **about 38%**: the first immutable all-demand R4 calculation slice exists,
+but obstacle-aware routing and the R5-R7 orchestration are still absent.
 
 ## Sole official dataset
 
@@ -92,7 +92,7 @@ Remaining documentation drift:
 | Platform, CI and VPS | Java-only Compose, PostGIS, Caddy, health checks, green CI and public HTTPS | 80% |
 | Input and persistence | Streaming inspector/loader, contract profiles, PostGIS dual CRS, real dataset regression | 75% |
 | Existing topology and tie-in screening | Geometric/upstream validation, segment/chamber candidates, 204 candidates on supplied data | 55% |
-| Multi-OKS routing and tree construction | No route-search service, run aggregate, shared-trunk builder or final tree validator | 5% |
+| Multi-OKS routing and tree construction | Immutable runs, independent/shared straight-line heuristics, partial no-route and independent validator; no obstacle-aware search | 40% |
 | Flow, DU and continuous length | Official 18-row catalog and pure tree sizer exist; not connected to a generated network | 45% |
 | Reconstruction | Required formula/catalog data exist; no upstream propagation or reconstruction geometry | 10% |
 | Restrictions and special passages | Official rule catalog and geometry helpers exist; not integrated into route search/validation | 35% |
@@ -116,8 +116,8 @@ restrictions are respected by that route, or that the final cost/export is corre
 
 ## Critical path to a valid submission
 
-1. **R4 calculation spine:** immutable run, all 17 demands, separate/shared candidate forests,
-   partial no-route behavior and an independent tree/chamber/crossing validator.
+1. **R4/R6 geometry:** obstacle-aware search, special passages, normalization/local improvement
+   and a third materially different alternative; every accepted result must pass the validator.
 2. **R5 engineering integration:** bottom-up flow and DU assignment, continuous-length enforcement,
    then upstream reconstruction when authoritative existing flow/topology is available.
 3. **R6 route constraints:** forbidden buffers and special passages must participate in search and

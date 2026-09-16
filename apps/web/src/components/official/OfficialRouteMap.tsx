@@ -8,6 +8,7 @@ import {
   setWorkerUrl,
   type LayerSpecification,
   type MapGeoJSONFeature,
+  type StyleSpecification,
 } from "maplibre-gl";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import proj4 from "proj4";
@@ -29,6 +30,17 @@ const WGS84_CRS = "EPSG:4326";
 const MAP_PADDING_METERS = 700;
 const CONTEXT_SOURCE = "heatroute-context";
 const ROUTE_SOURCE = "heatroute-route";
+const BASEMAP_REQUEST_TIMEOUT_MS = 3_000;
+const ENGINEERING_FALLBACK_STYLE: StyleSpecification = {
+  version: 8,
+  name: "HeatRoute engineering fallback",
+  sources: {},
+  layers: [{
+    id: "heatroute-engineering-background",
+    type: "background",
+    paint: { "background-color": "#f3f4f2" },
+  }],
+};
 
 setWorkerUrl(workerUrl);
 proj4.defs(METRIC_CRS, "+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs +type=crs");
@@ -230,6 +242,7 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
   const baseLayerIdsRef = useRef<string[]>([]);
   const [layers, setLayers] = useState<MapLayersState>({ base: true, restrictions: false, network: true, route: true });
   const [layerMenuOpen, setLayerMenuOpen] = useState(false);
+  const [basemapFallback, setBasemapFallback] = useState(false);
   const layerVisibilityRef = useRef(layers);
   const bounds = useMemo(() => routeMapBounds(variant), [variant]);
   const officialOutputEnabled = variant.valid && variant.rank != null && variant.economics?.complete === true;
@@ -269,9 +282,14 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
     const contextData = context.data
       ? context.data as unknown as FeatureCollection
       : emptyContext;
+    let disposed = false;
+    let remoteBasemap = false;
+    let fitted = false;
     const map = new MapLibreMap({
       container: targetRef.current,
-      style: BASEMAP_STYLE_URL,
+      // The calculated network is the primary content. Start with a local style so it remains
+      // visible even when the optional external cartographic context is slow or unavailable.
+      style: ENGINEERING_FALLBACK_STYLE,
       center: [(bounds.minLon + bounds.maxLon) / 2, (bounds.minLat + bounds.maxLat) / 2],
       zoom: 14,
       minZoom: 4,
@@ -286,18 +304,41 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
     const resizeObserver = new ResizeObserver(() => map.resize());
     resizeObserver.observe(targetRef.current);
 
-    // Do not wait for every remote basemap tile: the calculated route must appear as soon as the
-    // style graph is ready, even on a slow or partially unavailable external tile connection.
-    void map.once("style.load", () => {
-      applyGdeBenzinBasemapStyle(map);
+    function installEngineeringLayers() {
+      if (remoteBasemap) applyGdeBenzinBasemapStyle(map);
       baseLayerIdsRef.current = (map.getStyle().layers ?? []).map((layer) => layer.id);
       addOverlayLayers(map, contextData, routeData);
       setLayerVisibility(map, baseLayerIdsRef.current, layerVisibilityRef.current.base);
       (Object.keys(OVERLAY_LAYERS) as Array<keyof typeof OVERLAY_LAYERS>).forEach((key) => {
         setLayerVisibility(map, OVERLAY_LAYERS[key], layerVisibilityRef.current[key]);
       });
-      map.fitBounds([[bounds.minLon, bounds.minLat], [bounds.maxLon, bounds.maxLat]], { padding: 64, maxZoom: 17, duration: 450 });
-    });
+      if (!fitted) {
+        fitted = true;
+        map.fitBounds([[bounds.minLon, bounds.minLat], [bounds.maxLon, bounds.maxLat]], { padding: 64, maxZoom: 17, duration: 450 });
+      }
+    }
+
+    // `style.load` runs once for the immediate local fallback and again if the remote style is
+    // adopted. Reinstalling the overlays after setStyle keeps route geometry above the basemap.
+    map.on("style.load", installEngineeringLayers);
+
+    const basemapController = new AbortController();
+    const basemapTimeout = window.setTimeout(() => basemapController.abort(), BASEMAP_REQUEST_TIMEOUT_MS);
+    setBasemapFallback(false);
+    void fetch(BASEMAP_STYLE_URL, { signal: basemapController.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Basemap style request failed with ${response.status}`);
+        return response.json() as Promise<StyleSpecification>;
+      })
+      .then((style) => {
+        if (disposed) return;
+        remoteBasemap = true;
+        map.setStyle(style);
+      })
+      .catch(() => {
+        if (!disposed) setBasemapFallback(true);
+      })
+      .finally(() => window.clearTimeout(basemapTimeout));
 
     map.on("click", (event) => {
       if (!map.isStyleLoaded()) return;
@@ -313,6 +354,9 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
     });
 
     return () => {
+      disposed = true;
+      basemapController.abort();
+      window.clearTimeout(basemapTimeout);
       resizeObserver.disconnect();
       baseLayerIdsRef.current = [];
       mapRef.current = null;
@@ -348,11 +392,14 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
           </div>
         )}
       </div>
-      {context.isPending && <div className="official-map-state"><LoaderCircle className="is-spinning" size={16} /> Загружаем инженерные слои…</div>}
-      {officialOutputEnabled && officialOutput.isPending && <div className="official-map-state"><LoaderCircle className="is-spinning" size={16} /> Готовим официальный результат…</div>}
-      {officialOutputEnabled && officialOutput.isError && <div className="official-map-state is-warning">Официальный слой не загрузился, показан расчётный preview</div>}
-      {context.isError && <div className="official-map-state is-error">Карта доступна, исходные слои не загрузились</div>}
-      {context.data?.truncated && <div className="official-map-state is-warning">Показаны первые 10 000 объектов в окне</div>}
+      <div className="official-map-state-stack" aria-live="polite">
+        {context.isPending && <div className="official-map-state"><LoaderCircle className="is-spinning" size={16} /> Загружаем инженерные слои…</div>}
+        {officialOutputEnabled && officialOutput.isPending && <div className="official-map-state"><LoaderCircle className="is-spinning" size={16} /> Готовим официальный результат…</div>}
+        {officialOutputEnabled && officialOutput.isError && <div className="official-map-state is-warning">Официальный слой не загрузился, показан расчётный preview</div>}
+        {context.isError && <div className="official-map-state is-error">Карта доступна, исходные слои не загрузились</div>}
+        {basemapFallback && <div className="official-map-state is-warning">Фоновая карта недоступна — маршруты показаны на инженерном холсте</div>}
+        {context.data?.truncated && <div className="official-map-state is-warning">Показаны первые 10 000 объектов в окне</div>}
+      </div>
     </div>
   );
 }

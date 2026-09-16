@@ -46,7 +46,10 @@ results and preserves explicit unknown/partial/error states.
 React/TypeScript/Vite, TanStack Query, MapLibre GL, Proj4js, Lucide and local UI primitives. The
 CARTO Positron vector basemap uses the same renderer and cartographic treatment as the team's
 GdeBenzin project, keeps required attribution visible and is configurable through
-`VITE_BASEMAP_STYLE_URL`. Use the tokens in
+`VITE_BASEMAP_STYLE_URL`. Route and engineering layers start on an inline local style; the external
+basemap is adopted only after its style document is available. If that request fails or exceeds
+three seconds, calculated geometry remains interactive on the local engineering canvas and a
+non-blocking status explains the missing cartographic context. Use the tokens in
 `docs/ui/design-system.md`. Base body text is 14 px; secondary text is at least 12 px. Controls
 have visible keyboard focus and accessible names. Motion respects `prefers-reduced-motion`.
 Route variants use the WAI-ARIA tab keyboard model: one tab stop, arrow navigation with wraparound,

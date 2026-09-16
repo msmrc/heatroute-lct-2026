@@ -309,6 +309,14 @@ and runtime services were removed. The frontend calls only the current official 
   locking. Variant tabs now support arrow/Home/End navigation with a single tab stop, while the
   map/schematic/profile switch publishes its selected state. Focus behavior is protected by Vitest
   and was rechecked in Chromium; the full journey produced no console errors or warnings.
+- A browser fault-injection pass returned `503` for the CARTO style and proved that the previous
+  map became completely blank, including calculated routes. MapLibre now starts from an inline
+  engineering style, installs source/route overlays immediately and adopts the external vector
+  style only after its document is available. A failed or three-second style request keeps the
+  complete interactive route/network geometry visible and shows a non-blocking fallback notice;
+  online mode still upgrades to the styled CARTO map. Unit coverage protects both paths, and
+  desktop plus 640 px browser screenshots verified that fallback status does not collide with the
+  inspector, controls or result island.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

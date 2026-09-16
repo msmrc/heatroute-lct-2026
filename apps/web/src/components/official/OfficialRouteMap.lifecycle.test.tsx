@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OfficialRouteVariant } from "../../shared/api";
@@ -12,23 +12,36 @@ const api = vi.hoisted(() => ({
 
 const maplibre = vi.hoisted(() => {
   const layers = new Set<string>();
+  let styleLayers: Array<{ id: string; type: string }> = [];
+  let styleLoadListener: (() => void) | undefined;
   const map = {
     addControl: vi.fn(),
-    addLayer: vi.fn((layer: { id: string }) => layers.add(layer.id)),
+    addLayer: vi.fn((layer: { id: string; type: string }) => {
+      layers.add(layer.id);
+      styleLayers.push(layer);
+    }),
     addSource: vi.fn(),
     fitBounds: vi.fn(),
     getCanvas: vi.fn(() => ({ style: {} })),
     getLayer: vi.fn((id: string) => layers.has(id) ? { id } : undefined),
-    getStyle: vi.fn(() => ({ layers: [] })),
+    getStyle: vi.fn(() => ({ layers: styleLayers })),
     isStyleLoaded: vi.fn(() => true),
-    on: vi.fn(),
-    once: vi.fn((event: string, listener: () => void) => {
-      if (event === "style.load") listener();
+    on: vi.fn((event: string, listener: () => void) => {
+      if (event === "style.load") {
+        styleLoadListener = listener;
+        listener();
+      }
       return map;
     }),
     queryRenderedFeatures: vi.fn(() => []),
     remove: vi.fn(),
     resize: vi.fn(),
+    setStyle: vi.fn((style: { layers?: Array<{ id: string; type: string }> }) => {
+      layers.clear();
+      styleLayers = [...(style.layers ?? [])];
+      styleLoadListener?.();
+      return map;
+    }),
     setLayerZoomRange: vi.fn(),
     setLayoutProperty: vi.fn(),
     setPaintProperty: vi.fn(),
@@ -36,7 +49,10 @@ const maplibre = vi.hoisted(() => {
   return {
     layers,
     map,
-    Map: vi.fn(function Map() { return map; }),
+    Map: vi.fn(function Map(options: { style: { layers?: Array<{ id: string; type: string }> } }) {
+      styleLayers = [...(options.style.layers ?? [])];
+      return map;
+    }),
     NavigationControl: vi.fn(function NavigationControl() {}),
     ScaleControl: vi.fn(function ScaleControl() {}),
   };
@@ -64,6 +80,14 @@ beforeEach(() => {
     disconnect() {}
   });
   api.getOfficialMap.mockResolvedValue({ type: "FeatureCollection", features: [], truncated: false });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve({
+      version: 8,
+      sources: {},
+      layers: [{ id: "remote-background", type: "background" }],
+    }),
+  }));
 });
 
 afterEach(() => {
@@ -80,10 +104,28 @@ describe("OfficialRouteMap lifecycle", () => {
     );
 
     await waitFor(() => expect(maplibre.Map).toHaveBeenCalledTimes(1));
-    expect(maplibre.map.once).toHaveBeenCalledWith("style.load", expect.any(Function));
-    expect(maplibre.map.once).not.toHaveBeenCalledWith("load", expect.any(Function));
+    expect(maplibre.map.on).toHaveBeenCalledWith("style.load", expect.any(Function));
+    expect(maplibre.map.on).not.toHaveBeenCalledWith("load", expect.any(Function));
     expect(maplibre.layers).toContain("route-line");
     expect(maplibre.map.fitBounds).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(maplibre.map.setStyle).toHaveBeenCalledTimes(1));
+    expect(maplibre.layers).toContain("route-line");
+
+    unmount();
+  });
+
+  it("keeps calculated routes visible when the external basemap is unavailable", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("offline"));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { unmount } = render(
+      <QueryClientProvider client={queryClient}>
+        <OfficialRouteMap runId="run-1" importId="import-1" variant={variant()} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(/Фоновая карта недоступна/)).toBeTruthy();
+    expect(maplibre.layers).toContain("route-line");
+    expect(maplibre.map.setStyle).not.toHaveBeenCalled();
 
     unmount();
   });

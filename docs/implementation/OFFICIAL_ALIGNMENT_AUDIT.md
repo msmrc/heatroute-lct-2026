@@ -1,6 +1,6 @@
 # Official requirements alignment audit
 
-**Audit date:** 2026-09-16  
+**Audit date:** 2026-09-16
 **Sources:** organizer task PDF, organizer technical appendix DOCX, supplied GeoJSON, active Java
 source tree, database migrations, Compose and CI configuration.
 

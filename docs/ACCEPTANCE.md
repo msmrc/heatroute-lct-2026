@@ -36,7 +36,7 @@ Current local smoke evidence and open gates are in `implementation/progress.md`.
 | Cost, penalty, score and deterministic rank | Passed on contract-complete input | Appendix 10.8 illustrative-number discrepancy is documented |
 | Strict seven-type output and UI consumer | Passed on contract-complete input | Draft 2020-12 schema is published/tested; supplied incomplete file correctly returns `OFFICIAL_EXPORT_INCOMPLETE` |
 | 3 GiB input / ≥500 MiB output / memory below 16 GiB | Passed | Run `35112046184` plus full topology runs `35119722470` and `35120995991` |
-| 50 concurrent users | Passed for public API sessions | Run `35112362689`; 50 simultaneous imports, one durable ID |
+| 50 concurrent users | Passed for public API sessions | Runs `35112362689` and `35126566499`; 50 simultaneous imports, one durable ID; the latter verifies the connection-pool starvation fix |
 | Ubuntu 22 / docker-compose 1.29.2 / restart recovery | Passed in clean CI | Run `35112362689`; production-like host may still be requested |
 | Full calculation beyond supplied topology | Passed on project 2× profile | Run `35119722470`: 288 features, 34 demands, 408 candidates, 481,092 KiB peak RSS; organizer/PM must still approve the maximum profile |
 | Supplied-file final reconstruction/score/export | Blocked on source data | Requires missing flow, upstream direction and chamber diameter or a waiver |

@@ -596,7 +596,7 @@ P0 считается завершённым только если одновр�
 
 15–16 сентября 2026 года проверено:
 
-- 105 локальных backend tests; pinned Java 11 CI, integration job и отдельный Ubuntu 22 full
+- 107 локальных backend tests; pinned Java 11 CI, integration job и отдельный Ubuntu 22 full
   2× topology run зелёные;
 - web lint/typecheck/production build и 13 Vitest tests;
 - официальный fixture: 144 объекта, 17 demand points, 204 tie-in candidates и три валидных

@@ -18,6 +18,26 @@ The integration gate then runs the real all-OKS calculation, verifies the result
 the API container and reads the completed result back from PostgreSQL. The workflow stores the load
 JSON for 30 days and repeats the same 50-client race on every candidate commit.
 
+## Connection-pool starvation regression and fix
+
+Run `35124933139` exposed a real timing-dependent defect: the import service kept a database
+transaction open while parsing and loading the winning upload. With a 12-connection Hikari pool,
+50 simultaneous requests could therefore occupy every connection while duplicate inserts waited
+for the winner, and one request timed out with HTTP 500.
+
+Commit `6b0ff88e7d596649777e1cfc1e08a13292dd01be` separates registration from feature persistence:
+
+- the unique `(contract_version, raw_sha256)` registration is committed immediately;
+- only the winning request opens the feature-load transaction;
+- duplicate requests poll with short independent reads and hold no connection while waiting;
+- a failed winning load is durably marked `failed` after rollback.
+
+Clean Ubuntu 22 run `35126566499` verifies the fix with the same 50 simultaneous requests. All
+responses resolve to import `0ed2cd1c-2b93-4e57-be84-21d849bd8e59`; completion time is 3.865 s,
+with min/p50/p95/max latencies of 3,720/3,787/3,838/3,838 ms. The run also passes the real
+all-demand calculation, schema and API contract checks, restart recovery, Java 11 backend suite and
+web gates. Artifact: `r9-load-50-6b0ff88e7d596649777e1cfc1e08a13292dd01be`.
+
 ## Interpretation and limit
 
 This is measured evidence that the public API accepts 50 concurrent users without duplicate

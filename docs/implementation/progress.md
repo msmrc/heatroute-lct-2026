@@ -261,6 +261,13 @@ and runtime services were removed. The frontend calls only the current official 
   output are versioned in `docs/contracts`, served by the Java API and compiled by NetworkNT 2.0.3.
   Contract tests validate the actual organizer file and the actual exporter result, not only hand
   written examples.
+- Run `35124933139` caught a timing-dependent connection-pool starvation bug in the 50-user import
+  gate. Commit `6b0ff88` now commits content-hash registration before the long feature transaction,
+  keeps duplicate waiters outside database transactions and marks a rolled-back winner `failed`.
+  Clean Ubuntu 22 run `35126566499` passes all 50 imports against one durable ID (p95 3,838 ms),
+  the real all-demand calculation, published schema/OpenAPI checks and restart recovery. The local
+  backend suite now contains 107 tests: 104 passed and three explicit scale probes skipped by
+  default.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

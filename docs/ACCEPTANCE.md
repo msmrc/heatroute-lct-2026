@@ -25,3 +25,22 @@ An R-stage is complete only when its roadmap checklist and evidence are both com
 - UI displays the official output rather than a legacy/internal model.
 
 Current local smoke evidence and open gates are in `implementation/progress.md`.
+
+## Current evidence snapshot (2026-09-16)
+
+| Gate | State | Evidence / qualification |
+|---|---|---|
+| All-demand routing, automatic tie-ins, tree/chambers, partial no-route | Passed | 17-demand clean-stack calculation plus focused R4 tests |
+| Flow, 18-row DU catalog, continuous length and reconstruction | Passed on contract-complete input | Supplied file omits reconstruction baseline/direction fields |
+| Published 2D restrictions and special crossings | Passed | Exact-value positive/boundary/negative matrix |
+| Cost, penalty, score and deterministic rank | Passed on contract-complete input | Appendix 10.8 illustrative-number discrepancy is documented |
+| Strict seven-type output and UI consumer | Passed on contract-complete input | Supplied incomplete file correctly returns `OFFICIAL_EXPORT_INCOMPLETE` |
+| 3 GiB input / ≥500 MiB output / memory below 16 GiB | Passed at streaming layer | Run `35112046184`; maximum-topology calculation remains separate |
+| 50 concurrent users | Passed for public API sessions | Run `35112362689`; 50 simultaneous imports, one durable ID |
+| Ubuntu 22 / docker-compose 1.29.2 / restart recovery | Passed in clean CI | Run `35112362689`; production-like host may still be requested |
+| Representative maximum-topology calculation | Blocked on fixture | Organizer/PM must provide or approve the representative geometry |
+| Supplied-file final reconstruction/score/export | Blocked on source data | Requires missing flow, upstream direction and chamber diameter or a waiver |
+
+Detailed byte/memory and concurrency measurements are in
+`implementation/R9_INPUT_SCALE_EVIDENCE.md` and
+`implementation/R9_CONCURRENCY_EVIDENCE.md`.

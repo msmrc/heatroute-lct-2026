@@ -10,7 +10,7 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Verified in this cutover
 
-- Maven verifies 75 Java tests plus opt-in scale probes (the production/CI gate remains pinned to
+- Maven verifies 76 Java tests plus opt-in scale probes (the production/CI gate remains pinned to
   Java 11).
 - Web ESLint, TypeScript, Vitest (9 tests) and production Vite build pass.
 - Compose starts PostGIS, Java API and web; all three become healthy.
@@ -170,7 +170,7 @@ and runtime services were removed. The frontend calls only the current official 
   same strict output types used by download. `variant_summary` is correctly omitted from spatial
   layers. The internal nodes/edges conversion remains only as a preview fallback for the supplied
   incomplete dataset or a transient official-layer request failure.
-- Current verification after the bounded-worker checkpoint: 75 Java tests and 13 web tests, ESLint,
+- Current verification after the selected-tie-in persistence checkpoint: 76 Java tests and 13 web tests, ESLint,
   TypeScript, production build and local browser smoke all pass.
 - Export performs a feature-by-feature preflight and then writes with Jackson `JsonGenerator`; the
   full output tree is not retained. The all-seven-type fixture includes existing-chamber
@@ -251,6 +251,9 @@ and runtime services were removed. The frontend calls only the current official 
   proves 50 concurrent public API sessions and the deduplication race, not 50 simultaneously
   executing heavy calculations. Backend, web, integration, real calculation and restart recovery
   all completed successfully in the same run. Exact evidence is in `R9_CONCURRENCY_EVIDENCE.md`.
+- Final checkpoint run `35113595198` passed all Java 11, web and integration gates after adding the
+  selected-tie-in persistence regression; it repeated the 50-user race, all-demand calculation and
+  restart recovery successfully.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

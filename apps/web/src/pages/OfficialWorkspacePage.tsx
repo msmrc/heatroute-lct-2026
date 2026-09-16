@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Eye, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Eye, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
 import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ import {
   getLatestOfficialRun,
   getOfficialRun,
   humanFileSize,
+  officialExportUrl,
 } from "../shared/api";
 
 const IMPORT_KEY = "heatroute.officialImportId";
@@ -187,6 +188,8 @@ export function OfficialWorkspacePage() {
   }
 
   if (currentImport && currentRun?.state === "completed" && currentRun.result) {
+    const exportReady = currentRun.result.variants.some((variant) =>
+      variant.rank != null && variant.economics?.complete === true);
     return (
       <div className="official-map-workspace">
         <header className="map-workspace-toolbar">
@@ -199,6 +202,17 @@ export function OfficialWorkspacePage() {
           </div>
           <div className="map-workspace-status"><CheckCircle2 size={16} /> Данные проверены <span>·</span> Расчёт завершён</div>
           <div className="map-workspace-actions">
+            <Button
+              variant="outline"
+              disabled={!exportReady}
+              title={exportReady
+                ? "Скачать официальный GeoJSON"
+                : "Для экспорта нужны исходные данные реконструкции и итоговый rank"}
+              onClick={() => { window.location.href = officialExportUrl(currentRun.id); }}
+            >
+              <Download size={16} />
+              {exportReady ? "Скачать результат" : "Экспорт недоступен"}
+            </Button>
             <input
               ref={inputRef}
               type="file"

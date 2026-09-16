@@ -147,6 +147,30 @@ and runtime services were removed. The frontend calls only the current official 
   supplied organizer file. The checkpoint passes 59 Java tests, 10 web tests, lint, typecheck,
   production build and browser smoke without console errors.
 
+## R7 official-output checkpoint (local, not deployed)
+
+- A dedicated adapter serializes every complete ranked alternative into one GeoJSON containing
+  only `heat_network`, `tie_in`, `heat_network_reconstruction`, `heat_chamber`,
+  `heat_chamber_reconstruction`, `technical_node` and `variant_summary`.
+- Output IDs are globally unique across alternatives. New-network start/end references resolve to
+  scoped tie-ins, chambers or technical nodes; EPSG:32637 calculation geometry is converted to
+  WGS84.
+- An independent contract validator enforces exact per-type field whitelists, required scalar
+  types, WGS84 geometry, unique IDs, network references and one summary per variant. Tests prove
+  component-sum equality, multi-variant ID isolation and rejection of incomplete calculations.
+- `GET /api/v1/official/runs/{runId}/export` returns `application/geo+json` for a complete result.
+  The organizer file remains intentionally non-exportable and returns
+  `409 OFFICIAL_EXPORT_INCOMPLETE`, because its reconstruction baseline is absent.
+- The workspace exposes the download only when a variant has complete economics and rank. For the
+  organizer demo it shows a disabled, explanatory action rather than downloading a partial file.
+- Export performs a feature-by-feature preflight and then writes with Jackson `JsonGenerator`; the
+  full output tree is not retained. The all-seven-type fixture includes existing-chamber
+  reconstruction. Spring MVC streaming uses a bounded 2–16 thread executor with a 64-request queue
+  and 15-minute timeout instead of the unbounded fallback. Measured 500 MB/50-user evidence and
+  using the official output as the map source remain before the R7/R9 gates can be called complete.
+- Verification: 63 Java tests and 12 web tests pass together with ESLint, TypeScript and the
+  production Vite build.
+
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
@@ -164,16 +188,17 @@ and runtime services were removed. The frontend calls only the current official 
 - R6 — functionally integrated for the current rule coverage: dynamic OKS buffers, hard forbidden
   zones and reproducible special crossings participate in search and final validation. The full
   positive/boundary/negative test matrix for every official table row remains acceptance work.
-- R7 — partial: full component costing, length totals, score and deterministic rank are integrated.
-  Strict seven-type GeoJSON export, streaming response and output contract validator remain.
+- R7 — partial: full component costing, length totals, score/rank, strict seven-type adapter,
+  independent output validator and incremental download are integrated. Appendix arithmetic golden
+  evidence and official-output map rendering remain.
 - R8 — not implemented; optional after mandatory 2D.
 - R9 — not complete: no 3 GB/500 MB/50-user evidence and current VPS OS is not the required
   Ubuntu Server 22 acceptance target.
 
 ## Next change
 
-Finish R7 with the strict seven-type GeoJSON adapter, streaming response and exact-field contract
-tests. In parallel, close the remaining R6 per-rule boundary
+Finish R7 by making the map consume the validated official model and adding the organizer appendix
+arithmetic golden. In parallel, close the remaining R6 per-rule boundary
 matrix and profile the obstacle search. Do not start
 depth, MVT or additional file formats before the mandatory 2D gate.
 

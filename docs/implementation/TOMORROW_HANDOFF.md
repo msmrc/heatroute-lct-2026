@@ -71,17 +71,17 @@ Still blocking official P0:
 
 - the complete positive/boundary/negative R6 matrix for every official table row;
 - large-network performance and broader route-quality/diversity evidence;
-- official component costs, score and alternative diversity;
-- strict seven-type result export;
+- appendix arithmetic golden evidence and visualization of the official output model;
 - large-file/load/Ubuntu 22 acceptance evidence.
 
 ## Developer: next vertical slice
 
-Continue from `RouteVariant.reconstruction`; do not replace the immutable run/job contract.
-R7 component costs, length, score and rank are already integrated. Continue by serializing and
-independently validating the strict seven-type GeoJSON, then expose it as a streaming download.
-In parallel, finish the missing R6 row-by-row boundary matrix. Do not mix optional depth, MVT or
-extra formats into this gate.
+Continue from `domain/export`; do not replace the immutable run/job contract. R7 component costs,
+length, score/rank, strict seven-type serialization, independent whitelist/type/reference
+validation, feature-by-feature preflight and incremental Jackson download are already integrated.
+Make the map consume the official output model and reproduce the appendix arithmetic example as a
+golden test. In parallel, finish the missing R6 row-by-row boundary matrix.
+Do not mix optional depth, MVT or extra formats into this gate.
 
 ## PM: tasks tomorrow
 

@@ -1,0 +1,190 @@
+package ru.lct.heatroute.domain.export;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import org.junit.jupiter.api.Test;
+import org.locationtech.jts.io.WKTReader;
+import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
+import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
+import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
+import ru.lct.heatroute.domain.engineering.OfficialEconomics;
+import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
+import ru.lct.heatroute.domain.routing.OfficialCalculationResult;
+import ru.lct.heatroute.domain.routing.OfficialObstacleRouter;
+import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules;
+import ru.lct.heatroute.domain.routing.OfficialRoutePlanner;
+import ru.lct.heatroute.domain.routing.OfficialRouteValidator;
+import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
+import ru.lct.heatroute.domain.topology.TieInCandidate;
+import ru.lct.heatroute.domain.topology.TopologyAnalysis;
+
+class OfficialGeoJsonExporterTest {
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+    private final WKTReader wktReader = new WKTReader();
+    private final OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
+    private final OfficialEconomics economics = new OfficialEconomics();
+    private final OfficialOutputContractValidator validator = new OfficialOutputContractValidator();
+    private final OfficialGeoJsonExporter exporter = new OfficialGeoJsonExporter(
+            objectMapper, pipeCatalog, economics, validator);
+
+    @Test
+    void exportsStrictSevenTypeContractWithoutNullOrForeignProperties() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (500000 6170000)", "{}"),
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
+                        "{\"upstream_object_id\":\"source\",\"flow_tph\":2,\"diameter\":50}"),
+                feature("heat_chamber", "chamber", "POINT (500100 6170000)",
+                        "{\"upstream_object_id\":\"network\",\"diameter\":50}"),
+                feature("oks_connection_point", "cp-network", "POINT (500050 6170050)",
+                        "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "cp-chamber", "POINT (500100 6170050)",
+                        "{\"flow_tph\":5}"));
+        OfficialCalculationResult result = planner().plan(
+                features,
+                new TopologyAnalysis(2, 1, 1, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp-network", "network", "heat_network", 50, true),
+                        new TieInCandidate("cp-chamber", "chamber", "heat_chamber", 50, true))));
+
+        ObjectNode output = exporter.export(objectMapper.valueToTree(result), features);
+
+        assertThat(validator.validate(output)).isEmpty();
+        Set<String> types = StreamSupport.stream(output.path("features").spliterator(), false)
+                .map(feature -> feature.path("properties").path("object_type").asText())
+                .collect(Collectors.toSet());
+        assertThat(types).containsExactlyInAnyOrder(
+                "heat_network",
+                "tie_in",
+                "heat_network_reconstruction",
+                "heat_chamber",
+                "heat_chamber_reconstruction",
+                "technical_node",
+                "variant_summary");
+        assertThat(output.path("features")).allSatisfy(feature -> {
+            assertThat(feature.path("properties").findValuesAsText("id")).isNotEmpty();
+            feature.path("properties").fields().forEachRemaining(field ->
+                    assertThat(field.getValue().isNull()).as(field.getKey()).isFalse());
+        });
+        JsonNode summary = StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "variant_summary".equals(
+                        feature.path("properties").path("object_type").asText()))
+                .findFirst().orElseThrow().path("properties");
+        BigDecimal componentTotal = StreamSupport.stream(List.of(
+                        "construction_cost", "chamber_construction_cost", "tie_in_cost",
+                        "reconstruction_cost", "chamber_reconstruction_cost", "unconnected_penalty")
+                        .spliterator(), false)
+                .map(field -> summary.path(field).decimalValue())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(summary.path("calculated_cost").decimalValue()).isEqualByComparingTo(componentTotal);
+        assertThat(summary.path("rank").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsResultWithoutCompleteRankedVariant() {
+        ObjectNode calculation = objectMapper.createObjectNode();
+        calculation.putArray("variants").addObject()
+                .put("valid", true)
+                .putObject("economics").put("complete", false);
+
+        assertThatThrownBy(() -> exporter.export(calculation, List.of()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("OFFICIAL_EXPORT_INCOMPLETE");
+    }
+
+    @Test
+    void scopesTopologyAndReconstructionIdsAcrossMultipleVariants() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (500000 6170000)", "{}"),
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
+                        "{\"upstream_object_id\":\"source\",\"flow_tph\":2,\"diameter\":50}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
+        JsonNode original = objectMapper.valueToTree(planner().plan(
+                features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true)))));
+        ObjectNode first = (ObjectNode) original.path("variants").path(0).deepCopy();
+        first.put("id", "variant-a");
+        first.put("rank", 1);
+        ObjectNode second = first.deepCopy();
+        second.put("id", "variant-b");
+        second.put("rank", 2);
+        ObjectNode calculation = objectMapper.createObjectNode();
+        ArrayNode variants = calculation.putArray("variants");
+        variants.add(first);
+        variants.add(second);
+
+        ObjectNode output = exporter.export(calculation, features);
+
+        assertThat(validator.validate(output)).isEmpty();
+        List<String> ids = StreamSupport.stream(output.path("features").spliterator(), false)
+                .map(feature -> feature.path("properties").path("id").asText())
+                .collect(Collectors.toList());
+        assertThat(ids).doesNotHaveDuplicates();
+        assertThat(ids).anyMatch(id -> id.startsWith("variant-a:"));
+        assertThat(ids).anyMatch(id -> id.startsWith("variant-b:"));
+    }
+
+    @Test
+    void incrementallyWritesTheSameValidatedFeatureCollection() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (500000 6170000)", "{}"),
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
+                        "{\"upstream_object_id\":\"source\",\"flow_tph\":2,\"diameter\":50}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
+        JsonNode calculation = objectMapper.valueToTree(planner().plan(
+                features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true)))));
+        ObjectNode materialized = exporter.export(calculation, features);
+        exporter.validate(calculation, features);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        exporter.writeValidated(calculation, features, output);
+
+        JsonNode streamed = objectMapper.readTree(output.toByteArray());
+        assertThat(streamed.path("features").size()).isEqualTo(materialized.path("features").size());
+        assertThat(featureIds(streamed)).containsExactlyElementsOf(featureIds(materialized));
+        assertThat(validator.validate(streamed)).isEmpty();
+    }
+
+    private List<String> featureIds(JsonNode collection) {
+        return StreamSupport.stream(collection.path("features").spliterator(), false)
+                .map(feature -> feature.path("properties").path("id").asText())
+                .collect(Collectors.toList());
+    }
+
+    private OfficialRoutePlanner planner() {
+        OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
+                new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
+        return new OfficialRoutePlanner(
+                new OfficialRouteValidator(geometryRules),
+                new OfficialObstacleRouter(geometryRules),
+                pipeCatalog,
+                new ru.lct.heatroute.domain.sizing.OfficialNetworkSizer(pipeCatalog),
+                new OfficialExistingNetworkReconstructor(pipeCatalog),
+                new OfficialVariantEconomicsCalculator(pipeCatalog, economics));
+    }
+
+    private ImportedOfficialFeature feature(
+            String objectType,
+            String id,
+            String wkt,
+            String attributes) throws Exception {
+        JsonNode node = objectMapper.readTree(attributes);
+        return new ImportedOfficialFeature(id, objectType, node, wktReader.read(wkt));
+    }
+}

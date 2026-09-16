@@ -33,9 +33,14 @@ missing engineering value is silently invented. See `implementation/SUPPLIED_DAT
 - `POST /api/v1/official/imports`
 - `GET /api/v1/official/imports/{id}`
 - `GET /api/v1/official/imports/{id}/topology`
+- `GET /api/v1/official/imports/{id}/map`
 - `POST /api/v1/official/imports/{id}/jobs/topology`
+- `POST /api/v1/official/imports/{id}/runs`
 - `GET /api/v1/official/jobs/{id}`
 - `DELETE /api/v1/official/jobs/{id}`
+- `GET /api/v1/official/runs/latest`
+- `GET /api/v1/official/runs/{id}`
+- `GET /api/v1/official/runs/{id}/export`
 - `/swagger-ui.html` and `/v3/api-docs`
 
 ## Required output
@@ -50,13 +55,22 @@ One GeoJSON FeatureCollection per result containing only these seven types:
 6. `technical_node`;
 7. `variant_summary` — exactly one non-spatial summary per variant.
 
-No unrelated fields with `null` are permitted. The exact per-type schema, component costs,
-variant/rank references and Z fields for the optional depth task must be copied from the organizer
-technical appendix into JSON Schema tests before R7 is marked complete.
+No unrelated fields with `null` are permitted. The 2D adapter emits the exact per-type field
+whitelists from the organizer appendix. `OfficialOutputContractValidator` independently checks
+allowed/required fields, scalar types, WGS84 geometry, globally unique IDs, network-node references
+and exactly one summary per variant. Contract tests also prove component-sum equality and ID
+scoping across multiple alternatives. Optional Z fields remain an R8 concern.
+
+Only valid variants with complete economics and an integer rank are exportable. If the supplied
+compatibility-profile file cannot establish reconstruction baselines, the endpoint returns
+`409 OFFICIAL_EXPORT_INCOMPLETE`; it never publishes a plausible-looking partial official result.
 
 ## Coordinate and size rules
 
 - API geometry: EPSG:4326; metric calculations: EPSG:32637.
 - Length, clearance, split and angle operations are performed in the projected CRS.
-- Upload limit: 3 GB; output limit: 500 MB; processing and export are streaming.
+- Upload limit: 3 GB; output limit: 500 MB.
+- Input inspection is streaming. Export performs a feature-by-feature preflight contract pass and
+  then writes the FeatureCollection incrementally with Jackson `JsonGenerator`; the complete output
+  tree is not retained. Measured 3 GB input / 500 MB output evidence remains mandatory R9 work.
 - Every result records input SHA-256, contract/catalog/algorithm versions and assumptions.

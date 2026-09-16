@@ -207,6 +207,10 @@ const rawBase = typeof configuredApiBase === "string" ? configuredApiBase : "/ap
 const absoluteBase = rawBase.startsWith("/") ? `${window.location.origin}${rawBase}` : rawBase;
 export const API_BASE = absoluteBase.replace(/\/$/, "");
 
+export function officialExportUrl(runId: string): string {
+  return `${API_BASE}/official/runs/${runId}/export`;
+}
+
 export class ApiError extends Error {
   constructor(message: string, readonly status?: number, readonly detail?: unknown) {
     super(message);

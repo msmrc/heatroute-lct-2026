@@ -3,6 +3,8 @@ package ru.lct.heatroute.api.official;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -11,9 +13,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import ru.lct.heatroute.api.error.ApiException;
 import ru.lct.heatroute.domain.input.OfficialImportService;
 import ru.lct.heatroute.domain.input.OfficialImportView;
+import ru.lct.heatroute.domain.export.OfficialExportPayload;
+import ru.lct.heatroute.domain.export.OfficialExportService;
 import ru.lct.heatroute.domain.job.OfficialJobService;
 import ru.lct.heatroute.domain.job.OfficialJobView;
 import ru.lct.heatroute.domain.run.OfficialRunService;
@@ -26,14 +31,17 @@ public class OfficialJobController {
     private final OfficialImportService importService;
     private final OfficialJobService jobService;
     private final OfficialRunService runService;
+    private final OfficialExportService exportService;
 
     public OfficialJobController(
             OfficialImportService importService,
             OfficialJobService jobService,
-            OfficialRunService runService) {
+            OfficialRunService runService,
+            OfficialExportService exportService) {
         this.importService = importService;
         this.jobService = jobService;
         this.runService = runService;
+        this.exportService = exportService;
     }
 
     @PostMapping("/imports/{importId}/jobs/topology")
@@ -77,6 +85,33 @@ public class OfficialJobController {
             throw new ApiException(HttpStatus.NOT_FOUND, "RUN_NOT_FOUND", "Official run was not found");
         }
         return run;
+    }
+
+    @GetMapping(value = "/runs/{runId}/export", produces = "application/geo+json")
+    @Operation(operationId = "downloadOfficialRun", summary = "Stream the strict seven-type official GeoJSON")
+    public ResponseEntity<StreamingResponseBody> export(@PathVariable UUID runId) {
+        final OfficialExportPayload payload;
+        try {
+            payload = exportService.prepare(runId);
+        } catch (IllegalStateException exception) {
+            if (exception.getMessage() != null
+                    && exception.getMessage().startsWith("OFFICIAL_EXPORT_INCOMPLETE")) {
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "OFFICIAL_EXPORT_INCOMPLETE",
+                        "Official export requires complete reconstruction inputs and a ranked result");
+            }
+            throw exception;
+        }
+        if (payload == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "RUN_NOT_FOUND", "Official run was not found");
+        }
+        StreamingResponseBody body = payload::writeTo;
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/geo+json"))
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=heatroute-" + runId + ".geojson")
+                .body(body);
     }
 
     @GetMapping("/jobs/{jobId}")

@@ -18,8 +18,12 @@ bottom-up sizing автоматически повышает ДУ по расх�
 распространяется по существующей сети с partial reconstruction участков и камер. В поставленном
 GeoJSON реконструкция честно недоступна из-за отсутствующих `flow_tph/upstream_object_id`.
 R7 component costing и score уже интегрированы; поставленный файл показывает только известную
-стоимость и не получает score без данных реконструкции. Следующий критический этап — строгий
-seven-type export и его contract validator.
+стоимость и не получает score без данных реконструкции. Строгий seven-type adapter, независимый
+whitelist/type/reference validator и download endpoint реализованы для contract-complete вариантов;
+для поставленного неполного файла endpoint честно отвечает `409 OFFICIAL_EXPORT_INCOMPLETE`.
+Экспорт проходит preflight-проверку и затем инкрементально пишется Jackson `JsonGenerator` без
+сборки полного output tree. Следующий критический этап — полная R6 boundary-матрица,
+визуализация официальной output-модели и R9 evidence.
 Не публикуй текущие изменения на VPS без отдельной команды пользователя.
 
 Быстрая проверка состояния:

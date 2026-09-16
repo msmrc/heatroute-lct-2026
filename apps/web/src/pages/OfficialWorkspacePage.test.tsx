@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   getOfficialJob: vi.fn(),
   getLatestOfficialRun: vi.fn(),
   getOfficialRun: vi.fn(),
+  officialExportUrl: vi.fn((runId: string) => `/api/v1/official/runs/${runId}/export`),
 }));
 
 vi.mock("../shared/api", () => ({
@@ -81,4 +82,85 @@ describe("OfficialWorkspacePage", () => {
     expect(api.createOfficialRun).toHaveBeenCalledWith("import-1");
     await waitFor(() => expect(localStorage.getItem("heatroute.officialRunId")).toBe("run-1"));
   });
+
+  it("keeps the official export disabled when reconstruction inputs are incomplete", async () => {
+    localStorage.setItem("heatroute.officialImportId", "import-1");
+    localStorage.setItem("heatroute.officialRunId", "run-1");
+    api.getOfficialImport.mockResolvedValue(completedImport());
+    api.getOfficialRun.mockResolvedValue(completedRun(false));
+
+    renderWorkspace();
+
+    const exportButton = await screen.findByRole("button", { name: "Экспорт недоступен" });
+    expect((exportButton as HTMLButtonElement).disabled).toBe(true);
+    expect(exportButton.getAttribute("title")).toBe(
+      "Для экспорта нужны исходные данные реконструкции и итоговый rank",
+    );
+  });
+
+  it("offers the strict GeoJSON download for a complete ranked result", async () => {
+    localStorage.setItem("heatroute.officialImportId", "import-1");
+    localStorage.setItem("heatroute.officialRunId", "run-1");
+    api.getOfficialImport.mockResolvedValue(completedImport());
+    api.getOfficialRun.mockResolvedValue(completedRun(true));
+
+    renderWorkspace();
+
+    const exportButton = await screen.findByRole("button", { name: "Скачать результат" });
+    expect((exportButton as HTMLButtonElement).disabled).toBe(false);
+    expect(exportButton.getAttribute("title")).toBe("Скачать официальный GeoJSON");
+  });
 });
+
+function renderWorkspace() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <OfficialWorkspacePage />
+    </QueryClientProvider>,
+  );
+}
+
+function completedImport() {
+  return {
+    id: "import-1",
+    state: "valid",
+    original_filename: "network.geojson",
+    input_size_bytes: 233_000,
+    created_at: "2026-09-16T00:00:00Z",
+    report: {
+      contract_version: "2",
+      input_profile: "provided_dataset_compatibility",
+      sha256: "hash",
+      feature_count: 144,
+      feature_counts: { heat_network: 29 },
+      errors: [],
+      warnings: [],
+      valid: true,
+    },
+  };
+}
+
+function completedRun(exportReady: boolean) {
+  return {
+    id: "run-1",
+    import_id: "import-1",
+    state: "completed",
+    algorithm_version: "test",
+    input_sha256: "hash",
+    created_at: "2026-09-16T00:00:00Z",
+    result: {
+      preferred_variant_id: "variant-1",
+      variants: [{
+        id: "variant-1",
+        valid: true,
+        rank: exportReady ? 1 : null,
+        economics: { complete: exportReady },
+        nodes: [],
+        edges: [],
+        connections: [],
+        issues: [],
+      }],
+    },
+  };
+}

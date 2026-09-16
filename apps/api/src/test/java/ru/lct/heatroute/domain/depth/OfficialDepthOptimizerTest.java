@@ -74,8 +74,23 @@ class OfficialDepthOptimizerTest {
     }
 
     @Test
-    void reportsNoPassageWhenThereIsNotEnoughLengthForOfficialSlope() {
+    void usesFeasibleEndpointDepthWhenSlopeWouldNotFitBeforeCrossing() {
         DepthCrossing power = crossing("power-edge", "power", "4", ".8", "2.5", ".5", "1.15");
+
+        DepthProfileResult result = optimizer.optimize(bd("30"), 50, List.of(power), bd("8"));
+
+        assertThat(result.isComplete()).isTrue();
+        assertThat(result.getIssues()).isEmpty();
+        assertThat(result.getPoints().get(0).getDepthM()).isEqualByComparingTo("4.2");
+        assertThat(result.getCrossings()).singleElement().satisfies(decision ->
+                assertThat(decision.getRampStartM()).isEqualByComparingTo("0"));
+        assertThat(validator.validate(bd("30"), 50, List.of(power), bd(".7"), bd("8"), result))
+                .isEmpty();
+    }
+
+    @Test
+    void reportsNoPassageWhenOfficialPlateauCannotFitAtEndpoint() {
+        DepthCrossing power = crossing("power-edge", "power", "1", ".8", "2.5", ".5", "1.15");
 
         DepthProfileResult result = optimizer.optimize(bd("30"), 50, List.of(power), bd("8"));
 
@@ -85,15 +100,24 @@ class OfficialDepthOptimizerTest {
     }
 
     @Test
-    void reportsOverlappingTransitionsInsteadOfCreatingSinglePointDips() {
+    void sharesOneContinuousPlateauAcrossNearbyCrossingsAtTheSameDepth() {
         DepthCrossing first = crossing("power-1", "power", "40", ".8", "2.5", ".5", "1.15");
         DepthCrossing second = crossing("power-2", "power", "55", ".8", "2.5", ".5", "1.15");
 
         DepthProfileResult result = optimizer.optimize(bd("100"), 50, List.of(first, second), bd("8"));
 
-        assertThat(result.isComplete()).isFalse();
-        assertThat(result.getIssues()).extracting(DepthProfileIssue::getCode)
-                .containsExactly("VERTICAL_TRANSITIONS_OVERLAP");
+        assertThat(result.isComplete()).isTrue();
+        assertThat(result.getIssues()).isEmpty();
+        assertThat(result.getCrossings()).hasSize(2)
+                .allSatisfy(decision -> {
+                    assertThat(decision.getRampStartM()).isEqualByComparingTo("26");
+                    assertThat(decision.getRampEndM()).isEqualByComparingTo("69");
+                    assertThat(decision.getDepthM()).isEqualByComparingTo("4.2");
+                });
+        assertThat(result.getPoints()).extracting(DepthProfilePoint::getStationM)
+                .containsExactly(bd("0.000"), bd("26.000"), bd("38.000"), bd("57.000"), bd("69.000"), bd("100.000"));
+        assertThat(validator.validate(bd("100"), 50, List.of(first, second), bd(".7"), bd("8"), result))
+                .isEmpty();
     }
 
     @Test

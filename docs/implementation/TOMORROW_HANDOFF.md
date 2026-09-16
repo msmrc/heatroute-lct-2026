@@ -1,9 +1,12 @@
-# Tomorrow handoff — PM and developer
+# Handoff — Артём / PM / developer
 
 **Prepared:** 2026-09-16
 **Repository:** `git@github.com:msmrc/heatroute-lct-2026.git`
 **Branch:** `master`
 **Public demo:** `https://130-49-150-217.sslip.io/`
+
+> Текущий код зафиксирован в Git и проверен локально/в CI. Публичный VPS намеренно остаётся на
+> более раннем демонстрационном checkpoint: не обновлять его без отдельной команды владельца.
 
 ## What changed today
 
@@ -19,6 +22,13 @@
 - Commit `e47cd72` is deployed on the VPS. Production now runs only PostGIS, Java API, web and
   gateway; public HTTPS, Java readiness, official import, topology and immutable calculation run
   were verified.
+- R8 vertical profiling доведён на официальном наборе: все 50 участков трёх вариантов имеют
+  завершённый профиль, без `NO_VERTICAL_PASSAGE` и `VERTICAL_TRANSITIONS_OVERLAP`. Переходы рядом
+  с камерой могут начинаться/заканчиваться на допустимой глубине, соседние пересечения на одной
+  отметке объединяются в непрерывную полку, а выход вдоль выбранной сети не считается ложным
+  пересечением.
+- Последняя локальная проверка: Java 11 `mvn verify` — 111 тестов, 0 failures/errors, 3 явно
+  отключённых scale-probe; web — 16 Vitest + 4 replay API tests, lint/typecheck/build/audit зелёные.
 
 ## Start in five minutes
 
@@ -26,12 +36,31 @@
 cd E:\job\_lct2026\heatroute_codex
 git status --short
 git pull --ff-only origin master
-pwsh -File scripts/dev.ps1 test
-pwsh -File scripts/dev.ps1 up
+pnpm install --frozen-lockfile
+
+# Терминал 1 — воспроизводимый локальный API на заранее рассчитанном официальном результате
+node scripts/local-demo-server.mjs tmp/local-demo-bundle.json
+
+# Терминал 2 — web; 5174 выбран, чтобы не конфликтовать с другим проектом на 5173
+$env:VITE_DEV_API_PROXY = 'http://127.0.0.1:8000'
+pnpm --filter @heatroute/web dev -- --host 127.0.0.1 --port 5174 --strictPort
 ```
 
-Open `http://localhost:5173/` and `http://localhost:8000/api/v1/swagger-ui.html`. If 5173 is occupied,
-set `$env:WEB_HOST_PORT='5174'` for the smoke rather than killing an unknown process.
+Открой `http://localhost:5174/`. Нажми «Открыть демо» или загрузи
+`datasets/official/lct-2026.geojson`: локальный replay принимает только точные официальные байты
+по размеру и SHA-256, запускает тот же пользовательский happy path и не подменяет чужой файл
+готовым результатом.
+
+Если нужно заново рассчитать bundle из Java, используй Java 11 и Maven с кэшами на `E:`:
+
+```powershell
+$env:JAVA_HOME = 'E:\job\.tooling\apps\temurin-11\jdk-11.0.32.1+1'
+& 'E:\job\.tooling\apps\apache-maven-3.9.16\bin\mvn.cmd' `
+  '-Dmaven.repo.local=E:\job\.tooling\m2\repository' `
+  '--batch-mode' '--no-transfer-progress' `
+  '-Dheatroute.demo.output=E:\job\_lct2026\heatroute_codex\tmp\local-demo-bundle.json' `
+  -f apps/api/pom.xml verify
+```
 
 ## Current reality
 
@@ -61,7 +90,8 @@ Already usable:
   contract-complete existing-network input;
 - current reproducible evidence on the organizer file: the preferred independent variant connects
   all 17 demands with zero structural validator issues; shared connects 16 and diverse 14 while
-  preserving explicit no-route diagnostics for the remaining objects.
+  preserving explicit no-route diagnostics for the remaining objects. Across all three variants,
+  all 50 route edges have complete validated depth profiles and zero depth issues.
 - interactive result viewer with MapLibre GL/CARTO vector basemap, PostGIS source context, layer
   toggles, variant comparison, map-object inspection, no-route diagnostics, a retained metric
   schematic and a latest-completed-run demo endpoint. Complete variants render through the strict
@@ -100,6 +130,25 @@ under `-Xmx512m`. Final clean-stack run `35129162919` passes backend/web/integra
 `35120995991` passes 288 features, 34/34 demands and three variants in 2:14.65 with 406,608 KiB
 peak RSS. Do not conflate this with a VPS deployment, which remains explicitly deferred.
 Do not mix MVT or extra formats into the remaining external acceptance gate.
+
+## Артём: с чего продолжать
+
+1. Сначала проверь чистый `master`, запусти команды из раздела «Start in five minutes» и пройди
+   основной сценарий `файл -> loader -> карта -> варианты -> предупреждения -> профиль`.
+2. Не переписывай работающие R4–R8. Ближайший продуктовый остаток — не новый алгоритм, а внешняя
+   приёмка: подтверждение максимального профиля нагрузки, трактовка `railway` и недостающих полей
+   реконструкции у постановщика.
+3. Для конкурсной сдачи собирай материалы по `docs/CONTEST_SUBMISSION.md`, а критерии сверяй с
+   `docs/ACCEPTANCE.md`. Не называй реконструкцию полной на поставленном наборе: необходимых полей
+   в нём объективно нет.
+4. Если потребуется менять R8, сначала сохрани инварианты из
+   `docs/implementation/R8_VERTICAL_EVIDENCE.md`: полка 4 м, шаг глубины 0.5 м, уклон не более
+   0.10 м/м, независимая валидация, честный partial/no-route при невозможном проходе.
+5. Любую новую контрольную точку: локальные тесты -> commit -> push -> дождаться всех GitHub Actions.
+   На VPS не выкладывать, пока владелец явно не скажет это сделать.
+
+Текущее честное ограничение результата: 324 записи в интерфейсе — это 323 входных предупреждения
+официального файла и 1 предупреждение реконструкции. Вертикальных ошибок после этого checkpoint нет.
 
 ## PM: tasks tomorrow
 

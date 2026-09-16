@@ -621,7 +621,7 @@ public class OfficialRoutePlanner {
                 nodes, sizedEdges, features, parameters);
         NetworkSizingResult sizing = sizeRoutes(depthReroutedEdges, demandFlowByNode);
         List<RouteEdge> profiledEdges = withDepthProfiles(
-                applySizing(depthReroutedEdges, sizing), features, parameters);
+                nodes, applySizing(depthReroutedEdges, sizing), features, parameters);
         List<RouteValidationIssue> issues = validator.validate(nodes, profiledEdges, features);
         ExistingNetworkReconstructionResult reconstruction = reconstructor.reconstruct(
                 features,
@@ -678,15 +678,22 @@ public class OfficialRoutePlanner {
     }
 
     private List<RouteEdge> withDepthProfiles(
+            List<RouteNode> nodes,
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
             OfficialRunParameters parameters) {
+        Map<String, RouteNode> nodesById = nodes.stream().collect(Collectors.toMap(
+                RouteNode::getId,
+                node -> node,
+                (left, right) -> left,
+                LinkedHashMap::new));
         return edges.stream()
                 .map(edge -> withDepthProfile(edge, depthPlanner.plan(
                         edge,
                         features,
                         parameters.getMinimumDepthM(),
-                        parameters.getMaximumDepthM())))
+                        parameters.getMaximumDepthM(),
+                        endpointFeatureIds(edge, nodesById))))
                 .collect(Collectors.toList());
     }
 
@@ -704,11 +711,13 @@ public class OfficialRoutePlanner {
         List<RouteEdge> result = new ArrayList<>(sizedEdges);
         for (int index = 0; index < result.size(); index++) {
             RouteEdge edge = result.get(index);
+            Set<String> exemptions = endpointFeatureIds(edge, nodesById);
             DepthProfileResult profile = depthPlanner.plan(
                     edge,
                     features,
                     parameters.getMinimumDepthM(),
-                    parameters.getMaximumDepthM());
+                    parameters.getMaximumDepthM(),
+                    exemptions);
             if (profile.isComplete()) continue;
             Set<String> failedUtilityIds = profile.getIssues().stream()
                     .map(issue -> issue.getCrossingId())
@@ -719,10 +728,6 @@ public class OfficialRoutePlanner {
             RouteNode upstream = nodesById.get(edge.getUpstreamNodeId());
             RouteNode downstream = nodesById.get(edge.getDownstreamNodeId());
             if (upstream == null || downstream == null) continue;
-            Set<String> exemptions = java.util.stream.Stream.of(
-                            upstream.getTargetId(), downstream.getTargetId())
-                    .filter(java.util.Objects::nonNull)
-                    .collect(Collectors.toSet());
             List<LineString> acceptedRoutes = result.stream()
                     .filter(other -> !other.getId().equals(edge.getId()))
                     .filter(other -> other.getCoordinates().size() >= 2)
@@ -748,12 +753,23 @@ public class OfficialRoutePlanner {
                     candidate,
                     features,
                     parameters.getMinimumDepthM(),
-                    parameters.getMaximumDepthM());
+                    parameters.getMaximumDepthM(),
+                    exemptions);
             if (candidateProfile.isComplete()) {
                 result.set(index, withDepthProfile(candidate, candidateProfile));
             }
         }
         return result;
+    }
+
+    private Set<String> endpointFeatureIds(RouteEdge edge, Map<String, RouteNode> nodesById) {
+        RouteNode upstream = nodesById.get(edge.getUpstreamNodeId());
+        RouteNode downstream = nodesById.get(edge.getDownstreamNodeId());
+        return java.util.stream.Stream.of(upstream, downstream)
+                .filter(java.util.Objects::nonNull)
+                .map(RouteNode::getTargetId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
     private RouteEdge withDepthProfile(RouteEdge edge, DepthProfileResult profile) {

@@ -48,7 +48,11 @@ positive/boundary/negative matrix-тестами; касание границы 
 R7 закрыт по нормативным ставкам/формулам; условные числа примера 10.8 расходятся с собственной
 таблицей на 19/33 рубля и это закреплено golden-test и audit. R8 depth-перетрассировка закрыта по
 опубликованным правилам: immutable диапазон глубины, отдельный XY detour, независимый validator,
-piecewise cost, technical nodes, XYZ и продольный профиль. Точное full-calculation scale evidence
+piecewise cost, technical nodes, XYZ и продольный профиль. На официальном наборе все 50 участков
+трёх вариантов имеют завершённые профили без depth issues; endpoint-adjacent переходы, общие
+полки соседних пересечений и выход вдоль выбранной сети покрыты тестами. Полный локальный Java
+gate содержит 111 тестов (0 failures/errors, 3 явных scale skips), web gate — 16 Vitest и 4 replay
+API tests. Точное full-calculation scale evidence
 находится в `docs/implementation/R9_TOPOLOGY_SCALE_EVIDENCE.md`.
 Не публикуй текущие изменения на VPS без отдельной команды пользователя.
 

@@ -17,6 +17,12 @@ Status: functional R8 implementation complete for the published depth rules
   the published 0.7 m minimum and the documented 10.0 m application maximum before queueing.
 - The cheapest feasible above/below decision creates a 4 m constant-depth plateau and straight
   ramps limited to 0.10 m/m.
+- A crossing close to a chamber may start or finish at the selected legal depth instead of
+  forcing a fictitious return to 3.0 m at the edge boundary. Nearby crossings that choose the
+  same depth share one continuous plateau and overlapping special spans are costed once at the
+  greatest applicable multiplier.
+- Linear or rounded egress from the connected heat-network feature is classified as a tie-in,
+  not as a second vertical crossing; real interior overlaps remain in the crossing set.
 - A second component independently validates endpoint coverage, station order, range, slope,
   candidate grid, plateau, passage direction and actual clearance.
 - A failed vertical passage starts a separate XY detour around the conflicting utility and then
@@ -32,17 +38,22 @@ Status: functional R8 implementation complete for the published depth rules
 
 ## Automated checks
 
-- `OfficialDepthOptimizerTest`: six cases for cheaper passage, forced below passage, ordinary
-  depth, insufficient ramp length, overlapping transitions and tampered slope.
-- `OfficialDepthPlannerTest`: three cases for geometry-to-chainage projection, tie-in endpoint
-  exclusion and verified profile generation.
+- `OfficialDepthOptimizerTest`: seven cases for cheaper passage, forced below passage, ordinary
+  depth, endpoint-depth selection, an impossible four-metre plateau, shared transitions and a
+  tampered slope.
+- `OfficialDepthPlannerTest`: six cases for geometry-to-chainage projection, exact/linear/rounded
+  tie-in exclusion, the five-centimetre endpoint snap boundary, retained interior overlap and
+  verified profile generation.
 - `OfficialObstacleRouterTest` and `OfficialRoutePlannerTest` prove the separate plan detour and
   the repeated vertical check.
 - `OfficialGeoJsonExporterTest` asserts technical-node references, numeric depth properties and
   exact XYZ segmentation.
 - `OfficialVariantEconomicsCalculatorTest` proves piecewise depth pricing across ramps.
-- Full local backend suite: 99 tests, 0 failures, 3 intentional scale skips; Maven verify passes.
-- Full web suite: 13 tests, 0 failures; TypeScript typecheck passes.
+- `OfficialDatasetRoutingTest` proves all edges of all three official-file variants have complete,
+  independently valid depth profiles; the replay bundle has zero depth issues.
+- Full local backend suite: 111 tests, 0 failures, 3 intentional scale skips; Maven verify passes
+  on Temurin 11.0.32.1.
+- Full web suite: 16 tests, 0 failures; TypeScript typecheck passes.
 
 ## Deliberate boundary
 

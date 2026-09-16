@@ -24,7 +24,9 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 /** Projects official linear utilities to chainage along a planned edge. */
 @Component
 public class OfficialDepthCrossingExtractor {
-    private static final double ENDPOINT_EPSILON_M = 0.01;
+    // Imported and calculated coordinates are rounded independently. Keep a five-centimetre
+    // topology snap window so their common endpoint cannot turn into a fictitious crossing.
+    private static final double ENDPOINT_EPSILON_M = 0.05;
     private final OfficialConstraintCatalog constraints;
     private final OfficialPipeCatalog pipes;
     private final GeometryFactory geometryFactory = new GeometryFactory();
@@ -37,6 +39,13 @@ public class OfficialDepthCrossingExtractor {
     }
 
     public DepthCrossingExtraction extract(RouteEdge edge, List<ImportedOfficialFeature> features) {
+        return extract(edge, features, java.util.Collections.emptySet());
+    }
+
+    public DepthCrossingExtraction extract(
+            RouteEdge edge,
+            List<ImportedOfficialFeature> features,
+            Set<String> endpointFeatureIds) {
         List<DepthCrossing> crossings = new ArrayList<>();
         List<DepthProfileIssue> issues = new ArrayList<>();
         if (edge.getCoordinates().size() < 2) return new DepthCrossingExtraction(crossings, issues);
@@ -46,6 +55,7 @@ public class OfficialDepthCrossingExtractor {
         LengthIndexedLine indexed = new LengthIndexedLine(route);
         double maximumStation = edge.getLengthM().doubleValue();
         for (ImportedOfficialFeature feature : features) {
+            if (endpointFeatureIds.contains(feature.getFeatureId())) continue;
             String type = utilityType(feature);
             if (type == null) continue;
             Geometry source = feature.getMetricGeometry();
@@ -86,6 +96,14 @@ public class OfficialDepthCrossingExtractor {
         if (intersection.getDimension() == 1 && coordinates.length > 1) {
             double first = indexed.project(coordinates[0]);
             double last = indexed.project(coordinates[coordinates.length - 1]);
+            double start = Math.min(first, last);
+            double end = Math.max(first, last);
+            // A linear overlap that begins or ends with the route is the physical tie-in to the
+            // existing utility, not an independent crossing. Treating its midpoint as a crossing
+            // creates a fictitious vertical pass a few metres after the connection chamber.
+            if (start <= ENDPOINT_EPSILON_M || maximumStation - end <= ENDPOINT_EPSILON_M) {
+                return List.of();
+            }
             addStation(unique, (first + last) / 2.0, maximumStation);
         } else {
             for (Coordinate coordinate : coordinates) {

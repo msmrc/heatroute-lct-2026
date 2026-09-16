@@ -3,6 +3,7 @@ package ru.lct.heatroute.domain.depth;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.routing.RouteEdge;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
@@ -36,11 +37,20 @@ public class OfficialDepthPlanner {
             List<ImportedOfficialFeature> features,
             BigDecimal minimumDepthM,
             BigDecimal maximumDepthM) {
+        return plan(edge, features, minimumDepthM, maximumDepthM, java.util.Collections.emptySet());
+    }
+
+    public DepthProfileResult plan(
+            RouteEdge edge,
+            List<ImportedOfficialFeature> features,
+            BigDecimal minimumDepthM,
+            BigDecimal maximumDepthM,
+            Set<String> endpointFeatureIds) {
         if (edge.getDiameter() == null) {
             return incomplete(edge.getLengthM(), new DepthProfileIssue(
                     "DEPTH_DIAMETER_MISSING", edge.getId(), "Sized diameter is required for depth calculation"));
         }
-        DepthCrossingExtraction extraction = extractor.extract(edge, features);
+        DepthCrossingExtraction extraction = extractor.extract(edge, features, endpointFeatureIds);
         if (!extraction.getIssues().isEmpty()) {
             return incomplete(edge.getLengthM(), extraction.getIssues());
         }

@@ -88,6 +88,10 @@ class OfficialDatasetRoutingTest {
                 assertThat(edge.getDiameter()).isNotNull();
                 assertThat(edge.getFlowTph()).isNotNull();
                 assertThat(edge.getDepthProfile()).isNotNull();
+                assertThat(edge.getDepthProfile().isComplete())
+                        .as(edge.getId() + " " + edge.getDepthProfile().getIssues())
+                        .isTrue();
+                assertThat(edge.getDepthProfile().getIssues()).as(edge.getId()).isEmpty();
                 assertThat(edge.getDepthProfile().getPoints()).hasSizeGreaterThanOrEqualTo(2);
             });
         });

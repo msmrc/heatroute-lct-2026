@@ -493,6 +493,9 @@ feature-by-feature preflight и инкрементально пишется `Jso
 
 - `OfficialDepthOptimizer` выполняет детерминированный поиск по глубинам 0,7 + n×0,5 м и сохраняет
   обычную отметку 3,0 м как допустимый уровень;
+- пересечения рядом с камерой могут начинаться на выбранной допустимой глубине, а соседние
+  пересечения одной глубины объединяются в непрерывный профиль без искусственного возврата на
+  3,0 м; на supplied dataset все участки всех трёх вариантов проходят depth validator;
 - `OfficialDepthCrossingExtractor` получает пикет пересечения из фактической JTS-геометрии, а не
   из текстового тега секции;
 - `OfficialDepthProfileValidator` независимо проверяет диапазон, уклон, плато, проход и зазор;
@@ -596,9 +599,9 @@ P0 считается завершённым только если одновр�
 
 15–16 сентября 2026 года проверено:
 
-- 107 локальных backend tests; pinned Java 11 CI, integration job и отдельный Ubuntu 22 full
+- 111 локальных backend tests; pinned Java 11 CI, integration job и отдельный Ubuntu 22 full
   2× topology run зелёные;
-- web lint/typecheck/production build, 15 Vitest tests и 4 теста локального replay API;
+- web lint/typecheck/production build/audit, 16 Vitest tests и 4 теста локального replay API;
 - официальный fixture: 144 объекта, 17 demand points, 204 tie-in candidates и три валидных
   obstacle-aware варианта;
 - strict seven-type output, independent validator, incremental download и official-output map;
@@ -621,3 +624,6 @@ supplied-geometry calculation уже воспроизводимы. Следую�
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.
 Повторная сверка технологий, внутреннего ТЗ, официальных документов и реального файла находится в
 `OFFICIAL_ALIGNMENT_AUDIT.md`.
+
+Передача разработки Артёму зафиксирована в `TOMORROW_HANDOFF.md`: там находятся точный локальный
+запуск без Docker, подтверждённые метрики официального расчёта и запреты на ложные P0-claims.

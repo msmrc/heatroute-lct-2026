@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.io.WKTReader;
@@ -60,6 +61,50 @@ class OfficialDepthPlannerTest {
 
         assertThat(result.getCrossings()).isEmpty();
         assertThat(result.getIssues()).isEmpty();
+    }
+
+    @Test
+    void appliesEndpointSnapToleranceWithoutHidingNearbyInteriorCrossing() throws Exception {
+        DepthCrossingExtraction snapped = extractor.extract(edge(), List.of(
+                feature("heat_network", "snapped", "LINESTRING (0.04 -10, 0.04 10)",
+                        "{\"diameter\":500}")));
+        DepthCrossingExtraction interior = extractor.extract(edge(), List.of(
+                feature("heat_network", "interior", "LINESTRING (0.06 -10, 0.06 10)",
+                        "{\"diameter\":500}")));
+
+        assertThat(snapped.getCrossings()).isEmpty();
+        assertThat(interior.getCrossings()).singleElement().satisfies(crossing ->
+                assertThat(crossing.getStationM()).isEqualByComparingTo("0.060"));
+    }
+
+    @Test
+    void ignoresLinearOverlapLeavingTieInButKeepsInteriorOverlap() throws Exception {
+        DepthCrossingExtraction tieIn = extractor.extract(edge(), List.of(
+                feature("heat_network", "target", "LINESTRING (0 0, 15 0)",
+                        "{\"diameter\":500}")), Set.of("target"));
+        DepthCrossingExtraction interior = extractor.extract(edge(), List.of(
+                feature("heat_network", "crossing", "LINESTRING (40 0, 50 0)",
+                        "{\"diameter\":500}")));
+
+        assertThat(tieIn.getCrossings()).isEmpty();
+        assertThat(tieIn.getIssues()).isEmpty();
+        assertThat(interior.getCrossings()).singleElement().satisfies(crossing -> {
+            assertThat(crossing.getId()).isEqualTo("crossing");
+            assertThat(crossing.getStationM()).isEqualByComparingTo("45.000");
+        });
+    }
+
+    @Test
+    void ignoresRoundedTieInEgressThatMeetsItsUtilityAfterTheEndpoint() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(feature(
+                "heat_network", "target", "LINESTRING (0 0.005, 10 0)", "{\"diameter\":500}"));
+        DepthCrossingExtraction ordinary = extractor.extract(edge(), features);
+        DepthCrossingExtraction excludedTieIn = extractor.extract(edge(), features, Set.of("target"));
+
+        assertThat(ordinary.getCrossings()).singleElement().satisfies(crossing ->
+                assertThat(crossing.getStationM()).isEqualByComparingTo("10.000"));
+        assertThat(excludedTieIn.getCrossings()).isEmpty();
+        assertThat(excludedTieIn.getIssues()).isEmpty();
     }
 
     @Test

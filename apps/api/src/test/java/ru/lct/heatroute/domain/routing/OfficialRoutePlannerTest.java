@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
+import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
@@ -120,7 +122,8 @@ class OfficialRoutePlannerTest {
 
         RouteVariant variant = planner.plan(
                 features,
-                topology(List.of(candidate("cp", "network", 100))))
+                topology(List.of(candidate("cp", "network", 100))),
+                new OfficialRunParameters(new BigDecimal("3.0"), new BigDecimal("3.0")))
                 .getVariants().get(0);
 
         assertThat(variant.getEdges()).singleElement().satisfies(edge -> {

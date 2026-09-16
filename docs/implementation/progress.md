@@ -345,6 +345,10 @@ and runtime services were removed. The frontend calls only the current official 
 - R8 — functionally complete for the published depth rules: utility crossings are projected to route chainage;
   the Java optimizer selects above/below passage on the official 0.5 m grid, creates 4 m
   plateaus and 0.10 m/m ramps, and an independent validator checks depth, slope and clearance.
+  Endpoint-adjacent crossings can retain a legal selected depth at a chamber, nearby crossings
+  at the same depth share one continuous profile, and tie-in egress along the connected utility
+  is not misclassified as an independent crossing. The official 17-demand dataset now produces
+  zero depth issues across every edge of all three variants.
   Every sized edge carries a depth profile; cost is integrated between profile breakpoints, strict
   GeoJSON exports technical nodes, `depth_start`/`depth_end` and exact XYZ axis coordinates, and
   the web workspace has a dedicated longitudinal-profile view. An impossible passage starts a

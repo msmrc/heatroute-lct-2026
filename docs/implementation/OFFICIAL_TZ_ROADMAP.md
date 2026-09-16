@@ -234,7 +234,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R3 | Функциональный vertical slice | Indexed large-network search, persisted selected tie-ins |
 | R4 | Функциональный obstacle-aware checkpoint + три стратегии + GIS | Performance, quality/diversity fixtures и persisted selected tie-ins |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
-| R6 | Search/final-validator integration для текущего покрытия | Полная positive/boundary/negative матрица каждой строки |
+| R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
 | R7 | Costs/score/rank + strict seven-type adapter/validator + incremental API | Official-output map source и acceptance arithmetic fixture из приложения |
 | R8 | Не начат, optional | Depth rerouting после P0 2D |
 | R9 | Не начат | Limits/load/Ubuntu 22/submission kit |
@@ -409,6 +409,12 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 - неверный угол дороги/трамвая блокируется;
 - границы special segment воспроизводимы;
 - разрешённый special crossing не позволяет пересечь посторонний запрещённый объект.
+
+**Статус:** обязательная 2D-матрица закрыта: точные значения каждой опубликованной строки и
+positive/boundary/negative поведение проверяются для четырёх запретов, трёх диапазонов отступа от
+ОКС, road/tram и трёх utility crossings. Ровно допустимый отступ считается валидным; проникновение
+на 0,01 м блокируется. `railway` остаётся отдельным консервативным compatibility-правилом до ответа
+организатора, а вертикальные глубины относятся к optional R8.
 
 ### R7 Стоимость, ранжирование и официальный экспорт
 

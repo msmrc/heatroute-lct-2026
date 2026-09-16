@@ -25,6 +25,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 @Component
 public class OfficialRouteGeometryRules {
     static final double EPSILON_M = 0.01;
+    private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
 
     private final OfficialConstraintCatalog catalog;
     private final OfficialCrossingGeometry crossingGeometry;
@@ -64,7 +65,12 @@ public class OfficialRouteGeometryRules {
                 BigDecimal clearance = "oks".equals(type)
                         ? catalog.existingBuildingClearanceM(diameter)
                         : rule.getHorizontalClearanceM();
-                blocked = source.buffer(clearance.doubleValue(), 4);
+                // Equality with the published minimum clearance is legal. Shrinking only by a
+                // numerical epsilon keeps the prepared-geometry fast path and excludes a pure
+                // tangential touch from the blocked region.
+                double blockedClearance = Math.max(
+                        0.0, clearance.doubleValue() - CLEARANCE_BOUNDARY_EPSILON_M);
+                blocked = source.buffer(blockedClearance, 4);
             }
             result.add(new Constraint(feature.getFeatureId(), type, source, blocked, rule));
         }
@@ -104,7 +110,7 @@ public class OfficialRouteGeometryRules {
         List<Constraint> result = new ArrayList<>();
         for (int index = 0; index < routes.size(); index++) {
             LineString route = routes.get(index);
-            Geometry blocked = route.buffer(0.20, 2);
+            Geometry blocked = route.buffer(0.20 - CLEARANCE_BOUNDARY_EPSILON_M, 2);
             result.add(new Constraint("accepted-route-" + index, "accepted_route", route, blocked, rule));
         }
         return result;

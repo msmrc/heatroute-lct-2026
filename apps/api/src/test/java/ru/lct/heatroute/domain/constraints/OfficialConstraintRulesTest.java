@@ -45,6 +45,19 @@ class OfficialConstraintRulesTest {
     }
 
     @Test
+    void preservesEveryPublishedTwoDimensionalConstraintRow() {
+        assertRule("park", true, "1.0", null, null, null, null, "1.00");
+        assertRule("social_area", true, "1.0", null, null, null, null, "1.00");
+        assertRule("prohibited_site", true, "1.0", null, null, null, null, "1.00");
+        assertRule("water", true, "1.0", null, null, null, null, "1.00");
+        assertRule("road", false, "1.5", null, "45", "3.0", "1.0", "1.60");
+        assertRule("tram_tracks", false, "1.5", null, "45", "3.0", "1.2", "1.75");
+        assertRule("gas_pipeline", false, "2.0", "0.2", null, "2.0", null, "1.25");
+        assertRule("power_cable", false, "2.0", "0.5", null, "2.0", null, "1.15");
+        assertRule("heat_network", false, "1.0", "0.5", null, "2.0", null, "1.05");
+    }
+
+    @Test
     void expandsSpecialSegmentByRequiredDistanceOnBothSides() throws Exception {
         LineString route = (LineString) reader.read("LINESTRING (0 0, 100 0)");
         org.locationtech.jts.geom.Geometry road = reader.read(
@@ -65,5 +78,36 @@ class OfficialConstraintRulesTest {
 
         assertThat(geometry.meetsMinimumAngle(exactly, utility, 45.0)).isTrue();
         assertThat(geometry.meetsMinimumAngle(below, utility, 45.0)).isFalse();
+    }
+
+    private void assertRule(
+            String type,
+            boolean forbidden,
+            String horizontal,
+            String vertical,
+            String angle,
+            String extension,
+            String minimumTop,
+            String multiplier) {
+        SpatialConstraintRule rule = catalog.find(type).orElseThrow();
+        assertThat(rule.isForbidden()).as(type + " forbidden").isEqualTo(forbidden);
+        assertDecimal(type, "horizontal", rule.getHorizontalClearanceM(), horizontal);
+        assertDecimal(type, "vertical", rule.getVerticalClearanceM(), vertical);
+        assertDecimal(type, "angle", rule.getMinimumCrossingAngleDegrees(), angle);
+        assertDecimal(type, "extension", rule.getSpecialExtensionM(), extension);
+        assertDecimal(type, "minimum top", rule.getMinimumTopBelowSurfaceM(), minimumTop);
+        assertDecimal(type, "multiplier", rule.getCostMultiplier(), multiplier);
+    }
+
+    private void assertDecimal(
+            String type,
+            String field,
+            java.math.BigDecimal actual,
+            String expected) {
+        if (expected == null) {
+            assertThat(actual).as(type + " " + field).isNull();
+        } else {
+            assertThat(actual).as(type + " " + field).isEqualByComparingTo(expected);
+        }
     }
 }

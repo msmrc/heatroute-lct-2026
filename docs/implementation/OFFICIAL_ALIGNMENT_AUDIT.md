@@ -123,8 +123,8 @@ scale limits remain open.
 
 ## Critical path to a valid submission
 
-1. **R6 acceptance:** complete the positive/boundary/negative matrix for every official rule and
-   profile the integrated search on denser geometry.
+1. **R4/R9 performance:** profile the integrated search on denser geometry and record reproducible
+   time/memory evidence; the published 2D R6 boundary matrix is now complete.
 2. **R7 complete variant:** drive the map from the validated seven-type model and reproduce the
    organizer appendix arithmetic example as a golden test.
 3. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then

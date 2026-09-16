@@ -22,8 +22,10 @@ R7 component costing и score уже интегрированы; поставл�
 whitelist/type/reference validator и download endpoint реализованы для contract-complete вариантов;
 для поставленного неполного файла endpoint честно отвечает `409 OFFICIAL_EXPORT_INCOMPLETE`.
 Экспорт проходит preflight-проверку и затем инкрементально пишется Jackson `JsonGenerator` без
-сборки полного output tree. Следующий критический этап — полная R6 boundary-матрица,
-визуализация официальной output-модели и R9 evidence.
+сборки полного output tree. Published 2D R6 rules закрыты exact-value и
+positive/boundary/negative matrix-тестами; касание границы допустимого отступа исправлено как
+валидное. Следующий критический этап — визуализация официальной output-модели, route-performance
+evidence и R9.
 Не публикуй текущие изменения на VPS без отдельной команды пользователя.
 
 Быстрая проверка состояния:

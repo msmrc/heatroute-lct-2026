@@ -171,6 +171,23 @@ and runtime services were removed. The frontend calls only the current official 
 - Verification: 63 Java tests and 12 web tests pass together with ESLint, TypeScript and the
   production Vite build.
 
+## R6 full 2D boundary matrix (local, not deployed)
+
+- Every published 2D constraint row now has exact-value coverage plus positive, exact-boundary and
+  negative behavior tests: park, social area, prohibited site, water, three OKS DU bands,
+  road/tram crossings and gas/power/independent-heat-network crossings.
+- A route exactly on the minimum-clearance buffer boundary is accepted, while a 0.01 m intrusion
+  is rejected. The previous prepared-geometry predicate treated legal tangential contact as a
+  violation; the blocked buffer now excludes only a 1 µm numerical boundary epsilon and retains
+  the indexed prepared-geometry search path.
+- Road and tram accept exactly 45° and reject just below it; their 3 m extensions produce a 6 m
+  special span around a linear crossing. Utility crossings produce the required 2+2 m span, and
+  the final validator rejects a crossing omitted from special sections.
+- `railway` is tested separately as the supplied-dataset compatibility rule (1.5 m forbidden
+  clearance), not represented as a published official row while organizer clarification is open.
+- Full backend verification: 69 tests, zero failures; the official dataset routing case retains
+  the prepared-geometry performance path.
+
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
@@ -185,9 +202,10 @@ and runtime services were removed. The frontend calls only the current official 
   continuous-length promotion, upstream propagation, partial/common-section reconstruction and
   chamber reconstruction are covered by focused tests. The supplied organizer file cannot produce
   reconstruction because its existing-network baseline and direction fields are absent.
-- R6 — functionally integrated for the current rule coverage: dynamic OKS buffers, hard forbidden
-  zones and reproducible special crossings participate in search and final validation. The full
-  positive/boundary/negative test matrix for every official table row remains acceptance work.
+- R6 — complete for the published mandatory 2D table: dynamic OKS buffers, hard forbidden zones,
+  special crossings and final validation have exact-value and positive/boundary/negative coverage.
+  The supplied `railway` alias remains conservative pending organizer clarification; vertical
+  depth rules belong to optional R8.
 - R7 — partial: full component costing, length totals, score/rank, strict seven-type adapter,
   independent output validator and incremental download are integrated. Appendix arithmetic golden
   evidence and official-output map rendering remain.
@@ -198,8 +216,7 @@ and runtime services were removed. The frontend calls only the current official 
 ## Next change
 
 Finish R7 by making the map consume the validated official model and adding the organizer appendix
-arithmetic golden. In parallel, close the remaining R6 per-rule boundary
-matrix and profile the obstacle search. Do not start
+arithmetic golden. Then profile the obstacle search on denser geometry. Do not start
 depth, MVT or additional file formats before the mandatory 2D gate.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.

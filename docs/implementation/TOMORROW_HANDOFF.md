@@ -69,7 +69,6 @@ Already usable:
 
 Still blocking official P0:
 
-- the complete positive/boundary/negative R6 matrix for every official table row;
 - large-network performance and broader route-quality/diversity evidence;
 - appendix arithmetic golden evidence and visualization of the official output model;
 - large-file/load/Ubuntu 22 acceptance evidence.
@@ -80,7 +79,9 @@ Continue from `domain/export`; do not replace the immutable run/job contract. R7
 length, score/rank, strict seven-type serialization, independent whitelist/type/reference
 validation, feature-by-feature preflight and incremental Jackson download are already integrated.
 Make the map consume the official output model and reproduce the appendix arithmetic example as a
-golden test. In parallel, finish the missing R6 row-by-row boundary matrix.
+golden test. Then profile the integrated route search on a denser in-code fixture. The published
+2D R6 row-by-row matrix is complete; do not fold unresolved `railway` semantics or optional depth
+into that claim.
 Do not mix optional depth, MVT or extra formats into this gate.
 
 ## PM: tasks tomorrow

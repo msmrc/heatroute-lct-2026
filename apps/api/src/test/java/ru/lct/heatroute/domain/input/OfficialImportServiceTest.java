@@ -2,14 +2,17 @@ package ru.lct.heatroute.domain.input;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
@@ -21,9 +24,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 class OfficialImportServiceTest {
     private final OfficialGeoJsonInspector inspector = mock(OfficialGeoJsonInspector.class);
-    private final OfficialFeatureLoader loader = mock(OfficialFeatureLoader.class);
+    private final OfficialImportPersistenceService persistenceService = mock(OfficialImportPersistenceService.class);
     private final OfficialImportRepository repository = mock(OfficialImportRepository.class);
-    private final OfficialImportService service = new OfficialImportService(inspector, loader, repository);
+    private final OfficialImportService service = new OfficialImportService(inspector, persistenceService, repository);
 
     @Test
     void returnsExistingImportForTheSameContractAndBytesWithoutReloadingFeatures() throws Exception {
@@ -42,7 +45,7 @@ class OfficialImportServiceTest {
         assertThat(result).isSameAs(existing);
         verify(repository, never()).insert(
                 any(UUID.class), anyString(), anyString(), eq((long) content.length), any(OfficialInputReport.class));
-        verify(loader, never()).load(any(UUID.class), any(InputStream.class));
+        verify(persistenceService, never()).loadAndMarkValid(any(UUID.class), any(MultipartFile.class), anyLong());
     }
 
     @Test
@@ -51,7 +54,7 @@ class OfficialImportServiceTest {
         MultipartFile file = mock(MultipartFile.class);
         OfficialInputReport report = report("race-sha");
         OfficialImportView winner = new OfficialImportView(
-                UUID.randomUUID(), "validating", "winner.geojson", content.length, OffsetDateTime.now(), report);
+                UUID.randomUUID(), "valid", "winner.geojson", content.length, OffsetDateTime.now(), report);
         when(file.getInputStream()).thenReturn(new ByteArrayInputStream(content));
         when(file.getSize()).thenReturn((long) content.length);
         when(inspector.inspect(any(InputStream.class))).thenReturn(report);
@@ -69,7 +72,49 @@ class OfficialImportServiceTest {
         OfficialImportView result = service.create(file, "race.geojson");
 
         assertThat(result).isSameAs(winner);
-        verify(loader, never()).load(any(UUID.class), any(InputStream.class));
+        verify(persistenceService, never()).loadAndMarkValid(any(UUID.class), any(MultipartFile.class), anyLong());
+    }
+
+    @Test
+    void waitsForAnAlreadyRegisteredImportToFinishWithoutInsertingAgain() throws Exception {
+        MultipartFile file = mock(MultipartFile.class);
+        OfficialInputReport report = report("in-flight-sha");
+        OfficialImportView validating = new OfficialImportView(
+                UUID.randomUUID(), "validating", "winner.geojson", 2, OffsetDateTime.now(), report);
+        OfficialImportView valid = new OfficialImportView(
+                validating.getId(), "valid", "winner.geojson", 2, validating.getCreatedAt(), report);
+        when(file.getInputStream()).thenReturn(new ByteArrayInputStream("{}".getBytes(StandardCharsets.UTF_8)));
+        when(inspector.inspect(any(InputStream.class))).thenReturn(report);
+        when(repository.findByContractAndHash(OfficialGeoJsonInspector.CONTRACT_VERSION, "in-flight-sha"))
+                .thenReturn(Optional.of(validating))
+                .thenReturn(Optional.of(valid));
+
+        OfficialImportView result = service.create(file, "duplicate.geojson");
+
+        assertThat(result).isSameAs(valid);
+        verify(repository, never()).insert(
+                any(UUID.class), anyString(), anyString(), anyLong(), any(OfficialInputReport.class));
+    }
+
+    @Test
+    void marksTheRegisteredImportFailedWhenFeaturePersistenceFails() throws Exception {
+        byte[] content = "{}".getBytes(StandardCharsets.UTF_8);
+        MultipartFile file = mock(MultipartFile.class);
+        OfficialInputReport report = report("failed-load-sha");
+        when(file.getInputStream()).thenReturn(new ByteArrayInputStream(content));
+        when(file.getSize()).thenReturn((long) content.length);
+        when(inspector.inspect(any(InputStream.class))).thenReturn(report);
+        when(repository.findByContractAndHash(OfficialGeoJsonInspector.CONTRACT_VERSION, "failed-load-sha"))
+                .thenReturn(Optional.empty());
+        when(repository.insert(any(UUID.class), eq("validating"), eq("broken.geojson"),
+                eq((long) content.length), eq(report))).thenReturn(true);
+        doThrow(new IOException("disk failure")).when(persistenceService)
+                .loadAndMarkValid(any(UUID.class), eq(file), eq(1L));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create(file, "broken.geojson"))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("disk failure");
+        verify(repository).markFailed(any(UUID.class));
     }
 
     private OfficialInputReport report(String sha256) {

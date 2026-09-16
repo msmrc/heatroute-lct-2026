@@ -67,6 +67,13 @@ public class OfficialImportRepository {
         }
     }
 
+    public void markFailed(UUID id) {
+        jdbcTemplate.update(
+                "UPDATE official_imports SET state = 'failed', completed_at = now(), updated_at = now() "
+                        + "WHERE id = ? AND state = 'validating'",
+                id);
+    }
+
     public Optional<OfficialImportView> find(UUID id) {
         List<OfficialImportView> rows = jdbcTemplate.query(
                 "SELECT id, state, original_filename, input_size_bytes, created_at, "

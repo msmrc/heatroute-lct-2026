@@ -52,6 +52,12 @@ springdoc:
   api-docs:
     path: /api/v1/openapi
 
+heatroute:
+  jobs:
+    concurrency: ${HEATROUTE_JOB_CONCURRENCY:2}
+    poll-delay-ms: ${HEATROUTE_JOB_POLL_DELAY_MS:500}
+    heartbeat-delay-ms: ${HEATROUTE_JOB_HEARTBEAT_DELAY_MS:60000}
+
 logging:
   pattern:
     console: '%d{yyyy-MM-dd''T''HH:mm:ss.SSSXXX} level=%p logger=%logger{36} thread=%thread message="%replace(%m){''[\r\n]'','' ''}"%n'

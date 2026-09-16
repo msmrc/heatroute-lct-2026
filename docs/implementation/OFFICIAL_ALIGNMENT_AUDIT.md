@@ -60,7 +60,7 @@ missing engineering values are fabricated.
 | Ubuntu Server 22 | Demo VPS uses Ubuntu 26.04 | Does not meet acceptance environment yet |
 | docker-compose 1.29.2 | Compose files are exercised only by a modern Compose implementation | Unproven; syntax must be rehearsed with 1.29.2 |
 | Upload to 3 GB and output to 500 MB | 3 GB multipart limits, streaming feature parsing and incremental validated output exist | Functional, no boundary evidence |
-| Up to 50 users | Hikari pool and durable jobs exist | Unproven; no load test and worker shares API JVM |
+| Up to 50 users | Hikari pool, durable queue, bounded 1–16 workers and lease heartbeat exist | Functional preparation; 50-user measurement still required |
 | One combined GeoJSON input | Implemented, persisted in WGS84 and EPSG:32637 | Meets for the supplied 233 KB file |
 
 JTS, Proj4J and PostGIS are appropriate supporting libraries for the required geometry. The

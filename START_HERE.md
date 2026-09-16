@@ -21,6 +21,8 @@ GeoJSON реконструкция честно недоступна из-за �
 сохраняет более быстрый linear prepared-geometry path; следующий обязательный gate — R2/R9 scale.
 Повтор того же файла в той же версии входного контракта возвращает существующий import по SHA-256;
 не удаляй unique invariant и не загружай идентичные features повторно.
+Расчётные jobs выполняются bounded executor-ом (default 2) с минутным heartbeat lease; R9 probes и
+правила интерпретации evidence находятся в `docs/operations/R9_ACCEPTANCE.md`.
 R7 component costing и score уже интегрированы; поставленный файл показывает только известную
 стоимость и не получает score без данных реконструкции. Строгий seven-type adapter, независимый
 whitelist/type/reference validator и download endpoint реализованы для contract-complete вариантов;

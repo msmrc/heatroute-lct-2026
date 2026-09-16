@@ -86,6 +86,9 @@ published 2D R6 row-by-row matrix is complete; do not fold unresolved `railway` 
 optional depth into that claim.
 Repeated imports are idempotent by `(contract_version, raw_sha256)` and concurrent duplicates are
 resolved by PostgreSQL `ON CONFLICT`; preserve this invariant in all future import changes.
+Job execution is bounded by `HEATROUTE_JOB_CONCURRENCY` (default 2, hard maximum 16) and active
+leases are renewed every minute. Use `docs/operations/R9_ACCEPTANCE.md` for scale evidence; do not
+call the probes themselves a pass until their generated measurements are archived.
 Do not mix optional depth, MVT or extra formats into this gate.
 
 ## PM: tasks tomorrow

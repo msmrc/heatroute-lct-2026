@@ -28,6 +28,7 @@ services:
       HEATROUTE_DATABASE_USER: ${POSTGRES_USER:-heatroute}
       HEATROUTE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-heatroute_dev_only}
       HEATROUTE_UPLOAD_TMP: /var/lib/heatroute/tmp
+      HEATROUTE_JOB_CONCURRENCY: ${HEATROUTE_JOB_CONCURRENCY:-2}
     ports:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${API_HOST_PORT:-8000}:8000"
     volumes:

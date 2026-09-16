@@ -85,6 +85,15 @@ public class OfficialJobRepository {
         return Boolean.TRUE.equals(value);
     }
 
+    public boolean renewLease(UUID id, UUID workerId) {
+        return jdbcTemplate.update(
+                "UPDATE official_jobs SET lease_until = now() + interval '5 minutes', "
+                        + "heartbeat_at = now(), updated_at = now() "
+                        + "WHERE id = ? AND state = 'running' AND lease_owner = ?",
+                id,
+                workerId) == 1;
+    }
+
     public void markCompleted(UUID id, JsonNode result) {
         terminalUpdate(
                 "UPDATE official_jobs SET state = 'completed', phase = 'completed', "

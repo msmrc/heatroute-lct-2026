@@ -229,7 +229,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | Этап | Статус | Остаток до gate |
 |---|---|---|
 | R0 | Закрыт | — |
-| R1 | Закрыт для текущего single-process контура | Вынести worker перед нагрузочным тестом |
+| R1 | Закрыт для bounded in-process worker contour | Отдельный process — только если потребуют R9 measurements |
 | R2 | Функционально закрыт, включая contract+SHA replay/dedup | 3 ГБ memory evidence и maximum-scale fixture |
 | R3 | Функциональный vertical slice | Persisted selected tie-ins и предельный scale evidence |
 | R4 | Obstacle-aware checkpoint + три стратегии + GIS + adaptive STRtree | End-to-end performance и broader quality/diversity evidence |
@@ -237,7 +237,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
 | R7 | Закрыт по нормативным 2D формулам, strict export/validator/API и official-output map | Scale evidence относится к R9 |
 | R8 | Не начат, optional | Depth rerouting после P0 2D |
-| R9 | Не начат | Limits/load/Ubuntu 22/submission kit |
+| R9 | Подготовлены bounded workers, heartbeat и probes | Выполнить и зафиксировать limits/load/Ubuntu 22 evidence |
 
 ## 8. Полный roadmap
 
@@ -574,7 +574,8 @@ P0 считается завершённым только если одновр�
 
 15–16 сентября 2026 года проверено:
 
-- pinned Java 11 CI, 71+ backend tests до replay-checkpoint и полный integration job;
+- 75 локальных backend tests; предыдущий pinned Java 11 CI и integration job зелёные, текущий
+  bounded-worker checkpoint ожидает отдельный CI run;
 - web lint/typecheck/production build и 13 Vitest tests;
 - официальный fixture: 144 объекта, 17 demand points, 204 tie-in candidates и три валидных
   obstacle-aware варианта;

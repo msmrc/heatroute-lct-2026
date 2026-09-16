@@ -3,9 +3,15 @@ package ru.lct.heatroute.domain.job;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.routing.OfficialCalculationResult;
@@ -23,24 +29,65 @@ public class OfficialJobWorker {
     private final OfficialCalculationService calculationService;
     private final OfficialRunRepository runRepository;
     private final ObjectMapper objectMapper;
+    private final TaskExecutor taskExecutor;
+    private final Semaphore availableSlots;
+    private final Set<UUID> activeJobs = ConcurrentHashMap.newKeySet();
 
     public OfficialJobWorker(
             OfficialJobRepository repository,
             TopologyAnalysisService topologyAnalysisService,
             OfficialCalculationService calculationService,
             OfficialRunRepository runRepository,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Qualifier("officialJobTaskExecutor") TaskExecutor taskExecutor,
+            @Value("${heatroute.jobs.concurrency:2}") int concurrency) {
         this.repository = repository;
         this.topologyAnalysisService = topologyAnalysisService;
         this.calculationService = calculationService;
         this.runRepository = runRepository;
         this.objectMapper = objectMapper;
+        this.taskExecutor = taskExecutor;
+        this.availableSlots = new Semaphore(Math.max(1, Math.min(concurrency, 16)));
     }
 
     @Scheduled(fixedDelayString = "${heatroute.jobs.poll-delay-ms:500}")
     public void poll() {
+        if (!availableSlots.tryAcquire()) {
+            return;
+        }
         Optional<OfficialJobView> claimed = repository.claimNext(workerId);
-        claimed.ifPresent(this::execute);
+        if (claimed.isEmpty()) {
+            availableSlots.release();
+            return;
+        }
+        OfficialJobView job = claimed.get();
+        activeJobs.add(job.getId());
+        try {
+            taskExecutor.execute(() -> executeClaimed(job));
+        } catch (RuntimeException exception) {
+            activeJobs.remove(job.getId());
+            availableSlots.release();
+            repository.markFailed(job.getId(), "WORKER_SATURATED", "Worker could not start the claimed job");
+            throw exception;
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${heatroute.jobs.heartbeat-delay-ms:60000}")
+    public void heartbeat() {
+        for (UUID jobId : activeJobs) {
+            if (!repository.renewLease(jobId, workerId)) {
+                LOGGER.warn("Official job lease could not be renewed job_id={}", jobId);
+            }
+        }
+    }
+
+    private void executeClaimed(OfficialJobView job) {
+        try {
+            execute(job);
+        } finally {
+            activeJobs.remove(job.getId());
+            availableSlots.release();
+        }
     }
 
     private void execute(OfficialJobView job) {

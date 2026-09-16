@@ -168,7 +168,7 @@ and runtime services were removed. The frontend calls only the current official 
   same strict output types used by download. `variant_summary` is correctly omitted from spatial
   layers. The internal nodes/edges conversion remains only as a preview fallback for the supplied
   incomplete dataset or a transient official-layer request failure.
-- Current verification after the dense-index checkpoint: 71 Java tests and 13 web tests, ESLint,
+- Current verification after the bounded-worker checkpoint: 75 Java tests and 13 web tests, ESLint,
   TypeScript, production build and local browser smoke all pass.
 - Export performs a feature-by-feature preflight and then writes with Jackson `JsonGenerator`; the
   full output tree is not retained. The all-seven-type fixture includes existing-chamber
@@ -190,7 +190,7 @@ and runtime services were removed. The frontend calls only the current official 
   the final validator rejects a crossing omitted from special sections.
 - `railway` is tested separately as the supplied-dataset compatibility rule (1.5 m forbidden
   clearance), not represented as a published official row while organizer clarification is open.
-- Full backend verification: 71 tests, zero failures; the official dataset routing case retains
+- Full backend verification: 75 tests, zero failures; the official dataset routing case retains
   the prepared-geometry performance path.
 
 ## R4 dense-geometry lookup checkpoint (local, not deployed)
@@ -212,6 +212,18 @@ and runtime services were removed. The frontend calls only the current official 
   `INSERT ... ON CONFLICT DO NOTHING` resolves concurrent uploads without a check-then-insert race.
 - Unit coverage proves both an ordinary replay and the concurrent-conflict winner path. Maximum
   3 GB memory evidence remains an R2/R9 gate and is not implied by this checkpoint.
+
+## R9 bounded-worker preparation (local, not deployed)
+
+- Durable jobs no longer depend on one unbounded synchronous scheduler call. A dedicated executor
+  runs a configurable, hard-clamped 1–16 calculations (default 2), while PostgreSQL `SKIP LOCKED`
+  remains the only claim authority.
+- Active jobs renew their five-minute lease every minute. Tests prove the concurrency bound and
+  heartbeat behavior, preventing a long calculation from being reclaimed and executed twice.
+- `scripts/r9-generate-byte-boundary.mjs` and `scripts/r9-concurrency.mjs` provide reproducible
+  3 GiB transport and 50-user probes; `docs/operations/R9_ACCEPTANCE.md` states exactly what each
+  probe proves and what evidence is still missing. The scripts have not yet been run as acceptance
+  evidence.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -19,9 +21,14 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.core.task.SyncTaskExecutor;
 import ru.lct.heatroute.domain.routing.OfficialCalculationService;
 import ru.lct.heatroute.domain.routing.OfficialCalculationResult;
+import ru.lct.heatroute.domain.routing.RouteConnection;
+import ru.lct.heatroute.domain.routing.RouteCoordinate;
+import ru.lct.heatroute.domain.routing.RouteNode;
+import ru.lct.heatroute.domain.routing.RouteVariant;
 import ru.lct.heatroute.domain.run.OfficialRunRepository;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 import ru.lct.heatroute.domain.topology.TopologyAnalysisService;
@@ -36,7 +43,7 @@ class OfficialJobWorkerTest {
             topologyService,
             calculationService,
             runRepository,
-            new ObjectMapper(),
+            new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE),
             new SyncTaskExecutor(),
             1);
 
@@ -80,6 +87,47 @@ class OfficialJobWorkerTest {
         verify(runRepository).markRunning(runId);
         verify(runRepository).markCompleted(eq(runId), isA(JsonNode.class));
         verify(repository).markCompleted(eq(job.getId()), isA(JsonNode.class));
+    }
+
+    @Test
+    void persistsTheSelectedTieInTargetInsideTheImmutableRunResult() {
+        UUID runId = UUID.randomUUID();
+        OfficialJobView job = runningJob("calculation", runId);
+        RouteNode tieIn = new RouteNode(
+                "tie-in-1",
+                "new_tie_in_chamber",
+                new RouteCoordinate(413_000, 6_181_000),
+                true,
+                true,
+                2,
+                "heat-network-42");
+        RouteVariant variant = new RouteVariant(
+                "shared",
+                "shared_trunk",
+                List.of(tieIn),
+                List.of(),
+                List.of(new RouteConnection(
+                        "oks-1", "connection-1", BigDecimal.ONE, "connected", null)),
+                BigDecimal.ZERO,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                1);
+        OfficialCalculationResult result = new OfficialCalculationResult(
+                "r4-test", 1, List.of(variant), "shared");
+        when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
+        when(repository.isCancellationRequested(job.getId())).thenReturn(false);
+        when(calculationService.calculate(job.getImportId())).thenReturn(result);
+
+        worker.poll();
+
+        ArgumentCaptor<JsonNode> persisted = ArgumentCaptor.forClass(JsonNode.class);
+        verify(runRepository).markCompleted(eq(runId), persisted.capture());
+        JsonNode stored = persisted.getValue();
+        assertThat(stored.path("preferred_variant_id").asText()).isEqualTo("shared");
+        assertThat(stored.path("variants").path(0).path("nodes").path(0).path("target_id").asText())
+                .isEqualTo("heat-network-42");
     }
 
     @Test

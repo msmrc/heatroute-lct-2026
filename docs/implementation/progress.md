@@ -256,11 +256,11 @@ and runtime services were removed. The frontend calls only the current official 
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
 - R2 — functionally implemented for the current contract fixture, including deterministic
-  contract+SHA replay/deduplication; large-file memory measurement and broader official-like
-  fixtures remain acceptance work.
-- R3 — functional vertical slice: topology validation, chamber rule, deterministic candidates,
-  line splitting and adaptive dense-constraint lookup. Persistence of selected tie-ins and
-  maximum-scale evidence remain.
+  contract+SHA replay/deduplication and the exact 3 GiB streaming boundary; broader
+  geometry-representative fixtures remain acceptance work.
+- R3 — functionally complete: topology validation, chamber rule, deterministic candidates, line
+  splitting and adaptive dense-constraint lookup. Selected tie-in target IDs are part of every
+  immutable variant and persisted in the run JSON; maximum-scale evidence belongs to R9.
 - R4 — functional obstacle-aware checkpoint: immutable all-demand runs, independent/shared/diverse
   strategies, actual polyline search, simplification, partial no-route, an independent validator
   and GIS/result viewer. Dense constraint lookup is indexed; end-to-end maximum-scale performance

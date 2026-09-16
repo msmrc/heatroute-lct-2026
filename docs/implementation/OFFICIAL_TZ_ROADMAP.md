@@ -235,7 +235,7 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 | R0 | Закрыт | — |
 | R1 | Закрыт для bounded in-process worker contour | Отдельный process — только если потребуют R9 measurements |
 | R2 | Функционально закрыт, включая contract+SHA replay/dedup и 3 GiB byte boundary | Geometry-representative maximum-scale fixture |
-| R3 | Функциональный vertical slice | Persisted selected tie-ins и предельный scale evidence |
+| R3 | Закрыт: topology, candidates, split и persisted selected tie-in targets | Scale evidence относится к R9 |
 | R4 | Obstacle-aware checkpoint + три стратегии + GIS + adaptive STRtree | End-to-end performance и broader quality/diversity evidence |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |

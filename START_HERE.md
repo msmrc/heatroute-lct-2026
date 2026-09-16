@@ -25,6 +25,8 @@ GeoJSON реконструкция честно недоступна из-за �
 правила интерпретации evidence находятся в `docs/operations/R9_ACCEPTANCE.md`.
 Clean Ubuntu 22 + checksum-pinned docker-compose 1.29.2 проверяется CI; локальный/VPS deployment
 не выполнять без отдельной команды пользователя.
+3 GiB parser evidence и границы его применимости находятся в
+`docs/implementation/R9_INPUT_SCALE_EVIDENCE.md`; не выдавай byte-padding probe за topology scale.
 R7 component costing и score уже интегрированы; поставленный файл показывает только известную
 стоимость и не получает score без данных реконструкции. Строгий seven-type adapter, независимый
 whitelist/type/reference validator и download endpoint реализованы для contract-complete вариантов;

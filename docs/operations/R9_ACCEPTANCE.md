@@ -4,6 +4,10 @@ These probes create evidence; their existence is not evidence that the acceptanc
 Run them only against a clean candidate release and keep the generated JSON, `/usr/bin/time -v`
 output, container stats and exact commit SHA together.
 
+For the repeatable Java 11 parser boundary, dispatch the manual GitHub Actions workflow
+`r9-scale`; it generates the same 3 GiB file on Ubuntu 22 and preserves the measurement log without
+uploading the large fixture as an artifact.
+
 ## 3 GiB streaming boundary
 
 Generate the byte-boundary fixture on a volume with at least 4 GiB free. The generated file keeps

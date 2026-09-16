@@ -234,6 +234,9 @@ and runtime services were removed. The frontend calls only the current official 
   stopped the stack cleanly. VPS deployment remains intentionally unchanged.
 - A restart-recovery assertion is now part of the same gate and must read the completed 17-demand
   run after restarting the API container. Its first result will be recorded by the next CI run.
+- Local 3 GiB parser preflight on commit `915d42f` passed under `-Xmx512m`: 4,308 ms and
+  42,005,872 bytes reported peak heap. This is recorded in `R9_INPUT_SCALE_EVIDENCE.md`; the manual
+  Java 11/Ubuntu 22 workflow still needs its first successful run.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

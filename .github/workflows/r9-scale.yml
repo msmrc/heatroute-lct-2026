@@ -1,0 +1,51 @@
+name: r9-scale
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  input-3gib:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "11"
+          cache: maven
+          cache-dependency-path: apps/api/pom.xml
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.15.0
+      - name: Generate exact 3 GiB streaming fixture
+        run: |
+          node scripts/r9-generate-byte-boundary.mjs \
+            --source=datasets/official/lct-2026.geojson \
+            --output=/tmp/heatroute-r9/official-3gib.geojson \
+            --bytes=3221225472 | tee /tmp/heatroute-r9/generator.json
+      - name: Inspect 3 GiB with Java 11 and 512 MiB heap
+        working-directory: apps/api
+        run: |
+          set -o pipefail
+          mkdir -p ../../artifacts
+          { /usr/bin/time -v mvn --batch-mode --no-transfer-progress \
+              -DargLine=-Xmx512m \
+              -Dheatroute.scale.input=/tmp/heatroute-r9/official-3gib.geojson \
+              -Dheatroute.scale.expectedBytes=3221225472 \
+              '-Dtest=OfficialGeoJsonInspectorTest#streamsOptInByteBoundaryFixtureWithinTheConfiguredHeap' \
+              test; } 2>&1 | tee ../../artifacts/r9-input-3gib-java11.log
+      - name: Preserve measurement log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r9-input-3gib-java11-${{ github.sha }}
+          path: artifacts/r9-input-3gib-java11.log
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove generated fixture
+        if: always()
+        run: rm -f /tmp/heatroute-r9/official-3gib.geojson

@@ -2,6 +2,8 @@ package ru.lct.heatroute.domain.export;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static ru.lct.heatroute.contract.ContractSchemaSupport.load;
+import static ru.lct.heatroute.contract.ContractSchemaSupport.validate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,6 +69,7 @@ class OfficialGeoJsonExporterTest {
         ObjectNode output = exporter.export(objectMapper.valueToTree(result), features);
 
         assertThat(validator.validate(output)).isEmpty();
+        assertThat(validate(load("lct-2026-output.schema.json"), output)).isEmpty();
         Set<String> types = StreamSupport.stream(output.path("features").spliterator(), false)
                 .map(feature -> feature.path("properties").path("object_type").asText())
                 .collect(Collectors.toSet());

@@ -5,8 +5,9 @@
 **Последнее обновление:** 16 сентября 2026 года
 **Главный вывод:** backend и эксплуатационный контур переведены на Java, а обязательная 2D
 multi-OKS логика R4–R7 закрыта на contract-complete fixtures. R9 подтверждает чистый Ubuntu 22 /
-Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent API users; до сдачи остаётся
-представительная maximum-topology приёмка. Статусы старых M0–M7 относятся к удалённому прототипу.
+Compose 1.29.2, граничные размеры 3 GiB/500 MiB, 50 concurrent API users и полный 2× topology
+расчёт. Внешним остатком остаётся согласование hidden maximum-профиля. Статусы старых M0–M7
+относятся к удалённому прототипу.
 
 ## 1. Для чего нужен этот документ
 
@@ -49,7 +50,8 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 
 Платформенный блокер устранён, а главная 2D-логика совместного подключения, реконструкции,
 стоимости и экспорта реализована и проверяется contract-complete fixtures. Проект ещё нельзя
-считать готовым к сдаче без оставшейся R9-приёмки и ответов организатора по неполному датасету.
+считать безусловно готовым к сдаче без ответов организатора по неполному датасету и hidden
+maximum-профилю; внутренние R9 gates пройдены.
 
 ### 2.2. Что можно сохранить
 
@@ -90,8 +92,8 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 Текущий Java-контур строит три obstacle-aware стратегии для всех перспективных ОКС, сохраняет
 частичный результат при `no_route`, независимо проверяет готовые полилинии, считает bottom-up
 расход/ДУ, распространяет добавленный расход до источника и определяет реконструкцию участков и
-камер. Следующий обязательный блок — измеренная R9-приёмка на параллельной и representative-scale
-нагрузке без подмены отсутствующих полей организаторского файла.
+камер. Измеренная R9-приёмка закрывает параллельный API и полный 2× supplied-geometry профиль без
+подмены отсутствующих полей организаторского файла.
 
 Минимальный официальный pipeline должен выглядеть так:
 
@@ -117,11 +119,11 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 | Развёртывание | Java API + PostGIS + web + Caddy; Compose 3.8 | Ubuntu Server 22, docker-compose 1.29.2 | Clean Ubuntu 22 + Compose 1.29.2 CI прошёл; VPS не обновлялся | P0 |
 | Вход | Потоковый GeoJSON, строгий и supplied-dataset compatibility profiles, PostGIS | Официальный контракт, до 3 ГБ | Новый файл поддержан; exact 3 GiB streaming boundary passed on Java 11 | P0 |
 | Расчётная CRS | WGS84 + EPSG:32637 при импорте | Фиксированная EPSG:32637 для метров | Закрыто для импорта | P0 |
-| Объём запуска | Все 17 ОКС переданного набора обрабатываются одним immutable run | Все `oks_future` за один запуск | Функционально реализовано; нужен масштабный evidence | P0 |
+| Объём запуска | Все 17 ОКС и 34 ОКС в 2× gate обрабатываются одним immutable run | Все `oks_future` за один запуск | Реализовано и измерено | P0 |
 | Врезки | R3 candidates используются R4 planner; разные стратегии выбирают разные подключения | Автоматический поиск и выбор | Функционально реализовано | P0 |
-| Совместное подключение | Independent/shared/diverse деревья, общие участки и partial no-route | Общие участки, разделение потоков, отдельные подключения | Функциональный checkpoint; нужна расширенная quality-приёмка | P0 |
+| Совместное подключение | Independent/shared/diverse деревья, общие участки и partial no-route | Общие участки, разделение потоков, отдельные подключения | Реализовано, независимо проверено и измерено | P0 |
 | Камеры | Явные route nodes и независимый validator | Разветвления только в камерах, максимум четыре примыкающих участка | Реализовано и покрыто тестами | P0 |
-| Геометрия | JTS visibility search, adaptive STRtree, buffered constraints, shortcut normalization и final validation | Прямые рациональные участки, отсутствие зигзагов и пересечений вне узлов | Функционально; нужна предельная performance-приёмка | P0 |
+| Геометрия | JTS visibility search, adaptive STRtree, buffered constraints, shortcut normalization и final validation | Прямые рациональные участки, отсутствие зигзагов и пересечений вне узлов | Реализовано; 2× performance gate пройден | P0 |
 | Расходы | Bottom-up sizing подключён к принятым деревьям R4 | Сумма `flow_tph` подключённых через участок ОКС | Реализовано для новой сети | P0 |
 | Диаметры | Официальный Java-каталог назначает DU каждому рассчитанному и реконструируемому участку | Точная таблица из 18 ДУ | Реализовано | P0 |
 | Предельная длина | Bottom-up sizing автоматически повышает DU с непрерывным same-DU tracking | Сброс только при смене ДУ | Реализовано и покрыто всеми границами каталога | P0 |
@@ -131,11 +133,11 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 | Стоимость | Версионируемый официальный каталог | Ставки по ДУ, камеры, врезки, реконструкция, штрафы | Реализовано; appendix golden зафиксирован | P0 |
 | Ранжирование | Официальный score и deterministic rank | `S = 0,7 * C/25 000 000 + 0,3 * L/100` | Реализовано | P0 |
 | Неподключённые ОКС | Partial result, ID/reason и официальный penalty | Частичный результат, список ID и штраф по каждому ОКС | Реализовано | P0 |
-| Выход | Строгий adapter/validator и incremental download | Семь официальных `object_type` и строгие поля без лишних `null` | Реализовано; scale evidence остаётся | P0 |
+| Выход | Строгий adapter/validator, published JSON Schema и incremental download | Семь официальных `object_type` и строгие поля без лишних `null` | Реализовано и проверено | P0 |
 | Глубина | Автоматический профиль каждого рассчитанного участка | Отдельная перетрассировка с выбором глубины и возможным изменением XY | Реализовано: solver, validator, XY feedback, piecewise cost, technical nodes, XYZ и UI | P1/бонус |
-| Большие файлы | Streaming parser и incremental strict writer | Вход 3 ГБ и выход 500 МБ без whole-file heap | Exact 3 GiB / ≥500 MiB probes прошли с `-Xmx512m`; representative topology scale открыт | P0 |
-| Нагрузка | Bounded workers, heartbeat, contract+SHA dedup и воспроизводимый probe | До 50 пользователей | 50 concurrent API sessions measured; heavy-run interpretation открыт | P0 |
-| Документация | Хорошие внутренние evidence и README | Конкурсное описание алгоритма, no-route, выхода, глубины и границ | Требует переписывания | P0 |
+| Большие файлы | Streaming parser и incremental strict writer | Вход 3 ГБ и выход 500 МБ без whole-file heap | Exact 3 GiB / ≥500 MiB и 2× topology прошли | P0 |
+| Нагрузка | Bounded workers, heartbeat, contract+SHA dedup и воспроизводимый probe | До 50 пользователей | 50 concurrent API sessions measured; граница тяжёлых jobs явно документирована | P0 |
+| Документация | Submission brief, demo, algorithm, acceptance, evidence и JSON Schema | Конкурсное описание алгоритма, no-route, выхода, глубины и границ | Закрыто и синхронизировано | P0 |
 
 ## 5. Обязательный официальный контракт
 
@@ -235,11 +237,11 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 | R0 | Закрыт | — |
 | R1 | Закрыт для bounded in-process worker contour | Отдельный process — только если потребуют R9 measurements |
 | R2 | Функционально закрыт, включая contract+SHA replay/dedup, 3 GiB boundary и full 2× topology gate | Organizer-approved maximum profile |
-| R3 | Закрыт: topology, candidates, split и persisted selected tie-in targets | Scale evidence относится к R9 |
-| R4 | Obstacle-aware checkpoint + три стратегии + GIS + adaptive STRtree | End-to-end performance и broader quality/diversity evidence |
+| R3 | Закрыт: topology, candidates, split и persisted selected tie-in targets | — |
+| R4 | Закрыт: obstacle-aware routing, три стратегии, GIS, adaptive STRtree и независимая validation | Hidden maximum profile остаётся внешним |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
-| R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
-| R7 | Закрыт по нормативным 2D формулам, strict export/validator/API и official-output map | Scale evidence относится к R9 |
+| R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification |
+| R7 | Закрыт по нормативным 2D формулам, strict export/validator/API, JSON Schema и official-output map | — |
 | R8 | Функционально закрыт по опубликованным правилам: immutable depth parameters, solver/validator, separate XY detour, piecewise cost, technical nodes, XYZ и UI | `railway` зависит от разъяснения |
 | R9 | Ubuntu 22/Compose 1.29.2, restart recovery, 3 GiB input, 500 MiB output, 50-user API и full 2× topology gates автоматизированы | Organizer-approved maximum profile и production-like host evidence |
 
@@ -594,7 +596,7 @@ P0 считается завершённым только если одновр�
 
 15–16 сентября 2026 года проверено:
 
-- 99 локальных backend tests; pinned Java 11 CI, integration job и отдельный Ubuntu 22 full
+- 105 локальных backend tests; pinned Java 11 CI, integration job и отдельный Ubuntu 22 full
   2× topology run зелёные;
 - web lint/typecheck/production build и 13 Vitest tests;
 - официальный fixture: 144 объекта, 17 demand points, 204 tie-in candidates и три валидных

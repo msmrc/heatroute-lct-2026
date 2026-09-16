@@ -61,6 +61,18 @@ export function SystemInfoPage() {
             <span><strong>Swagger API</strong><small>Интерактивная документация сервиса</small></span>
             <ExternalLink size={17} />
           </a>
+          <a href="/api/v1/official/contracts/input.schema.json" target="_blank" rel="noreferrer">
+            <span><strong>Схема исходных данных</strong><small>Строгий официальный входной GeoJSON</small></span>
+            <ExternalLink size={17} />
+          </a>
+          <a href="/api/v1/official/contracts/provided-dataset.schema.json" target="_blank" rel="noreferrer">
+            <span><strong>Схема набора постановщика</strong><small>Явный профиль совместимости переданного файла</small></span>
+            <ExternalLink size={17} />
+          </a>
+          <a href="/api/v1/official/contracts/output.schema.json" target="_blank" rel="noreferrer">
+            <span><strong>Схема результата</strong><small>Проверяемый семитиповый GeoJSON</small></span>
+            <ExternalLink size={17} />
+          </a>
         </Card>
       </section>
 

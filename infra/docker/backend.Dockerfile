@@ -5,6 +5,7 @@ COPY apps/api/pom.xml ./pom.xml
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline
 COPY apps/api/src ./src
 COPY datasets/official /datasets/official
+COPY docs/contracts /docs/contracts
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp verify
 
 FROM eclipse-temurin:11.0.28_6-jre-alpine@sha256:6cde7e6ae3c23c3636f3fb4b92836d1323c13929d9ee27da1885cc231c086101

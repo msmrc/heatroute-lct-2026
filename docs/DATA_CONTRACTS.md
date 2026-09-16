@@ -26,6 +26,11 @@ explicit `provided_dataset_compatibility` profile: numeric IDs are normalized, c
 carry their own demand, and missing existing-network reconstruction fields are warnings. No
 missing engineering value is silently invented. See `implementation/SUPPLIED_DATASET_AUDIT.md`.
 
+The machine-readable Draft 2020-12 contracts are versioned in `docs/contracts`. The strict input,
+the explicitly separate supplied-dataset compatibility profile and the strict output are compiled
+by a standards-compliant validator in CI. JSON Schema covers per-feature shape and scalar rules;
+the streaming Java validators additionally enforce uniqueness, references, topology and totals.
+
 ## Current Java API
 
 - `GET /api/v1/health/live`
@@ -46,7 +51,10 @@ returned with every run, so a queued calculation is reproducible across worker r
 application rejects a search maximum above 50.0 m to keep the 0.5 m candidate grid bounded.
 - `GET /api/v1/official/runs/{id}`
 - `GET /api/v1/official/runs/{id}/export`
-- `/swagger-ui.html` and `/v3/api-docs`
+- `GET /api/v1/official/contracts/input.schema.json`
+- `GET /api/v1/official/contracts/provided-dataset.schema.json`
+- `GET /api/v1/official/contracts/output.schema.json`
+- `/api/v1/swagger-ui.html` and `/api/v1/openapi`
 
 ## Required output
 
@@ -83,6 +91,6 @@ omitting it downloads every ranked alternative in one FeatureCollection.
 - Input inspection is streaming. Export performs a feature-by-feature preflight contract pass and
   then writes the FeatureCollection incrementally with Jackson `JsonGenerator`; the complete output
   tree is not retained. Clean Ubuntu 22 / Java 11 probes reached exactly 3 GiB input and at least
-  500 MiB valid output under a 512 MiB heap cap; geometry-complex maximum-topology evidence remains
-  a separate R9 item.
+  500 MiB valid output under a 512 MiB heap cap. A full doubled supplied-geometry calculation also
+  passes on clean Ubuntu 22 / Java 11 with 34/34 demands connected.
 - Every result records input SHA-256, contract/catalog/algorithm versions and assumptions.

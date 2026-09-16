@@ -12,7 +12,8 @@ internal specification describes the contest problem. For contract-complete inpu
 reconstruction, restrictions, cost/rank, strict seven-type output and map rendering. Exact 3 GiB
 input and 500 MiB output byte boundaries pass on clean Ubuntu 22 / Java 11, and the complete stack
 is rehearsed there with docker-compose 1.29.2; 50 concurrent public API sessions also pass.
-Representative maximum-topology acceptance evidence remains. The supplied organizer file itself cannot prove
+The project-defined doubled supplied-geometry topology gate also passes on the final SHA; the
+organizer still has to approve whether that profile is representative of the hidden maximum. The supplied organizer file itself cannot prove
 reconstruction or official export because it omits the required existing-network baseline and
 direction fields; the product exposes that incompleteness instead of fabricating values.
 
@@ -60,7 +61,7 @@ missing engineering values are fabricated.
 | PostgreSQL up to 18 or OpenSearch up to 2.18 | PostgreSQL 17 with PostGIS 3.5 | Meets |
 | Ubuntu Server 22 | Clean `ubuntu-22.04` CI builds and runs the complete stack; demo VPS remains 26.04 and unchanged | Meets in CI; production-like host rehearsal remains |
 | docker-compose 1.29.2 | Checksum-pinned v1.29.2 validates, builds, starts and stops the integration stack | Meets in clean CI |
-| Upload to 3 GB and output to 500 MB | Streaming parser and incremental validated writer pass exact 3 GiB / ≥500 MiB probes with `-Xmx512m` on Java 11 | Byte boundary meets; representative full-calculation topology scale remains |
+| Upload to 3 GB and output to 500 MB | Streaming parser and incremental validated writer pass exact 3 GiB / ≥500 MiB probes with `-Xmx512m` on Java 11 | Byte boundary and full 2× calculation gates meet; hidden maximum remains external |
 | Up to 50 users | 50 concurrent imports pass on clean stack; Hikari, bounded 1–16 workers and lease heartbeat protect calculations | API-session gate meets; 50 heavy queued calculations need organizer interpretation |
 | One combined GeoJSON input | Implemented, persisted in WGS84 and EPSG:32637 | Meets for the supplied 233 KB file |
 
@@ -79,8 +80,8 @@ Remaining documentation/acceptance drift:
 
 - historical M-stage evidence describes a removed Python prototype and is not acceptance proof;
 - the internal strict input model is faithful to the appendix but not to the supplied file;
-- the output contract is enforced by an independent exact whitelist/type/reference validator and
-  golden all-seven-type fixtures; a separately published JSON Schema remains a submission-kit task;
+- strict input, supplied-dataset compatibility and output contracts are published as Draft 2020-12
+  JSON Schema, served by the Java API and checked against the real file and actual exporter output;
 - optional hydraulics, MVT, Shapefile and GeoParquet work from the old prototype is outside the
   mandatory contest path and must not displace R4-R7.
 
@@ -99,7 +100,7 @@ Remaining documentation/acceptance drift:
 | Official output | Strict seven-type adapter, independent validator, incremental download and map consumer | 90% |
 | UI | Map-first viewer renders official output when available and an explicit internal preview for incomplete input | 85% |
 | Depth bonus | Geometry-based search, independent validation, separate XY detour, piecewise cost, technical nodes, exact XYZ and longitudinal UI are integrated | 95% |
-| Scale and acceptance | Clean Ubuntu 22 / Compose 1.29.2 and restart gate, exact 3 GiB input, ≥500 MiB valid output and 50 concurrent API users pass | 80% |
+| Scale and acceptance | Clean Ubuntu 22 / Compose 1.29.2 and restart gate, exact 3 GiB input, ≥500 MiB valid output, 50 concurrent API users and full 2× topology pass | 90% |
 
 ## What is already proven on the supplied data
 
@@ -118,8 +119,8 @@ network omits flow and upstream direction. Exact component costing is integrated
 seven-type adapter and validator pass on contract-complete inline fixtures, while the supplied file
 correctly receives `OFFICIAL_EXPORT_INCOMPLETE`. Export generation now uses a feature-by-feature
 preflight plus incremental Jackson writer. Complete variants are rendered from that same official
-output contract. The normative appendix arithmetic is locked by a golden test; only the required
-scale/environment evidence remains open.
+output contract. The normative appendix arithmetic is locked by a golden test. Internal
+scale/environment gates are closed; only organizer approval of the hidden maximum profile remains external.
 
 ## Critical path to a valid submission
 

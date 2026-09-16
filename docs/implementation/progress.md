@@ -254,20 +254,26 @@ and runtime services were removed. The frontend calls only the current official 
 - Final checkpoint run `35113595198` passed all Java 11, web and integration gates after adding the
   selected-tie-in persistence regression; it repeated the 50-user race, all-demand calculation and
   restart recovery successfully.
+- Final depth/scale checkpoint run `35120982320` passes backend, web and clean integration gates;
+  Java 11 run `35120995991` repeats the full 2× calculation in 2:14.65 with 406,608 KiB peak RSS,
+  34/34 demands connected and three valid variants.
+- Draft 2020-12 schemas for strict input, the supplied-dataset compatibility profile and strict
+  output are versioned in `docs/contracts`, served by the Java API and compiled by NetworkNT 2.0.3.
+  Contract tests validate the actual organizer file and the actual exporter result, not only hand
+  written examples.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
-- R2 — functionally implemented for the current contract fixture, including deterministic
-  contract+SHA replay/deduplication and the exact 3 GiB streaming boundary; broader
-  geometry-representative fixtures remain acceptance work.
+- R2 — complete for the published and supplied compatibility contracts, including deterministic
+  contract+SHA replay/deduplication, published schemas and the exact 3 GiB streaming boundary.
 - R3 — functionally complete: topology validation, chamber rule, deterministic candidates, line
   splitting and adaptive dense-constraint lookup. Selected tie-in target IDs are part of every
-  immutable variant and persisted in the run JSON; maximum-scale evidence belongs to R9.
-- R4 — functional obstacle-aware checkpoint: immutable all-demand runs, independent/shared/diverse
+  immutable variant and persisted in the run JSON; the full 2× scale gate passes.
+- R4 — complete for the project-owned acceptance profile: immutable all-demand runs, independent/shared/diverse
   strategies, actual polyline search, simplification, partial no-route, an independent validator
-  and GIS/result viewer. Dense constraint lookup is indexed; end-to-end maximum-scale performance
-  and broader diversity/quality evidence remain.
+  and GIS/result viewer. Dense constraint lookup is indexed and full 2× end-to-end performance is
+  measured; only organizer approval of the hidden maximum profile remains external.
 - R5 — functionally complete for contract-complete input: bottom-up flow/DU sizing, automatic
   continuous-length promotion, upstream propagation, partial/common-section reconstruction and
   chamber reconstruction are covered by focused tests. The supplied organizer file cannot produce

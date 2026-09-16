@@ -5,6 +5,15 @@ import { resolve } from "node:path";
 const bundlePath = resolve(process.argv[2] ?? "tmp/local-demo-bundle.json");
 const port = Number(process.env.HEATROUTE_DEMO_PORT ?? 8000);
 const bundle = JSON.parse(await readFile(bundlePath, "utf8"));
+const contractFiles = new Map([
+  ["input", "lct-2026-input.schema.json"],
+  ["provided-dataset", "lct-2026-provided-dataset.schema.json"],
+  ["output", "lct-2026-output.schema.json"],
+]);
+const contracts = new Map(await Promise.all([...contractFiles].map(async ([name, filename]) => [
+  `/api/v1/official/contracts/${name}.schema.json`,
+  await readFile(new URL(`../docs/contracts/${filename}`, import.meta.url), "utf8"),
+])));
 
 function send(response, status, payload) {
   response.writeHead(status, {
@@ -12,6 +21,14 @@ function send(response, status, payload) {
     "cache-control": "no-store",
   });
   response.end(JSON.stringify(payload));
+}
+
+function sendSchema(response, payload) {
+  response.writeHead(200, {
+    "content-type": "application/schema+json; charset=utf-8",
+    "cache-control": "public, max-age=31536000",
+  });
+  response.end(payload);
 }
 
 createServer((request, response) => {
@@ -24,6 +41,10 @@ createServer((request, response) => {
   }
   if (path === "/api/v1/health/ready") {
     send(response, 200, { status: "ready", checks: { local_demo: { status: "ok" } } });
+    return;
+  }
+  if (contracts.has(path)) {
+    sendSchema(response, contracts.get(path));
     return;
   }
   if (path === "/api/v1/official/runs/latest" || path === `/api/v1/official/runs/${bundle.run.id}`) {

@@ -18,7 +18,7 @@ An R-stage is complete only when its roadmap checklist and evidence are both com
 - every restriction and special crossing has positive, boundary and negative tests;
 - official costs, penalties and score reproduce appendix examples;
 - up to three alternatives are materially different and ranked deterministically;
-- strict seven-type GeoJSON passes schema and reference validation;
+- strict seven-type GeoJSON passes the published JSON Schema and cross-feature reference validation;
 - partial no-route output preserves successful OKS and lists/penalizes failures;
 - 3 GB input, 500 MB output, 16 GB RAM and 50-user evidence is recorded;
 - clean Ubuntu Server 22 / docker-compose 1.29.2 deployment and restart recovery pass;
@@ -34,8 +34,8 @@ Current local smoke evidence and open gates are in `implementation/progress.md`.
 | Flow, 18-row DU catalog, continuous length and reconstruction | Passed on contract-complete input | Supplied file omits reconstruction baseline/direction fields |
 | Published 2D restrictions and special crossings | Passed | Exact-value positive/boundary/negative matrix |
 | Cost, penalty, score and deterministic rank | Passed on contract-complete input | Appendix 10.8 illustrative-number discrepancy is documented |
-| Strict seven-type output and UI consumer | Passed on contract-complete input | Supplied incomplete file correctly returns `OFFICIAL_EXPORT_INCOMPLETE` |
-| 3 GiB input / ≥500 MiB output / memory below 16 GiB | Passed at streaming layer | Run `35112046184`; maximum-topology calculation remains separate |
+| Strict seven-type output and UI consumer | Passed on contract-complete input | Draft 2020-12 schema is published/tested; supplied incomplete file correctly returns `OFFICIAL_EXPORT_INCOMPLETE` |
+| 3 GiB input / ≥500 MiB output / memory below 16 GiB | Passed | Run `35112046184` plus full topology runs `35119722470` and `35120995991` |
 | 50 concurrent users | Passed for public API sessions | Run `35112362689`; 50 simultaneous imports, one durable ID |
 | Ubuntu 22 / docker-compose 1.29.2 / restart recovery | Passed in clean CI | Run `35112362689`; production-like host may still be requested |
 | Full calculation beyond supplied topology | Passed on project 2× profile | Run `35119722470`: 288 features, 34 demands, 408 candidates, 481,092 KiB peak RSS; organizer/PM must still approve the maximum profile |

@@ -37,6 +37,9 @@ R7 component costing и score уже интегрированы; поставл�
 стоимость и не получает score без данных реконструкции. Строгий seven-type adapter, независимый
 whitelist/type/reference validator и download endpoint реализованы для contract-complete вариантов;
 для поставленного неполного файла endpoint честно отвечает `409 OFFICIAL_EXPORT_INCOMPLETE`.
+Строгий вход, supplied-dataset compatibility profile и выход опубликованы как JSON Schema Draft
+2020-12 в `docs/contracts`, упаковываются в Java runtime и доступны через
+`/api/v1/official/contracts/*.schema.json`; CI проверяет реальный файл и результат экспортера.
 Экспорт проходит preflight-проверку и затем инкрементально пишется Jackson `JsonGenerator` без
 сборки полного output tree. Published 2D R6 rules закрыты exact-value и
 positive/boundary/negative matrix-тестами; касание границы допустимого отступа исправлено как

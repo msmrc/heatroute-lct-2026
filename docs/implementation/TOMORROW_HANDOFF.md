@@ -14,7 +14,8 @@
   endpoints.
 - CI has Java verify/image, web quality/build and clean Ubuntu 22 / Compose 1.29.2 integration
   gates, including 50 concurrent imports, a real all-OKS calculation and restart recovery.
-- OpenAPI comes from springdoc and is committed at `packages/api-client/openapi.json`.
+- OpenAPI comes from springdoc and is committed at `packages/api-client/openapi.json`; strict input,
+  supplied-dataset compatibility and output JSON Schemas are published by the Java API.
 - Commit `e47cd72` is deployed on the VPS. Production now runs only PostGIS, Java API, web and
   gateway; public HTTPS, Java readiness, official import, topology and immutable calculation run
   were verified.
@@ -29,7 +30,7 @@ pwsh -File scripts/dev.ps1 test
 pwsh -File scripts/dev.ps1 up
 ```
 
-Open `http://localhost:5173/` and `http://localhost:8000/swagger-ui.html`. If 5173 is occupied,
+Open `http://localhost:5173/` and `http://localhost:8000/api/v1/swagger-ui.html`. If 5173 is occupied,
 set `$env:WEB_HOST_PORT='5174'` for the smoke rather than killing an unknown process.
 
 ## Current reality
@@ -68,9 +69,9 @@ Already usable:
   imported filename in the toolbar and a collapsible navigation rail. Technical stack, version,
   team and Swagger live on the separate `/system` page instead of the work screen.
 
-Still blocking official P0:
+External decisions before an unconditional official P0 claim:
 
-- organizer-approved representative maximum-topology performance/quality evidence;
+- organizer approval that the passing full 2× topology gate represents the hidden maximum;
 - organizer clarification of `railway` and missing reconstruction attributes;
 - production-like Ubuntu 22 host rehearsal only if clean ephemeral CI is not accepted.
 
@@ -93,15 +94,14 @@ Job execution is bounded by `HEATROUTE_JOB_CONCURRENCY` (default 2, hard maximum
 leases are renewed every minute. Use `docs/operations/R9_ACCEPTANCE.md` for scale evidence; do not
 call the probes themselves a pass until their generated measurements are archived.
 Manual run `35112046184` proves exact 3 GiB input and ≥500 MiB valid output on Ubuntu 22 / Java 11
-under `-Xmx512m`. CI run `35112362689` passes backend/web/integration, 50 concurrent API imports,
-the real 17-demand calculation and persistence after API restart. Do not conflate this with a VPS
-deployment, which remains explicitly deferred.
+under `-Xmx512m`. Final clean-stack run `35120982320` passes backend/web/integration; topology run
+`35120995991` passes 288 features, 34/34 demands and three variants in 2:14.65 with 406,608 KiB
+peak RSS. Do not conflate this with a VPS deployment, which remains explicitly deferred.
 Do not mix MVT or extra formats into the remaining external acceptance gate.
 
 ## PM: tasks tomorrow
 
-- approve whether the independent exact output validator is sufficient for submission or whether
-  the submission kit also needs a separately published JSON Schema;
+- include the published, CI-tested JSON Schemas from `docs/contracts` in the submission kit;
 - confirm whether Ubuntu 22 is mandatory for judging even though the current demo VPS uses a
   newer Ubuntu release;
 - supply or approve an official-like maximum-topology fixture and load-test environment;

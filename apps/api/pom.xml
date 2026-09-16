@@ -26,6 +26,7 @@
         <jts.version>1.20.0</jts.version>
         <proj4j.version>1.4.2</proj4j.version>
         <testcontainers.version>1.21.3</testcontainers.version>
+        <json-schema-validator.version>2.0.3</json-schema-validator.version>
         <commons-lang3.version>3.19.0</commons-lang3.version>
         <snakeyaml.version>1.33</snakeyaml.version>
     </properties>
@@ -116,10 +117,28 @@
             <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>${json-schema-validator.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
         <finalName>heatroute-backend</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>../../docs/contracts</directory>
+                <includes>
+                    <include>*.schema.json</include>
+                </includes>
+                <targetPath>contracts</targetPath>
+            </resource>
+        </resources>
         <testResources>
             <testResource>
                 <directory>src/test/resources</directory>
@@ -130,6 +149,13 @@
                     <include>lct-2026.geojson</include>
                 </includes>
                 <targetPath>official</targetPath>
+            </testResource>
+            <testResource>
+                <directory>../../docs/contracts</directory>
+                <includes>
+                    <include>*.schema.json</include>
+                </includes>
+                <targetPath>contracts</targetPath>
             </testResource>
         </testResources>
         <plugins>

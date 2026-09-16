@@ -16,6 +16,8 @@ HeatRoute — монорепозиторий конкурсного решени
 - `docs/implementation/OFFICIAL_TZ_ROADMAP.md` — единый roadmap R0–R9;
 - `docs/ALGORITHM.md` — описание обязательного 2D-алгоритма и границ применимости;
 - `docs/CONTEST_DEMO.md` — воспроизводимый десятишаговый сценарий конкурсного показа;
+- `docs/CONTEST_SUBMISSION.md` — короткое описание решения для экспертов и презентации;
+- `docs/contracts` — тестируемые JSON Schema входа, compatibility-профиля и результата;
 - `docs/implementation/TOMORROW_HANDOFF.md` — точка входа для следующей смены.
 
 Сейчас реализован обязательный 2D pipeline: потоковый вход, существующая топология, автоматические
@@ -33,7 +35,8 @@ pwsh -File scripts/dev.ps1 up
 
 - UI: `http://localhost:5173/`
 - readiness: `http://localhost:8000/api/v1/health/ready`
-- Swagger: `http://localhost:8000/swagger-ui.html`
+- Swagger: `http://localhost:8000/api/v1/swagger-ui.html`
+- JSON Schema результата: `http://localhost:8000/api/v1/official/contracts/output.schema.json`
 
 Проверки:
 
@@ -77,6 +80,8 @@ pnpm --filter @heatroute/web dev -- --host 127.0.0.1 --port 5174 --strictPort
 5. [Критерии приёмки](docs/ACCEPTANCE.md)
 6. [Обновление VPS](docs/operations/VPS_DEPLOYMENT.md)
 7. [Повторный аудит официального соответствия](docs/implementation/OFFICIAL_ALIGNMENT_AUDIT.md)
+8. [Краткое описание конкурсного решения](docs/CONTEST_SUBMISSION.md)
+9. [Машиночитаемые JSON Schema](docs/contracts/README.md)
 
 Старые `m*-evidence.md` описывают прежний прототип и используются только как историческая
 справка. Они не подтверждают готовность Java-решения.

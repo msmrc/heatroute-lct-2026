@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heatroute.dragons.team/contracts/lct-2026-provided-dataset.schema.json",
+  "title": "HeatRoute supplied organizer dataset compatibility profile",
+  "description": "Machine-readable shape of the supplied 2026-09-16 GeoJSON. It deliberately permits the documented omissions; the Java inspector reports every omission as a deterministic warning.",
+  "type": "object",
+  "required": ["type", "features"],
+  "properties": {
+    "type": { "const": "FeatureCollection" },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type", "geometry", "properties"],
+        "properties": {
+          "type": { "const": "Feature" },
+          "geometry": {
+            "type": "object",
+            "required": ["type", "coordinates"],
+            "properties": {
+              "type": { "enum": ["Point", "LineString", "MultiLineString", "Polygon", "MultiPolygon"] },
+              "coordinates": { "type": "array", "minItems": 1 }
+            }
+          },
+          "properties": {
+            "type": "object",
+            "required": ["id", "object_type"],
+            "properties": {
+              "id": {
+                "oneOf": [
+                  { "type": "string", "minLength": 1 },
+                  { "type": "integer" }
+                ]
+              },
+              "object_type": {
+                "enum": ["source", "heat_network", "heat_chamber", "oks_connection_point", "restriction"]
+              },
+              "diameter": {
+                "type": "integer",
+                "enum": [50, 65, 80, 100, 125, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400]
+              },
+              "flow_tph": { "type": "number", "exclusiveMinimum": 0 },
+              "restriction_type": {
+                "enum": ["park", "social_area", "prohibited_site", "water", "railway", "oks", "road", "tram_tracks", "gas_pipeline", "power_cable", "heat_network"]
+              },
+              "upstream_object_id": {
+                "oneOf": [
+                  { "type": "string", "minLength": 1 },
+                  { "type": "integer" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

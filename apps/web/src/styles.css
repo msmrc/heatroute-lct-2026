@@ -487,14 +487,13 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .route-canvas-wrap { position: relative; overflow: hidden; background: #f9f9f7; }
 .route-canvas { display: block; width: 100%; min-height: 440px; max-height: 620px; aspect-ratio: 1000 / 590; }
 .official-map-shell { position: relative; overflow: hidden; min-height: 560px; background: #eef0f1; }
+.official-map-loading { display: grid; place-items: center; color: var(--muted-foreground); font-size: 13px; }
 .official-route-map { width: 100%; height: 560px; }
-.official-route-map .ol-viewport { font-family: inherit; }
-.official-route-map .simple-basemap canvas { filter: grayscale(.22) saturate(.52) contrast(.82) brightness(1.1); }
-.official-route-map .ol-control { overflow: hidden; border: 1px solid rgba(32, 35, 40, .1); border-radius: 12px; background: rgba(255, 255, 255, .96); box-shadow: 0 3px 12px rgba(30, 34, 40, .12); }
-.official-route-map .ol-control button { border-radius: 0; background: transparent; color: #30343a; cursor: pointer; }
-.official-route-map .ol-control button:hover { background: #f2f3f5; }
-.official-route-map .ol-attribution { right: 8px; bottom: 7px; max-width: calc(100% - 16px); font-size: 11px; }
-.official-route-map .ol-scale-line { right: 9px; bottom: 34px; left: auto; }
+.official-route-map .maplibregl-canvas { outline: none; }
+.official-route-map .maplibregl-ctrl-group { overflow: hidden; border: 1px solid rgba(32, 35, 40, .1); border-radius: 12px; background: rgba(255, 255, 255, .96); box-shadow: 0 3px 12px rgba(30, 34, 40, .12); }
+.official-route-map .maplibregl-ctrl-group button { width: 36px; height: 36px; }
+.official-route-map .maplibregl-ctrl-attrib { border-radius: 8px 0 0; font-family: inherit; font-size: 10px; }
+.official-route-map .maplibregl-ctrl-scale { border-color: rgba(32, 35, 40, .65); background: rgba(255, 255, 255, .78); font-family: inherit; }
 .official-map-layer-control { position: absolute; z-index: 5; top: 12px; left: 12px; }
 .official-map-layer-button { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid rgba(32, 35, 40, .1); border-radius: 12px; background: rgba(255, 255, 255, .96); box-shadow: 0 3px 12px rgba(30, 34, 40, .12); color: #34383e; cursor: pointer; transition: background 140ms var(--ease), transform 100ms var(--ease); }
 .official-map-layer-button:hover, .official-map-layer-button.is-open { background: #f4f2ff; color: var(--accent); }

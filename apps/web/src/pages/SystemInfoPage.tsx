@@ -7,7 +7,7 @@ const PRODUCT_VERSION = "0.1.0";
 const stack = [
   { icon: Code2, name: "Серверная часть", value: "Java 11 · Spring Boot 2.6.3" },
   { icon: Database, name: "Хранение и геоданные", value: "PostgreSQL · PostGIS · Liquibase" },
-  { icon: Map, name: "Интерфейс и карта", value: "React · TypeScript · OpenLayers" },
+  { icon: Map, name: "Интерфейс и карта", value: "React · TypeScript · MapLibre GL" },
   { icon: Boxes, name: "Развёртывание", value: "Docker Compose · Caddy · Nginx" },
 ];
 

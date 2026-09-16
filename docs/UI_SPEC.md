@@ -7,7 +7,7 @@ The web app is a truthful client of the calculation API. The current home screen
 - official GeoJSON upload;
 - import counts and localized contract errors;
 - durable topology-job start, progress, cancellation and result;
-- completed-run demo in a map-first workspace with an OpenLayers/OpenStreetMap view of calculated
+- completed-run demo in a map-first workspace with a MapLibre/CARTO vector view of calculated
   routes and source layers, a route-variant switcher, an object inspector and a compact
   calculation-results drawer;
 - a deliberately muted basemap that keeps route geometry visually dominant; optional source
@@ -36,9 +36,10 @@ results and preserves explicit unknown/partial/error states.
 
 ## Design and accessibility
 
-React/TypeScript/Vite, TanStack Query, OpenLayers, Proj4js, Lucide and local UI primitives. The
-standard OpenStreetMap raster layer is a best-effort demo basemap with visible attribution; its
-URL is configurable through `VITE_OSM_TILE_URL`. Use the tokens in
+React/TypeScript/Vite, TanStack Query, MapLibre GL, Proj4js, Lucide and local UI primitives. The
+CARTO Positron vector basemap uses the same renderer and cartographic treatment as the team's
+GdeBenzin project, keeps required attribution visible and is configurable through
+`VITE_BASEMAP_STYLE_URL`. Use the tokens in
 `docs/ui/design-system.md`. Base body text is 14 px; secondary text is at least 12 px. Controls
 have visible keyboard focus and accessible names. Motion respects `prefers-reduced-motion`.
 Desktop is primary. At narrower widths the inspector and result drawer move below the map, while

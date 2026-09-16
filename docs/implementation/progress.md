@@ -59,7 +59,7 @@ and runtime services were removed. The frontend calls only the current official 
   all 17 demands. The independent variant validly connected 16 and preserved one explicit
   `NO_NON_CROSSING_ROUTE`; the preferred shared variant connected all 17 with 21 sections,
   3,448.671 m total length and zero validator issues.
-- The official workspace now defaults to an OpenLayers GIS view: OpenStreetMap basemap, calculated
+- The official workspace now defaults to a MapLibre GL GIS view: CARTO vector basemap, calculated
   route/nodes transformed from EPSG:32637, and bounded WGS84 source layers from PostGIS. Users can
   toggle the basemap, existing heat network, restrictions and result, inspect map objects, switch
   route variants, or return to the EPSG:32637 engineering diagram. The bounded
@@ -70,9 +70,11 @@ and runtime services were removed. The frontend calls only the current official 
   on the map, selected-object details stay in a right inspector, and route totals remain visible in
   a bottom results drawer. Framework/runtime status, theme controls and developer-only labels were
   removed from this flow; stack, version, team Dragons and Swagger moved to `/system`.
-- The OSM layer is visually muted so the route is primary. Four persistent layer buttons and the
-  map legend were replaced by one compact layer menu; restrictions start hidden and layer toggles
-  update without rebuilding or flashing the map.
+- The map now uses the same MapLibre 5.24 renderer and vector CARTO Positron treatment as the local
+  GdeBenzin project: warm background, amber road hierarchy, calm water/parks and Russian labels.
+  OpenLayers and the raster OSM tile path were removed from the web dependency graph. Four
+  persistent layer buttons and the map legend remain consolidated in one compact menu;
+  restrictions start hidden and layer visibility changes in-place without rebuilding the map.
 
 ## Roadmap truth
 

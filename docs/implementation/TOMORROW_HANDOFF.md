@@ -54,7 +54,7 @@ Already usable:
   tree/chamber/crossing validator;
 - production evidence on the organizer file: the preferred shared variant connects all 17 demands
   with zero structural validator issues.
-- interactive R4 result viewer with OpenLayers/OpenStreetMap, PostGIS source context, layer toggles,
+- interactive R4 result viewer with MapLibre GL/CARTO vector basemap, PostGIS source context, layer toggles,
   variant comparison, map-object inspection, no-route diagnostics, a retained metric schematic and
   a latest-completed-run demo endpoint. It renders the internal route graph plus official input
   features and must later be extended by the official R7 seven-type output adapter.

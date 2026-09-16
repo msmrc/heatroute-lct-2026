@@ -1,21 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import Feature, { type FeatureLike } from "ol/Feature";
-import OlMap from "ol/Map";
-import View from "ol/View";
-import { defaults as defaultControls, ScaleLine } from "ol/control";
-import GeoJSON from "ol/format/GeoJSON";
-import LineString from "ol/geom/LineString";
-import Point from "ol/geom/Point";
-import TileLayer from "ol/layer/Tile";
-import VectorLayer from "ol/layer/Vector";
-import { register } from "ol/proj/proj4";
-import OSM from "ol/source/OSM";
-import VectorSource from "ol/source/Vector";
-import { Circle as CircleStyle, Fill, Stroke, Style } from "ol/style";
-import proj4 from "proj4";
+import type { FeatureCollection, LineString, Point } from "geojson";
 import { Check, Layers3, LoaderCircle } from "lucide-react";
+import maplibregl, {
+  type LayerSpecification,
+  type MapGeoJSONFeature,
+} from "maplibre-gl";
+import proj4 from "proj4";
 import { useEffect, useMemo, useRef, useState } from "react";
-import "ol/ol.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
   getOfficialMap,
@@ -23,18 +15,15 @@ import {
   type OfficialRouteNode,
   type OfficialRouteVariant,
 } from "../../shared/api";
+import { applyGdeBenzinBasemapStyle, BASEMAP_STYLE_URL } from "./heatRouteBasemap";
 
 const METRIC_CRS = "EPSG:32637";
-const WEB_CRS = "EPSG:3857";
 const WGS84_CRS = "EPSG:4326";
 const MAP_PADDING_METERS = 700;
-const configuredTileUrl: unknown = import.meta.env.VITE_OSM_TILE_URL;
-const tileUrl = typeof configuredTileUrl === "string" && configuredTileUrl.length > 0
-  ? configuredTileUrl
-  : "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const CONTEXT_SOURCE = "heatroute-context";
+const ROUTE_SOURCE = "heatroute-route";
 
 proj4.defs(METRIC_CRS, "+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs +type=crs");
-register(proj4);
 
 export interface SelectedMapObject {
   title: string;
@@ -49,6 +38,16 @@ interface MapLayersState {
   route: boolean;
 }
 
+type JsonProperties = Record<string, string | number | boolean | null>;
+type MapFeatureCollection = FeatureCollection<Point | LineString, JsonProperties>;
+
+const OVERLAY_LAYERS: Record<Exclude<keyof MapLayersState, "base">, string[]> = {
+  restrictions: ["restriction-fill", "restriction-line"],
+  network: ["network-casing", "network-line", "source-points", "chamber-points", "context-points"],
+  route: ["route-casing", "route-line", "route-nodes"],
+};
+const SELECTABLE_LAYERS = Object.values(OVERLAY_LAYERS).flat();
+
 function nodeTitle(node: OfficialRouteNode): string {
   if (node.node_type === "demand_connection") return `ОКС ${node.target_id ?? "—"}`;
   if (node.node_type === "new_branch_chamber") return "Новая камера ветвления";
@@ -57,139 +56,120 @@ function nodeTitle(node: OfficialRouteNode): string {
   return node.node_type.replaceAll("_", " ");
 }
 
+function toWgs84(x: number, y: number): [number, number] {
+  const [longitude = 0, latitude = 0] = proj4(METRIC_CRS, WGS84_CRS, [x, y]);
+  return [longitude, latitude];
+}
+
 function routeMapBounds(variant: OfficialRouteVariant): OfficialMapBounds {
   const xs = variant.nodes.map((node) => node.coordinate.xm);
   const ys = variant.nodes.map((node) => node.coordinate.ym);
-  const minX = Math.min(...xs) - MAP_PADDING_METERS;
-  const minY = Math.min(...ys) - MAP_PADDING_METERS;
-  const maxX = Math.max(...xs) + MAP_PADDING_METERS;
-  const maxY = Math.max(...ys) + MAP_PADDING_METERS;
-  const [lowerLongitude = 0, lowerLatitude = 0] = proj4(METRIC_CRS, WGS84_CRS, [minX, minY]);
-  const [upperLongitude = 0, upperLatitude = 0] = proj4(METRIC_CRS, WGS84_CRS, [maxX, maxY]);
+  const [minLon, minLat] = toWgs84(Math.min(...xs) - MAP_PADDING_METERS, Math.min(...ys) - MAP_PADDING_METERS);
+  const [maxLon, maxLat] = toWgs84(Math.max(...xs) + MAP_PADDING_METERS, Math.max(...ys) + MAP_PADDING_METERS);
   return {
-    minLon: Number(lowerLongitude.toFixed(7)),
-    minLat: Number(lowerLatitude.toFixed(7)),
-    maxLon: Number(upperLongitude.toFixed(7)),
-    maxLat: Number(upperLatitude.toFixed(7)),
+    minLon: Number(minLon.toFixed(7)),
+    minLat: Number(minLat.toFixed(7)),
+    maxLon: Number(maxLon.toFixed(7)),
+    maxLat: Number(maxLat.toFixed(7)),
   };
 }
 
-function routeFeatures(variant: OfficialRouteVariant): Feature[] {
-  const nodes = new globalThis.Map<string, OfficialRouteNode>(variant.nodes.map((node) => [node.id, node]));
-  const edges = variant.edges.flatMap((edge) => {
+function routeFeatureCollection(variant: OfficialRouteVariant): MapFeatureCollection {
+  const nodes = new Map<string, OfficialRouteNode>(variant.nodes.map((node) => [node.id, node]));
+  const edges: MapFeatureCollection["features"] = variant.edges.flatMap((edge) => {
     const upstream = nodes.get(edge.upstream_node_id);
     const downstream = nodes.get(edge.downstream_node_id);
     if (!upstream || !downstream) return [];
-    const feature = new Feature({
-      geometry: new LineString([
-        [upstream.coordinate.xm, upstream.coordinate.ym],
-        [downstream.coordinate.xm, downstream.coordinate.ym],
-      ]).transform(METRIC_CRS, WEB_CRS),
-    });
-    feature.setProperties({
-      map_layer: "calculated_route",
-      route_kind: edge.id.includes(":trunk:") ? "trunk" : "branch",
-      label: edge.id.includes(":trunk:") ? "Общий ствол" : "Расчётный участок",
-      length_m: edge.length_m,
-    });
-    return [feature];
+    return [{
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          toWgs84(upstream.coordinate.xm, upstream.coordinate.ym),
+          toWgs84(downstream.coordinate.xm, downstream.coordinate.ym),
+        ],
+      },
+      properties: {
+        map_layer: "calculated_route",
+        route_kind: edge.id.includes(":trunk:") ? "trunk" : "branch",
+        label: edge.id.includes(":trunk:") ? "Общий ствол" : "Расчётный участок",
+        length_m: edge.length_m,
+      },
+    }];
   });
-  const points = variant.nodes.map((node) => {
-    const feature = new Feature({
-      geometry: new Point([node.coordinate.xm, node.coordinate.ym]).transform(METRIC_CRS, WEB_CRS),
-    });
-    feature.setProperties({
+  const points: MapFeatureCollection["features"] = variant.nodes.map((node) => ({
+    type: "Feature",
+    geometry: { type: "Point", coordinates: toWgs84(node.coordinate.xm, node.coordinate.ym) },
+    properties: {
       map_layer: "calculated_node",
       node_type: node.node_type,
       label: nodeTitle(node),
-      target_id: node.target_id,
+      target_id: node.target_id ?? null,
       root: node.root,
-    });
-    return feature;
-  });
-  return [...edges, ...points];
+    },
+  }));
+  return { type: "FeatureCollection", features: [...edges, ...points] };
 }
 
-function contextStyle(feature: FeatureLike): Style | Style[] {
-  const objectType = feature.get("object_type") as string | undefined;
-  if (objectType === "restriction") {
-    const restrictionType = feature.get("restriction_type") as string | undefined;
-    const color = restrictionType === "water" ? "#5794c9" : restrictionType === "railway" ? "#b58a50" : "#8b8f96";
-    return new Style({
-      fill: new Fill({ color: `${color}0c` }),
-      stroke: new Stroke({ color: `${color}78`, width: 1, lineDash: [5, 5] }),
-    });
-  }
-  if (objectType === "heat_network") {
-    return [
-      new Style({ stroke: new Stroke({ color: "rgba(255,255,255,.9)", width: 5 }) }),
-      new Style({ stroke: new Stroke({ color: "#238577", width: 2.6 }) }),
-    ];
-  }
-  if (objectType === "source") {
-    return new Style({
-      image: new CircleStyle({ radius: 8, fill: new Fill({ color: "#ef6b3b" }), stroke: new Stroke({ color: "#fff", width: 3 }) }),
-    });
-  }
-  if (objectType === "heat_chamber") {
-    return new Style({
-      image: new CircleStyle({ radius: 4.5, fill: new Fill({ color: "#34363b" }), stroke: new Stroke({ color: "#fff", width: 2 }) }),
-    });
-  }
-  return new Style({
-    image: new CircleStyle({ radius: 3.5, fill: new Fill({ color: "#4d9e68" }), stroke: new Stroke({ color: "#fff", width: 1.8 }) }),
-  });
+function addOverlayLayers(map: maplibregl.Map, contextData: FeatureCollection, routeData: MapFeatureCollection) {
+  map.addSource(CONTEXT_SOURCE, { type: "geojson", data: contextData });
+  map.addSource(ROUTE_SOURCE, { type: "geojson", data: routeData });
+
+  const layers: LayerSpecification[] = [
+    { id: "restriction-fill", type: "fill", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "restriction"], paint: { "fill-color": ["match", ["get", "restriction_type"], "water", "#5794c9", "railway", "#b58a50", "#8b8f96"], "fill-opacity": 0.06 } },
+    { id: "restriction-line", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "restriction"], paint: { "line-color": ["match", ["get", "restriction_type"], "water", "#5794c9", "railway", "#b58a50", "#8b8f96"], "line-opacity": 0.58, "line-width": 1.2, "line-dasharray": [4, 4] } },
+    { id: "network-casing", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_network"], paint: { "line-color": "rgba(255,255,255,.92)", "line-width": 5 } },
+    { id: "network-line", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_network"], paint: { "line-color": "#238577", "line-width": 2.6 } },
+    { id: "source-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "source"], paint: { "circle-radius": 8, "circle-color": "#ef6b3b", "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } },
+    { id: "chamber-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_chamber"], paint: { "circle-radius": 4.5, "circle-color": "#34363b", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } },
+    { id: "context-points", type: "circle", source: CONTEXT_SOURCE, filter: ["all", ["==", ["geometry-type"], "Point"], ["!", ["in", ["get", "object_type"], ["literal", ["source", "heat_chamber"]]]]], paint: { "circle-radius": 3.5, "circle-color": "#4d9e68", "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.8 } },
+    { id: "route-casing", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": "rgba(255,255,255,.96)", "line-width": ["match", ["get", "route_kind"], "trunk", 8, 6.5] } },
+    { id: "route-line", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": ["match", ["get", "route_kind"], "trunk", "#5e4be2", "#7464e8"], "line-width": ["match", ["get", "route_kind"], "trunk", 4.5, 3.5] } },
+    { id: "route-nodes", type: "circle", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_node"], paint: { "circle-radius": ["match", ["get", "node_type"], "demand_connection", 5, 6], "circle-color": ["case", ["==", ["get", "node_type"], "demand_connection"], "#45a55a", ["==", ["get", "root"], true], "#ed6a3b", "#7357f6"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.4 } },
+  ];
+  layers.forEach((layer) => map.addLayer(layer));
 }
 
-function calculatedStyle(feature: FeatureLike): Style | Style[] {
-  if (feature.get("map_layer") === "calculated_route") {
-    const trunk = feature.get("route_kind") === "trunk";
-    return [
-      new Style({ stroke: new Stroke({ color: "rgba(255,255,255,.94)", width: trunk ? 8 : 6.5 }) }),
-      new Style({ stroke: new Stroke({ color: trunk ? "#5e4be2" : "#7464e8", width: trunk ? 4.5 : 3.5 }) }),
-    ];
-  }
-  const nodeType = feature.get("node_type") as string;
-  const color = nodeType === "demand_connection" ? "#45a55a" : feature.get("root") ? "#ed6a3b" : "#7357f6";
-  return new Style({
-    image: new CircleStyle({ radius: nodeType === "demand_connection" ? 5 : 6, fill: new Fill({ color }), stroke: new Stroke({ color: "#fff", width: 2.4 }) }),
-  });
+function propertiesOf(feature: MapGeoJSONFeature): Record<string, unknown> {
+  return feature.properties;
 }
 
-function selectedObject(feature: Feature): SelectedMapObject {
-  const objectType = feature.get("object_type") as string | undefined;
-  const layer = feature.get("map_layer") as string | undefined;
-  const length = feature.get("length_m") as number | undefined;
+function selectedObject(feature: MapGeoJSONFeature): SelectedMapObject {
+  const properties = propertiesOf(feature);
+  const objectType = typeof properties.object_type === "string" ? properties.object_type : undefined;
+  const layer = typeof properties.map_layer === "string" ? properties.map_layer : undefined;
   const details: Array<[string, string]> = [];
-  if (length !== undefined) details.push(["Длина", `${Math.round(length).toLocaleString("ru-RU")} м`]);
-  const flow = feature.get("flow_tph") as number | undefined;
-  if (flow !== undefined) details.push(["Расход", `${flow.toLocaleString("ru-RU")} т/ч`]);
-  const address = feature.get("address") as string | undefined;
-  if (address) details.push(["Адрес", address]);
-  const featureId = feature.get("feature_id") as string | undefined;
-  if (featureId) details.push(["ID", featureId]);
+  if (typeof properties.length_m === "number") details.push(["Длина", `${Math.round(properties.length_m).toLocaleString("ru-RU")} м`]);
+  if (typeof properties.flow_tph === "number") details.push(["Расход", `${properties.flow_tph.toLocaleString("ru-RU")} т/ч`]);
+  if (typeof properties.address === "string" && properties.address) details.push(["Адрес", properties.address]);
+  if (typeof properties.feature_id === "string" && properties.feature_id) details.push(["ID", properties.feature_id]);
+  const fallback = objectType === "heat_network" ? "Существующая теплосеть" : objectType ?? "Объект карты";
   return {
-    title: String(feature.get("label") ?? (objectType === "heat_network" ? "Существующая теплосеть" : objectType ?? "Объект карты")),
+    title: typeof properties.label === "string" ? properties.label : fallback,
     subtitle: layer?.startsWith("calculated") ? "Результат расчёта" : "Исходные данные",
     details,
   };
 }
 
-export function OfficialRouteMap({
-  importId,
-  variant,
-  onSelect,
-}: {
+function setLayerVisibility(map: maplibregl.Map, ids: string[], visible: boolean) {
+  for (const id of ids) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+  }
+}
+
+export function OfficialRouteMap({ importId, variant, onSelect }: {
   importId: string;
   variant: OfficialRouteVariant;
   onSelect?: (object: SelectedMapObject | null) => void;
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const baseLayerIdsRef = useRef<string[]>([]);
   const [layers, setLayers] = useState<MapLayersState>({ base: true, restrictions: false, network: true, route: true });
   const [layerMenuOpen, setLayerMenuOpen] = useState(false);
   const layerVisibilityRef = useRef(layers);
-  const mapLayersRef = useRef<Record<keyof MapLayersState, { setVisible: (visible: boolean) => void }> | null>(null);
   const bounds = useMemo(() => routeMapBounds(variant), [variant]);
+  const routeData = useMemo(() => routeFeatureCollection(variant), [variant]);
   const context = useQuery({
     queryKey: ["official-map", importId, bounds],
     queryFn: ({ signal }) => getOfficialMap(importId, bounds, signal),
@@ -199,48 +179,68 @@ export function OfficialRouteMap({
 
   useEffect(() => {
     layerVisibilityRef.current = layers;
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    setLayerVisibility(map, baseLayerIdsRef.current, layers.base);
+    (Object.keys(OVERLAY_LAYERS) as Array<keyof typeof OVERLAY_LAYERS>).forEach((key) => {
+      setLayerVisibility(map, OVERLAY_LAYERS[key], layers[key]);
+    });
   }, [layers]);
 
   useEffect(() => {
-    if (!targetRef.current) return;
-    const contextFeatures = context.data
-      ? new GeoJSON().readFeatures(context.data, { dataProjection: WGS84_CRS, featureProjection: WEB_CRS }) as Feature[]
-      : [];
-    const restrictions = contextFeatures.filter((feature) => feature.get("object_type") === "restriction");
-    const infrastructure = contextFeatures.filter((feature) => feature.get("object_type") !== "restriction");
-    const routeSource = new VectorSource({ features: routeFeatures(variant) });
-    const baseLayer = new TileLayer({ className: "simple-basemap", opacity: .72, visible: layerVisibilityRef.current.base, source: new OSM({ url: tileUrl }) });
-    const restrictionLayer = new VectorLayer({ visible: layerVisibilityRef.current.restrictions, source: new VectorSource({ features: restrictions }), style: contextStyle });
-    const networkLayer = new VectorLayer({ visible: layerVisibilityRef.current.network, source: new VectorSource({ features: infrastructure }), style: contextStyle });
-    const routeLayer = new VectorLayer({ visible: layerVisibilityRef.current.route, source: routeSource, style: calculatedStyle });
-    mapLayersRef.current = { base: baseLayer, restrictions: restrictionLayer, network: networkLayer, route: routeLayer };
-    const map = new OlMap({
-      target: targetRef.current,
-      layers: [baseLayer, restrictionLayer, networkLayer, routeLayer],
-      view: new View({ projection: WEB_CRS, center: [0, 0], zoom: 15 }),
-      controls: defaultControls({ attributionOptions: { collapsible: false } }).extend([new ScaleLine({ units: "metric" })]),
+    if (!targetRef.current || context.isPending) return;
+    const emptyContext: FeatureCollection = { type: "FeatureCollection", features: [] };
+    const contextData = context.data
+      ? context.data as unknown as FeatureCollection
+      : emptyContext;
+    const map = new maplibregl.Map({
+      container: targetRef.current,
+      style: BASEMAP_STYLE_URL,
+      center: [(bounds.minLon + bounds.maxLon) / 2, (bounds.minLat + bounds.maxLat) / 2],
+      zoom: 14,
+      minZoom: 4,
+      maxZoom: 19,
+      pitch: 0,
+      attributionControl: { compact: true },
     });
-    const routeExtent = routeSource.getExtent();
-    if (routeExtent) map.getView().fit(routeExtent, { padding: [70, 70, 70, 70], maxZoom: 18, duration: 450 });
-    map.on("singleclick", (event) => {
-      const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate as Feature, { hitTolerance: 7 });
+    mapRef.current = map;
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+    map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(targetRef.current);
+
+    void map.once("load", () => {
+      applyGdeBenzinBasemapStyle(map);
+      baseLayerIdsRef.current = (map.getStyle().layers ?? []).map((layer) => layer.id);
+      addOverlayLayers(map, contextData, routeData);
+      setLayerVisibility(map, baseLayerIdsRef.current, layerVisibilityRef.current.base);
+      (Object.keys(OVERLAY_LAYERS) as Array<keyof typeof OVERLAY_LAYERS>).forEach((key) => {
+        setLayerVisibility(map, OVERLAY_LAYERS[key], layerVisibilityRef.current[key]);
+      });
+      map.fitBounds([[bounds.minLon, bounds.minLat], [bounds.maxLon, bounds.maxLat]], { padding: 64, maxZoom: 17, duration: 450 });
+    });
+
+    map.on("click", (event) => {
+      if (!map.isStyleLoaded()) return;
+      const availableLayers = SELECTABLE_LAYERS.filter((id) => map.getLayer(id));
+      const feature = availableLayers.length ? map.queryRenderedFeatures(event.point, { layers: availableLayers })[0] : undefined;
       onSelect?.(feature ? selectedObject(feature) : null);
     });
-    map.on("pointermove", (event) => {
-      if (targetRef.current) targetRef.current.style.cursor = map.hasFeatureAtPixel(event.pixel, { hitTolerance: 5 }) ? "pointer" : "grab";
+    map.on("mousemove", (event) => {
+      if (!map.isStyleLoaded()) return;
+      const availableLayers = SELECTABLE_LAYERS.filter((id) => map.getLayer(id));
+      const feature = availableLayers.length ? map.queryRenderedFeatures(event.point, { layers: availableLayers })[0] : undefined;
+      map.getCanvas().style.cursor = feature ? "pointer" : "grab";
     });
-    requestAnimationFrame(() => map.updateSize());
-    return () => {
-      mapLayersRef.current = null;
-      map.setTarget(undefined);
-    };
-  }, [context.data, onSelect, variant]);
 
-  useEffect(() => {
-    const mapLayers = mapLayersRef.current;
-    if (!mapLayers) return;
-    (Object.keys(layers) as Array<keyof MapLayersState>).forEach((layer) => mapLayers[layer].setVisible(layers[layer]));
-  }, [layers]);
+    return () => {
+      resizeObserver.disconnect();
+      baseLayerIdsRef.current = [];
+      mapRef.current = null;
+      map.remove();
+    };
+  }, [bounds, context.data, context.isPending, onSelect, routeData]);
 
   function toggleLayer(layer: keyof MapLayersState) {
     setLayers((current) => ({ ...current, [layer]: !current[layer] }));
@@ -250,13 +250,7 @@ export function OfficialRouteMap({
     <div className="official-map-shell">
       <div ref={targetRef} className="official-route-map" aria-label="Карта рассчитанных маршрутов и исходных ограничений" />
       <div className="official-map-layer-control">
-        <button
-          type="button"
-          className={layerMenuOpen ? "official-map-layer-button is-open" : "official-map-layer-button"}
-          aria-label="Слои карты"
-          aria-expanded={layerMenuOpen}
-          onClick={() => setLayerMenuOpen((value) => !value)}
-        >
+        <button type="button" className={layerMenuOpen ? "official-map-layer-button is-open" : "official-map-layer-button"} aria-label="Слои карты" aria-expanded={layerMenuOpen} onClick={() => setLayerMenuOpen((value) => !value)}>
           <Layers3 size={19} />
         </button>
         {layerMenuOpen && (
@@ -277,7 +271,7 @@ export function OfficialRouteMap({
         )}
       </div>
       {context.isPending && <div className="official-map-state"><LoaderCircle className="is-spinning" size={16} /> Загружаем инженерные слои…</div>}
-      {context.isError && <div className="official-map-state is-error">Подложка доступна, исходные слои не загрузились</div>}
+      {context.isError && <div className="official-map-state is-error">Карта доступна, исходные слои не загрузились</div>}
       {context.data?.truncated && <div className="official-map-state is-warning">Показаны первые 10 000 объектов в окне</div>}
     </div>
   );

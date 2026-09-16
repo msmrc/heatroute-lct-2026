@@ -1,5 +1,5 @@
 import { AlertTriangle, Focus, MapPin, MapPinned, Network, X, ZoomIn, ZoomOut } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 
 import type {
   OfficialCalculationResult,
@@ -8,7 +8,12 @@ import type {
 } from "../../shared/api";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/primitives";
-import { OfficialRouteMap, type SelectedMapObject } from "./OfficialRouteMap";
+import type { SelectedMapObject } from "./OfficialRouteMap";
+
+const OfficialRouteMap = lazy(async () => {
+  const module = await import("./OfficialRouteMap");
+  return { default: module.OfficialRouteMap };
+});
 
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 590;
@@ -188,7 +193,9 @@ export function RouteVisualization({
           </div>
 
           {viewMode === "map" ? (
-            <OfficialRouteMap importId={importId} variant={variant} onSelect={selectMapObject} />
+            <Suspense fallback={<div className="official-map-shell official-map-loading">Загружаем карту…</div>}>
+              <OfficialRouteMap importId={importId} variant={variant} onSelect={selectMapObject} />
+            </Suspense>
           ) : (
             <div className="route-canvas-wrap route-canvas-wrap--workspace">
               <svg className="route-canvas" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} role="img" aria-label={`${variantName(variant)}, ${variant.edges.length} участков`}>

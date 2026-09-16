@@ -1,0 +1,142 @@
+package ru.lct.heatroute.domain.depth;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.math.BigDecimal;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import ru.lct.heatroute.domain.engineering.OfficialEconomics;
+import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+
+class OfficialDepthOptimizerTest {
+    private OfficialDepthOptimizer optimizer;
+    private OfficialDepthProfileValidator validator;
+
+    @BeforeEach
+    void setUp() {
+        OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
+        optimizer = new OfficialDepthOptimizer(pipeCatalog, new OfficialEconomics());
+        validator = new OfficialDepthProfileValidator(pipeCatalog);
+    }
+
+    @Test
+    void choosesCheaperGasPassageAndBuildsOfficialPlateauAndSlopes() {
+        DepthCrossing gas = crossing("gas-1", "gas", "50", "2.8", ".4", ".2", "1.25");
+
+        DepthProfileResult result = optimizer.optimize(bd("100"), 50, List.of(gas), bd("10"));
+
+        assertThat(result.isComplete()).isTrue();
+        assertThat(result.getIssues()).isEmpty();
+        assertThat(result.getCrossings()).singleElement().satisfies(decision -> {
+            assertThat(decision.getPassage()).isEqualTo("below");
+            assertThat(decision.getDepthM()).isEqualByComparingTo("3.7");
+            assertThat(decision.getPlateauStartM()).isEqualByComparingTo("48");
+            assertThat(decision.getPlateauEndM()).isEqualByComparingTo("52");
+            assertThat(decision.getRampStartM()).isEqualByComparingTo("41");
+            assertThat(decision.getRampEndM()).isEqualByComparingTo("59");
+            assertThat(decision.getVerticalClearanceM()).isEqualByComparingTo("0.5");
+        });
+        assertThat(result.getPoints()).extracting(DepthProfilePoint::getStationM)
+                .containsExactly(bd("0.000"), bd("41.000"), bd("48.000"), bd("52.000"), bd("59.000"), bd("100.000"));
+        assertThat(validator.validate(bd("100"), 50, List.of(gas), bd(".7"), bd("10"), result)).isEmpty();
+    }
+
+    @Test
+    void choosesPassageBelowWhenAboveIsOutsideConfiguredDepthRange() {
+        DepthCrossing power = crossing("power-1", "power", "50", ".8", "2.5", ".5", "1.15");
+
+        DepthProfileResult result = optimizer.optimize(bd("100"), 50, List.of(power), bd("8"));
+
+        assertThat(result.isComplete()).isTrue();
+        assertThat(result.getCrossings()).singleElement().satisfies(decision -> {
+            assertThat(decision.getPassage()).isEqualTo("below");
+            assertThat(decision.getDepthM()).isEqualByComparingTo("4.2");
+            assertThat(decision.getVerticalClearanceM()).isEqualByComparingTo("0.9");
+        });
+        assertThat(validator.validate(bd("100"), 50, List.of(power), bd(".7"), bd("8"), result)).isEmpty();
+    }
+
+    @Test
+    void retainsOrdinaryDepthWhenItAlreadyProvidesRequiredClearance() {
+        DepthCrossing heat = crossing("heat-1", "heat", "50", "2.0", ".4", ".5", "1.10");
+
+        DepthProfileResult result = optimizer.optimize(bd("100"), 50, List.of(heat), bd("8"));
+
+        assertThat(result.isComplete()).isTrue();
+        assertThat(result.getCrossings()).singleElement().satisfies(decision -> {
+            assertThat(decision.getPassage()).isEqualTo("below");
+            assertThat(decision.getDepthM()).isEqualByComparingTo("3.0");
+        });
+        assertThat(result.getPoints()).extracting(DepthProfilePoint::getStationM)
+                .containsExactly(bd("0.000"), bd("100.000"));
+        assertThat(validator.validate(bd("100"), 50, List.of(heat), bd(".7"), bd("8"), result)).isEmpty();
+    }
+
+    @Test
+    void reportsNoPassageWhenThereIsNotEnoughLengthForOfficialSlope() {
+        DepthCrossing power = crossing("power-edge", "power", "4", ".8", "2.5", ".5", "1.15");
+
+        DepthProfileResult result = optimizer.optimize(bd("30"), 50, List.of(power), bd("8"));
+
+        assertThat(result.isComplete()).isFalse();
+        assertThat(result.getIssues()).extracting(DepthProfileIssue::getCode)
+                .containsExactly("NO_VERTICAL_PASSAGE");
+    }
+
+    @Test
+    void reportsOverlappingTransitionsInsteadOfCreatingSinglePointDips() {
+        DepthCrossing first = crossing("power-1", "power", "40", ".8", "2.5", ".5", "1.15");
+        DepthCrossing second = crossing("power-2", "power", "55", ".8", "2.5", ".5", "1.15");
+
+        DepthProfileResult result = optimizer.optimize(bd("100"), 50, List.of(first, second), bd("8"));
+
+        assertThat(result.isComplete()).isFalse();
+        assertThat(result.getIssues()).extracting(DepthProfileIssue::getCode)
+                .containsExactly("VERTICAL_TRANSITIONS_OVERLAP");
+    }
+
+    @Test
+    void validatorRejectsTamperedSlope() {
+        DepthCrossing gas = crossing("gas-1", "gas", "50", "2.8", ".4", ".2", "1.25");
+        DepthProfileResult valid = optimizer.optimize(bd("100"), 50, List.of(gas), bd("10"));
+        DepthProfileResult tampered = new DepthProfileResult(
+                true,
+                List.of(
+                        new DepthProfilePoint(bd("0"), bd("3")),
+                        new DepthProfilePoint(bd("1"), bd("2.2")),
+                        new DepthProfilePoint(bd("48"), bd("2.2")),
+                        new DepthProfilePoint(bd("52"), bd("2.2")),
+                        new DepthProfilePoint(bd("100"), bd("3"))),
+                valid.getCrossings(),
+                List.of(),
+                bd("100"),
+                bd("100"));
+
+        assertThat(validator.validate(bd("100"), 50, List.of(gas), bd(".7"), bd("10"), tampered))
+                .extracting(DepthProfileIssue::getCode)
+                .contains("PROFILE_SLOPE_EXCEEDED");
+    }
+
+    private DepthCrossing crossing(
+            String id,
+            String type,
+            String station,
+            String topDepth,
+            String height,
+            String clearance,
+            String multiplier) {
+        return new DepthCrossing(
+                id,
+                type,
+                bd(station),
+                bd(topDepth),
+                bd(height),
+                bd(clearance),
+                bd(multiplier));
+    }
+
+    private BigDecimal bd(String value) {
+        return new BigDecimal(value);
+    }
+}

@@ -75,32 +75,24 @@ public class OfficialNetworkSizer {
         }
 
         Map<String, Integer> diameterByEdge = new HashMap<>();
-        for (NetworkTreeEdge edge : edges) {
-            BigDecimal flow = flowByEdge.getOrDefault(edge.getId(), BigDecimal.ZERO);
-            Optional<PipeCatalogEntry> pipe = flow.signum() > 0
-                    ? pipeCatalog.minimumForFlow(flow)
-                    : Optional.of(pipeCatalog.entries().get(0));
-            if (pipe.isEmpty()) {
-                issues.add(new NetworkSizingIssue(
-                        "FLOW_EXCEEDS_CATALOG",
-                        edge.getId(),
-                        "No official diameter can carry " + flow.toPlainString() + " t/h"));
-            } else {
-                diameterByEdge.put(edge.getId(), pipe.get().getDiameter());
-            }
-        }
-
         Map<String, BigDecimal> continuousLengthByEdge = new HashMap<>();
         for (String root : roots) {
-            applyContinuousLength(
+            selectDiameters(
                     root,
                     null,
                     BigDecimal.ZERO,
                     downstreamEdgesByNode,
+                    flowByEdge,
                     diameterByEdge,
                     continuousLengthByEdge,
                     new HashSet<>(),
                     issues);
+        }
+        for (NetworkTreeEdge edge : edges) {
+            if (!diameterByEdge.containsKey(edge.getId())) {
+                selectDiameter(edge, null, BigDecimal.ZERO, flowByEdge, diameterByEdge,
+                        continuousLengthByEdge, issues);
+            }
         }
 
         Map<String, SizedNetworkEdge> sized = new LinkedHashMap<>();
@@ -141,11 +133,12 @@ public class OfficialNetworkSizer {
         return total;
     }
 
-    private void applyContinuousLength(
+    private void selectDiameters(
             String node,
             Integer previousDiameter,
             BigDecimal previousLength,
             Map<String, List<NetworkTreeEdge>> downstream,
+            Map<String, BigDecimal> flows,
             Map<String, Integer> diameters,
             Map<String, BigDecimal> continuousLengths,
             Set<String> activeEdges,
@@ -154,31 +147,68 @@ public class OfficialNetworkSizer {
             if (!activeEdges.add(edge.getId())) {
                 continue;
             }
+            selectDiameter(edge, previousDiameter, previousLength, flows, diameters,
+                    continuousLengths, issues);
             Integer diameter = diameters.get(edge.getId());
-            BigDecimal continuous = diameter != null && diameter.equals(previousDiameter)
-                    ? previousLength.add(edge.getLengthM())
-                    : edge.getLengthM();
-            continuousLengths.put(edge.getId(), continuous);
-            if (diameter != null) {
-                PipeCatalogEntry pipe = pipeCatalog.byDiameter(diameter).orElseThrow();
-                if (continuous.compareTo(BigDecimal.valueOf(pipe.getMaxContinuousLengthM())) > 0) {
-                    issues.add(new NetworkSizingIssue(
-                            "MAX_CONTINUOUS_LENGTH_EXCEEDED",
-                            edge.getId(),
-                            "Continuous DU " + diameter + " length " + continuous.toPlainString()
-                                    + " m exceeds " + pipe.getMaxContinuousLengthM() + " m"));
-                }
-            }
-            applyContinuousLength(
+            BigDecimal continuous = continuousLengths.getOrDefault(edge.getId(), edge.getLengthM());
+            selectDiameters(
                     edge.getDownstreamNodeId(),
                     diameter,
                     continuous,
                     downstream,
+                    flows,
                     diameters,
                     continuousLengths,
                     activeEdges,
                     issues);
             activeEdges.remove(edge.getId());
         }
+    }
+
+    private void selectDiameter(
+            NetworkTreeEdge edge,
+            Integer previousDiameter,
+            BigDecimal previousLength,
+            Map<String, BigDecimal> flows,
+            Map<String, Integer> diameters,
+            Map<String, BigDecimal> continuousLengths,
+            List<NetworkSizingIssue> issues) {
+        BigDecimal flow = flows.getOrDefault(edge.getId(), BigDecimal.ZERO);
+        Optional<PipeCatalogEntry> minimum = flow.signum() > 0
+                ? pipeCatalog.minimumForFlow(flow)
+                : Optional.of(pipeCatalog.entries().get(0));
+        if (minimum.isEmpty()) {
+            issues.add(new NetworkSizingIssue(
+                    "FLOW_EXCEEDS_CATALOG",
+                    edge.getId(),
+                    "No official diameter can carry " + flow.toPlainString() + " t/h"));
+            return;
+        }
+
+        PipeCatalogEntry selected = minimum.get();
+        BigDecimal continuous = selected.getDiameter() == (previousDiameter == null ? -1 : previousDiameter)
+                ? previousLength.add(edge.getLengthM())
+                : edge.getLengthM();
+        if (continuous.compareTo(BigDecimal.valueOf(selected.getMaxContinuousLengthM())) > 0) {
+            int minimumDiameter = selected.getDiameter();
+            Optional<PipeCatalogEntry> promoted = pipeCatalog.entries().stream()
+                    .filter(pipe -> pipe.getDiameter() > minimumDiameter)
+                    .filter(pipe -> pipe.getMaxFlowTph().compareTo(flow) >= 0)
+                    .filter(pipe -> BigDecimal.valueOf(pipe.getMaxContinuousLengthM())
+                            .compareTo(edge.getLengthM()) >= 0)
+                    .findFirst();
+            if (promoted.isPresent()) {
+                selected = promoted.get();
+                continuous = edge.getLengthM();
+            } else {
+                issues.add(new NetworkSizingIssue(
+                        "MAX_CONTINUOUS_LENGTH_EXCEEDED",
+                        edge.getId(),
+                        "No official diameter supports a continuous section of "
+                                + edge.getLengthM().toPlainString() + " m"));
+            }
+        }
+        diameters.put(edge.getId(), selected.getDiameter());
+        continuousLengths.put(edge.getId(), continuous);
     }
 }

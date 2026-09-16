@@ -115,6 +115,26 @@ and runtime services were removed. The frontend calls only the current official 
 - This checkpoint has intentionally not been deployed to the VPS. Deployment is deferred until an
   explicit user command.
 
+## R5 sizing and reconstruction checkpoint (local, not deployed)
+
+- New-network sizing now chooses the minimum official DU satisfying both flow and uninterrupted
+  length. It promotes DU when the current row's length is exhausted and never resets unchanged-DU
+  length at an intermediate chamber.
+- Added tie-in flow is traced through explicit `upstream_object_id` chains to a source. Multiple
+  tie-ins are summed on common existing sections; `LengthIndexedLine` splits the target segment at
+  the projected tie-in so only the upstream part participates.
+- Existing sections and used chambers are emitted as reconstruction only when the resulting flow
+  requires a DU larger than the supplied baseline. Missing direction, existing flow or chamber DU
+  produces `RECONSTRUCTION_INPUT_UNAVAILABLE`; no baseline is inferred.
+- The map/API expose reconstruction sections, chambers, old/new DU and added/resulting flow. The
+  supplied organizer file displays one grouped Russian warning because its documented compatibility
+  profile lacks reconstruction inputs.
+- Verification: 56 Java tests pass locally in Java-11 compatibility mode, including every flow and
+  length boundary of all 18 catalog rows, partial tie-in, overlapping loads, chamber reconstruction
+  and planner integration. Nine web tests, ESLint, TypeScript and production build pass. Browser
+  smoke at `http://localhost:5174` confirms 17/17 connected OKS, three variants, zero calculation
+  errors and zero console warnings/errors.
+
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
@@ -125,9 +145,10 @@ and runtime services were removed. The frontend calls only the current official 
 - R4 — functional obstacle-aware checkpoint: immutable all-demand runs, independent/shared/diverse
   strategies, actual polyline search, simplification, partial no-route, an independent validator
   and GIS/result viewer. Large-network performance and broader diversity/quality evidence remain.
-- R5 — partial: bottom-up flow/DU sizing and continuous-length diagnostics are connected to
-  accepted new-network trees; automatic resolution of length violations, existing-network flow
-  propagation and reconstruction are not implemented.
+- R5 — functionally complete for contract-complete input: bottom-up flow/DU sizing, automatic
+  continuous-length promotion, upstream propagation, partial/common-section reconstruction and
+  chamber reconstruction are covered by focused tests. The supplied organizer file cannot produce
+  reconstruction because its existing-network baseline and direction fields are absent.
 - R6 — functionally integrated for the current rule coverage: dynamic OKS buffers, hard forbidden
   zones and reproducible special crossings participate in search and final validation. The full
   positive/boundary/negative test matrix for every official table row remains acceptance work.
@@ -140,11 +161,9 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Next change
 
-Finish R5: resolve continuous-length violations by a valid DU transition strategy, then propagate
-added demand through split existing-network parts to the source, sum shared upstream flow, select
-required DU and emit only the sections/chambers that need reconstruction. In parallel, close the
-remaining R6 per-rule boundary matrix and profile the
-obstacle search. Then implement R7 official costs, score and strict seven-type export. Do not start
+Implement R7 official component costs, penalties, score, ranking and strict seven-type export on
+top of the now-sized/reconstructed variants. In parallel, close the remaining R6 per-rule boundary
+matrix and profile the obstacle search. Do not start
 depth, MVT or additional file formats before the mandatory 2D gate.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.

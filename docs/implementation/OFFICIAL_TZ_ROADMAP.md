@@ -233,7 +233,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R2 | Функционально частично закрыт | 3 ГБ memory evidence, replay/dedup, дополнительные inline cases |
 | R3 | Функциональный vertical slice | Indexed large-network search, persisted selected tie-ins |
 | R4 | Функциональный obstacle-aware checkpoint + три стратегии + GIS | Performance, quality/diversity fixtures и persisted selected tie-ins |
-| R5 | New-network flow/DU и length diagnostics подключены | Устранение length issues, existing-network propagation и reconstruction |
+| R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
 | R6 | Search/final-validator integration для текущего покрытия | Полная positive/boundary/negative матрица каждой строки |
 | R7 | Не начат | Official costs/score/diversity/seven-type export |
 | R8 | Не начат, optional | Depth rerouting после P0 2D |
@@ -572,9 +572,10 @@ P0 считается завершённым только если одновр�
 R4/R6 obstacle-aware checkpoint реализован локально: immutable all-demand run строит три
 содержательно разные стратегии, прокладывает реальные полилинии вокруг запретов, выделяет
 special-проходы, сохраняет partial no-route и независимо перепроверяет результат. R5 sizing
-назначает расход и DU участкам новой сети и явно сообщает превышения непрерывной длины. Следующий
-инкремент — устранение этих превышений, реконструкция существующей сети и камер до источника,
-закрытие полной R6 boundary-матрицы, затем официальный R7 cost/score/export.
+автоматически подбирает ДУ с учётом непрерывной длины; upstream propagation, partial/common-section
+reconstruction и реконструкция камер закрыты тестами на строгом контракте. Поставленный файл не
+содержит baseline/direction полей и возвращает явный статус unavailable. Следующий инкремент —
+полная R6 boundary-матрица и официальный R7 cost/score/export.
 Текущий checkpoint не публиковался на VPS; развёртывание выполняется только отдельной командой.
 
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.

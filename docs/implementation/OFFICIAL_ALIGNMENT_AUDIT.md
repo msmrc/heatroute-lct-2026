@@ -93,8 +93,8 @@ Remaining documentation drift:
 | Input and persistence | Streaming inspector/loader, contract profiles, PostGIS dual CRS, real dataset regression | 75% |
 | Existing topology and tie-in screening | Geometric/upstream validation, segment/chamber candidates, 204 candidates on supplied data | 55% |
 | Multi-OKS routing and tree construction | Immutable runs, three obstacle-aware strategies, normalization, partial no-route and independent validator | 70% |
-| Flow, DU and continuous length | Tree sizer assigns flow/DU and reports continuous-length violations; auto-resolution is missing | 60% |
-| Reconstruction | Required formula/catalog data exist; no upstream propagation or reconstruction geometry | 10% |
+| Flow, DU and continuous length | Tree sizer aggregates flow and automatically selects DU for all 18 flow/length boundaries | 90% |
+| Reconstruction | Upstream propagation, partial/common sections and chamber reconstruction pass strict fixtures; supplied data lacks baseline fields | 80% |
 | Restrictions and special passages | Dynamic buffers and base/special sections are integrated into search/final validation; full row matrix remains | 65% |
 | Cost, penalty and score | Segment, reconstruction, depth, penalty and score primitives exist; no full variant calculator | 40% |
 | Official output | No seven-type result model, serializer, streaming download or schema validator | 5% |
@@ -113,18 +113,17 @@ Remaining documentation drift:
 
 The local Java regression additionally proves that the supplied file produces three valid route
 strategies, that the preferred variant connects all 17 demand points and that every accepted edge
-has real polyline sections, flow and DU. This does not prove reconstruction, final cost/export or
-the required scale limits.
+has real polyline sections, flow and DU. Strict inline fixtures prove partial/common-section and
+chamber reconstruction. The supplied file itself cannot prove reconstruction because its existing
+network omits flow and upstream direction. Final cost/export and required scale limits remain open.
 
 ## Critical path to a valid submission
 
-1. **R5 reconstruction:** propagate added flow from selected tie-ins to the source, size existing
-   parts and emit section/chamber reconstruction without inventing missing baseline values.
-2. **R6 acceptance:** complete the positive/boundary/negative matrix for every official rule and
+1. **R6 acceptance:** complete the positive/boundary/negative matrix for every official rule and
    profile the integrated search on denser geometry.
-3. **R7 complete variant:** chamber/tie-in/reconstruction costs, penalties, score, up to three
+2. **R7 complete variant:** chamber/tie-in/reconstruction costs, penalties, score, up to three
    materially different variants and strict seven-type streaming GeoJSON.
-4. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then
+3. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then
    produce measured 3 GB input, 500 MB output and 50-user evidence.
 
 The depth task is optional and should start only after the complete two-dimensional P0 pipeline

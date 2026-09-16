@@ -84,4 +84,29 @@ describe("RouteVisualization", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
     expect(screen.getByText(/ОКС 2: Маршрут не найден/)).toBeTruthy();
   });
+
+  it("groups missing reconstruction inputs into one localized warning", () => {
+    const withReconstructionWarnings: OfficialCalculationResult = {
+      ...result,
+      variants: result.variants.map((variant) => variant.id !== "shared" ? variant : {
+        ...variant,
+        reconstruction: {
+          available: false,
+          network_sections: [],
+          chambers: [],
+          issues: [
+            { code: "RECONSTRUCTION_INPUT_UNAVAILABLE", subject_id: "101", message: "missing" },
+            { code: "RECONSTRUCTION_INPUT_UNAVAILABLE", subject_id: "102", message: "missing" },
+          ],
+        },
+      }),
+    };
+
+    render(<RouteVisualization result={withReconstructionWarnings} importId="import-1" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /1 предупреждение/ }));
+    expect(screen.getByText("Недостаточно данных для реконструкции")).toBeTruthy();
+    expect(screen.getByText(/Результат реконструкции не рассчитывался/)).toBeTruthy();
+    expect(screen.getByText(/Затронуто участков: 2 · ID 101, 102/)).toBeTruthy();
+  });
 });

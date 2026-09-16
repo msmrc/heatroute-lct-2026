@@ -44,7 +44,7 @@ type MapFeatureCollection = FeatureCollection<Point | LineString, JsonProperties
 const OVERLAY_LAYERS: Record<Exclude<keyof MapLayersState, "base">, string[]> = {
   restrictions: ["restriction-fill", "restriction-line"],
   network: ["network-casing", "network-line", "source-points", "chamber-points", "context-points"],
-  route: ["route-casing", "route-line", "route-nodes"],
+  route: ["reconstruction-casing", "reconstruction-line", "route-casing", "route-line", "reconstruction-nodes", "route-nodes"],
 };
 const SELECTABLE_LAYERS = Object.values(OVERLAY_LAYERS).flat();
 
@@ -62,7 +62,11 @@ function toWgs84(x: number, y: number): [number, number] {
 }
 
 function routeMapBounds(variant: OfficialRouteVariant): OfficialMapBounds {
-  const routeCoordinates = variant.edges.flatMap((edge) => edge.coordinates ?? []);
+  const routeCoordinates = [
+    ...variant.edges.flatMap((edge) => edge.coordinates ?? []),
+    ...(variant.reconstruction?.network_sections.flatMap((section) => section.coordinates) ?? []),
+    ...(variant.reconstruction?.chambers.map((chamber) => chamber.coordinate) ?? []),
+  ];
   const xs = [...variant.nodes.map((node) => node.coordinate.xm), ...routeCoordinates.map((coordinate) => coordinate.xm)];
   const ys = [...variant.nodes.map((node) => node.coordinate.ym), ...routeCoordinates.map((coordinate) => coordinate.ym)];
   const [minLon, minLat] = toWgs84(Math.min(...xs) - MAP_PADDING_METERS, Math.min(...ys) - MAP_PADDING_METERS);
@@ -121,7 +125,40 @@ function routeFeatureCollection(variant: OfficialRouteVariant): MapFeatureCollec
       root: node.root,
     },
   }));
-  return { type: "FeatureCollection", features: [...edges, ...points] };
+  const reconstructionSections: MapFeatureCollection["features"] =
+    variant.reconstruction?.network_sections.flatMap((section) => section.coordinates.length < 2 ? [] : [{
+      type: "Feature" as const,
+      geometry: {
+        type: "LineString" as const,
+        coordinates: section.coordinates.map((coordinate) => toWgs84(coordinate.xm, coordinate.ym)),
+      },
+      properties: {
+        map_layer: "calculated_reconstruction",
+        label: `Реконструкция участка ${section.existing_feature_id}`,
+        feature_id: section.existing_feature_id,
+        length_m: section.length_m,
+        flow_tph: section.resulting_flow_tph,
+        diameter: section.required_diameter,
+        existing_diameter: section.existing_diameter,
+        added_flow_tph: section.added_flow_tph,
+        partial: section.partial,
+      },
+    }]) ?? [];
+  const reconstructionChambers: MapFeatureCollection["features"] =
+    variant.reconstruction?.chambers.map((chamber) => ({
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: toWgs84(chamber.coordinate.xm, chamber.coordinate.ym) },
+      properties: {
+        map_layer: "calculated_reconstruction_chamber",
+        label: `Реконструкция камеры ${chamber.existing_feature_id}`,
+        feature_id: chamber.existing_feature_id,
+        flow_tph: chamber.resulting_flow_tph,
+        diameter: chamber.required_diameter,
+        existing_diameter: chamber.existing_diameter,
+        added_flow_tph: chamber.added_flow_tph,
+      },
+    })) ?? [];
+  return { type: "FeatureCollection", features: [...reconstructionSections, ...edges, ...reconstructionChambers, ...points] };
 }
 
 function addOverlayLayers(map: maplibregl.Map, contextData: FeatureCollection, routeData: MapFeatureCollection) {
@@ -136,8 +173,11 @@ function addOverlayLayers(map: maplibregl.Map, contextData: FeatureCollection, r
     { id: "source-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "source"], paint: { "circle-radius": 8, "circle-color": "#ef6b3b", "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } },
     { id: "chamber-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_chamber"], paint: { "circle-radius": 4.5, "circle-color": "#34363b", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } },
     { id: "context-points", type: "circle", source: CONTEXT_SOURCE, filter: ["all", ["==", ["geometry-type"], "Point"], ["!", ["in", ["get", "object_type"], ["literal", ["source", "heat_chamber"]]]]], paint: { "circle-radius": 3.5, "circle-color": "#4d9e68", "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.8 } },
+    { id: "reconstruction-casing", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_reconstruction"], paint: { "line-color": "rgba(255,255,255,.96)", "line-width": 9 } },
+    { id: "reconstruction-line", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_reconstruction"], paint: { "line-color": "#d94f70", "line-width": 5, "line-dasharray": [1.4, 1] } },
     { id: "route-casing", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": "rgba(255,255,255,.96)", "line-width": ["match", ["get", "route_kind"], "trunk", 8, "special", 9, 6.5] } },
     { id: "route-line", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": ["match", ["get", "route_kind"], "trunk", "#5e4be2", "special", "#ed6a3b", "#7464e8"], "line-width": ["match", ["get", "route_kind"], "trunk", 4.5, "special", 5, 3.5] } },
+    { id: "reconstruction-nodes", type: "circle", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_reconstruction_chamber"], paint: { "circle-radius": 7, "circle-color": "#d94f70", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.4 } },
     { id: "route-nodes", type: "circle", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_node"], paint: { "circle-radius": ["match", ["get", "node_type"], "demand_connection", 5, 6], "circle-color": ["case", ["==", ["get", "node_type"], "demand_connection"], "#45a55a", ["==", ["get", "root"], true], "#ed6a3b", "#7357f6"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.4 } },
   ];
   layers.forEach((layer) => map.addLayer(layer));
@@ -155,6 +195,8 @@ function selectedObject(feature: MapGeoJSONFeature): SelectedMapObject {
   if (typeof properties.length_m === "number") details.push(["Длина", `${Math.round(properties.length_m).toLocaleString("ru-RU")} м`]);
   if (typeof properties.flow_tph === "number") details.push(["Расход", `${properties.flow_tph.toLocaleString("ru-RU")} т/ч`]);
   if (typeof properties.diameter === "number") details.push(["Диаметр", `ДУ ${properties.diameter}`]);
+  if (typeof properties.existing_diameter === "number") details.push(["Существующий диаметр", `ДУ ${properties.existing_diameter}`]);
+  if (typeof properties.added_flow_tph === "number") details.push(["Добавленный расход", `${properties.added_flow_tph.toLocaleString("ru-RU")} т/ч`]);
   if (typeof properties.crossing_angle_degrees === "number") details.push(["Угол перехода", `${properties.crossing_angle_degrees.toLocaleString("ru-RU")}°`]);
   if (typeof properties.address === "string" && properties.address) details.push(["Адрес", properties.address]);
   if (typeof properties.feature_id === "string" && properties.feature_id) details.push(["ID", properties.feature_id]);

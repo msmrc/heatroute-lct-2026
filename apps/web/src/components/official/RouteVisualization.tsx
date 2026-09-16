@@ -28,6 +28,27 @@ function formatLength(value: number): string {
     : `${Math.round(value).toLocaleString("ru-RU")} м`;
 }
 
+function russianCount(value: number, one: string, few: string, many: string): string {
+  const modulo100 = value % 100;
+  const modulo10 = value % 10;
+  const word = modulo100 >= 11 && modulo100 <= 14
+    ? many
+    : modulo10 === 1
+      ? one
+      : modulo10 >= 2 && modulo10 <= 4
+        ? few
+        : many;
+  return `${value} ${word}`;
+}
+
+function errorCount(value: number): string {
+  return russianCount(value, "ошибка", "ошибки", "ошибок");
+}
+
+function warningCount(value: number): string {
+  return russianCount(value, "предупреждение", "предупреждения", "предупреждений");
+}
+
 function variantName(variant: OfficialRouteVariant): string {
   if (variant.strategy === "shared_trunk") return "Общая сеть";
   if (variant.strategy === "alternative_tie_ins") return "Альтернативные врезки";
@@ -58,10 +79,15 @@ function noRouteReason(reason?: string): string {
 function calculationIssueTitle(issue: OfficialCalculationIssue): string {
   if (issue.code === "MAX_CONTINUOUS_LENGTH_EXCEEDED") return "Превышена предельная длина";
   if (issue.code === "FLOW_EXCEEDS_CATALOG") return "Расход выше диапазона диаметров";
+  if (issue.code === "RECONSTRUCTION_INPUT_UNAVAILABLE") return "Недостаточно данных для реконструкции";
+  if (issue.code === "RECONSTRUCTION_FLOW_EXCEEDS_CATALOG") return "Расход реконструкции выше диапазона диаметров";
   return issue.code.replaceAll("_", " ").toLocaleLowerCase("ru-RU");
 }
 
 function calculationIssueMessage(issue: OfficialCalculationIssue): string {
+  if (issue.code === "RECONSTRUCTION_INPUT_UNAVAILABLE") {
+    return "В исходном наборе нет расхода существующей сети или направления к источнику. Результат реконструкции не рассчитывался.";
+  }
   const continuousLength = issue.message.match(/^Continuous DU (\d+) length ([\d.]+) m exceeds ([\d.]+) m$/);
   if (continuousLength) {
     const [, diameter, actual, limit] = continuousLength;
@@ -155,8 +181,18 @@ export function RouteVisualization({
   if (!variant || !layout) return null;
 
   const noRoute = variant.connections.filter((connection) => connection.status === "no_route");
-  const calculationIssues = [...variant.validation_issues, ...(variant.sizing_issues ?? [])];
+  const reconstructionIssues = variant.reconstruction?.issues ?? [];
+  const reconstructionWarnings = reconstructionIssues.filter((issue) => issue.code === "RECONSTRUCTION_INPUT_UNAVAILABLE");
+  const primaryReconstructionWarning = reconstructionWarnings[0];
+  const calculationIssues = [
+    ...variant.validation_issues,
+    ...(variant.sizing_issues ?? []),
+    ...reconstructionIssues.filter((issue) => issue.code !== "RECONSTRUCTION_INPUT_UNAVAILABLE"),
+  ];
   const calculationValid = variant.valid && calculationIssues.length === 0;
+  const totalWarningCount = warnings.length + (reconstructionWarnings.length > 0 ? 1 : 0);
+  const reconstructionLength = variant.reconstruction?.network_sections
+    .reduce((total, section) => total + section.length_m, 0) ?? 0;
   const independent = result.variants.find((item) => item.strategy === "independent");
   const shared = result.variants.find((item) => item.strategy === "shared_trunk");
 
@@ -288,6 +324,7 @@ export function RouteVisualization({
                 <div><dt>Подключено</dt><dd>{variant.connected_demand_count} из {result.demand_count} ОКС</dd></div>
                 <div><dt>Участков</dt><dd>{variant.edges.length}</dd></div>
                 <div><dt>Камер и врезок</dt><dd>{variant.nodes.filter((node) => node.chamber).length}</dd></div>
+                <div><dt>Реконструкция</dt><dd>{variant.reconstruction?.available === false ? "Нет исходных данных" : formatLength(reconstructionLength)}</dd></div>
               </dl>
             </>
           )}
@@ -303,17 +340,17 @@ export function RouteVisualization({
           <div className="route-result-metrics">
             <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
             <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
-            <article><span>Камер и врезок</span><strong>{variant.nodes.filter((node) => node.chamber).length}</strong><small>{variant.edges.length} участков</small></article>
+            <article><span>Реконструкция</span><strong>{variant.reconstruction?.available === false ? "—" : formatLength(reconstructionLength)}</strong><small>{variant.reconstruction?.network_sections.length ?? 0} участков · {variant.reconstruction?.chambers.length ?? 0} камер</small></article>
             <button
               type="button"
               className={calculationValid ? "is-success" : "is-danger"}
               aria-haspopup="dialog"
-              aria-label={`Открыть результаты проверки: ${calculationIssues.length} ошибок, ${warnings.length} предупреждений`}
+              aria-label={`Открыть результаты проверки: ${errorCount(calculationIssues.length)}, ${warningCount(totalWarningCount)}`}
               onClick={() => setValidationDialogOpen(true)}
             >
               <span>Проверка структуры</span>
               <strong>{calculationValid ? "Пройдена" : "Требует проверки"}</strong>
-              <small>{calculationIssues.length} ошибок · <u>{warnings.length} предупреждений</u></small>
+              <small>{errorCount(calculationIssues.length)} · <u>{warningCount(totalWarningCount)}</u></small>
             </button>
           </div>
         </footer>
@@ -321,7 +358,7 @@ export function RouteVisualization({
       <Dialog
         open={validationDialogOpen}
         title="Результаты проверки"
-        description={`${calculationIssues.length} ошибок расчёта · ${warnings.length} предупреждений во входных данных`}
+        description={`${errorCount(calculationIssues.length)} расчёта · ${warningCount(totalWarningCount)}`}
         onClose={() => setValidationDialogOpen(false)}
       >
         <div className="validation-dialog-content">
@@ -356,10 +393,27 @@ export function RouteVisualization({
                 </article>
               ))}
             </div>
-          ) : (
+          ) : reconstructionWarnings.length === 0 ? (
             <div className="validation-dialog-empty">
               <CheckCircle2 size={22} />
               <div><strong>Предупреждений нет</strong><p>Входные данные прошли проверку без замечаний.</p></div>
+            </div>
+          ) : null}
+          {primaryReconstructionWarning && (
+            <div className="validation-warning-list">
+              <article>
+                <AlertTriangle size={17} />
+                <div>
+                  <strong>{calculationIssueTitle(primaryReconstructionWarning)}</strong>
+                  <p>{calculationIssueMessage(primaryReconstructionWarning)}</p>
+                  <small>
+                    Затронуто участков: {reconstructionWarnings.length}
+                    {reconstructionWarnings.some((issue) => issue.subject_id)
+                      ? ` · ID ${reconstructionWarnings.map((issue) => issue.subject_id).filter(Boolean).join(", ")}`
+                      : ""}
+                  </small>
+                </div>
+              </article>
             </div>
           )}
           <div className="dialog-actions">

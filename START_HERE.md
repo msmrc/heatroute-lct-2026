@@ -13,8 +13,11 @@
 
 Backend только Java 11 / Spring Boot 2.6.3 в `apps/api`. Не возвращай Python, FastAPI, Celery,
 Alembic или Redis. Не считай старые M0–M7 evidence текущей готовностью. Первый R4 vertical slice
-расширен до obstacle-aware R4/R6 routing с тремя стратегиями, а R5 sizing подключён к новой сети.
-Следующий критический этап — propagation/reconstruction существующей сети, затем R7 cost/export.
+расширен до obstacle-aware R4/R6 routing с тремя стратегиями. R5 закрыт на строгих fixtures:
+bottom-up sizing автоматически повышает ДУ по расходу и предельной длине, а добавленный расход
+распространяется по существующей сети с partial reconstruction участков и камер. В поставленном
+GeoJSON реконструкция честно недоступна из-за отсутствующих `flow_tph/upstream_object_id`.
+Следующий критический этап — R7 cost/score/export.
 Не публикуй текущие изменения на VPS без отдельной команды пользователя.
 
 Быстрая проверка состояния:

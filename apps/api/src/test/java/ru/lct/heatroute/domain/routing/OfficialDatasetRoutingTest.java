@@ -26,6 +26,7 @@ import org.locationtech.proj4j.ProjCoordinate;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
 import ru.lct.heatroute.domain.topology.ExistingNetworkTopologyAnalyzer;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
@@ -47,7 +48,8 @@ class OfficialDatasetRoutingTest {
                 new OfficialRouteValidator(geometryRules),
                 new OfficialObstacleRouter(geometryRules),
                 pipeCatalog,
-                new OfficialNetworkSizer(pipeCatalog));
+                new OfficialNetworkSizer(pipeCatalog),
+                new OfficialExistingNetworkReconstructor(pipeCatalog));
 
         OfficialCalculationResult result = planner.plan(features, topology);
 

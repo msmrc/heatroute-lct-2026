@@ -11,6 +11,7 @@ import org.locationtech.jts.io.WKTReader;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
@@ -26,7 +27,8 @@ class OfficialRoutePlannerTest {
             new OfficialRouteValidator(geometryRules),
             new OfficialObstacleRouter(geometryRules),
             pipeCatalog,
-            new OfficialNetworkSizer(pipeCatalog));
+            new OfficialNetworkSizer(pipeCatalog),
+            new OfficialExistingNetworkReconstructor(pipeCatalog));
 
     @Test
     void nearbyDemandsPreferShorterSharedTrunk() throws Exception {
@@ -158,6 +160,29 @@ class OfficialRoutePlannerTest {
         assertThat(result.getVariants().get(2).getNodes())
                 .filteredOn(node -> "network-b".equals(node.getTargetId()))
                 .isNotEmpty();
+    }
+
+    @Test
+    void includesPartialExistingNetworkReconstructionInPlannedVariant() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (0 0)", "{}"),
+                feature("heat_network", "network", "LINESTRING (0 0, 100 0)",
+                        "{\"upstream_object_id\":\"source\",\"flow_tph\":2,\"diameter\":50}"),
+                feature("oks_connection_point", "cp", "POINT (50 50)", "{\"flow_tph\":5}"));
+
+        RouteVariant variant = planner.plan(
+                features,
+                topology(List.of(candidate("cp", "network", 50))))
+                .getVariants().get(0);
+
+        assertThat(variant.getReconstruction().isAvailable()).isTrue();
+        assertThat(variant.getReconstruction().getNetworkSections()).singleElement().satisfies(section -> {
+            assertThat(section.getExistingFeatureId()).isEqualTo("network");
+            assertThat(section.getLengthM()).isEqualByComparingTo("50");
+            assertThat(section.getExistingDiameter()).isEqualTo(50);
+            assertThat(section.getRequiredDiameter()).isEqualTo(65);
+            assertThat(section.isPartial()).isTrue();
+        });
     }
 
     private TopologyAnalysis topology(List<TieInCandidate> candidates) {

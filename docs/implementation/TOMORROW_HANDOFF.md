@@ -54,7 +54,9 @@ Already usable:
   polylines, partial no-route and a separate tree/chamber/crossing validator;
 - integrated R6 construction/final validation for dynamic OKS buffers, hard forbidden zones and
   reproducible base/special crossings;
-- bottom-up `flow_tph`, DU and continuous-length diagnostics on accepted new-network trees;
+- bottom-up `flow_tph` and automatic DU selection across all flow/continuous-length catalog rows;
+- upstream propagation, partial/common-section reconstruction and used-chamber reconstruction for
+  contract-complete existing-network input;
 - production evidence on the organizer file: the preferred shared variant connects all 17 demands
   with zero structural validator issues.
 - interactive R4 result viewer with MapLibre GL/CARTO vector basemap, PostGIS source context, layer toggles,
@@ -67,8 +69,6 @@ Already usable:
 
 Still blocking official P0:
 
-- reconstruction propagation to source and chamber reconstruction;
-- automatic resolution of the continuous-length sizing issues reported on long branches;
 - the complete positive/boundary/negative R6 matrix for every official table row;
 - large-network performance and broader route-quality/diversity evidence;
 - official component costs, score and alternative diversity;
@@ -77,16 +77,12 @@ Still blocking official P0:
 
 ## Developer: next vertical slice
 
-Continue from the validated and sized trees in `domain/routing`; do not replace the immutable
-run/job contract. First resolve continuous-length issues through valid DU transitions without
-resetting the counter at an unchanged-DU chamber. Then propagate the added demand from each
-selected tie-in through split existing
-sections to the source, sum shared upstream flows, select required DU and emit reconstruction only
-where the required DU exceeds the supplied baseline. Cover partial tie-ins and chamber
-reconstruction with focused tests. In parallel, finish the missing R6 row-by-row boundary matrix.
-
-After reconstruction is independently validated, implement official R7 component costs, score and
-strict seven-type streaming export. Do not mix optional depth, MVT or extra formats into this gate.
+Continue from `RouteVariant.reconstruction`; do not replace the immutable run/job contract.
+Implement official R7 component costs for new sections, tie-ins, new chambers, reconstructed
+sections/chambers and unconnected penalties. Calculate length/score, rank only valid materially
+different variants, then serialize and independently validate the strict seven-type GeoJSON.
+In parallel, finish the missing R6 row-by-row boundary matrix. Do not mix optional depth, MVT or
+extra formats into this gate.
 
 ## PM: tasks tomorrow
 

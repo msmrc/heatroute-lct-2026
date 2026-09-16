@@ -21,6 +21,9 @@ import org.locationtech.jts.operation.distance.DistanceOp;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.PipeCatalogEntry;
+import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
+import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
+import ru.lct.heatroute.domain.reconstruction.TieInLoad;
 import ru.lct.heatroute.domain.sizing.NetworkSizingResult;
 import ru.lct.heatroute.domain.sizing.NetworkTreeEdge;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
@@ -31,7 +34,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
 @Component
 public class OfficialRoutePlanner {
-    public static final String ALGORITHM_VERSION = "r4-r6-obstacle-aware-2";
+    public static final String ALGORITHM_VERSION = "r5-upstream-reconstruction-1";
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double MIN_SHARED_SAVING_M = 0.01;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
@@ -43,17 +46,20 @@ public class OfficialRoutePlanner {
     private final OfficialObstacleRouter obstacleRouter;
     private final OfficialPipeCatalog pipeCatalog;
     private final OfficialNetworkSizer networkSizer;
+    private final OfficialExistingNetworkReconstructor reconstructor;
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     public OfficialRoutePlanner(
             OfficialRouteValidator validator,
             OfficialObstacleRouter obstacleRouter,
             OfficialPipeCatalog pipeCatalog,
-            OfficialNetworkSizer networkSizer) {
+            OfficialNetworkSizer networkSizer,
+            OfficialExistingNetworkReconstructor reconstructor) {
         this.validator = validator;
         this.obstacleRouter = obstacleRouter;
         this.pipeCatalog = pipeCatalog;
         this.networkSizer = networkSizer;
+        this.reconstructor = reconstructor;
     }
 
     public OfficialCalculationResult plan(
@@ -587,6 +593,9 @@ public class OfficialRoutePlanner {
                     sized.getDiameter());
         }).collect(Collectors.toList());
         List<RouteValidationIssue> issues = validator.validate(nodes, sizedEdges, features);
+        ExistingNetworkReconstructionResult reconstruction = reconstructor.reconstruct(
+                features,
+                tieInLoads(nodes, sizedEdges));
         BigDecimal totalLength = sizedEdges.stream()
                 .map(RouteEdge::getLengthM)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -599,7 +608,30 @@ public class OfficialRoutePlanner {
                 draft.connections,
                 totalLength,
                 issues,
-                sizing.getIssues());
+                sizing.getIssues(),
+                reconstruction);
+    }
+
+    private List<TieInLoad> tieInLoads(List<RouteNode> nodes, List<RouteEdge> edges) {
+        Map<String, BigDecimal> flowByRoot = edges.stream()
+                .filter(edge -> edge.getFlowTph() != null)
+                .collect(Collectors.toMap(
+                        RouteEdge::getUpstreamNodeId,
+                        RouteEdge::getFlowTph,
+                        BigDecimal::add,
+                        LinkedHashMap::new));
+        return nodes.stream()
+                .filter(RouteNode::isRoot)
+                .filter(node -> node.getTargetId() != null)
+                .map(node -> new TieInLoad(
+                        node.getTargetId(),
+                        node.getCoordinate(),
+                        flowByRoot.getOrDefault(node.getId(), BigDecimal.ZERO)))
+                .filter(load -> load.getAddedFlowTph().signum() > 0)
+                .sorted(Comparator.comparing(TieInLoad::getTargetId)
+                        .thenComparing(load -> load.getCoordinate().getXM())
+                        .thenComparing(load -> load.getCoordinate().getYM()))
+                .collect(Collectors.toList());
     }
 
     private Map<String, Integer> chamberIncidentCounts(List<ImportedOfficialFeature> features) {

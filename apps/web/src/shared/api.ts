@@ -120,6 +120,35 @@ export interface OfficialCalculationIssue {
   edge_id?: string | null;
 }
 
+export interface OfficialNetworkReconstructionSection {
+  id: string;
+  existing_feature_id: string;
+  coordinates: OfficialRouteCoordinate[];
+  length_m: number;
+  existing_flow_tph: number;
+  added_flow_tph: number;
+  resulting_flow_tph: number;
+  existing_diameter: number;
+  required_diameter: number;
+  partial: boolean;
+}
+
+export interface OfficialChamberReconstruction {
+  existing_feature_id: string;
+  coordinate: OfficialRouteCoordinate;
+  added_flow_tph: number;
+  resulting_flow_tph: number;
+  existing_diameter: number;
+  required_diameter: number;
+}
+
+export interface OfficialReconstructionResult {
+  available: boolean;
+  network_sections: OfficialNetworkReconstructionSection[];
+  chambers: OfficialChamberReconstruction[];
+  issues: OfficialCalculationIssue[];
+}
+
 export interface OfficialRouteVariant {
   id: string;
   strategy: string;
@@ -130,6 +159,7 @@ export interface OfficialRouteVariant {
   total_length_m: number;
   validation_issues: OfficialCalculationIssue[];
   sizing_issues?: OfficialCalculationIssue[];
+  reconstruction?: OfficialReconstructionResult;
   no_route_demand_count: number;
   connected_demand_count: number;
 }

@@ -133,14 +133,15 @@ three decimals). A golden test locks these table/formula results and also record
 differences, so the implementation cannot silently drift toward the inconsistent example numbers.
 
 1. **R4/R9 performance:** adaptive JTS STRtree lookup is covered by a deterministic fixture with
-   1,001 constraints and 20,000 bounded segment checks. Byte-size boundaries are measured, while
-   geometry-representative maximum-topology time/memory evidence is still required; the published
-   2D R6 boundary matrix is complete.
+   1,001 constraints and 20,000 bounded segment checks. Byte-size boundaries are measured, and a
+   full 2× supplied-geometry run passes on Ubuntu 22 / Java 11 with 34/34 demands and 481,092 KiB
+   peak RSS. Organizer approval of the actual maximum profile remains external; the published 2D
+   R6 boundary matrix is complete.
 2. **R7 complete variant:** closed against the normative appendix tables/formulas with the section
    10.8 illustrative-value discrepancy documented; serialization, validation, download and map
    consumption are implemented. Remaining scale proof belongs to R9.
-3. **R9 acceptance:** preserve the passing Ubuntu 22 / docker-compose 1.29.2, byte-boundary and
-   50-user API gates, then finish representative maximum-topology evidence.
+3. **R9 acceptance:** preserve the passing Ubuntu 22 / docker-compose 1.29.2, byte-boundary,
+   50-user API and full 2× topology gates, then obtain organizer approval of the maximum profile.
 
 The depth task is optional and should start only after the complete two-dimensional P0 pipeline
 passes on both a strict appendix-shaped fixture constructed in code and the supplied organizer file.

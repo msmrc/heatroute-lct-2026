@@ -38,7 +38,7 @@ Current local smoke evidence and open gates are in `implementation/progress.md`.
 | 3 GiB input / ≥500 MiB output / memory below 16 GiB | Passed at streaming layer | Run `35112046184`; maximum-topology calculation remains separate |
 | 50 concurrent users | Passed for public API sessions | Run `35112362689`; 50 simultaneous imports, one durable ID |
 | Ubuntu 22 / docker-compose 1.29.2 / restart recovery | Passed in clean CI | Run `35112362689`; production-like host may still be requested |
-| Full calculation beyond supplied topology | Passed on project 2× profile | 288 features, 34 demands, 408 candidates; organizer/PM must still approve the maximum profile |
+| Full calculation beyond supplied topology | Passed on project 2× profile | Run `35119722470`: 288 features, 34 demands, 408 candidates, 481,092 KiB peak RSS; organizer/PM must still approve the maximum profile |
 | Supplied-file final reconstruction/score/export | Blocked on source data | Requires missing flow, upstream direction and chamber diameter or a waiver |
 
 Detailed byte/memory and concurrency measurements are in

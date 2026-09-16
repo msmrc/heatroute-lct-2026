@@ -18,7 +18,8 @@ bottom-up sizing автоматически повышает ДУ по расх�
 распространяется по существующей сети с partial reconstruction участков и камер. В поставленном
 GeoJSON реконструкция честно недоступна из-за отсутствующих `flow_tph/upstream_object_id`.
 Для плотных ограничений candidate lookup использует JTS STRtree, а для малого официального набора
-сохраняет более быстрый linear prepared-geometry path; следующий обязательный gate — R2/R9 scale.
+сохраняет более быстрый linear prepared-geometry path. Full 2× supplied-geometry gate с 34 ОКС
+проходит на Ubuntu 22 / Java 11; внешний остаток R9 — согласование максимального профиля.
 Повтор того же файла в той же версии входного контракта возвращает существующий import по SHA-256;
 не удаляй unique invariant и не загружай идентичные features повторно.
 Расчётные jobs выполняются bounded executor-ом (default 2) с минутным heartbeat lease; R9 probes и
@@ -42,8 +43,10 @@ positive/boundary/negative matrix-тестами; касание границы 
 валидное. Полностью рассчитанный вариант карта получает из того же строгого export adapter через
 `variant_id`; внутренний preview используется только когда официальный output честно недоступен.
 R7 закрыт по нормативным ставкам/формулам; условные числа примера 10.8 расходятся с собственной
-таблицей на 19/33 рубля и это закреплено golden-test и audit. Следующий критический этап —
-route-performance evidence и R2/R9 scale acceptance.
+таблицей на 19/33 рубля и это закреплено golden-test и audit. R8 depth-перетрассировка закрыта по
+опубликованным правилам: immutable диапазон глубины, отдельный XY detour, независимый validator,
+piecewise cost, technical nodes, XYZ и продольный профиль. Точное full-calculation scale evidence
+находится в `docs/implementation/R9_TOPOLOGY_SCALE_EVIDENCE.md`.
 Не публикуй текущие изменения на VPS без отдельной команды пользователя.
 
 Быстрая проверка состояния:

@@ -34,6 +34,15 @@ mvn -f apps/api/pom.xml `
 The manual `r9-topology-scale` workflow repeats the same case on clean Ubuntu 22 and Temurin 11,
 captures `/usr/bin/time -v`, and uploads only the small measurement logs.
 
+Clean-run evidence: GitHub Actions run `35119722470` at commit `46feec8` passed on Ubuntu 22 /
+Temurin 11 with the following measurements:
+
+- calculation elapsed: 213,308 ms;
+- complete workflow command wall clock: 3:48.28;
+- used heap after calculation: 115,925,616 bytes;
+- maximum process RSS: 481,092 KiB;
+- result: 34/34 demands connected and three valid variants.
+
 ## Qualification
 
 This is a project-owned two-times load profile derived deterministically from the supplied geometry.

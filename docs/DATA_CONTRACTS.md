@@ -39,6 +39,11 @@ missing engineering value is silently invented. See `implementation/SUPPLIED_DAT
 - `GET /api/v1/official/jobs/{id}`
 - `DELETE /api/v1/official/jobs/{id}`
 - `GET /api/v1/official/runs/latest`
+
+Run creation accepts an optional JSON body with `minimum_depth_m` and `maximum_depth_m`. Missing
+values become 0.7 and 10.0 m. The validated pair is stored in `official_runs.parameters` and
+returned with every run, so a queued calculation is reproducible across worker restarts. The
+application rejects a search maximum above 50.0 m to keep the 0.5 m candidate grid bounded.
 - `GET /api/v1/official/runs/{id}`
 - `GET /api/v1/official/runs/{id}/export`
 - `/swagger-ui.html` and `/v3/api-docs`

@@ -294,12 +294,13 @@ and runtime services were removed. The frontend calls only the current official 
   34 demands, 408 candidates, 116.141 seconds and 249,833,520 bytes used heap. Organizer approval of
   the maximum profile and a production-like Ubuntu 22 host rehearsal remain external acceptance
   items; the current VPS is intentionally not changed.
+- The same 2× full calculation passes on clean Ubuntu 22 / Temurin 11 in run `35119722470`:
+  213.308 seconds calculation time, 481,092 KiB peak RSS, 34/34 connected and three valid variants.
 
 ## Next change
 
-Repeat the automated 2× topology profile on clean Ubuntu 22 / Java 11, then obtain organizer/PM
-approval for the maximum profile and, if required, a production-like Ubuntu 22 host rehearsal. A product control for the
-already parameterized maximum profile depth is a follow-up convenience, not an algorithm gap.
+Obtain organizer/PM approval for the maximum profile and, if required, a production-like Ubuntu 22 host rehearsal.
+Depth limits are now immutable persisted run parameters rather than process-local constants.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
 The current cross-check against all three organizer artifacts is in `OFFICIAL_ALIGNMENT_AUDIT.md`.

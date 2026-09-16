@@ -83,7 +83,7 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 | Хранение, импорт и durable jobs | 90-95 % |
 | Обязательная конкурсная 2D-логика | 85-90 % |
 | Официальные входные и выходные контракты | вход 90 %, выход 90 % на contract-complete input |
-| Финальная готовность к сдаче | 80-85 % без optional depth |
+| Финальная готовность к сдаче | 90-95 % внутри команды; остаток зависит от данных/решений организатора |
 
 ## 3. Коротко для разработчика
 
@@ -234,13 +234,13 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 |---|---|---|
 | R0 | Закрыт | — |
 | R1 | Закрыт для bounded in-process worker contour | Отдельный process — только если потребуют R9 measurements |
-| R2 | Функционально закрыт, включая contract+SHA replay/dedup и 3 GiB byte boundary | Geometry-representative maximum-scale fixture |
+| R2 | Функционально закрыт, включая contract+SHA replay/dedup, 3 GiB boundary и full 2× topology gate | Organizer-approved maximum profile |
 | R3 | Закрыт: topology, candidates, split и persisted selected tie-in targets | Scale evidence относится к R9 |
 | R4 | Obstacle-aware checkpoint + три стратегии + GIS + adaptive STRtree | End-to-end performance и broader quality/diversity evidence |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
 | R7 | Закрыт по нормативным 2D формулам, strict export/validator/API и official-output map | Scale evidence относится к R9 |
-| R8 | Функционально закрыт по опубликованным правилам: vertical solver/validator, separate XY detour, piecewise cost, technical nodes, XYZ и UI | Product control для максимальной глубины; `railway` зависит от разъяснения |
+| R8 | Функционально закрыт по опубликованным правилам: immutable depth parameters, solver/validator, separate XY detour, piecewise cost, technical nodes, XYZ и UI | `railway` зависит от разъяснения |
 | R9 | Ubuntu 22/Compose 1.29.2, restart recovery, 3 GiB input, 500 MiB output, 50-user API и full 2× topology gates автоматизированы | Organizer-approved maximum profile и production-like host evidence |
 
 ## 8. Полный roadmap
@@ -494,6 +494,7 @@ feature-by-feature preflight и инкрементально пишется `Jso
 - `OfficialDepthCrossingExtractor` получает пикет пересечения из фактической JTS-геометрии, а не
   из текстового тега секции;
 - `OfficialDepthProfileValidator` независимо проверяет диапазон, уклон, плато, проход и зазор;
+- границы глубины валидируются и сохраняются в immutable run до постановки job в очередь;
 - невозможный вертикальный проход запускает отдельный XY detour с повторным sizing и validator;
 - профиль участвует в расчёте стоимости, сериализуется в run result и отображается в режиме
   «Профиль»;
@@ -593,8 +594,8 @@ P0 считается завершённым только если одновр�
 
 15–16 сентября 2026 года проверено:
 
-- 75 локальных backend tests; предыдущий pinned Java 11 CI и integration job зелёные, текущий
-  bounded-worker checkpoint ожидает отдельный CI run;
+- 99 локальных backend tests; pinned Java 11 CI, integration job и отдельный Ubuntu 22 full
+  2× topology run зелёные;
 - web lint/typecheck/production build и 13 Vitest tests;
 - официальный fixture: 144 объекта, 17 demand points, 204 tie-in candidates и три валидных
   obstacle-aware варианта;
@@ -605,16 +606,16 @@ P0 считается завершённым только если одновр�
 
 ## 13. Немедленный следующий шаг
 
-Не продолжать глубину, MVT или дополнительные форматы до закрытия обязательного остатка R9.
+Не продолжать MVT или дополнительные форматы до формального закрытия внешнего остатка R9.
 
 Mandatory 2D R4–R7 закрыт на contract-complete fixtures: маршрутизация, sizing/reconstruction,
 полная опубликованная boundary-матрица, официальная экономика, strict output и карта. R2 replay
 защищён unique contract+SHA invariant, dense geometry использует adaptive STRtree. Границы 3 GiB /
-500 MiB, 50 concurrent API users и clean Ubuntu 22 с docker-compose 1.29.2 уже воспроизводимы;
-следующий инкремент — geometry-representative maximum-topology measurement.
+500 MiB, 50 concurrent API users, clean Ubuntu 22 с docker-compose 1.29.2 и full 2×
+supplied-geometry calculation уже воспроизводимы. Следующий шаг — согласовать с организатором
+максимальный профиль нагрузки и недостающие поля поставленного набора.
 Текущий checkpoint не публиковался на VPS; развёртывание выполняется только отдельной командой.
 
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.
 Повторная сверка технологий, внутреннего ТЗ, официальных документов и реального файла находится в
 `OFFICIAL_ALIGNMENT_AUDIT.md`.
-Compose 1.29.2 и граничные размеры 3 GiB/500 MiB; до сдачи остаются представительная

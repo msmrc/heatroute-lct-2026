@@ -82,10 +82,11 @@ validation, feature-by-feature preflight and incremental Jackson download are al
 R7 is closed against the normative appendix tables and formulas. Section 10.8 explicitly calls its
 numbers illustrative and differs by 19/33 RUB; keep the golden expectations derived from tables
 4.1, 5.1, 8 and 9. Complete variants are fetched per `variant_id` and rendered from the strict
-official output model. Dense constraint lookup now uses adaptive JTS STRtree and is locked by a
-1,001-constraint/20,000-query fixture. Next, close the measured R2/R9 maximum-scale gates. The
-published 2D R6 row-by-row matrix is complete; do not fold unresolved `railway` semantics or
-optional depth into that claim.
+official output model. Dense constraint lookup uses adaptive JTS STRtree and is locked by a
+1,001-constraint/20,000-query fixture. The project-owned full 2× topology gate passes on Ubuntu 22
+/ Java 11 with 34/34 demands; obtain organizer approval before calling it the official maximum.
+R8 depth is separately complete for published rules. Do not fold unresolved `railway` semantics
+into either the R6 or R8 claim.
 Repeated imports are idempotent by `(contract_version, raw_sha256)` and concurrent duplicates are
 resolved by PostgreSQL `ON CONFLICT`; preserve this invariant in all future import changes.
 Job execution is bounded by `HEATROUTE_JOB_CONCURRENCY` (default 2, hard maximum 16) and active
@@ -95,7 +96,7 @@ Manual run `35112046184` proves exact 3 GiB input and ≥500 MiB valid output on
 under `-Xmx512m`. CI run `35112362689` passes backend/web/integration, 50 concurrent API imports,
 the real 17-demand calculation and persistence after API restart. Do not conflate this with a VPS
 deployment, which remains explicitly deferred.
-Do not mix optional depth, MVT or extra formats into this gate.
+Do not mix MVT or extra formats into the remaining external acceptance gate.
 
 ## PM: tasks tomorrow
 
@@ -104,7 +105,7 @@ Do not mix optional depth, MVT or extra formats into this gate.
 - confirm whether Ubuntu 22 is mandatory for judging even though the current demo VPS uses a
   newer Ubuntu release;
 - supply or approve an official-like maximum-topology fixture and load-test environment;
-- keep optional depth, MVT and extra formats outside P0 until R9 closes;
+- keep MVT and extra formats outside P0 until the external R9 decisions close;
 - review every “complete” claim against `docs/ACCEPTANCE.md`, not old M-stage evidence.
 - ask the organizer to resolve the supplied-dataset mismatch, especially `railway`, direct demand
   on connection points and the missing existing-network reconstruction attributes.

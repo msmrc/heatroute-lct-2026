@@ -268,6 +268,15 @@ and runtime services were removed. The frontend calls only the current official 
   the real all-demand calculation, published schema/OpenAPI checks and restart recovery. The local
   backend suite now contains 107 tests: 104 passed and three explicit scale probes skipped by
   default.
+- Contest-path browser audit found two issues that isolated unit/API gates did not expose. The
+  local read-only bundle had replaced the real import report with a synthetic SHA, serialized byte
+  size and zero warnings; it now uses `OfficialGeoJsonInspector` over the exact organizer bytes and
+  asserts 233,277 bytes, the official SHA-256 and 323 warnings. The warning dialog groups those 323
+  records into seven localized causes, uses readable 13–14 px text and separates input, depth and
+  reconstruction diagnostics. At 1280×720 the map/profile switch had also overlapped the third
+  route tab; the responsive top controls are now separated. A real Chromium smoke opens the demo,
+  switches to `Альтернативные врезки`, opens the grouped modal and renders the longitudinal profile
+  with no console errors or warnings.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

@@ -68,7 +68,9 @@ jobs:
           RUN_JSON=$(curl --fail --silent -X POST "http://localhost:8000/api/v1/official/imports/${IMPORT_ID}/runs")
           RUN_ID=$(printf '%s' "$RUN_JSON" | jq -r '.id')
           JOB_ID=$(printf '%s' "$RUN_JSON" | jq -r '.job_id')
-          for attempt in $(seq 1 60); do
+          # The official obstacle-aware calculation is intentionally exercised end to end.
+          # Give the shared GitHub runner enough time for visibility-graph construction.
+          for attempt in $(seq 1 360); do
             JOB_JSON=$(curl --fail --silent "http://localhost:8000/api/v1/official/jobs/${JOB_ID}")
             JOB_STATE=$(printf '%s' "$JOB_JSON" | jq -r '.state')
             if [ "$JOB_STATE" = "completed" ]; then break; fi
@@ -78,13 +80,16 @@ jobs:
             fi
             sleep 1
           done
+          if [ "$JOB_STATE" != "completed" ]; then printf '%s\n' "$JOB_JSON"; fi
           test "$JOB_STATE" = "completed"
           RESULT_JSON=$(curl --fail --silent "http://localhost:8000/api/v1/official/runs/${RUN_ID}")
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.state')" = "completed"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.demand_count')" = "17"
-          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.variants | length >= 1')" = "true"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.variants | length')" = "3"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.preferred_variant_id != null')" = "true"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].valid] | any')" = "true"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result as $result | [$result.variants[] | select(.id == $result.preferred_variant_id)][0].connected_demand_count')" = "17"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].edges[] | (.coordinates | length) >= 2 and (.sections | length) >= 1 and .diameter != null and .flow_tph != null] | all')" = "true"
       - name: Compose diagnostics
         if: always()
         run: |

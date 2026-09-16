@@ -29,9 +29,19 @@ public class OfficialImportService {
             report = inspector.inspect(input);
         }
 
+        OfficialImportView existing = repository.findByContractAndHash(
+                        report.getContractVersion(), report.getSha256())
+                .orElse(null);
+        if (existing != null) {
+            return existing;
+        }
+
         UUID importId = UUID.randomUUID();
         String state = report.isValid() ? "validating" : "invalid";
-        repository.insert(importId, state, safeFilename, file.getSize(), report);
+        if (!repository.insert(importId, state, safeFilename, file.getSize(), report)) {
+            return repository.findByContractAndHash(report.getContractVersion(), report.getSha256())
+                    .orElseThrow(() -> new IllegalStateException("Concurrent import cannot be read"));
+        }
         if (report.isValid()) {
             try (InputStream input = file.getInputStream()) {
                 long loaded = featureLoader.load(importId, input);

@@ -84,6 +84,8 @@ official output model. Dense constraint lookup now uses adaptive JTS STRtree and
 1,001-constraint/20,000-query fixture. Next, close the measured R2/R9 maximum-scale gates. The
 published 2D R6 row-by-row matrix is complete; do not fold unresolved `railway` semantics or
 optional depth into that claim.
+Repeated imports are idempotent by `(contract_version, raw_sha256)` and concurrent duplicates are
+resolved by PostgreSQL `ON CONFLICT`; preserve this invariant in all future import changes.
 Do not mix optional depth, MVT or extra formats into this gate.
 
 ## PM: tasks tomorrow

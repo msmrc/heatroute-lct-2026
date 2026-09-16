@@ -88,7 +88,7 @@ Remaining documentation/acceptance drift:
 | Area | Evidence in the active Java project | Readiness |
 |---|---|---:|
 | Platform, CI and VPS | Java-only Compose, PostGIS, Caddy, health checks, green CI and public HTTPS | 85% |
-| Input and persistence | Streaming inspector/loader, contract profiles, PostGIS dual CRS, real dataset regression | 75% |
+| Input and persistence | Streaming inspector/loader, contract profiles, contract+SHA replay/dedup, PostGIS dual CRS | 85% |
 | Existing topology and tie-in screening | Geometric/upstream validation, segment/chamber candidates, 204 candidates on supplied data | 80% |
 | Multi-OKS routing and tree construction | Immutable runs, three obstacle-aware strategies, normalization, partial no-route and independent validator | 85% |
 | Flow, DU and continuous length | Tree sizer aggregates flow and automatically selects DU for all 18 flow/length boundaries | 90% |

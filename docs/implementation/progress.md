@@ -204,11 +204,21 @@ and runtime services were removed. The frontend calls only the current official 
 - This closes the missing dense lookup primitive, not R9: 3 GB input, 500 MB output, 50 parallel
   users and the exact Ubuntu 22/docker-compose 1.29.2 environment still need measured evidence.
 
+## R2 deterministic replay checkpoint (local, not deployed)
+
+- Imports are now idempotent for the same input contract and raw SHA-256. A repeated upload returns
+  the existing durable import and does not reload identical features into PostGIS.
+- PostgreSQL enforces the invariant with a unique `(contract_version, raw_sha256)` index;
+  `INSERT ... ON CONFLICT DO NOTHING` resolves concurrent uploads without a check-then-insert race.
+- Unit coverage proves both an ordinary replay and the concurrent-conflict winner path. Maximum
+  3 GB memory evidence remains an R2/R9 gate and is not implied by this checkpoint.
+
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
-- R2 — functionally implemented for the current contract fixture; large-file memory measurement,
-  replay/deduplication policy and broader official-like fixtures remain acceptance work.
+- R2 — functionally implemented for the current contract fixture, including deterministic
+  contract+SHA replay/deduplication; large-file memory measurement and broader official-like
+  fixtures remain acceptance work.
 - R3 — functional vertical slice: topology validation, chamber rule, deterministic candidates,
   line splitting and adaptive dense-constraint lookup. Persistence of selected tie-ins and
   maximum-scale evidence remain.

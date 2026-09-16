@@ -19,6 +19,8 @@ bottom-up sizing автоматически повышает ДУ по расх�
 GeoJSON реконструкция честно недоступна из-за отсутствующих `flow_tph/upstream_object_id`.
 Для плотных ограничений candidate lookup использует JTS STRtree, а для малого официального набора
 сохраняет более быстрый linear prepared-geometry path; следующий обязательный gate — R2/R9 scale.
+Повтор того же файла в той же версии входного контракта возвращает существующий import по SHA-256;
+не удаляй unique invariant и не загружай идентичные features повторно.
 R7 component costing и score уже интегрированы; поставленный файл показывает только известную
 стоимость и не получает score без данных реконструкции. Строгий seven-type adapter, независимый
 whitelist/type/reference validator и download endpoint реализованы для contract-complete вариантов;

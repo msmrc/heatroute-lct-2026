@@ -30,18 +30,19 @@ public class OfficialImportRepository {
         this.objectMapper = objectMapper;
     }
 
-    public void insert(
+    public boolean insert(
             UUID id,
             String state,
             String filename,
             long sizeBytes,
             OfficialInputReport report) {
-        jdbcTemplate.update(
+        return jdbcTemplate.update(
                 "INSERT INTO official_imports "
                         + "(id, state, original_filename, raw_sha256, input_size_bytes, "
                         + "contract_version, input_profile, feature_count, feature_counts, errors, warnings, completed_at) "
                         + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, "
-                        + "CASE WHEN ? IN ('valid', 'invalid', 'failed', 'cancelled') THEN now() ELSE NULL END)",
+                        + "CASE WHEN ? IN ('valid', 'invalid', 'failed', 'cancelled') THEN now() ELSE NULL END) "
+                        + "ON CONFLICT (contract_version, raw_sha256) DO NOTHING",
                 id,
                 state,
                 filename,
@@ -53,7 +54,7 @@ public class OfficialImportRepository {
                 json(report.getFeatureCounts()),
                 json(report.getErrors()),
                 json(report.getWarnings()),
-                state);
+                state) == 1;
     }
 
     public void markValid(UUID id) {
@@ -74,6 +75,19 @@ public class OfficialImportRepository {
                         + "FROM official_imports WHERE id = ?",
                 (resultSet, rowNumber) -> map(resultSet),
                 id);
+        return rows.stream().findFirst();
+    }
+
+    public Optional<OfficialImportView> findByContractAndHash(String contractVersion, String sha256) {
+        List<OfficialImportView> rows = jdbcTemplate.query(
+                "SELECT id, state, original_filename, input_size_bytes, created_at, "
+                        + "contract_version, input_profile, raw_sha256, feature_count, "
+                        + "feature_counts::text, errors::text, warnings::text "
+                        + "FROM official_imports WHERE contract_version = ? AND raw_sha256 = ? "
+                        + "ORDER BY created_at, id LIMIT 1",
+                (resultSet, rowNumber) -> map(resultSet),
+                contractVersion,
+                sha256);
         return rows.stream().findFirst();
     }
 

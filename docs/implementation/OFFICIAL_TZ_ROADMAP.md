@@ -230,7 +230,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 |---|---|---|
 | R0 | Закрыт | — |
 | R1 | Закрыт для текущего single-process контура | Вынести worker перед нагрузочным тестом |
-| R2 | Функционально частично закрыт | 3 ГБ memory evidence, replay/dedup, дополнительные inline cases |
+| R2 | Функционально закрыт, включая contract+SHA replay/dedup | 3 ГБ memory evidence и maximum-scale fixture |
 | R3 | Функциональный vertical slice | Persisted selected tie-ins и предельный scale evidence |
 | R4 | Obstacle-aware checkpoint + три стратегии + GIS + adaptive STRtree | End-to-end performance и broader quality/diversity evidence |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
@@ -574,25 +574,24 @@ P0 считается завершённым только если одновр�
 
 15–16 сентября 2026 года проверено:
 
-- pinned Java 11 Maven verify: 26 tests;
-- web lint/typecheck/build и 4 Vitest tests;
-- live Compose: PostGIS, Java API и web healthy;
-- официальный fixture сохранён как valid и topology job завершён с двумя кандидатами врезки;
-- новый Java UI прошёл browser smoke.
+- pinned Java 11 CI, 71+ backend tests до replay-checkpoint и полный integration job;
+- web lint/typecheck/production build и 13 Vitest tests;
+- официальный fixture: 144 объекта, 17 demand points, 204 tie-in candidates и три валидных
+  obstacle-aware варианта;
+- strict seven-type output, independent validator, incremental download и official-output map;
+- local browser smoke; VPS намеренно не обновляется без отдельной команды пользователя.
 
 Старые Python/M-stage evidence остаются только историей и не подтверждают официальный P0.
 
 ## 13. Немедленный следующий шаг
 
-Не продолжать глубину, MVT, дополнительные форматы или косметическую доработку UI до R4–R7.
+Не продолжать глубину, MVT, дополнительные форматы или косметическую доработку UI до R9.
 
-R4/R6 obstacle-aware checkpoint реализован локально: immutable all-demand run строит три
-содержательно разные стратегии, прокладывает реальные полилинии вокруг запретов, выделяет
-special-проходы, сохраняет partial no-route и независимо перепроверяет результат. R5 sizing
-автоматически подбирает ДУ с учётом непрерывной длины; upstream propagation, partial/common-section
-reconstruction и реконструкция камер закрыты тестами на строгом контракте. Поставленный файл не
-содержит baseline/direction полей и возвращает явный статус unavailable. Следующий инкремент —
-полная R6 boundary-матрица и завершение R7 strict export/contract validation.
+Mandatory 2D R4–R7 закрыт на contract-complete fixtures: маршрутизация, sizing/reconstruction,
+полная опубликованная boundary-матрица, официальная экономика, strict output и карта. R2 replay
+защищён unique contract+SHA invariant, dense geometry использует adaptive STRtree. Следующий
+инкремент — воспроизводимые 3 ГБ/500 МБ/16 ГБ/50-user measurements и clean Ubuntu 22 с
+docker-compose 1.29.2.
 Текущий checkpoint не публиковался на VPS; развёртывание выполняется только отдельной командой.
 
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.

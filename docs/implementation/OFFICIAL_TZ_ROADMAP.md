@@ -132,7 +132,7 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 | Ранжирование | Официальный score и deterministic rank | `S = 0,7 * C/25 000 000 + 0,3 * L/100` | Реализовано | P0 |
 | Неподключённые ОКС | Partial result, ID/reason и официальный penalty | Частичный результат, список ID и штраф по каждому ОКС | Реализовано | P0 |
 | Выход | Строгий adapter/validator и incremental download | Семь официальных `object_type` и строгие поля без лишних `null` | Реализовано; scale evidence остаётся | P0 |
-| Глубина | Проверка заданного пользователем профиля | Отдельная автоматическая перетрассировка с выбором глубины | Не реализовано | P1/бонус |
+| Глубина | Автоматический профиль каждого рассчитанного участка | Отдельная перетрассировка с выбором глубины и возможным изменением XY | Вертикальный solver, validator, стоимость, XYZ и UI реализованы; feedback в XY открыт | P1/бонус |
 | Большие файлы | Streaming parser и incremental strict writer | Вход 3 ГБ и выход 500 МБ без whole-file heap | Exact 3 GiB / ≥500 MiB probes прошли с `-Xmx512m`; representative topology scale открыт | P0 |
 | Нагрузка | Bounded workers, heartbeat, contract+SHA dedup и воспроизводимый probe | До 50 пользователей | 50 concurrent API sessions measured; heavy-run interpretation открыт | P0 |
 | Документация | Хорошие внутренние evidence и README | Конкурсное описание алгоритма, no-route, выхода, глубины и границ | Требует переписывания | P0 |
@@ -240,7 +240,7 @@ Compose 1.29.2, граничные размеры 3 GiB/500 MiB и 50 concurrent
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
 | R7 | Закрыт по нормативным 2D формулам, strict export/validator/API и official-output map | Scale evidence относится к R9 |
-| R8 | Не начат, optional | Depth rerouting после P0 2D |
+| R8 | Vertical solver/validator, depth cost, XYZ export и longitudinal UI интегрированы | Separate XY feedback для невозможного профиля |
 | R9 | Ubuntu 22/Compose 1.29.2, restart recovery, 3 GiB input, 500 MiB output и 50-user API gates автоматизированы | Representative maximum-topology и production-like host evidence |
 
 ## 8. Полный roadmap
@@ -462,6 +462,7 @@ feature-by-feature preflight и инкрементально пишется `Jso
 
 **Оценка:** 8-15 дней.
 **Зависимости:** R4-R7.
+**Статус:** вертикальный расчёт и выдача интегрированы; отдельный XY feedback остаётся.
 
 Задачи:
 
@@ -485,6 +486,18 @@ feature-by-feature preflight и инкрементально пишется `Jso
 - уклон и зазоры подтверждаются независимым validator;
 - невозможный диапазон глубин даёт partial result и список ручной проработки;
 - GeoJSON содержит корректные Z-координаты.
+
+Текущий evidence:
+
+- `OfficialDepthOptimizer` выполняет детерминированный поиск по глубинам 0,7 + n×0,5 м и сохраняет
+  обычную отметку 3,0 м как допустимый уровень;
+- `OfficialDepthCrossingExtractor` получает пикет пересечения из фактической JTS-геометрии, а не
+  из текстового тега секции;
+- `OfficialDepthProfileValidator` независимо проверяет диапазон, уклон, плато, проход и зазор;
+- профиль участвует в расчёте стоимости, сериализуется в run result и отображается в режиме
+  «Профиль»;
+- строгий GeoJSON содержит `depth_start`, `depth_end` и Z оси пары труб;
+- подробности и оставшийся gap зафиксированы в `R8_VERTICAL_EVIDENCE.md`.
 
 ### R9 Производительность, приёмка и комплект сдачи
 

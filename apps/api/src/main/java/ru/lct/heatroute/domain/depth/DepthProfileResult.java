@@ -1,5 +1,6 @@
 package ru.lct.heatroute.domain.depth;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ public class DepthProfileResult {
     public List<DepthProfilePoint> getPoints() { return points; }
     public List<DepthCrossingDecision> getCrossings() { return crossings; }
     public List<DepthProfileIssue> getIssues() { return issues; }
+    @JsonProperty("profile_length_3d_m")
     public BigDecimal getProfileLength3dM() { return profileLength3dM; }
     public BigDecimal getDepthAdjustedCostMeters() { return depthAdjustedCostMeters; }
 

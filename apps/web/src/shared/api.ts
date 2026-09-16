@@ -119,9 +119,16 @@ export interface OfficialDepthProfile {
   complete: boolean;
   points: OfficialDepthProfilePoint[];
   crossings: OfficialDepthCrossingDecision[];
-  issues: OfficialCalculationIssue[];
+  issues: OfficialDepthProfileIssue[];
   profile_length_3d_m: number;
+  profile_length3d_m?: number;
   depth_adjusted_cost_meters: number;
+}
+
+export interface OfficialDepthProfileIssue {
+  code: string;
+  crossing_id?: string | null;
+  message: string;
 }
 
 export interface OfficialRouteSection {

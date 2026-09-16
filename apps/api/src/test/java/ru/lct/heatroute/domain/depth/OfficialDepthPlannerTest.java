@@ -76,6 +76,8 @@ class OfficialDepthPlannerTest {
         assertThat(result.averageDepth(new BigDecimal("0"), new BigDecimal("100")))
                 .isGreaterThan(new BigDecimal("3.0"));
         assertThat(result.depthAt(new BigDecimal("50"))).isEqualByComparingTo("3.7");
+        assertThat(objectMapper.valueToTree(result).path("profile_length_3d_m").isNumber()).isTrue();
+        assertThat(objectMapper.valueToTree(result).has("profileLength3dM")).isFalse();
     }
 
     private RouteEdge edge() {

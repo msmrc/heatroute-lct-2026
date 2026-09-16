@@ -34,7 +34,8 @@ Run и job неизменяемо сохраняются в PostgreSQL. Workers 
 ## Границы применимости
 
 - расчётные расстояния и площади выполняются в EPSG:32637, API/export — WGS84;
-- обязательная реализация является 2D; автоматический вертикальный поиск относится к optional R8;
+- обязательная модель остаётся самостоятельным 2D-результатом; optional R8 строит поверх каждого
+  участка проверенный продольный профиль и явно сообщает конфликт, не подменяя им успешность 2D;
 - supplied dataset compatibility не заменяет отсутствующие flow/upstream/diameter значения;
 - exact 3 GiB input, ≥500 MiB output и 50 concurrent API sessions измерены отдельно от
   geometry-representative maximum-topology throughput;

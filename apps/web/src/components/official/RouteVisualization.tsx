@@ -104,6 +104,14 @@ function calculationIssueMessage(issue: OfficialCalculationIssue): string {
   return issue.message;
 }
 
+function depthIssueMessage(code: string, fallback: string): string {
+  if (code === "NO_VERTICAL_PASSAGE") return "На участке недостаточно длины для безопасного уклона при заданном диапазоне глубин.";
+  if (code === "VERTICAL_TRANSITIONS_OVERLAP") return "Зоны уклонов соседних пересечений накладываются друг на друга.";
+  if (code === "EXISTING_HEAT_DIAMETER_MISSING") return "Для пересекаемой теплосети не указан диаметр, поэтому её габарит нельзя определить.";
+  if (code === "CROSSING_OUTSIDE_EDGE") return "Пикет пересечения находится за пределами рассчитанного участка.";
+  return fallback;
+}
+
 function RouteNodeGlyph({ node, x, y, selected, onSelect }: {
   node: OfficialRouteNode;
   x: number;
@@ -171,6 +179,7 @@ function DepthProfileView({ edges, selectedId, onSelect }: {
   const depthTicks = Array.from({ length: Math.floor(maximumDepth) + 1 }, (_, index) => index);
   const deepest = Math.max(...profile.points.map((point) => point.depth_m));
   const shallowest = Math.min(...profile.points.map((point) => point.depth_m));
+  const profileLength3d = profile.profile_length_3d_m ?? profile.profile_length3d_m ?? edge.length_m;
 
   return (
     <div className="depth-profile-view">
@@ -196,11 +205,11 @@ function DepthProfileView({ edges, selectedId, onSelect }: {
             <line x1={left} x2={width - right} y1={y(depth)} y2={y(depth)} className={depth === 0 ? "depth-profile-surface" : "depth-profile-grid"} />
             <text x={left - 13} y={y(depth) + 4} textAnchor="end" className="depth-profile-axis-label">{depth} м</text>
           </g>)}
-          {profile.crossings.map((crossing) => (
+          {profile.crossings.map((crossing, index) => (
             <g key={crossing.crossing_id}>
               <rect x={x(crossing.plateau_start_m)} y={top} width={Math.max(3, x(crossing.plateau_end_m) - x(crossing.plateau_start_m))} height={plotHeight} className="depth-profile-crossing-zone" />
               <line x1={x((crossing.plateau_start_m + crossing.plateau_end_m) / 2)} x2={x((crossing.plateau_start_m + crossing.plateau_end_m) / 2)} y1={top} y2={height - bottom} className="depth-profile-crossing-line" />
-              <text x={x((crossing.plateau_start_m + crossing.plateau_end_m) / 2)} y={top - 18} textAnchor="middle" className="depth-profile-crossing-label">{crossingName(crossing.crossing_type)}</text>
+              <text x={x((crossing.plateau_start_m + crossing.plateau_end_m) / 2)} y={top - 18 - (index % 2) * 18} textAnchor="middle" className="depth-profile-crossing-label">{crossingName(crossing.crossing_type)}</text>
             </g>
           ))}
           <polygon points={area} fill="url(#depth-profile-fill)" />
@@ -213,7 +222,7 @@ function DepthProfileView({ edges, selectedId, onSelect }: {
       <footer className="depth-profile-summary">
         <div><span>Глубина</span><strong>{shallowest.toLocaleString("ru-RU")}–{deepest.toLocaleString("ru-RU")} м</strong></div>
         <div><span>Пересечения</span><strong>{profile.crossings.length}</strong></div>
-        <div><span>Длина в 3D</span><strong>{formatLength(profile.profile_length_3d_m)}</strong></div>
+        <div><span>Длина в 3D</span><strong>{formatLength(profileLength3d)}</strong></div>
         <div className={profile.complete ? "is-success" : "is-danger"}><span>Проверка профиля</span><strong>{profile.complete ? "Пройдена" : "Требует решения"}</strong></div>
       </footer>
     </div>
@@ -282,13 +291,19 @@ export function RouteVisualization({
     ...(variant.sizing_issues ?? []),
     ...reconstructionIssues.filter((issue) => issue.code !== "RECONSTRUCTION_INPUT_UNAVAILABLE"),
   ];
+  const depthWarnings = variant.edges.flatMap((edge) => (edge.depth_profile?.issues ?? []).map((issue) => ({
+    ...issue,
+    edgeId: edge.id,
+  })));
   const calculationValid = variant.valid && calculationIssues.length === 0;
-  const totalWarningCount = warnings.length + (reconstructionWarnings.length > 0 ? 1 : 0);
+  const totalWarningCount = warnings.length + depthWarnings.length + (reconstructionWarnings.length > 0 ? 1 : 0);
   const reconstructionLength = variant.reconstruction?.network_sections
     .reduce((total, section) => total + section.length_m, 0) ?? 0;
   const independent = result.variants.find((item) => item.strategy === "independent");
   const shared = result.variants.find((item) => item.strategy === "shared_trunk");
-  const depthEdges = variant.edges.filter((edge) => edge.depth_profile);
+  const depthEdges = variant.edges
+    .filter((edge) => edge.depth_profile)
+    .sort((left, right) => (right.depth_profile?.crossings.length ?? 0) - (left.depth_profile?.crossings.length ?? 0));
   const activeDepthEdgeId = depthEdges.some((edge) => edge.id === depthEdgeId)
     ? depthEdgeId
     : depthEdges[0]?.id ?? "";
@@ -318,7 +333,7 @@ export function RouteVisualization({
   }
 
   return (
-    <section className="route-workspace" aria-label="Визуализация рассчитанных маршрутов">
+    <section className={`route-workspace is-${viewMode}`} aria-label="Визуализация рассчитанных маршрутов">
       <div className="route-map-stage">
           <div className="route-variant-tabs route-variant-tabs--floating" role="tablist" aria-label="Варианты маршрута">
             {result.variants.map((item) => (
@@ -495,12 +510,26 @@ export function RouteVisualization({
                 </article>
               ))}
             </div>
-          ) : reconstructionWarnings.length === 0 ? (
+          ) : reconstructionWarnings.length === 0 && depthWarnings.length === 0 ? (
             <div className="validation-dialog-empty">
               <CheckCircle2 size={22} />
               <div><strong>Предупреждений нет</strong><p>Входные данные прошли проверку без замечаний.</p></div>
             </div>
           ) : null}
+          {depthWarnings.length > 0 && (
+            <div className="validation-warning-list">
+              {depthWarnings.map((warning, index) => (
+                <article key={`${warning.edgeId}-${warning.crossing_id ?? index}`}>
+                  <AlertTriangle size={17} />
+                  <div>
+                    <strong>Вертикальный профиль требует решения</strong>
+                    <p>{depthIssueMessage(warning.code, warning.message)}</p>
+                    <small>Участок: {warning.edgeId}{warning.crossing_id ? ` · пересечение ${warning.crossing_id}` : ""}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
           {primaryReconstructionWarning && (
             <div className="validation-warning-list">
               <article>

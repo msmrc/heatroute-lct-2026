@@ -759,7 +759,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .route-canvas-wrap--workspace { width: 100%; height: 100%; }
 .route-canvas-wrap--workspace .route-canvas { width: 100%; height: 100%; min-height: 0; max-height: none; aspect-ratio: auto; }
 
-.depth-profile-view { position: absolute; inset: 0 354px 0 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 86px 18px 144px; background: #f2f3f4; }
+.depth-profile-view { position: absolute; inset: 0 354px 0 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; padding: 86px 18px 220px; background: #f2f3f4; }
 .depth-profile-header { display: flex; z-index: 1; align-items: end; justify-content: space-between; gap: 24px; padding: 18px 22px; border: 1px solid rgba(38, 36, 43, .1); border-bottom: 0; border-radius: 16px 16px 0 0; background: rgba(255, 255, 255, .95); }
 .depth-profile-header > div { display: grid; gap: 3px; }
 .depth-profile-header > div span, .depth-profile-header label > span { color: var(--muted-foreground); font-size: 11px; }
@@ -787,6 +787,9 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .depth-profile-empty { position: absolute; inset: 0 354px 0 0; display: grid; place-content: center; justify-items: center; gap: 8px; background: #f2f3f4; color: var(--muted-foreground); text-align: center; }
 .depth-profile-empty strong { color: var(--foreground); font-size: 16px; }
 .depth-profile-empty p { max-width: 360px; font-size: 12px; }
+.route-workspace.is-profile .depth-profile-view, .route-workspace.is-profile .depth-profile-empty { right: 0; }
+.route-workspace.is-profile .route-workspace-inspector { display: none; }
+.route-workspace.is-profile .route-results-drawer { right: 16px; }
 
 .route-workspace-inspector { position: absolute; z-index: 8; top: 16px; right: 16px; display: flex; width: 320px; max-height: calc(100% - 32px); min-height: 0; flex-direction: column; gap: 18px; overflow: auto; padding: 20px; border: 1px solid rgba(38, 36, 43, .12); border-radius: 16px; background: rgba(255, 255, 255, .94); box-shadow: 0 14px 42px rgba(30, 27, 34, .14); backdrop-filter: blur(20px); }
 .route-workspace-inspector > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 17px; border-bottom: 1px solid var(--border-soft); }
@@ -891,7 +894,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .route-result-metrics > :nth-child(2) { border-right: 0; }
   .route-result-metrics > :nth-child(-n+2) { border-bottom: 1px solid var(--border-soft); }
   .depth-profile-view, .depth-profile-empty { right: 0; padding-right: 12px; padding-left: 12px; }
-  .depth-profile-view { padding-top: 128px; padding-bottom: 160px; }
+  .depth-profile-view { padding-top: 128px; padding-bottom: 250px; }
 }
 
 @media (max-width: 680px) {

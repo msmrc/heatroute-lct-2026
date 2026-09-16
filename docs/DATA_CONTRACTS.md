@@ -59,7 +59,10 @@ No unrelated fields with `null` are permitted. The 2D adapter emits the exact pe
 whitelists from the organizer appendix. `OfficialOutputContractValidator` independently checks
 allowed/required fields, scalar types, WGS84 geometry, globally unique IDs, network-node references
 and exactly one summary per variant. Contract tests also prove component-sum equality and ID
-scoping across multiple alternatives. Optional Z fields remain an R8 concern.
+scoping across multiple alternatives. Optional R8 output now adds numeric `depth_start` and
+`depth_end` to new heat-network sections and writes a third coordinate: the negative elevation of
+the calculated pair-envelope axis. Two-dimensional consumers remain compatible with these valid
+GeoJSON positions.
 
 Only valid variants with complete economics and an integer rank are exportable. If the supplied
 compatibility-profile file cannot establish reconstruction baselines, the endpoint returns

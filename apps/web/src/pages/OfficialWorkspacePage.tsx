@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, Eye, FileJson2, LoaderCircle, Play, Rotate
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { Badge, Card, ProgressBar, StateView, StatusBadge } from "../components/ui/primitives";
+import { Card, ProgressBar, StateView, StatusBadge } from "../components/ui/primitives";
 import { Button } from "../components/ui/button";
 import { RouteVisualization } from "../components/official/RouteVisualization";
 import {
@@ -133,23 +133,60 @@ export function OfficialWorkspacePage() {
   const activeRun = currentRun && currentJob?.run_id === currentRun.id ? currentRun : undefined;
   const isJobActive = currentJob?.state === "queued" || currentJob?.state === "running" || currentJob?.state === "cancel_requested";
 
+  if (currentImport && currentRun?.state === "completed" && currentRun.result) {
+    return (
+      <div className="official-map-workspace">
+        <header className="map-workspace-toolbar">
+          <div className="map-workspace-dataset">
+            <span className="map-workspace-dataset__icon"><FileJson2 size={18} /></span>
+            <div>
+              <strong>Официальный GeoJSON</strong>
+              <small>{currentImport.report.feature_count.toLocaleString("ru-RU")} объектов · {humanFileSize(currentImport.input_size_bytes)}</small>
+            </div>
+          </div>
+          <div className="map-workspace-status"><CheckCircle2 size={16} /> Данные проверены <span>·</span> Расчёт завершён</div>
+          <div className="map-workspace-actions">
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".geojson,.json,application/geo+json,application/json"
+              disabled={upload.isPending}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) upload.mutate(file);
+                event.currentTarget.value = "";
+              }}
+            />
+            <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
+              {upload.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <UploadCloud size={16} />}
+              {upload.isPending ? "Проверяем…" : "Загрузить набор данных"}
+            </Button>
+          </div>
+        </header>
+        <RouteVisualization
+          result={currentRun.result}
+          importId={currentRun.import_id}
+          warningCount={currentImport.report.warnings.length}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="page official-page">
       <header className="page-heading">
         <div>
-          <span className="eyebrow">Официальный контур · Java</span>
-          <h1>Проверка исходных данных</h1>
-          <p>Один GeoJSON, проверка входа и детерминированный расчёт раздельных и общих трасс для всех ОКС.</p>
+          <h1>Маршруты теплоснабжения</h1>
+          <p>Загрузите GeoJSON, проверьте исходные данные и сравните варианты подключения объектов к теплосети.</p>
         </div>
-        <a className="button-link button-link--outline" href="/api/v1/swagger-ui.html" target="_blank" rel="noreferrer">Swagger</a>
       </header>
 
       <section className="official-hero">
         <Card className="official-upload-card">
           <div className="card-icon"><UploadCloud size={20} /></div>
           <div>
-            <h2>Загрузить официальный GeoJSON</h2>
-            <p>Файл проверяется Java-сервисом и сохраняется в PostGIS. Лимит по ТЗ — до 3 ГБ.</p>
+            <h2>Загрузить GeoJSON</h2>
+            <p>Система проверит структуру файла и подготовит данные для расчёта. Максимальный размер — 3 ГБ.</p>
           </div>
           <input
             ref={inputRef}
@@ -173,13 +210,6 @@ export function OfficialWorkspacePage() {
             </Button>
           </div>
         </Card>
-
-        <Card className="official-status-card">
-          <span>Контур исполнения</span>
-          <strong>Java 11</strong>
-          <p>Spring Boot 2.6.3 · PostgreSQL/PostGIS · Liquibase</p>
-          <Badge tone="success">Python удалён из runtime</Badge>
-        </Card>
       </section>
 
       {!importId && !upload.isPending && (
@@ -194,15 +224,13 @@ export function OfficialWorkspacePage() {
         <div className="official-grid">
           <Card className="official-report-card">
             <header>
-              <div><span className="eyebrow">Результат импорта</span><h2>{currentImport.original_filename}</h2></div>
+              <div><span className="eyebrow">Проверка данных</span><h2>{currentImport.original_filename}</h2></div>
               <StatusBadge value={currentImport.state} />
             </header>
             <dl className="official-metrics">
               <div><dt>Объектов</dt><dd>{currentImport.report.feature_count.toLocaleString("ru-RU")}</dd></div>
               <div><dt>Размер</dt><dd>{humanFileSize(currentImport.input_size_bytes)}</dd></div>
-              <div><dt>Контракт</dt><dd>{currentImport.report.contract_version}</dd></div>
               <div><dt>Ошибок</dt><dd>{currentImport.report.errors.length}</dd></div>
-              <div><dt>Профиль</dt><dd>{currentImport.report.input_profile === "strict_official" ? "Строгий" : "Датасет"}</dd></div>
               <div><dt>Предупреждений</dt><dd>{currentImport.report.warnings.length}</dd></div>
             </dl>
             <div className="official-types">
@@ -229,12 +257,12 @@ export function OfficialWorkspacePage() {
               </div>
             )}
             {currentImport.report.valid && (
-              <div className="official-valid"><CheckCircle2 size={18} /><div><strong>Входной контракт пройден</strong><p>{currentImport.report.input_profile === "strict_official" ? "Набор готов к полному анализу существующей сети и кандидатов врезки." : "Набор принят в compatibility-профиле; ограничения расчёта перечислены в предупреждениях."}</p></div></div>
+              <div className="official-valid"><CheckCircle2 size={18} /><div><strong>Данные готовы к расчёту</strong><p>{currentImport.report.input_profile === "strict_official" ? "Структура файла проверена, можно анализировать сеть и точки подключения." : "Файл принят с допустимыми отклонениями. Перед использованием результата ознакомьтесь с предупреждениями."}</p></div></div>
             )}
           </Card>
 
           <Card className="official-job-card">
-            <header><div><span className="eyebrow">Расчёт R4</span><h2>Варианты подключения</h2></div>{currentJob && <StatusBadge value={currentJob.state} />}</header>
+            <header><div><span className="eyebrow">Расчёт маршрутов</span><h2>Варианты подключения</h2></div>{currentJob && <StatusBadge value={currentJob.state} />}</header>
             {!currentJob ? (
               <>
                 <p>Обработает все точки спроса, сравнит раздельные подключения и общие стволы, сохранит частичный результат для no-route.</p>
@@ -277,10 +305,6 @@ export function OfficialWorkspacePage() {
             )}
           </Card>
         </div>
-      )}
-
-      {currentRun?.state === "completed" && currentRun.result && (
-        <RouteVisualization result={currentRun.result} importId={currentRun.import_id} />
       )}
     </div>
   );

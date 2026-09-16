@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type Theme = "light" | "dark";
 export type WorkspacePanel = "scenario" | "results" | "inspector";
 export type MapLayerKey =
   | "constraints"
@@ -12,11 +11,9 @@ export type MapLayerKey =
   | "findings";
 
 interface UiState {
-  theme: Theme;
   collapsedPanels: Record<WorkspacePanel, boolean>;
   layers: Record<MapLayerKey, boolean>;
   selectedAlternative: number;
-  setTheme: (theme: Theme) => void;
   togglePanel: (panel: WorkspacePanel) => void;
   toggleLayer: (layer: MapLayerKey) => void;
   selectAlternative: (rank: number) => void;
@@ -25,7 +22,6 @@ interface UiState {
 export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
-      theme: "light",
       collapsedPanels: { scenario: false, results: false, inspector: false },
       layers: {
         constraints: true,
@@ -36,7 +32,6 @@ export const useUiStore = create<UiState>()(
         findings: true,
       },
       selectedAlternative: 1,
-      setTheme: (theme) => set({ theme }),
       togglePanel: (panel) =>
         set((state) => ({
           collapsedPanels: {

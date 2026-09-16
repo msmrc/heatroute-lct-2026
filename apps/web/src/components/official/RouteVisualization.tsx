@@ -1,14 +1,14 @@
-import { AlertTriangle, CheckCircle2, Focus, MapPinned, Network, Route, ZoomIn, ZoomOut } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertTriangle, Focus, MapPin, MapPinned, Network, Route, X, ZoomIn, ZoomOut } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
-import { Badge, Card } from "../ui/primitives";
-import { Button } from "../ui/button";
-import { OfficialRouteMap } from "./OfficialRouteMap";
 import type {
   OfficialCalculationResult,
   OfficialRouteNode,
   OfficialRouteVariant,
 } from "../../shared/api";
+import { Button } from "../ui/button";
+import { Badge } from "../ui/primitives";
+import { OfficialRouteMap, type SelectedMapObject } from "./OfficialRouteMap";
 
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 590;
@@ -36,6 +36,13 @@ function nodeTone(node: OfficialRouteNode): string {
   if (node.node_type === "demand_connection") return "var(--route-demand)";
   if (node.root) return "var(--route-source)";
   return "var(--route-chamber)";
+}
+
+function noRouteReason(reason?: string): string {
+  if (reason === "NO_NON_CROSSING_ROUTE") return "Не удалось построить трассу без пересечения ограничений";
+  if (reason === "NO_ROUTE") return "Маршрут не найден";
+  if (!reason) return "Маршрут не найден";
+  return reason.replaceAll("_", " ").toLocaleLowerCase("ru-RU");
 }
 
 function RouteNodeGlyph({ node, x, y, selected, onSelect }: {
@@ -72,10 +79,19 @@ function RouteNodeGlyph({ node, x, y, selected, onSelect }: {
   );
 }
 
-export function RouteVisualization({ result, importId }: { result: OfficialCalculationResult; importId: string }) {
-  const defaultVariant = result.variants.find((variant) => variant.id === result.preferred_variant_id) ?? result.variants[0];
+export function RouteVisualization({
+  result,
+  importId,
+  warningCount = 0,
+}: {
+  result: OfficialCalculationResult;
+  importId: string;
+  warningCount?: number;
+}) {
+  const defaultVariant = result.variants.find((item) => item.id === result.preferred_variant_id) ?? result.variants[0];
   const [variantId, setVariantId] = useState(defaultVariant?.id ?? "");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedObject, setSelectedObject] = useState<SelectedMapObject | null>(null);
   const [zoom, setZoom] = useState(1);
   const [viewMode, setViewMode] = useState<"map" | "schematic">("map");
   const variant = result.variants.find((item) => item.id === variantId) ?? defaultVariant;
@@ -105,147 +121,162 @@ export function RouteVisualization({ result, importId }: { result: OfficialCalcu
     return { points, rangeX, rangeY };
   }, [variant]);
 
+  const selectMapObject = useCallback((object: SelectedMapObject | null) => {
+    setSelectedObject(object);
+    setSelectedNodeId(null);
+  }, []);
+
   if (!variant || !layout) return null;
 
-  const selectedNode = variant.nodes.find((node) => node.id === selectedNodeId);
   const noRoute = variant.connections.filter((connection) => connection.status === "no_route");
+  const independent = result.variants.find((item) => item.strategy === "independent");
+  const shared = result.variants.find((item) => item.strategy === "shared_trunk");
+
+  function changeVariant(id: string) {
+    setVariantId(id);
+    setSelectedNodeId(null);
+    setSelectedObject(null);
+    setZoom(1);
+  }
+
+  function selectSchematicNode(node: OfficialRouteNode) {
+    setSelectedNodeId(node.id);
+    setSelectedObject({
+      title: nodeName(node),
+      subtitle: "Узел расчётной схемы",
+      details: [
+        ["X", `${node.coordinate.xm.toLocaleString("ru-RU")} м`],
+        ["Y", `${node.coordinate.ym.toLocaleString("ru-RU")} м`],
+      ],
+    });
+  }
+
+  function clearSelection() {
+    setSelectedNodeId(null);
+    setSelectedObject(null);
+  }
 
   return (
-    <section className="route-visualization" aria-label="Визуализация рассчитанных маршрутов">
-      <header className="route-visualization__header">
-        <div>
-          <span className="eyebrow">Результат расчёта</span>
-          <h2>Маршруты на карте</h2>
-          <p>Расчётная трасса, существующая теплосеть и ограничения совмещены на OpenStreetMap. Инженерная схема доступна отдельным режимом.</p>
-        </div>
-        <div className="route-variant-tabs" role="tablist" aria-label="Варианты маршрута">
-          {result.variants.map((item) => (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={item.id === variant.id}
-              className={item.id === variant.id ? "is-active" : undefined}
-              key={item.id}
-              onClick={() => {
-                setVariantId(item.id);
-                setSelectedNodeId(null);
-                setZoom(1);
-              }}
-            >
-              <span>{variantName(item)}</span>
-              <small>{formatLength(item.total_length_m)}</small>
-              {item.id === result.preferred_variant_id && <i>лучший</i>}
-            </button>
-          ))}
-        </div>
-      </header>
+    <section className="route-workspace" aria-label="Визуализация рассчитанных маршрутов">
+      <div className="route-workspace-main">
+        <div className="route-map-stage">
+          <div className="route-variant-tabs route-variant-tabs--floating" role="tablist" aria-label="Варианты маршрута">
+            {result.variants.map((item) => (
+              <button type="button" role="tab" aria-selected={item.id === variant.id}
+                className={item.id === variant.id ? "is-active" : undefined} key={item.id}
+                onClick={() => changeVariant(item.id)}>
+                <span>{variantName(item)}</span>
+                <small>{formatLength(item.total_length_m)}</small>
+                {item.id === result.preferred_variant_id && <i>рекомендуем</i>}
+              </button>
+            ))}
+          </div>
 
-      <div className="route-kpis">
-        <article><span>Подключено</span><strong>{variant.connected_demand_count} / {result.demand_count}</strong><small>объектов</small></article>
-        <article><span>Длина сети</span><strong>{formatLength(variant.total_length_m)}</strong><small>{variant.edges.length} участков</small></article>
-        <article><span>Камер и врезок</span><strong>{variant.nodes.filter((node) => node.chamber).length}</strong><small>узлов</small></article>
-        <article className={variant.valid ? "is-success" : "is-danger"}>
-          <span>Проверка структуры</span>
-          <strong>{variant.valid ? "Пройдена" : "Есть ошибки"}</strong>
-          <small>{variant.validation_issues.length} замечаний</small>
-        </article>
-      </div>
-
-      <Card className="route-canvas-card">
-        <div className="route-canvas-toolbar">
-          <div className="route-canvas-caption">{viewMode === "map" ? <MapPinned size={16} /> : <Network size={16} />}<span>{viewMode === "map" ? "Географическая карта" : "Расчётная схема"}</span><Badge tone="violet">{viewMode === "map" ? "WGS84" : "EPSG:32637"}</Badge></div>
-          <div className="route-canvas-actions">
+          <div className="route-map-view-controls">
             <div className="route-view-switch" role="group" aria-label="Режим визуализации">
-              <button type="button" className={viewMode === "map" ? "is-active" : undefined} onClick={() => setViewMode("map")}><MapPinned size={14} /> Карта</button>
-              <button type="button" className={viewMode === "schematic" ? "is-active" : undefined} onClick={() => setViewMode("schematic")}><Network size={14} /> Схема</button>
+              <button type="button" className={viewMode === "map" ? "is-active" : undefined} onClick={() => setViewMode("map")}><MapPinned size={15} /> Карта</button>
+              <button type="button" className={viewMode === "schematic" ? "is-active" : undefined} onClick={() => setViewMode("schematic")}><Network size={15} /> Схема</button>
             </div>
-            {viewMode === "schematic" && <div className="route-zoom-controls">
-              <Button variant="ghost" aria-label="Уменьшить" onClick={() => setZoom((value) => Math.max(.75, value - .25))}><ZoomOut size={16} /></Button>
-              <span>{Math.round(zoom * 100)}%</span>
-              <Button variant="ghost" aria-label="Увеличить" onClick={() => setZoom((value) => Math.min(2.5, value + .25))}><ZoomIn size={16} /></Button>
-              <Button variant="ghost" aria-label="Показать всю схему" onClick={() => setZoom(1)}><Focus size={16} /></Button>
-            </div>}
-          </div>
-        </div>
-
-        {viewMode === "map" ? (
-          <OfficialRouteMap importId={importId} variant={variant} />
-        ) : <div className="route-canvas-wrap">
-          <svg className="route-canvas" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} role="img" aria-label={`${variantName(variant)}, ${variant.edges.length} участков`}>
-            <defs>
-              <pattern id="route-grid-small" width="25" height="25" patternUnits="userSpaceOnUse">
-                <path d="M 25 0 L 0 0 0 25" fill="none" stroke="var(--route-grid)" strokeWidth="1" />
-              </pattern>
-              <pattern id="route-grid" width="100" height="100" patternUnits="userSpaceOnUse">
-                <rect width="100" height="100" fill="url(#route-grid-small)" />
-                <path d="M 100 0 L 0 0 0 100" fill="none" stroke="var(--route-grid-strong)" strokeWidth="1" />
-              </pattern>
-            </defs>
-            <rect width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#route-grid)" />
-            <g transform={`translate(${CANVAS_WIDTH / 2} ${CANVAS_HEIGHT / 2}) scale(${zoom}) translate(${-CANVAS_WIDTH / 2} ${-CANVAS_HEIGHT / 2})`}>
-              {variant.edges.map((edge) => {
-                const from = layout.points.get(edge.upstream_node_id);
-                const to = layout.points.get(edge.downstream_node_id);
-                if (!from || !to) return null;
-                const trunk = edge.id.includes(":trunk:");
-                return (
-                  <g key={edge.id} className="route-edge">
-                    <title>{`${edge.id} · ${formatLength(edge.length_m)}`}</title>
-                    <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="route-edge__halo" />
-                    <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={trunk ? "route-edge__line is-trunk" : "route-edge__line"} />
-                  </g>
-                );
-              })}
-              {variant.nodes.map((node) => {
-                const point = layout.points.get(node.id);
-                if (!point) return null;
-                return <RouteNodeGlyph key={node.id} node={node} x={point.x} y={point.y} selected={node.id === selectedNodeId} onSelect={() => setSelectedNodeId(node.id)} />;
-              })}
-            </g>
-          </svg>
-
-          <div className="route-legend" aria-label="Легенда">
-            <span><i className="is-demand" /> ОКС</span>
-            <span><i className="is-tie" /> Врезка</span>
-            <span><i className="is-chamber" /> Камера</span>
-            <span><b /> Трасса</span>
+            {viewMode === "schematic" && (
+              <div className="route-zoom-controls">
+                <Button variant="ghost" aria-label="Уменьшить" onClick={() => setZoom((value) => Math.max(.75, value - .25))}><ZoomOut size={16} /></Button>
+                <span>{Math.round(zoom * 100)}%</span>
+                <Button variant="ghost" aria-label="Увеличить" onClick={() => setZoom((value) => Math.min(2.5, value + .25))}><ZoomIn size={16} /></Button>
+                <Button variant="ghost" aria-label="Показать всю схему" onClick={() => setZoom(1)}><Focus size={16} /></Button>
+              </div>
+            )}
           </div>
 
-          {selectedNode && (
-            <aside className="route-node-inspector">
-              <button type="button" aria-label="Закрыть карточку узла" onClick={() => setSelectedNodeId(null)}>×</button>
-              <span>Выбранный узел</span>
-              <strong>{nodeName(selectedNode)}</strong>
-              <dl>
-                <div><dt>X</dt><dd>{selectedNode.coordinate.xm.toLocaleString("ru-RU")} м</dd></div>
-                <div><dt>Y</dt><dd>{selectedNode.coordinate.ym.toLocaleString("ru-RU")} м</dd></div>
-              </dl>
-            </aside>
+          {viewMode === "map" ? (
+            <OfficialRouteMap importId={importId} variant={variant} onSelect={selectMapObject} />
+          ) : (
+            <div className="route-canvas-wrap route-canvas-wrap--workspace">
+              <svg className="route-canvas" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} role="img" aria-label={`${variantName(variant)}, ${variant.edges.length} участков`}>
+                <defs>
+                  <pattern id="route-grid-small" width="25" height="25" patternUnits="userSpaceOnUse">
+                    <path d="M 25 0 L 0 0 0 25" fill="none" stroke="var(--route-grid)" strokeWidth="1" />
+                  </pattern>
+                  <pattern id="route-grid" width="100" height="100" patternUnits="userSpaceOnUse">
+                    <rect width="100" height="100" fill="url(#route-grid-small)" />
+                    <path d="M 100 0 L 0 0 0 100" fill="none" stroke="var(--route-grid-strong)" strokeWidth="1" />
+                  </pattern>
+                </defs>
+                <rect width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#route-grid)" />
+                <g transform={`translate(${CANVAS_WIDTH / 2} ${CANVAS_HEIGHT / 2}) scale(${zoom}) translate(${-CANVAS_WIDTH / 2} ${-CANVAS_HEIGHT / 2})`}>
+                  {variant.edges.map((edge) => {
+                    const from = layout.points.get(edge.upstream_node_id);
+                    const to = layout.points.get(edge.downstream_node_id);
+                    if (!from || !to) return null;
+                    const trunk = edge.id.includes(":trunk:");
+                    return (
+                      <g key={edge.id} className="route-edge">
+                        <title>{`${edge.id} · ${formatLength(edge.length_m)}`}</title>
+                        <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className="route-edge__halo" />
+                        <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={trunk ? "route-edge__line is-trunk" : "route-edge__line"} />
+                      </g>
+                    );
+                  })}
+                  {variant.nodes.map((node) => {
+                    const point = layout.points.get(node.id);
+                    if (!point) return null;
+                    return <RouteNodeGlyph key={node.id} node={node} x={point.x} y={point.y} selected={node.id === selectedNodeId} onSelect={() => selectSchematicNode(node)} />;
+                  })}
+                </g>
+              </svg>
+              <div className="route-legend" aria-label="Легенда">
+                <span><i className="is-demand" /> ОКС</span><span><i className="is-tie" /> Врезка</span>
+                <span><i className="is-chamber" /> Камера</span><span><b /> Трасса</span>
+              </div>
+            </div>
           )}
-        </div>}
 
-        <footer className="route-canvas-footer">
-          <span><Route size={15} /> Охват: {Math.round(layout.rangeX)} × {Math.round(layout.rangeY)} м</span>
-          <span>{viewMode === "map" ? "Нажмите на трассу или объект, чтобы увидеть данные" : "Нажмите на узел, чтобы увидеть координаты"}</span>
-        </footer>
-      </Card>
-
-      {noRoute.length > 0 && (
-        <div className="route-warning">
-          <AlertTriangle size={18} />
-          <div><strong>Не для всех ОКС найден допустимый маршрут</strong><p>{noRoute.map((connection) => `ОКС ${connection.demand_id}: ${connection.reason ?? "причина не указана"}`).join(" · ")}</p></div>
+          <div className="route-map-caption"><Route size={15} /> Охват {Math.round(layout.rangeX)} × {Math.round(layout.rangeY)} м</div>
         </div>
-      )}
 
-      <div className="route-comparison">
-        {result.variants.map((item) => (
-          <button type="button" key={item.id} className={item.id === variant.id ? "is-active" : undefined} onClick={() => setVariantId(item.id)}>
-            <span className="route-comparison__icon">{item.valid ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}</span>
-            <span><strong>{variantName(item)}</strong><small>{item.connected_demand_count} ОКС · {item.edges.length} участков</small></span>
-            <b>{formatLength(item.total_length_m)}</b>
-          </button>
-        ))}
+        <aside className="route-workspace-inspector" aria-label="Информация о выбранном объекте">
+          <header>
+            <div><span>{selectedObject ? "Выбранный объект" : "Текущий вариант"}</span><h2>{selectedObject?.title ?? variantName(variant)}</h2></div>
+            {selectedObject && <button type="button" aria-label="Закрыть карточку объекта" onClick={clearSelection}><X size={18} /></button>}
+          </header>
+
+          {selectedObject ? (
+            <>
+              <div className="route-inspector-kind"><MapPin size={16} /> {selectedObject.subtitle}</div>
+              {selectedObject.details.length > 0 ? (
+                <dl className="route-inspector-list">
+                  {selectedObject.details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+                </dl>
+              ) : <p className="route-inspector-empty">Для объекта нет дополнительных атрибутов.</p>}
+            </>
+          ) : (
+            <>
+              {variant.id === result.preferred_variant_id && <Badge tone="success">Рекомендуемый вариант</Badge>}
+              <p className="route-inspector-summary">{variant.strategy === "shared_trunk" ? "Общий ствол сокращает суммарную длину сети и подключает все доступные ОКС." : "Каждый объект подключается отдельной трассой к подходящей точке врезки."}</p>
+              <dl className="route-inspector-list">
+                <div><dt>Длина</dt><dd>{formatLength(variant.total_length_m)}</dd></div>
+                <div><dt>Подключено</dt><dd>{variant.connected_demand_count} из {result.demand_count} ОКС</dd></div>
+                <div><dt>Участков</dt><dd>{variant.edges.length}</dd></div>
+                <div><dt>Камер и врезок</dt><dd>{variant.nodes.filter((node) => node.chamber).length}</dd></div>
+              </dl>
+            </>
+          )}
+
+          {noRoute.length > 0 && (
+            <div className="route-inspector-warning"><AlertTriangle size={18} /><div><strong>Есть неподключённые объекты</strong><p>{noRoute.map((connection) => `ОКС ${connection.demand_id}: ${noRouteReason(connection.reason)}`).join(" · ")}</p></div></div>
+          )}
+          <div className="route-inspector-hint">Нажмите на трассу или объект на карте, чтобы увидеть его данные.</div>
+        </aside>
       </div>
+
+      <footer className="route-results-drawer">
+        <header><strong>Результаты расчёта</strong><span>{variantName(variant)}</span></header>
+        <div className="route-result-metrics">
+          <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
+          <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
+          <article><span>Камер и врезок</span><strong>{variant.nodes.filter((node) => node.chamber).length}</strong><small>{variant.edges.length} участков</small></article>
+          <article className={variant.valid ? "is-success" : "is-danger"}><span>Проверка структуры</span><strong>{variant.valid ? "Пройдена" : "Есть ошибки"}</strong><small>{variant.validation_issues.length} ошибок · {warningCount} предупреждений</small></article>
+        </div>
+      </footer>
     </section>
   );
 }

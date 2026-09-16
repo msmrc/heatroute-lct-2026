@@ -57,10 +57,10 @@ describe("RouteVisualization", () => {
     render(<RouteVisualization result={result} importId="import-1" />);
 
     expect(screen.getByRole("tab", { name: /Общая сеть/ }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByText("2 / 2")).toBeTruthy();
+    expect(screen.getByText(/2 из 2 ОКС/)).toBeTruthy();
     expect(screen.getByText("Интерактивная карта")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
-    expect(screen.getByText(/ОКС 2: NO_ROUTE/)).toBeTruthy();
+    expect(screen.getByText(/ОКС 2: Маршрут не найден/)).toBeTruthy();
   });
 });

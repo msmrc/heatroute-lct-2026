@@ -13,7 +13,7 @@ import OSM from "ol/source/OSM";
 import VectorSource from "ol/source/Vector";
 import { Circle as CircleStyle, Fill, Stroke, Style } from "ol/style";
 import proj4 from "proj4";
-import { Layers3, LoaderCircle, MapPin, X } from "lucide-react";
+import { Layers3, LoaderCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "ol/ol.css";
 
@@ -36,7 +36,7 @@ const tileUrl = typeof configuredTileUrl === "string" && configuredTileUrl.lengt
 proj4.defs(METRIC_CRS, "+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs +type=crs");
 register(proj4);
 
-interface SelectedMapObject {
+export interface SelectedMapObject {
   title: string;
   subtitle: string;
   details: Array<[string, string]>;
@@ -170,14 +170,21 @@ function selectedObject(feature: Feature): SelectedMapObject {
   if (featureId) details.push(["ID", featureId]);
   return {
     title: String(feature.get("label") ?? (objectType === "heat_network" ? "Существующая теплосеть" : objectType ?? "Объект карты")),
-    subtitle: layer?.startsWith("calculated") ? "Результат расчёта" : "Официальный исходный слой",
+    subtitle: layer?.startsWith("calculated") ? "Результат расчёта" : "Исходные данные",
     details,
   };
 }
 
-export function OfficialRouteMap({ importId, variant }: { importId: string; variant: OfficialRouteVariant }) {
+export function OfficialRouteMap({
+  importId,
+  variant,
+  onSelect,
+}: {
+  importId: string;
+  variant: OfficialRouteVariant;
+  onSelect?: (object: SelectedMapObject | null) => void;
+}) {
   const targetRef = useRef<HTMLDivElement>(null);
-  const [selected, setSelected] = useState<SelectedMapObject | null>(null);
   const [layers, setLayers] = useState<MapLayersState>({ base: true, restrictions: true, network: true, route: true });
   const bounds = useMemo(() => routeMapBounds(variant), [variant]);
   const context = useQuery({
@@ -210,14 +217,14 @@ export function OfficialRouteMap({ importId, variant }: { importId: string; vari
     if (routeExtent) map.getView().fit(routeExtent, { padding: [70, 70, 70, 70], maxZoom: 18, duration: 450 });
     map.on("singleclick", (event) => {
       const feature = map.forEachFeatureAtPixel(event.pixel, (candidate) => candidate as Feature, { hitTolerance: 7 });
-      setSelected(feature ? selectedObject(feature) : null);
+      onSelect?.(feature ? selectedObject(feature) : null);
     });
     map.on("pointermove", (event) => {
       if (targetRef.current) targetRef.current.style.cursor = map.hasFeatureAtPixel(event.pixel, { hitTolerance: 5 }) ? "pointer" : "grab";
     });
     requestAnimationFrame(() => map.updateSize());
     return () => map.setTarget(undefined);
-  }, [context.data, layers, variant]);
+  }, [context.data, layers, onSelect, variant]);
 
   function toggleLayer(layer: keyof MapLayersState) {
     setLayers((current) => ({ ...current, [layer]: !current[layer] }));
@@ -242,14 +249,6 @@ export function OfficialRouteMap({ importId, variant }: { importId: string; vari
         <span><i className="is-restriction" /> Ограничения</span>
         <span><i className="is-demand" /> ОКС</span>
       </div>
-      {selected && (
-        <aside className="official-map-inspector">
-          <button type="button" aria-label="Закрыть карточку объекта" onClick={() => setSelected(null)}><X size={15} /></button>
-          <span><MapPin size={14} /> {selected.subtitle}</span>
-          <strong>{selected.title}</strong>
-          {selected.details.length > 0 && <dl>{selected.details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
-        </aside>
-      )}
     </div>
   );
 }

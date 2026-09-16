@@ -39,12 +39,21 @@ jobs:
               -Dheatroute.scale.expectedBytes=3221225472 \
               '-Dtest=OfficialGeoJsonInspectorTest#streamsOptInByteBoundaryFixtureWithinTheConfiguredHeap' \
               test; } 2>&1 | tee ../../artifacts/r9-input-3gib-java11.log
+      - name: Stream and validate 500 MiB output with Java 11 and 512 MiB heap
+        working-directory: apps/api
+        run: |
+          set -o pipefail
+          { /usr/bin/time -v mvn --batch-mode --no-transfer-progress \
+              -DargLine=-Xmx512m \
+              -Dheatroute.scale.output=true \
+              -Dtest=OfficialOutputStreamingScaleTest \
+              test; } 2>&1 | tee ../../artifacts/r9-output-500mib-java11.log
       - name: Preserve measurement log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: r9-input-3gib-java11-${{ github.sha }}
-          path: artifacts/r9-input-3gib-*.log
+          name: r9-scale-java11-${{ github.sha }}
+          path: artifacts/r9-*.log
           if-no-files-found: error
           retention-days: 30
       - name: Remove generated fixture

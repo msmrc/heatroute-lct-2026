@@ -1,13 +1,11 @@
 package ru.lct.heatroute.domain.export;
 
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,6 +35,7 @@ public class OfficialGeoJsonExporter {
     private final OfficialPipeCatalog pipeCatalog;
     private final OfficialEconomics economics;
     private final OfficialOutputContractValidator validator;
+    private final OfficialGeoJsonStreamWriter streamWriter;
     private final CoordinateTransform toWgs84;
 
     public OfficialGeoJsonExporter(
@@ -48,6 +47,7 @@ public class OfficialGeoJsonExporter {
         this.pipeCatalog = pipeCatalog;
         this.economics = economics;
         this.validator = validator;
+        this.streamWriter = new OfficialGeoJsonStreamWriter(objectMapper);
         CRSFactory factory = new CRSFactory();
         CoordinateReferenceSystem metric = factory.createFromParameters(
                 "UTM37N", "+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs");
@@ -84,24 +84,9 @@ public class OfficialGeoJsonExporter {
             JsonNode calculation,
             List<ImportedOfficialFeature> inputFeatures,
             OutputStream outputStream) throws IOException {
-        try (JsonGenerator generator = objectMapper.getFactory().createGenerator(outputStream)) {
-            generator.writeStartObject();
-            generator.writeStringField("type", "FeatureCollection");
-            generator.writeArrayFieldStart("features");
-            try {
-                forEachFeature(calculation, inputFeatures, null, feature -> {
-                    try {
-                        generator.writeTree(feature);
-                    } catch (IOException exception) {
-                        throw new UncheckedIOException(exception);
-                    }
-                });
-            } catch (UncheckedIOException exception) {
-                throw exception.getCause();
-            }
-            generator.writeEndArray();
-            generator.writeEndObject();
-        }
+        streamWriter.writeFeatureCollection(
+                outputStream,
+                output -> forEachFeature(calculation, inputFeatures, null, output));
     }
 
     public void writeValidatedVariant(
@@ -109,24 +94,9 @@ public class OfficialGeoJsonExporter {
             List<ImportedOfficialFeature> inputFeatures,
             String variantId,
             OutputStream outputStream) throws IOException {
-        try (JsonGenerator generator = objectMapper.getFactory().createGenerator(outputStream)) {
-            generator.writeStartObject();
-            generator.writeStringField("type", "FeatureCollection");
-            generator.writeArrayFieldStart("features");
-            try {
-                forEachFeature(calculation, inputFeatures, variantId, feature -> {
-                    try {
-                        generator.writeTree(feature);
-                    } catch (IOException exception) {
-                        throw new UncheckedIOException(exception);
-                    }
-                });
-            } catch (UncheckedIOException exception) {
-                throw exception.getCause();
-            }
-            generator.writeEndArray();
-            generator.writeEndObject();
-        }
+        streamWriter.writeFeatureCollection(
+                outputStream,
+                output -> forEachFeature(calculation, inputFeatures, variantId, output));
     }
 
     private void forEachFeature(

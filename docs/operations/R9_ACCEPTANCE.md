@@ -5,8 +5,8 @@ Run them only against a clean candidate release and keep the generated JSON, `/u
 output, container stats and exact commit SHA together.
 
 For the repeatable Java 11 parser boundary, dispatch the manual GitHub Actions workflow
-`r9-scale`; it generates the same 3 GiB file on Ubuntu 22 and preserves the measurement log without
-uploading the large fixture as an artifact.
+`r9-scale`; it generates the same 3 GiB file and ≥500 MiB contract output on Ubuntu 22, then
+preserves both measurement logs without uploading the large input fixture or output bytes.
 
 ## 3 GiB streaming boundary
 

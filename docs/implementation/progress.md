@@ -236,7 +236,11 @@ and runtime services were removed. The frontend calls only the current official 
   run after restarting the API container. Its first result will be recorded by the next CI run.
 - Local 3 GiB parser preflight on commit `915d42f` passed under `-Xmx512m`: 4,308 ms and
   42,005,872 bytes reported peak heap. This is recorded in `R9_INPUT_SCALE_EVIDENCE.md`; the manual
-  Java 11/Ubuntu 22 workflow still needs its first successful run.
+  Java 11/Ubuntu 22 run `35111560434` also passed with 40,650,752 bytes peak heap and 357,272 KiB
+  maximum process RSS.
+- The extracted production stream writer and exact validator passed a local 524,781,467-byte
+  output probe under the same 512 MiB heap cap in 6,386 ms. The Java 11 workflow rerun remains
+  required before closing that byte boundary.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

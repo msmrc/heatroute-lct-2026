@@ -23,6 +23,31 @@ the whole file and with far less than 512 MiB heap. It intentionally does not pr
 spooling, PostGIS loading of a geometry-complex 3 GiB dataset, routing at maximum topology size or
 50-user behavior. Those claims require separate probes.
 
-The manual `r9-scale` GitHub workflow repeats the same measurement on clean Ubuntu 22, Temurin
-Java 11 and `-Xmx512m`, and preserves the full `/usr/bin/time -v` log as a CI artifact. Its first
-successful run must be recorded below before Java 11 scale evidence is called complete.
+The manual `r9-scale` GitHub workflow repeated the same measurement on clean Ubuntu 22, Temurin
+Java 11 and `-Xmx512m`. Run `35111560434` passed in 60 seconds and preserved the logs as artifact
+`r9-input-3gib-java11-b50cce654541f72996f0d0498e779684cd31caac`:
+
+- inspector elapsed: 4,497 ms;
+- reported peak heap: 40,650,752 bytes;
+- maximum process RSS from `/usr/bin/time -v`: 357,272 KiB;
+- total Maven step wall time: 22.11 seconds;
+- streamed SHA-256 matches the local run exactly.
+
+This closes the 3 GiB parser/hash byte boundary on the required Java 11/Ubuntu 22 runtime. Full
+multipart spooling, PostGIS geometry complexity and topology scale remain separate evidence items.
+
+## 500 MiB output writer preflight
+
+The production FeatureCollection stream writer and exact output validator were exercised locally
+with valid WGS84 technical nodes, network features, references and one variant summary:
+
+- generated output: 524,781,467 bytes (at least 500 MiB);
+- heap limit: 536,870,912 bytes (`-Xmx512m`);
+- elapsed writer/validator time: 6,386 ms;
+- reported peak heap: 344,267,392 bytes;
+- no output collection or file was retained; a counting sink received the streamed bytes;
+- contract validation completed with zero issues.
+
+This proves the production writer/validator layer at the required byte boundary, not that a single
+real calculation will naturally produce a 500 MiB result. The manual `r9-scale` workflow now repeats
+this probe on Temurin Java 11 and must pass before the output byte boundary is marked complete.

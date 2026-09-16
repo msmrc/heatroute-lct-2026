@@ -98,7 +98,7 @@ Remaining documentation/acceptance drift:
 | Cost, penalty and score | Exact component totals, length, score and rank are integrated; incomplete reconstruction withholds final score | 95% |
 | Official output | Strict seven-type adapter, independent validator, incremental download and map consumer | 90% |
 | UI | Map-first viewer renders official output when available and an explicit internal preview for incomplete input | 85% |
-| Depth bonus | Geometry-based vertical search, independent validation, depth cost, XYZ output and longitudinal UI are integrated; separate XY feedback remains | 75% |
+| Depth bonus | Geometry-based search, independent validation, separate XY detour, piecewise cost, technical nodes, exact XYZ and longitudinal UI are integrated | 95% |
 | Scale and acceptance | Clean Ubuntu 22 / Compose 1.29.2 and restart gate, exact 3 GiB input, ≥500 MiB valid output and 50 concurrent API users pass | 80% |
 
 ## What is already proven on the supplied data

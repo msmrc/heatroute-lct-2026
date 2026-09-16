@@ -280,13 +280,14 @@ and runtime services were removed. The frontend calls only the current official 
   independent validation, incremental download and official-output map rendering are integrated.
   The section 10.8 illustrative-number discrepancy is documented and the normative arithmetic is
   locked by a golden test.
-- R8 — integrated engineering checkpoint: utility crossings are projected to route chainage;
+- R8 — functionally complete for the published depth rules: utility crossings are projected to route chainage;
   the Java optimizer selects above/below passage on the official 0.5 m grid, creates 4 m
   plateaus and 0.10 m/m ramps, and an independent validator checks depth, slope and clearance.
-  Every sized edge now carries a depth profile; cost calculation uses its average depth, strict
-  GeoJSON exports `depth_start`/`depth_end` and XYZ axis coordinates, and the web workspace has a
-  dedicated longitudinal-profile view. The remaining R8 item is a feedback loop that changes the
-  XY route when no vertical profile is feasible; the mandatory 2D result remains valid separately.
+  Every sized edge carries a depth profile; cost is integrated between profile breakpoints, strict
+  GeoJSON exports technical nodes, `depth_start`/`depth_end` and exact XYZ axis coordinates, and
+  the web workspace has a dedicated longitudinal-profile view. An impossible passage starts a
+  separate XY detour and repeats sizing/profile validation; if no detour exists, the result remains
+  explicitly partial with a manual-resolution issue.
 - R9 — substantially closed: exact 3 GiB input and 500 MiB valid-output boundaries pass on Ubuntu
   22 / Java 11 with a 512 MiB heap; 50 concurrent API users and clean Compose 1.29.2 deployment are
   measured in CI. A representative maximum-topology calculation and production-like Ubuntu 22 host
@@ -294,10 +295,9 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Next change
 
-Complete the R8 feedback loop: when the depth optimizer returns a conflict, penalize or exclude the
-failed utility crossing and run a separate XY alternative search without changing the mandatory 2D
-result. In parallel, close the two externally dependent R9 items: a representative
-maximum-topology fixture and, if required by acceptance, a production-like Ubuntu 22 host rehearsal.
+Close the two externally dependent R9 items: a representative maximum-topology fixture and, if
+required by acceptance, a production-like Ubuntu 22 host rehearsal. A product control for the
+already parameterized maximum profile depth is a follow-up convenience, not an algorithm gap.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
 The current cross-check against all three organizer artifacts is in `OFFICIAL_ALIGNMENT_AUDIT.md`.

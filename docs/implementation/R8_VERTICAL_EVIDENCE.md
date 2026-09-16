@@ -4,7 +4,7 @@ Date: 2026-09-16
 
 Runtime contract: Java 11 / Spring Boot 2.6.3
 
-Status: integrated vertical-profile checkpoint; XY feedback remains open
+Status: functional R8 implementation complete for the published depth rules
 
 ## Implemented
 
@@ -17,8 +17,13 @@ Status: integrated vertical-profile checkpoint; XY feedback remains open
   ramps limited to 0.10 m/m.
 - A second component independently validates endpoint coverage, station order, range, slope,
   candidate grid, plateau, passage direction and actual clearance.
-- Depth-aware construction cost is calculated per route section.
-- Strict output contains `depth_start`, `depth_end` and WGS84 LineString positions with Z equal to
+- A failed vertical passage starts a separate XY detour around the conflicting utility and then
+  repeats sizing, depth optimization and independent validation. If no valid detour exists, the
+  result remains explicitly partial instead of inventing a passage.
+- Depth-aware construction cost is integrated piece by piece between profile breakpoints, so a
+  ramp cannot be priced using one misleading average for the whole edge.
+- Strict output splits sections at profile breakpoints, creates referentially valid technical
+  nodes and contains numeric `depth_start`, `depth_end` plus WGS84 LineString XYZ positions. Z is
   the negative elevation of the pair-envelope axis.
 - The web workspace exposes a dedicated longitudinal-profile view with crossing zones, depth
   range, 3D length and validation state.
@@ -29,15 +34,19 @@ Status: integrated vertical-profile checkpoint; XY feedback remains open
   depth, insufficient ramp length, overlapping transitions and tampered slope.
 - `OfficialDepthPlannerTest`: three cases for geometry-to-chainage projection, tie-in endpoint
   exclusion and verified profile generation.
-- `OfficialGeoJsonExporterTest` asserts numeric depth properties and XYZ positions.
-- Full local backend suite: 87 tests, 0 failures, 2 intentional scale skips.
+- `OfficialObstacleRouterTest` and `OfficialRoutePlannerTest` prove the separate plan detour and
+  the repeated vertical check.
+- `OfficialGeoJsonExporterTest` asserts technical-node references, numeric depth properties and
+  exact XYZ segmentation.
+- `OfficialVariantEconomicsCalculatorTest` proves piecewise depth pricing across ramps.
+- Full local backend suite: 91 tests, 0 failures, 2 intentional scale skips.
 - Full web suite: 13 tests, 0 failures; TypeScript typecheck passes.
 
 ## Deliberate boundary
 
-The official appendix describes the depth task as a separate rerouting operation whose plan view
-may change. The current implementation computes and validates a vertical profile over every
-accepted 2D route. If the configured depth interval or available ramp length is impossible, it
-returns an explicit partial profile and manual-resolution issue. It does not yet feed that conflict
-back into the XY obstacle search. Therefore R8 must not be called fully complete until a separate
-depth-run feedback loop can choose an alternative plan route and re-run the same validator.
+The depth interval is validated by the optimizer: the published minimum is 0.7 m, the ordinary
+level is 3.0 m and the current calculation contour supplies a 10.0 m maximum. The optimizer API
+also accepts an explicit maximum for focused engineering runs. Product-level editing and durable
+storage of that maximum are useful follow-up controls, but they do not change the published
+calculation or export semantics. `railway` remains outside R8 until the organizer defines its
+official vertical rule.

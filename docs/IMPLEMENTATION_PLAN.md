@@ -9,7 +9,7 @@ The detailed plan is `implementation/OFFICIAL_TZ_ROADMAP.md`. This file defines 
 | 3 | R6 integration | Developer | Exact constraints inside search and final validation |
 | 4 | R7 | Developer + PM | Official rates, score, diverse alternatives, seven-type export |
 | 5 | R9 early | Developer | Large-file/load instrumentation and Ubuntu 22 rehearsal |
-| 6 | R8 | Developer | Finish separate XY feedback over the integrated vertical solver/validator |
+| 6 | R8 | Developer | Preserve the completed solver/validator, XY feedback, technical nodes and XYZ evidence |
 
 PM owns organizer clarifications, official catalog transcription review, fixture provenance,
 acceptance evidence and protection of P0 scope. The developer owns implementation, boundary/golden

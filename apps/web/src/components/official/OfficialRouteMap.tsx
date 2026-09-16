@@ -13,7 +13,7 @@ import OSM from "ol/source/OSM";
 import VectorSource from "ol/source/Vector";
 import { Circle as CircleStyle, Fill, Stroke, Style } from "ol/style";
 import proj4 from "proj4";
-import { Layers3, LoaderCircle } from "lucide-react";
+import { Check, Layers3, LoaderCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "ol/ol.css";
 
@@ -114,16 +114,16 @@ function contextStyle(feature: FeatureLike): Style | Style[] {
   const objectType = feature.get("object_type") as string | undefined;
   if (objectType === "restriction") {
     const restrictionType = feature.get("restriction_type") as string | undefined;
-    const color = restrictionType === "water" ? "#2f7ee6" : restrictionType === "railway" ? "#d18a20" : "#5e6670";
+    const color = restrictionType === "water" ? "#5794c9" : restrictionType === "railway" ? "#b58a50" : "#8b8f96";
     return new Style({
-      fill: new Fill({ color: `${color}20` }),
-      stroke: new Stroke({ color: `${color}9a`, width: 1.35, lineDash: [5, 4] }),
+      fill: new Fill({ color: `${color}0c` }),
+      stroke: new Stroke({ color: `${color}78`, width: 1, lineDash: [5, 5] }),
     });
   }
   if (objectType === "heat_network") {
     return [
-      new Style({ stroke: new Stroke({ color: "rgba(255,255,255,.92)", width: 6 }) }),
-      new Style({ stroke: new Stroke({ color: "#17796b", width: 3.2 }) }),
+      new Style({ stroke: new Stroke({ color: "rgba(255,255,255,.9)", width: 5 }) }),
+      new Style({ stroke: new Stroke({ color: "#238577", width: 2.6 }) }),
     ];
   }
   if (objectType === "source") {
@@ -133,11 +133,11 @@ function contextStyle(feature: FeatureLike): Style | Style[] {
   }
   if (objectType === "heat_chamber") {
     return new Style({
-      image: new CircleStyle({ radius: 5, fill: new Fill({ color: "#222126" }), stroke: new Stroke({ color: "#fff", width: 2 }) }),
+      image: new CircleStyle({ radius: 4.5, fill: new Fill({ color: "#34363b" }), stroke: new Stroke({ color: "#fff", width: 2 }) }),
     });
   }
   return new Style({
-    image: new CircleStyle({ radius: 4, fill: new Fill({ color: "#58a66a" }), stroke: new Stroke({ color: "#fff", width: 2 }) }),
+    image: new CircleStyle({ radius: 3.5, fill: new Fill({ color: "#4d9e68" }), stroke: new Stroke({ color: "#fff", width: 1.8 }) }),
   });
 }
 
@@ -145,14 +145,14 @@ function calculatedStyle(feature: FeatureLike): Style | Style[] {
   if (feature.get("map_layer") === "calculated_route") {
     const trunk = feature.get("route_kind") === "trunk";
     return [
-      new Style({ stroke: new Stroke({ color: "rgba(255,255,255,.96)", width: trunk ? 10 : 8 }) }),
-      new Style({ stroke: new Stroke({ color: trunk ? "#5b45e8" : "#7b65ff", width: trunk ? 6 : 4 }) }),
+      new Style({ stroke: new Stroke({ color: "rgba(255,255,255,.94)", width: trunk ? 8 : 6.5 }) }),
+      new Style({ stroke: new Stroke({ color: trunk ? "#5e4be2" : "#7464e8", width: trunk ? 4.5 : 3.5 }) }),
     ];
   }
   const nodeType = feature.get("node_type") as string;
   const color = nodeType === "demand_connection" ? "#45a55a" : feature.get("root") ? "#ed6a3b" : "#7357f6";
   return new Style({
-    image: new CircleStyle({ radius: nodeType === "demand_connection" ? 6 : 7, fill: new Fill({ color }), stroke: new Stroke({ color: "#fff", width: 3 }) }),
+    image: new CircleStyle({ radius: nodeType === "demand_connection" ? 5 : 6, fill: new Fill({ color }), stroke: new Stroke({ color: "#fff", width: 2.4 }) }),
   });
 }
 
@@ -185,7 +185,10 @@ export function OfficialRouteMap({
   onSelect?: (object: SelectedMapObject | null) => void;
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
-  const [layers, setLayers] = useState<MapLayersState>({ base: true, restrictions: true, network: true, route: true });
+  const [layers, setLayers] = useState<MapLayersState>({ base: true, restrictions: false, network: true, route: true });
+  const [layerMenuOpen, setLayerMenuOpen] = useState(false);
+  const layerVisibilityRef = useRef(layers);
+  const mapLayersRef = useRef<Record<keyof MapLayersState, { setVisible: (visible: boolean) => void }> | null>(null);
   const bounds = useMemo(() => routeMapBounds(variant), [variant]);
   const context = useQuery({
     queryKey: ["official-map", importId, bounds],
@@ -195,6 +198,10 @@ export function OfficialRouteMap({
   });
 
   useEffect(() => {
+    layerVisibilityRef.current = layers;
+  }, [layers]);
+
+  useEffect(() => {
     if (!targetRef.current) return;
     const contextFeatures = context.data
       ? new GeoJSON().readFeatures(context.data, { dataProjection: WGS84_CRS, featureProjection: WEB_CRS }) as Feature[]
@@ -202,14 +209,14 @@ export function OfficialRouteMap({
     const restrictions = contextFeatures.filter((feature) => feature.get("object_type") === "restriction");
     const infrastructure = contextFeatures.filter((feature) => feature.get("object_type") !== "restriction");
     const routeSource = new VectorSource({ features: routeFeatures(variant) });
+    const baseLayer = new TileLayer({ className: "simple-basemap", opacity: .72, visible: layerVisibilityRef.current.base, source: new OSM({ url: tileUrl }) });
+    const restrictionLayer = new VectorLayer({ visible: layerVisibilityRef.current.restrictions, source: new VectorSource({ features: restrictions }), style: contextStyle });
+    const networkLayer = new VectorLayer({ visible: layerVisibilityRef.current.network, source: new VectorSource({ features: infrastructure }), style: contextStyle });
+    const routeLayer = new VectorLayer({ visible: layerVisibilityRef.current.route, source: routeSource, style: calculatedStyle });
+    mapLayersRef.current = { base: baseLayer, restrictions: restrictionLayer, network: networkLayer, route: routeLayer };
     const map = new OlMap({
       target: targetRef.current,
-      layers: [
-        new TileLayer({ visible: layers.base, source: new OSM({ url: tileUrl }) }),
-        new VectorLayer({ visible: layers.restrictions, source: new VectorSource({ features: restrictions }), style: contextStyle }),
-        new VectorLayer({ visible: layers.network, source: new VectorSource({ features: infrastructure }), style: contextStyle }),
-        new VectorLayer({ visible: layers.route, source: routeSource, style: calculatedStyle }),
-      ],
+      layers: [baseLayer, restrictionLayer, networkLayer, routeLayer],
       view: new View({ projection: WEB_CRS, center: [0, 0], zoom: 15 }),
       controls: defaultControls({ attributionOptions: { collapsible: false } }).extend([new ScaleLine({ units: "metric" })]),
     });
@@ -223,8 +230,17 @@ export function OfficialRouteMap({
       if (targetRef.current) targetRef.current.style.cursor = map.hasFeatureAtPixel(event.pixel, { hitTolerance: 5 }) ? "pointer" : "grab";
     });
     requestAnimationFrame(() => map.updateSize());
-    return () => map.setTarget(undefined);
-  }, [context.data, layers, onSelect, variant]);
+    return () => {
+      mapLayersRef.current = null;
+      map.setTarget(undefined);
+    };
+  }, [context.data, onSelect, variant]);
+
+  useEffect(() => {
+    const mapLayers = mapLayersRef.current;
+    if (!mapLayers) return;
+    (Object.keys(layers) as Array<keyof MapLayersState>).forEach((layer) => mapLayers[layer].setVisible(layers[layer]));
+  }, [layers]);
 
   function toggleLayer(layer: keyof MapLayersState) {
     setLayers((current) => ({ ...current, [layer]: !current[layer] }));
@@ -233,22 +249,36 @@ export function OfficialRouteMap({
   return (
     <div className="official-map-shell">
       <div ref={targetRef} className="official-route-map" aria-label="Карта рассчитанных маршрутов и исходных ограничений" />
-      <div className="official-map-layer-panel">
-        <span><Layers3 size={15} /> Слои</span>
-        <button type="button" className={layers.base ? "is-active" : undefined} onClick={() => toggleLayer("base")}>OSM</button>
-        <button type="button" className={layers.network ? "is-active" : undefined} onClick={() => toggleLayer("network")}>Теплосеть</button>
-        <button type="button" className={layers.restrictions ? "is-active" : undefined} onClick={() => toggleLayer("restrictions")}>Ограничения</button>
-        <button type="button" className={layers.route ? "is-active" : undefined} onClick={() => toggleLayer("route")}>Расчёт</button>
+      <div className="official-map-layer-control">
+        <button
+          type="button"
+          className={layerMenuOpen ? "official-map-layer-button is-open" : "official-map-layer-button"}
+          aria-label="Слои карты"
+          aria-expanded={layerMenuOpen}
+          onClick={() => setLayerMenuOpen((value) => !value)}
+        >
+          <Layers3 size={19} />
+        </button>
+        {layerMenuOpen && (
+          <div className="official-map-layer-panel" role="menu" aria-label="Слои карты">
+            <strong>Слои карты</strong>
+            {([
+              ["base", "Карта"],
+              ["network", "Теплосеть"],
+              ["restrictions", "Ограничения"],
+              ["route", "Маршруты"],
+            ] as const).map(([layer, label]) => (
+              <button type="button" role="menuitemcheckbox" aria-checked={layers[layer]} key={layer} onClick={() => toggleLayer(layer)}>
+                <span className={layers[layer] ? "is-checked" : undefined}>{layers[layer] && <Check size={13} />}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {context.isPending && <div className="official-map-state"><LoaderCircle className="is-spinning" size={16} /> Загружаем инженерные слои…</div>}
       {context.isError && <div className="official-map-state is-error">Подложка доступна, исходные слои не загрузились</div>}
       {context.data?.truncated && <div className="official-map-state is-warning">Показаны первые 10 000 объектов в окне</div>}
-      <div className="official-map-legend">
-        <span><i className="is-calculated" /> Расчётная трасса</span>
-        <span><i className="is-existing" /> Существующая сеть</span>
-        <span><i className="is-restriction" /> Ограничения</span>
-        <span><i className="is-demand" /> ОКС</span>
-      </div>
     </div>
   );
 }

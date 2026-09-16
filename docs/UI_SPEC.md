@@ -8,8 +8,10 @@ The web app is a truthful client of the calculation API. The current home screen
 - import counts and localized contract errors;
 - durable topology-job start, progress, cancellation and result;
 - completed-run demo in a map-first workspace with an OpenLayers/OpenStreetMap view of calculated
-  routes and source layers, floating layer controls, a route-variant switcher, an object inspector
-  and a compact calculation-results drawer;
+  routes and source layers, a route-variant switcher, an object inspector and a compact
+  calculation-results drawer;
+- a deliberately muted basemap that keeps route geometry visually dominant; optional source
+  layers live in one compact layer menu and restrictions are hidden by default;
 - a switchable EPSG:32637 engineering schematic;
 - a separate system-information page for product version, team, stack and API documentation.
 

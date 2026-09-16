@@ -1,4 +1,4 @@
-import { AlertTriangle, Focus, MapPin, MapPinned, Network, Route, X, ZoomIn, ZoomOut } from "lucide-react";
+import { AlertTriangle, Focus, MapPin, MapPinned, Network, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import type {
@@ -118,7 +118,7 @@ export function RouteVisualization({
       x: offsetX + (node.coordinate.xm - minX) * scale,
       y: offsetY + (maxY - node.coordinate.ym) * scale,
     }]));
-    return { points, rangeX, rangeY };
+    return { points };
   }, [variant]);
 
   const selectMapObject = useCallback((object: SelectedMapObject | null) => {
@@ -229,8 +229,6 @@ export function RouteVisualization({
               </div>
             </div>
           )}
-
-          <div className="route-map-caption"><Route size={15} /> Охват {Math.round(layout.rangeX)} × {Math.round(layout.rangeY)} м</div>
         </div>
 
         <aside className="route-workspace-inspector" aria-label="Информация о выбранном объекте">

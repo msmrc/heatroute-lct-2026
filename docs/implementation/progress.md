@@ -70,6 +70,9 @@ and runtime services were removed. The frontend calls only the current official 
   on the map, selected-object details stay in a right inspector, and route totals remain visible in
   a bottom results drawer. Framework/runtime status, theme controls and developer-only labels were
   removed from this flow; stack, version, team Dragons and Swagger moved to `/system`.
+- The OSM layer is visually muted so the route is primary. Four persistent layer buttons and the
+  map legend were replaced by one compact layer menu; restrictions start hidden and layer toggles
+  update without rebuilding or flashing the map.
 
 ## Roadmap truth
 

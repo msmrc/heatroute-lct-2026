@@ -99,7 +99,13 @@ jobs:
       - name: Verify public and internal contracts
         run: |
           curl --fail --silent http://localhost:8000/api/v1/health/ready
-          curl --fail --silent http://localhost:8000/api/v1/openapi | grep -q '/api/v1/official/imports'
+          OPENAPI_JSON=$(curl --fail --silent http://localhost:8000/api/v1/openapi)
+          printf '%s' "$OPENAPI_JSON" | grep -q '/api/v1/official/imports'
+          printf '%s' "$OPENAPI_JSON" | jq -e '.paths["/api/v1/official/contracts/output.schema.json"] != null' >/dev/null
+          for schema in input provided-dataset output; do
+            curl --fail --silent "http://localhost:8000/api/v1/official/contracts/${schema}.schema.json" \
+              | jq -e '."$schema" == "https://json-schema.org/draft/2020-12/schema" and .type == "object"' >/dev/null
+          done
           curl --fail --silent http://localhost:5173/ | grep -q 'HeatRoute'
           IMPORT_JSON=$(curl --fail --silent -F "file=@datasets/official/lct-2026.geojson;type=application/geo+json" http://localhost:8000/api/v1/official/imports)
           IMPORT_ID=$(printf '%s' "$IMPORT_JSON" | jq -r '.id')

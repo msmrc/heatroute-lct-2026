@@ -24,6 +24,18 @@ public class OfficialDepthPlanner {
     }
 
     public DepthProfileResult plan(RouteEdge edge, List<ImportedOfficialFeature> features) {
+        return plan(
+                edge,
+                features,
+                OfficialDepthOptimizer.OFFICIAL_MINIMUM_DEPTH_M,
+                OfficialDepthOptimizer.DEFAULT_MAXIMUM_DEPTH_M);
+    }
+
+    public DepthProfileResult plan(
+            RouteEdge edge,
+            List<ImportedOfficialFeature> features,
+            BigDecimal minimumDepthM,
+            BigDecimal maximumDepthM) {
         if (edge.getDiameter() == null) {
             return incomplete(edge.getLengthM(), new DepthProfileIssue(
                     "DEPTH_DIAMETER_MISSING", edge.getId(), "Sized diameter is required for depth calculation"));
@@ -36,14 +48,15 @@ public class OfficialDepthPlanner {
                 edge.getLengthM(),
                 edge.getDiameter(),
                 extraction.getCrossings(),
-                OfficialDepthOptimizer.DEFAULT_MAXIMUM_DEPTH_M);
+                minimumDepthM,
+                maximumDepthM);
         if (!optimized.isComplete()) return optimized;
         List<DepthProfileIssue> validationIssues = validator.validate(
                 edge.getLengthM(),
                 edge.getDiameter(),
                 extraction.getCrossings(),
-                OfficialDepthOptimizer.OFFICIAL_MINIMUM_DEPTH_M,
-                OfficialDepthOptimizer.DEFAULT_MAXIMUM_DEPTH_M,
+                minimumDepthM,
+                maximumDepthM,
                 optimized);
         if (validationIssues.isEmpty()) return optimized;
         return new DepthProfileResult(

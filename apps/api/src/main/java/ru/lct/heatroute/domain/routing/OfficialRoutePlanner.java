@@ -28,6 +28,7 @@ import ru.lct.heatroute.domain.economics.VariantEconomics;
 import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
 import ru.lct.heatroute.domain.reconstruction.TieInLoad;
+import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.sizing.NetworkSizingResult;
 import ru.lct.heatroute.domain.sizing.NetworkTreeEdge;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
@@ -38,7 +39,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
 @Component
 public class OfficialRoutePlanner {
-    public static final String ALGORITHM_VERSION = "r8-depth-profile-1";
+    public static final String ALGORITHM_VERSION = "r8-depth-profile-2";
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double MIN_SHARED_SAVING_M = 0.01;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
@@ -75,6 +76,14 @@ public class OfficialRoutePlanner {
     public OfficialCalculationResult plan(
             List<ImportedOfficialFeature> features,
             TopologyAnalysis topology) {
+        return plan(features, topology, OfficialRunParameters.defaults());
+    }
+
+    public OfficialCalculationResult plan(
+            List<ImportedOfficialFeature> features,
+            TopologyAnalysis topology,
+            OfficialRunParameters parameters) {
+        OfficialRunParameters validatedParameters = parameters.validated();
         Map<String, ImportedOfficialFeature> featuresById = features.stream().collect(Collectors.toMap(
                 ImportedOfficialFeature::getFeatureId,
                 feature -> feature,
@@ -98,7 +107,8 @@ public class OfficialRoutePlanner {
                 Collections.emptyMap(),
                 RoutePreference.SHORTEST,
                 "independent");
-        RouteVariant independent = finish("independent", "independent", independentDraft, features);
+        RouteVariant independent = finish(
+                "independent", "independent", independentDraft, features, validatedParameters);
         List<RouteVariant> variants = new ArrayList<>();
         variants.add(independent);
 
@@ -109,7 +119,7 @@ public class OfficialRoutePlanner {
                 chamberIncidentCounts,
                 independentDraft.lengthByDemand,
                 routingEnvironment);
-        RouteVariant shared = finish("shared", "shared_trunk", sharedDraft, features);
+        RouteVariant shared = finish("shared", "shared_trunk", sharedDraft, features, validatedParameters);
         if (sharedDraft.sharedPairCount > 0
                 && !edgeSignature(independent).equals(edgeSignature(shared))) {
             variants.add(shared);
@@ -124,7 +134,8 @@ public class OfficialRoutePlanner {
                 independentDraft.targetByDemand,
                 RoutePreference.RIGHT,
                 "diverse");
-        RouteVariant diverse = finish("diverse", "alternative_tie_ins", diverseDraft, features);
+        RouteVariant diverse = finish(
+                "diverse", "alternative_tie_ins", diverseDraft, features, validatedParameters);
         Set<String> existingSignatures = variants.stream()
                 .map(this::edgeSignature)
                 .collect(Collectors.toSet());
@@ -590,7 +601,8 @@ public class OfficialRoutePlanner {
             String id,
             String strategy,
             VariantDraft draft,
-            List<ImportedOfficialFeature> features) {
+            List<ImportedOfficialFeature> features,
+            OfficialRunParameters parameters) {
         List<RouteNode> nodes = draft.nodes.values().stream()
                 .sorted(Comparator.comparing(RouteNode::getId))
                 .collect(Collectors.toList());
@@ -605,10 +617,11 @@ public class OfficialRoutePlanner {
                         LinkedHashMap::new));
         NetworkSizingResult initialSizing = sizeRoutes(draft.edges, demandFlowByNode);
         List<RouteEdge> sizedEdges = applySizing(draft.edges, initialSizing);
-        List<RouteEdge> depthReroutedEdges = rerouteDepthConflicts(nodes, sizedEdges, features);
+        List<RouteEdge> depthReroutedEdges = rerouteDepthConflicts(
+                nodes, sizedEdges, features, parameters);
         NetworkSizingResult sizing = sizeRoutes(depthReroutedEdges, demandFlowByNode);
         List<RouteEdge> profiledEdges = withDepthProfiles(
-                applySizing(depthReroutedEdges, sizing), features);
+                applySizing(depthReroutedEdges, sizing), features, parameters);
         List<RouteValidationIssue> issues = validator.validate(nodes, profiledEdges, features);
         ExistingNetworkReconstructionResult reconstruction = reconstructor.reconstruct(
                 features,
@@ -666,16 +679,22 @@ public class OfficialRoutePlanner {
 
     private List<RouteEdge> withDepthProfiles(
             List<RouteEdge> edges,
-            List<ImportedOfficialFeature> features) {
+            List<ImportedOfficialFeature> features,
+            OfficialRunParameters parameters) {
         return edges.stream()
-                .map(edge -> withDepthProfile(edge, depthPlanner.plan(edge, features)))
+                .map(edge -> withDepthProfile(edge, depthPlanner.plan(
+                        edge,
+                        features,
+                        parameters.getMinimumDepthM(),
+                        parameters.getMaximumDepthM())))
                 .collect(Collectors.toList());
     }
 
     private List<RouteEdge> rerouteDepthConflicts(
             List<RouteNode> nodes,
             List<RouteEdge> sizedEdges,
-            List<ImportedOfficialFeature> features) {
+            List<ImportedOfficialFeature> features,
+            OfficialRunParameters parameters) {
         Map<String, RouteNode> nodesById = nodes.stream().collect(Collectors.toMap(
                 RouteNode::getId,
                 node -> node,
@@ -685,7 +704,11 @@ public class OfficialRoutePlanner {
         List<RouteEdge> result = new ArrayList<>(sizedEdges);
         for (int index = 0; index < result.size(); index++) {
             RouteEdge edge = result.get(index);
-            DepthProfileResult profile = depthPlanner.plan(edge, features);
+            DepthProfileResult profile = depthPlanner.plan(
+                    edge,
+                    features,
+                    parameters.getMinimumDepthM(),
+                    parameters.getMaximumDepthM());
             if (profile.isComplete()) continue;
             Set<String> failedUtilityIds = profile.getIssues().stream()
                     .map(issue -> issue.getCrossingId())
@@ -721,7 +744,11 @@ public class OfficialRoutePlanner {
                     rerouted,
                     edge.getFlowTph(),
                     edge.getDiameter());
-            DepthProfileResult candidateProfile = depthPlanner.plan(candidate, features);
+            DepthProfileResult candidateProfile = depthPlanner.plan(
+                    candidate,
+                    features,
+                    parameters.getMinimumDepthM(),
+                    parameters.getMaximumDepthM());
             if (candidateProfile.isComplete()) {
                 result.set(index, withDepthProfile(candidate, candidateProfile));
             }

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.lct.heatroute.domain.input.OfficialImportRepository;
 import ru.lct.heatroute.domain.input.OfficialImportView;
+import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.topology.ExistingNetworkTopologyAnalyzer;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.OfficialFeatureRepository;
@@ -31,12 +32,17 @@ public class OfficialCalculationService {
 
     @Transactional(readOnly = true)
     public OfficialCalculationResult calculate(UUID importId) {
+        return calculate(importId, OfficialRunParameters.defaults());
+    }
+
+    @Transactional(readOnly = true)
+    public OfficialCalculationResult calculate(UUID importId, OfficialRunParameters parameters) {
         OfficialImportView imported = importRepository.find(importId).orElse(null);
         if (imported == null || !"valid".equals(imported.getState())) {
             return null;
         }
         List<ImportedOfficialFeature> features = featureRepository.findByImport(importId);
         TopologyAnalysis topology = topologyAnalyzer.analyze(features);
-        return routePlanner.plan(features, topology);
+        return routePlanner.plan(features, topology, parameters);
     }
 }

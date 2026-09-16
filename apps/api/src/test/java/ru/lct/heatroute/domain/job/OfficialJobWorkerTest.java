@@ -30,6 +30,8 @@ import ru.lct.heatroute.domain.routing.RouteCoordinate;
 import ru.lct.heatroute.domain.routing.RouteNode;
 import ru.lct.heatroute.domain.routing.RouteVariant;
 import ru.lct.heatroute.domain.run.OfficialRunRepository;
+import ru.lct.heatroute.domain.run.OfficialRunParameters;
+import ru.lct.heatroute.domain.run.OfficialRunView;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 import ru.lct.heatroute.domain.topology.TopologyAnalysisService;
 
@@ -78,9 +80,10 @@ class OfficialJobWorkerTest {
         UUID runId = UUID.randomUUID();
         OfficialJobView job = runningJob("calculation", runId);
         OfficialCalculationResult result = new OfficialCalculationResult("r4-test", 0, List.of(), null);
+        OfficialRunParameters parameters = prepareRun(runId);
         when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
         when(repository.isCancellationRequested(job.getId())).thenReturn(false);
-        when(calculationService.calculate(job.getImportId())).thenReturn(result);
+        when(calculationService.calculate(job.getImportId(), parameters)).thenReturn(result);
 
         worker.poll();
 
@@ -116,9 +119,10 @@ class OfficialJobWorkerTest {
                 1);
         OfficialCalculationResult result = new OfficialCalculationResult(
                 "r4-test", 1, List.of(variant), "shared");
+        OfficialRunParameters parameters = prepareRun(runId);
         when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
         when(repository.isCancellationRequested(job.getId())).thenReturn(false);
-        when(calculationService.calculate(job.getImportId())).thenReturn(result);
+        when(calculationService.calculate(job.getImportId(), parameters)).thenReturn(result);
 
         worker.poll();
 
@@ -198,6 +202,14 @@ class OfficialJobWorkerTest {
 
     private OfficialJobView runningJob() {
         return runningJob("topology_analysis", null);
+    }
+
+    private OfficialRunParameters prepareRun(UUID runId) {
+        OfficialRunParameters parameters = OfficialRunParameters.defaults();
+        OfficialRunView run = mock(OfficialRunView.class);
+        when(run.getParameters()).thenReturn(parameters);
+        when(runRepository.find(runId)).thenReturn(Optional.of(run));
+        return parameters;
     }
 
     private OfficialJobView runningJob(String jobType, UUID runId) {

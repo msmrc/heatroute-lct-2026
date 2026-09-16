@@ -63,11 +63,17 @@ export interface OfficialRun {
   state: string;
   algorithm_version: string;
   input_sha256: string;
+  parameters?: OfficialRunParameters;
   result?: OfficialCalculationResult;
   error_code?: string;
   error_message?: string;
   created_at: string;
   completed_at?: string;
+}
+
+export interface OfficialRunParameters {
+  minimum_depth_m: number;
+  maximum_depth_m: number;
 }
 
 export interface OfficialRouteCoordinate {
@@ -303,8 +309,15 @@ export function createTopologyJob(importId: string): Promise<OfficialJob> {
   return request(`/official/imports/${encodeURIComponent(importId)}/jobs/topology`, { method: "POST" });
 }
 
-export function createOfficialRun(importId: string): Promise<OfficialRun> {
-  return request(`/official/imports/${encodeURIComponent(importId)}/runs`, { method: "POST" });
+export function createOfficialRun(
+  importId: string,
+  parameters?: OfficialRunParameters,
+): Promise<OfficialRun> {
+  return request(`/official/imports/${encodeURIComponent(importId)}/runs`, {
+    method: "POST",
+    headers: parameters ? { "content-type": "application/json" } : undefined,
+    body: parameters ? JSON.stringify(parameters) : undefined,
+  });
 }
 
 export function getOfficialRun(runId: string, signal?: AbortSignal): Promise<OfficialRun> {

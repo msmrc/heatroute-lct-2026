@@ -33,6 +33,7 @@ import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
+import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
 import ru.lct.heatroute.domain.topology.ExistingNetworkTopologyAnalyzer;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
@@ -135,6 +136,7 @@ class OfficialDatasetRoutingTest {
         run.put("state", "completed");
         run.put("algorithm_version", result.getAlgorithmVersion());
         run.put("input_sha256", "local-official-dataset");
+        run.set("parameters", objectMapper.valueToTree(OfficialRunParameters.defaults()));
         run.set("result", objectMapper.valueToTree(result));
         run.put("created_at", now);
         run.put("completed_at", now);

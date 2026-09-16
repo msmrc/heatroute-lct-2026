@@ -13,6 +13,7 @@ public class OfficialRunView {
     private final String state;
     private final String algorithmVersion;
     private final String inputSha256;
+    private final OfficialRunParameters parameters;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final JsonNode result;
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -30,6 +31,7 @@ public class OfficialRunView {
             String state,
             String algorithmVersion,
             String inputSha256,
+            OfficialRunParameters parameters,
             JsonNode result,
             String errorCode,
             String errorMessage,
@@ -41,6 +43,7 @@ public class OfficialRunView {
         this.state = state;
         this.algorithmVersion = algorithmVersion;
         this.inputSha256 = inputSha256;
+        this.parameters = parameters;
         this.result = result;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
@@ -54,6 +57,7 @@ public class OfficialRunView {
     public String getState() { return state; }
     public String getAlgorithmVersion() { return algorithmVersion; }
     public String getInputSha256() { return inputSha256; }
+    public OfficialRunParameters getParameters() { return parameters; }
     public JsonNode getResult() { return result; }
     public String getErrorCode() { return errorCode; }
     public String getErrorMessage() { return errorMessage; }

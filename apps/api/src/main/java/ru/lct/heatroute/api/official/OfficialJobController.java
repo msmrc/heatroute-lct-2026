@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import ru.lct.heatroute.api.error.ApiException;
@@ -23,6 +24,7 @@ import ru.lct.heatroute.domain.export.OfficialExportService;
 import ru.lct.heatroute.domain.job.OfficialJobService;
 import ru.lct.heatroute.domain.job.OfficialJobView;
 import ru.lct.heatroute.domain.run.OfficialRunService;
+import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.run.OfficialRunView;
 
 @RestController
@@ -63,9 +65,18 @@ public class OfficialJobController {
 
     @PostMapping("/imports/{importId}/runs")
     @Operation(operationId = "createOfficialRun", summary = "Queue an immutable all-demand route calculation")
-    public ResponseEntity<OfficialRunView> createRun(@PathVariable UUID importId) {
+    public ResponseEntity<OfficialRunView> createRun(
+            @PathVariable UUID importId,
+            @RequestBody(required = false) OfficialRunParameters parameters) {
         OfficialImportView imported = requireValidImport(importId, "A calculation run requires a valid official import");
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(runService.create(imported));
+        try {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(runService.create(imported, parameters));
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_RUN_PARAMETERS",
+                    exception.getMessage());
+        }
     }
 
     @GetMapping("/runs/latest")

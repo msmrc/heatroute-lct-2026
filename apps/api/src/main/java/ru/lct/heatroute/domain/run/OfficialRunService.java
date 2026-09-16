@@ -22,10 +22,19 @@ public class OfficialRunService {
 
     @Transactional
     public OfficialRunView create(OfficialImportView imported) {
+        return create(imported, OfficialRunParameters.defaults());
+    }
+
+    @Transactional
+    public OfficialRunView create(OfficialImportView imported, OfficialRunParameters parameters) {
+        OfficialRunParameters validated = parameters == null
+                ? OfficialRunParameters.defaults()
+                : parameters.validated();
         OfficialRunView run = runRepository.create(
                 imported.getId(),
                 imported.getReport().getSha256(),
-                OfficialRoutePlanner.ALGORITHM_VERSION);
+                OfficialRoutePlanner.ALGORITHM_VERSION,
+                validated);
         OfficialJobView job = jobRepository.createCalculationJob(imported.getId(), run.getId());
         runRepository.attachJob(run.getId(), job.getId());
         return runRepository.find(run.getId())

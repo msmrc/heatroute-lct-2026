@@ -15,6 +15,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class OfficialRunRepository {
     private static final String COLUMNS = "id, import_id, job_id, state, algorithm_version, input_sha256, "
+            + "parameters::text AS parameters_json, "
             + "result::text AS result_json, error_code, error_message, created_at, completed_at";
 
     private final JdbcTemplate jdbcTemplate;
@@ -25,15 +26,20 @@ public class OfficialRunRepository {
         this.objectMapper = objectMapper;
     }
 
-    public OfficialRunView create(UUID importId, String inputSha256, String algorithmVersion) {
+    public OfficialRunView create(
+            UUID importId,
+            String inputSha256,
+            String algorithmVersion,
+            OfficialRunParameters parameters) {
         UUID id = UUID.randomUUID();
         jdbcTemplate.update(
-                "INSERT INTO official_runs (id, import_id, state, algorithm_version, input_sha256) "
-                        + "VALUES (?, ?, 'queued', ?, ?)",
+                "INSERT INTO official_runs (id, import_id, state, algorithm_version, input_sha256, parameters) "
+                        + "VALUES (?, ?, 'queued', ?, ?, ?::jsonb)",
                 id,
                 importId,
                 algorithmVersion,
-                inputSha256);
+                inputSha256,
+                json(objectMapper.valueToTree(parameters)));
         return find(id).orElseThrow(() -> new IllegalStateException("Created run cannot be read"));
     }
 
@@ -99,6 +105,13 @@ public class OfficialRunRepository {
     }
 
     private OfficialRunView map(ResultSet resultSet) throws SQLException {
+        OfficialRunParameters parameters;
+        try {
+            parameters = objectMapper.readValue(
+                    resultSet.getString("parameters_json"), OfficialRunParameters.class).validated();
+        } catch (JsonProcessingException | IllegalArgumentException exception) {
+            throw new SQLException("Stored run parameters are not valid JSON", exception);
+        }
         String resultJson = resultSet.getString("result_json");
         JsonNode result = null;
         if (resultJson != null) {
@@ -115,6 +128,7 @@ public class OfficialRunRepository {
                 resultSet.getString("state"),
                 resultSet.getString("algorithm_version"),
                 resultSet.getString("input_sha256"),
+                parameters,
                 result,
                 resultSet.getString("error_code"),
                 resultSet.getString("error_message"),

@@ -47,3 +47,11 @@ databaseChangeLog:
             path: db/changelog/sql/20260916_006_official_import_deduplication.sql
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 20260916-007-official-run-parameters
+      author: heatroute
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/20260916_007_official_run_parameters.sql
+            splitStatements: true
+            stripComments: true

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.routing.OfficialCalculationResult;
 import ru.lct.heatroute.domain.routing.OfficialCalculationService;
 import ru.lct.heatroute.domain.run.OfficialRunRepository;
+import ru.lct.heatroute.domain.run.OfficialRunView;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 import ru.lct.heatroute.domain.topology.TopologyAnalysisService;
 
@@ -135,7 +136,10 @@ public class OfficialJobWorker {
         }
         if ("calculation".equals(job.getJobType()) && job.getRunId() != null) {
             runRepository.markRunning(job.getRunId());
-            OfficialCalculationResult result = calculationService.calculate(job.getImportId());
+            OfficialRunView run = runRepository.find(job.getRunId())
+                    .orElseThrow(() -> new IllegalStateException("Calculation run was not found"));
+            OfficialCalculationResult result = calculationService.calculate(
+                    job.getImportId(), run.getParameters());
             if (result == null) {
                 runRepository.markFailed(
                         job.getRunId(), "IMPORT_NOT_VALID", "The official import is unavailable or invalid");

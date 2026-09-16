@@ -16,6 +16,8 @@ import ru.lct.heatroute.domain.input.OfficialImportService;
 import ru.lct.heatroute.domain.input.OfficialImportView;
 import ru.lct.heatroute.domain.job.OfficialJobService;
 import ru.lct.heatroute.domain.job.OfficialJobView;
+import ru.lct.heatroute.domain.run.OfficialRunService;
+import ru.lct.heatroute.domain.run.OfficialRunView;
 
 @RestController
 @RequestMapping("/api/v1/official")
@@ -23,10 +25,15 @@ import ru.lct.heatroute.domain.job.OfficialJobView;
 public class OfficialJobController {
     private final OfficialImportService importService;
     private final OfficialJobService jobService;
+    private final OfficialRunService runService;
 
-    public OfficialJobController(OfficialImportService importService, OfficialJobService jobService) {
+    public OfficialJobController(
+            OfficialImportService importService,
+            OfficialJobService jobService,
+            OfficialRunService runService) {
         this.importService = importService;
         this.jobService = jobService;
+        this.runService = runService;
     }
 
     @PostMapping("/imports/{importId}/jobs/topology")
@@ -43,6 +50,23 @@ public class OfficialJobController {
                     "A topology job requires a valid official import");
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(jobService.createTopologyJob(importId));
+    }
+
+    @PostMapping("/imports/{importId}/runs")
+    @Operation(operationId = "createOfficialRun", summary = "Queue an immutable all-demand route calculation")
+    public ResponseEntity<OfficialRunView> createRun(@PathVariable UUID importId) {
+        OfficialImportView imported = requireValidImport(importId, "A calculation run requires a valid official import");
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(runService.create(imported));
+    }
+
+    @GetMapping("/runs/{runId}")
+    @Operation(operationId = "getOfficialRun", summary = "Read immutable calculation run state and result")
+    public OfficialRunView getRun(@PathVariable UUID runId) {
+        OfficialRunView run = runService.find(runId);
+        if (run == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "RUN_NOT_FOUND", "Official run was not found");
+        }
+        return run;
     }
 
     @GetMapping("/jobs/{jobId}")
@@ -63,5 +87,16 @@ public class OfficialJobController {
             throw new ApiException(HttpStatus.NOT_FOUND, "JOB_NOT_FOUND", "Official job was not found");
         }
         return job;
+    }
+
+    private OfficialImportView requireValidImport(UUID importId, String invalidMessage) {
+        OfficialImportView imported = importService.find(importId);
+        if (imported == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "IMPORT_NOT_FOUND", "Official import was not found");
+        }
+        if (!"valid".equals(imported.getState())) {
+            throw new ApiException(HttpStatus.CONFLICT, "IMPORT_NOT_VALID", invalidMessage);
+        }
+        return imported;
     }
 }

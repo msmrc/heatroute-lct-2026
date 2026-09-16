@@ -1,22 +1,18 @@
-package ru.lct.heatroute.domain.job;
+package ru.lct.heatroute.domain.run;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-public class OfficialJobView {
+public class OfficialRunView {
     private final UUID id;
     private final UUID importId;
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    private final UUID runId;
-    private final String jobType;
+    private final UUID jobId;
     private final String state;
-    private final String phase;
-    private final long progressCurrent;
-    private final long progressTotal;
-    private final int attempt;
-    private final boolean cancellationRequested;
+    private final String algorithmVersion;
+    private final String inputSha256;
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final JsonNode result;
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -27,17 +23,13 @@ public class OfficialJobView {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private final OffsetDateTime completedAt;
 
-    public OfficialJobView(
+    public OfficialRunView(
             UUID id,
             UUID importId,
-            UUID runId,
-            String jobType,
+            UUID jobId,
             String state,
-            String phase,
-            long progressCurrent,
-            long progressTotal,
-            int attempt,
-            boolean cancellationRequested,
+            String algorithmVersion,
+            String inputSha256,
             JsonNode result,
             String errorCode,
             String errorMessage,
@@ -45,14 +37,10 @@ public class OfficialJobView {
             OffsetDateTime completedAt) {
         this.id = id;
         this.importId = importId;
-        this.runId = runId;
-        this.jobType = jobType;
+        this.jobId = jobId;
         this.state = state;
-        this.phase = phase;
-        this.progressCurrent = progressCurrent;
-        this.progressTotal = progressTotal;
-        this.attempt = attempt;
-        this.cancellationRequested = cancellationRequested;
+        this.algorithmVersion = algorithmVersion;
+        this.inputSha256 = inputSha256;
         this.result = result;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
@@ -62,14 +50,10 @@ public class OfficialJobView {
 
     public UUID getId() { return id; }
     public UUID getImportId() { return importId; }
-    public UUID getRunId() { return runId; }
-    public String getJobType() { return jobType; }
+    public UUID getJobId() { return jobId; }
     public String getState() { return state; }
-    public String getPhase() { return phase; }
-    public long getProgressCurrent() { return progressCurrent; }
-    public long getProgressTotal() { return progressTotal; }
-    public int getAttempt() { return attempt; }
-    public boolean isCancellationRequested() { return cancellationRequested; }
+    public String getAlgorithmVersion() { return algorithmVersion; }
+    public String getInputSha256() { return inputSha256; }
     public JsonNode getResult() { return result; }
     public String getErrorCode() { return errorCode; }
     public String getErrorMessage() { return errorMessage; }

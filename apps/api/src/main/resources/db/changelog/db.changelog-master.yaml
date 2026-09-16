@@ -31,3 +31,11 @@ databaseChangeLog:
             path: db/changelog/sql/20260916_004_input_profiles.sql
             splitStatements: true
             stripComments: true
+  - changeSet:
+      id: 20260916-005-official-runs
+      author: heatroute
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/20260916_005_official_runs.sql
+            splitStatements: true
+            stripComments: true

@@ -14,13 +14,18 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import ru.lct.heatroute.domain.routing.OfficialCalculationService;
+import ru.lct.heatroute.domain.run.OfficialRunRepository;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 import ru.lct.heatroute.domain.topology.TopologyAnalysisService;
 
 class OfficialJobWorkerTest {
     private final OfficialJobRepository repository = mock(OfficialJobRepository.class);
     private final TopologyAnalysisService topologyService = mock(TopologyAnalysisService.class);
-    private final OfficialJobWorker worker = new OfficialJobWorker(repository, topologyService, new ObjectMapper());
+    private final OfficialCalculationService calculationService = mock(OfficialCalculationService.class);
+    private final OfficialRunRepository runRepository = mock(OfficialRunRepository.class);
+    private final OfficialJobWorker worker = new OfficialJobWorker(
+            repository, topologyService, calculationService, runRepository, new ObjectMapper());
 
     @Test
     void completesClaimedTopologyJobWithPersistedResult() {
@@ -52,6 +57,7 @@ class OfficialJobWorkerTest {
         return new OfficialJobView(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
+                null,
                 "topology_analysis",
                 "running",
                 "topology_analysis",

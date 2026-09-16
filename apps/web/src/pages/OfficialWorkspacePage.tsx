@@ -9,15 +9,18 @@ import {
   ApiError,
   cancelOfficialJob,
   createOfficialImport,
+  createOfficialRun,
   createTopologyJob,
   getOfficialImport,
   getOfficialJob,
+  getOfficialRun,
   humanFileSize,
   type OfficialImport,
 } from "../shared/api";
 
 const IMPORT_KEY = "heatroute.officialImportId";
 const JOB_KEY = "heatroute.officialJobId";
+const RUN_KEY = "heatroute.officialRunId";
 
 function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : error instanceof Error ? error.message : "Неизвестная ошибка";
@@ -28,6 +31,7 @@ export function OfficialWorkspacePage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [importId, setImportId] = useState(() => localStorage.getItem(IMPORT_KEY) ?? "");
   const [jobId, setJobId] = useState(() => localStorage.getItem(JOB_KEY) ?? "");
+  const [runId, setRunId] = useState(() => localStorage.getItem(RUN_KEY) ?? "");
 
   const imported = useQuery({
     queryKey: ["official-import", importId],
@@ -45,14 +49,26 @@ export function OfficialWorkspacePage() {
       return state === "queued" || state === "running" || state === "cancel_requested" ? 1_000 : false;
     },
   });
+  const run = useQuery({
+    queryKey: ["official-run", runId],
+    queryFn: ({ signal }) => getOfficialRun(runId, signal),
+    enabled: Boolean(runId),
+    retry: false,
+    refetchInterval: (query) => {
+      const state = query.state.data?.state;
+      return state === "queued" || state === "running" ? 1_000 : false;
+    },
+  });
 
   const upload = useMutation({
     mutationFn: createOfficialImport,
     onSuccess: (value: OfficialImport) => {
       localStorage.setItem(IMPORT_KEY, value.id);
       localStorage.removeItem(JOB_KEY);
+      localStorage.removeItem(RUN_KEY);
       setImportId(value.id);
       setJobId("");
+      setRunId("");
       queryClient.setQueryData(["official-import", value.id], value);
       toast.success("GeoJSON проверен и сохранён");
     },
@@ -62,9 +78,25 @@ export function OfficialWorkspacePage() {
     mutationFn: () => createTopologyJob(importId),
     onSuccess: (value) => {
       localStorage.setItem(JOB_KEY, value.id);
+      localStorage.removeItem(RUN_KEY);
       setJobId(value.id);
+      setRunId("");
       queryClient.setQueryData(["official-job", value.id], value);
       toast.success("Анализ топологии поставлен в очередь");
+    },
+    onError: (error) => toast.error(errorText(error)),
+  });
+  const startRun = useMutation({
+    mutationFn: () => createOfficialRun(importId),
+    onSuccess: (value) => {
+      localStorage.setItem(RUN_KEY, value.id);
+      setRunId(value.id);
+      queryClient.setQueryData(["official-run", value.id], value);
+      if (value.job_id) {
+        localStorage.setItem(JOB_KEY, value.job_id);
+        setJobId(value.job_id);
+      }
+      toast.success("Расчёт всех ОКС поставлен в очередь");
     },
     onError: (error) => toast.error(errorText(error)),
   });
@@ -76,6 +108,8 @@ export function OfficialWorkspacePage() {
 
   const currentImport = imported.data;
   const currentJob = job.data;
+  const currentRun = run.data;
+  const activeRun = currentRun && currentJob?.run_id === currentRun.id ? currentRun : undefined;
   const isJobActive = currentJob?.state === "queued" || currentJob?.state === "running" || currentJob?.state === "cancel_requested";
 
   return (
@@ -84,7 +118,7 @@ export function OfficialWorkspacePage() {
         <div>
           <span className="eyebrow">Официальный контур · Java</span>
           <h1>Проверка исходных данных</h1>
-          <p>Один GeoJSON, семь обязательных типов, потоковая проверка и сохраняемая задача анализа топологии.</p>
+          <p>Один GeoJSON, проверка входа и детерминированный расчёт раздельных и общих трасс для всех ОКС.</p>
         </div>
         <a className="button-link button-link--outline" href="/swagger-ui.html" target="_blank" rel="noreferrer">Swagger</a>
       </header>
@@ -122,7 +156,7 @@ export function OfficialWorkspacePage() {
       </section>
 
       {!importId && !upload.isPending && (
-        <Card><StateView state="empty" title="Загрузите набор данных" detail="После проверки здесь появятся состав файла, ошибки контракта и запуск анализа топологии." /></Card>
+        <Card><StateView state="empty" title="Загрузите набор данных" detail="После проверки здесь появятся состав файла, диагностика и запуск расчёта всех ОКС." /></Card>
       )}
       {imported.isPending && importId && <Card><StateView state="loading" title="Читаем импорт" /></Card>}
       {imported.isError && (
@@ -173,13 +207,18 @@ export function OfficialWorkspacePage() {
           </Card>
 
           <Card className="official-job-card">
-            <header><div><span className="eyebrow">Следующий этап</span><h2>Анализ топологии</h2></div>{currentJob && <StatusBadge value={currentJob.state} />}</header>
+            <header><div><span className="eyebrow">Расчёт R4</span><h2>Варианты подключения</h2></div>{currentJob && <StatusBadge value={currentJob.state} />}</header>
             {!currentJob ? (
               <>
-                <p>Проверит направление к источнику, циклы, оборванные ссылки и сформирует детерминированные кандидаты врезки.</p>
-                <Button disabled={!currentImport.report.valid || startJob.isPending} onClick={() => startJob.mutate()}>
-                  {startJob.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Play size={16} />} Запустить
-                </Button>
+                <p>Обработает все точки спроса, сравнит раздельные подключения и общие стволы, сохранит частичный результат для no-route.</p>
+                <div className="card-actions">
+                  <Button disabled={!currentImport.report.valid || startRun.isPending} onClick={() => startRun.mutate()}>
+                    {startRun.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Play size={16} />} Рассчитать варианты
+                  </Button>
+                  <Button variant="outline" disabled={!currentImport.report.valid || startJob.isPending} onClick={() => startJob.mutate()}>
+                    Только топология
+                  </Button>
+                </div>
               </>
             ) : (
               <>
@@ -188,12 +227,19 @@ export function OfficialWorkspacePage() {
                   <div><dt>Job ID</dt><dd>{currentJob.id}</dd></div>
                   <div><dt>Попытка</dt><dd>{currentJob.attempt}</dd></div>
                   <div><dt>Тип</dt><dd>{currentJob.job_type}</dd></div>
+                  {activeRun && <div><dt>Run ID</dt><dd>{activeRun.id}</dd></div>}
+                  {activeRun && <div><dt>Алгоритм</dt><dd>{activeRun.algorithm_version}</dd></div>}
                 </dl>
                 {currentJob.error_message && <p className="text-danger">{currentJob.error_code}: {currentJob.error_message}</p>}
                 {currentJob.result !== undefined && <pre className="official-result">{JSON.stringify(currentJob.result, null, 2)}</pre>}
                 <div className="card-actions">
                   <Button variant="outline" onClick={() => void job.refetch()}><RotateCcw size={15} /> Обновить</Button>
                   {isJobActive && <Button variant="outline" disabled={cancelJob.isPending} onClick={() => cancelJob.mutate()}>Отменить</Button>}
+                  {!isJobActive && currentJob.job_type === "topology_analysis" && (
+                    <Button disabled={startRun.isPending} onClick={() => startRun.mutate()}>
+                      {startRun.isPending ? <LoaderCircle className="is-spinning" size={15} /> : <Play size={15} />} Рассчитать варианты
+                    </Button>
+                  )}
                 </div>
               </>
             )}

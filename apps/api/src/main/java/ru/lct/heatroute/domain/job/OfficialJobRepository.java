@@ -15,11 +15,13 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class OfficialJobRepository {
     private static final String SELECT_COLUMNS =
-            "id, import_id, job_type, state, phase, progress_current, progress_total, attempt, "
-                    + "cancellation_requested, result::text, error_code, error_message, created_at, completed_at";
+            "id, import_id, run_id, job_type, state, phase, progress_current, progress_total, attempt, "
+                    + "cancellation_requested, result::text AS result_json, error_code, error_message, "
+                    + "created_at, completed_at";
     private static final String RETURNING_COLUMNS =
-            "job.id, job.import_id, job.job_type, job.state, job.phase, job.progress_current, "
-                    + "job.progress_total, job.attempt, job.cancellation_requested, job.result::text, "
+            "job.id, job.import_id, job.run_id, job.job_type, job.state, job.phase, job.progress_current, "
+                    + "job.progress_total, job.attempt, job.cancellation_requested, "
+                    + "job.result::text AS result_json, "
                     + "job.error_code, job.error_message, job.created_at, job.completed_at";
 
     private final JdbcTemplate jdbcTemplate;
@@ -40,6 +42,17 @@ public class OfficialJobRepository {
         return find(id).orElseThrow(() -> new IllegalStateException("Created job cannot be read"));
     }
 
+    public OfficialJobView createCalculationJob(UUID importId, UUID runId) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO official_jobs (id, import_id, run_id, job_type, state, phase) "
+                        + "VALUES (?, ?, ?, 'calculation', 'queued', 'queued')",
+                id,
+                importId,
+                runId);
+        return find(id).orElseThrow(() -> new IllegalStateException("Created job cannot be read"));
+    }
+
     public Optional<OfficialJobView> find(UUID id) {
         List<OfficialJobView> rows = jdbcTemplate.query(
                 "SELECT " + SELECT_COLUMNS + " FROM official_jobs WHERE id = ?",
@@ -55,7 +68,7 @@ public class OfficialJobRepository {
                 + "AND (state = 'queued' OR (state = 'running' AND lease_until < now())) "
                 + "ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1"
                 + ") UPDATE official_jobs job SET "
-                + "state = 'running', phase = 'topology_analysis', attempt = attempt + 1, "
+                + "state = 'running', phase = job.job_type, attempt = attempt + 1, "
                 + "lease_owner = ?, lease_until = now() + interval '5 minutes', "
                 + "started_at = COALESCE(started_at, now()), heartbeat_at = now(), updated_at = now() "
                 + "FROM candidate WHERE job.id = candidate.id RETURNING " + RETURNING_COLUMNS;
@@ -116,7 +129,7 @@ public class OfficialJobRepository {
     }
 
     private OfficialJobView map(ResultSet resultSet) throws SQLException {
-        String resultJson = resultSet.getString(10);
+        String resultJson = resultSet.getString("result_json");
         JsonNode result = null;
         if (resultJson != null) {
             try {
@@ -126,20 +139,21 @@ public class OfficialJobRepository {
             }
         }
         return new OfficialJobView(
-                resultSet.getObject(1, UUID.class),
-                resultSet.getObject(2, UUID.class),
-                resultSet.getString(3),
-                resultSet.getString(4),
-                resultSet.getString(5),
-                resultSet.getLong(6),
-                resultSet.getLong(7),
-                resultSet.getInt(8),
-                resultSet.getBoolean(9),
+                resultSet.getObject("id", UUID.class),
+                resultSet.getObject("import_id", UUID.class),
+                resultSet.getObject("run_id", UUID.class),
+                resultSet.getString("job_type"),
+                resultSet.getString("state"),
+                resultSet.getString("phase"),
+                resultSet.getLong("progress_current"),
+                resultSet.getLong("progress_total"),
+                resultSet.getInt("attempt"),
+                resultSet.getBoolean("cancellation_requested"),
                 result,
-                resultSet.getString(11),
-                resultSet.getString(12),
-                resultSet.getObject(13, OffsetDateTime.class),
-                resultSet.getObject(14, OffsetDateTime.class));
+                resultSet.getString("error_code"),
+                resultSet.getString("error_message"),
+                resultSet.getObject("created_at", OffsetDateTime.class),
+                resultSet.getObject("completed_at", OffsetDateTime.class));
     }
 
     private String json(Object value) {

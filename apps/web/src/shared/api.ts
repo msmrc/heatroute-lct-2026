@@ -41,6 +41,7 @@ export interface OfficialImport {
 export interface OfficialJob {
   id: string;
   import_id: string;
+  run_id?: string;
   job_type: string;
   state: string;
   phase: string;
@@ -48,6 +49,20 @@ export interface OfficialJob {
   progress_total: number;
   attempt: number;
   cancellation_requested: boolean;
+  result?: unknown;
+  error_code?: string;
+  error_message?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface OfficialRun {
+  id: string;
+  import_id: string;
+  job_id?: string;
+  state: string;
+  algorithm_version: string;
+  input_sha256: string;
   result?: unknown;
   error_code?: string;
   error_message?: string;
@@ -92,6 +107,14 @@ export function getOfficialImport(importId: string, signal?: AbortSignal): Promi
 
 export function createTopologyJob(importId: string): Promise<OfficialJob> {
   return request(`/official/imports/${encodeURIComponent(importId)}/jobs/topology`, { method: "POST" });
+}
+
+export function createOfficialRun(importId: string): Promise<OfficialRun> {
+  return request(`/official/imports/${encodeURIComponent(importId)}/runs`, { method: "POST" });
+}
+
+export function getOfficialRun(runId: string, signal?: AbortSignal): Promise<OfficialRun> {
+  return request(`/official/runs/${encodeURIComponent(runId)}`, { signal });
 }
 
 export function getOfficialJob(jobId: string, signal?: AbortSignal): Promise<OfficialJob> {

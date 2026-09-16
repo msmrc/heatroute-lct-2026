@@ -1,183 +1,27 @@
-# Приёмка, тесты и доказательства работоспособности
+# Acceptance gates
 
-Статус документа: требования к будущей реализации. Наличие тест-кейса ниже не означает, что система уже прошла этот тест.
+An R-stage is complete only when its roadmap checklist and evidence are both complete.
 
-## 1. Определение готовности P0
+## Every change
 
-P0 готов только при выполнении всех условий: запускается из чистого checkout по README; имеет persistent DB/storage; выполняет реальные импорты и поиск; проходит backend/contract/integration/E2E tests; показывает честные partial/unknown/no-route outcomes; экспортирует сохранённый результат; не зависит от организаторов, LLM или внешней карты для demo.
+- Java 11 Maven tests pass.
+- Web lint, typecheck, tests and production build pass.
+- Compose validates and starts from a clean checkout without secret defaults in production.
+- API changes update `/v3/api-docs` and `packages/api-client/openapi.json`.
+- A failure path is tested as well as the happy path.
 
-Результат каждого milestone: код, миграции при необходимости, тесты, реально выполненные команды и краткий evidence report. Нельзя написать «все тесты пройдены», если тесты не запускались. Проблемы среды фиксируются отдельно от дефектов кода.
+## Official P0 release
 
-## 2. Импорт и provenance
+- one run handles all `oks_future` and automatically chooses feasible tie-ins;
+- shared/separate topology, chambers and tree invariants pass independent validation;
+- official flow, 18-row DU table, continuous lengths and upstream reconstruction are exact;
+- every restriction and special crossing has positive, boundary and negative tests;
+- official costs, penalties and score reproduce appendix examples;
+- up to three alternatives are materially different and ranked deterministically;
+- strict seven-type GeoJSON passes schema and reference validation;
+- partial no-route output preserves successful OKS and lists/penalizes failures;
+- 3 GB input, 500 MB output, 16 GB RAM and 50-user evidence is recorded;
+- clean Ubuntu Server 22 / docker-compose 1.29.2 deployment and restart recovery pass;
+- UI displays the official output rather than a legacy/internal model.
 
-| ID | Сценарий | Ожидаемый результат |
-|---|---|---|
-| ING-01 | Корректный GeoJSON EPSG:4326 | accepted; координаты корректно преобразованы, raw hash сохранён |
-| ING-02 | GeoPackage с несколькими слоями | перечислены слои, выбранные mapping/kind применены, остальные не потеряны молча |
-| ING-03 | CRS отсутствует/неоднозначна | публикация заблокирована, требуется подтверждение |
-| ING-04 | Перепутаны lon/lat | диагностика диапазона/extent; не автоматическая тихая перестановка |
-| ING-05 | Self-intersecting polygon | issue/карантин; repair только по explicit action с before/after |
-| ING-06 | Дубли source_id | report и deterministic policy, не молчаливое last-write-wins |
-| ING-07 | Новая поставка прежнего источника | новая version; diff; прежний run неизменён |
-| ING-08 | Mapping превращает mm в m | точный согласованный перевод; missing не становится 0 |
-| ING-09 | Геометрически пустой участок вне coverage | unknown-data finding, не verified-free |
-| ING-10 | Quarantine здания | нельзя считать его место безопасным без отражённой limitations policy |
-| ING-11 | Отсутствуют transformation grids | блокировка/явный неподтверждённый статус, без скрытого ballpark transform |
-| ING-12 | Повтор publish/retry | одна canonical version, без дублей |
-
-Добавить параметризованные unit tests для каждого whitelisted transform и его недопустимых значений.
-
-## 3. Геометрия коридора
-
-| ID | Сценарий | Ожидаемый результат |
-|---|---|---|
-| GEO-01 | Пустая область, известные start/goal | кратчайший допустимый путь; точная длина с включёнными connectors |
-| GEO-02 | Прямой путь пересекает здание | обход; final corridor не пересекает forbidden geometry |
-| GEO-03 | Линия проходит, но коридор слишком широк | путь отклонён или другой обход |
-| GEO-04 | Диагональ между касающимися препятствиями | corner cutting не допускается |
-| GEO-05 | Отступ вокруг объекта уже учтён | clearance не прибавляется второй раз случайно |
-| GEO-06 | Касание границы запрета | поведение соответствует documented tolerance/touch policy |
-| GEO-07 | Entry на target building | локальный connector разрешён; проход через здание запрещён |
-| GEO-08 | Snap start/goal через препятствие | connector отклонён, не принимается за бесплатное перемещение |
-| GEO-09 | Сглаживание срезает угол здания | результат сглаживания отклонён; исходный корректный путь сохраняется |
-| GEO-10 | Polygon hole и MultiPolygon | семантика соответствует исходной геометрии; bbox не заменяет точный тест |
-| GEO-11 | AOI меньше возможного обхода | no_route_in_model в указанных пределах; не глобальное «невозможно» |
-| GEO-12 | Width изменён после run | новая revision/run, новый cache key и проверки |
-| GEO-13 | Ручное редактирование трассы | pending/invalid до повторной server validation |
-| GEO-14 | Смена working CRS | правильное transform, не ST_SetSRID вместо него |
-
-Для всех принятых P0 alternatives утверждать отсутствие нарушений реализованных hard predicates на fixture-наборе. Это гарантия относительно тестовой модели, не реальных неучтённых объектов.
-
-## 4. Топология и подключение
-
-| ID | Сценарий | Ожидаемый результат |
-|---|---|---|
-| TOP-01 | Две трубы пересекаются в XY, узел не задан | соединения нет |
-| TOP-02 | Близкие endpoints с разными circuit | нет автоматического объединения |
-| TOP-03 | Явный цикл существующей сети | сохранён, не отклонён только за наличие цикла |
-| TOP-04 | Edge с неизвестным node ID | ошибка/карантин с source reference |
-| TOP-05 | Ближайший кандидат запрещён | выбран другой либо no_eligible_candidates |
-| TOP-06 | Capacity неизвестна | geometry mode возможен с insufficient_data для capacity; не 0 и не infinity |
-| TOP-07 | Requested выше предоставленного net reserve | кандидат отклоняется по screening policy |
-| TOP-08 | Net reserve уже включает reservations | повторного вычитания нет |
-| TOP-09 | Физически достижим произвольный участок трубы | не появляется автоматически разрешённый кандидат |
-| TOP-10 | Планируемый узел не доступен на planning_date | исключён или явно предположительный согласно mode |
-
-## 5. Поиск, цели и альтернативы
-
-| ID | Сценарий | Ожидаемый результат |
-|---|---|---|
-| RTE-01 | Малые положительно взвешенные графы | A* и Dijkstra совпадают по оптимальной стоимости |
-| RTE-02 | Нельзя доказать нижнюю cost bound | h=0, корректность сохранена |
-| RTE-03 | Negative weight из ошибочного профиля | профиль/граф отклонён |
-| RTE-04 | Разные входные headings в той же cell | состояния различаются; turns/continuation корректны |
-| RTE-05 | Ordered waypoints | посещены по порядку, directions на стыках учтены |
-| RTE-06 | Дешевле длинный обход, короче дорогой переход | objectives находят ожидаемые варианты на детерминированном fixture |
-| RTE-07 | Все objectives дали один коридор | одна альтернатива с несколькими tags |
-| RTE-08 | Реально два разных коридора | возвращаются два, третий не выдумывается |
-| RTE-09 | Нет пути из-за полного barrier | no_route_in_model с resolution/AOI/cause |
-| RTE-10 | Исчерпан budget | budget_exceeded/partial, не no_route |
-| RTE-11 | Изменена цена/правило/датасет | старый cache не использован |
-| RTE-12 | Penalized alternative search | penalty не добавлен к показываемой стоимости строительства |
-| RTE-13 | Повтор завершённого расчёта с теми же versions | deterministic result в declared tolerance |
-| RTE-14 | Поиск ограничен subset кандидатов | optimality_scope не объявляет глобальный оптимум |
-| RTE-15 | Coarse lattice блокирует узкий проход | refinement диагностируется; вывод ограничен моделью |
-
-Отдельно property tests на случайных маленьких графах. Генераторы — seeded. Не использовать NetworkX как «эталон», если у него другое состояние/рёбра/цены, чем у проверяемого solver.
-
-## 6. Пересечения и неизвестные данные
-
-| ID | Сценарий | Ожидаемый результат |
-|---|---|---|
-| CRS-01 | Дорога portal_only, портал отсутствует | обычный переход запрещён |
-| CRS-02 | Валидный portal через дорогу | разрешён только его geometry/footprint и именованное исключение |
-| CRS-03 | Portal задевает постороннее здание | отклонён, хотя разрешение дороги есть |
-| CRS-04 | Несколько grid steps внутри перехода | crossing lump sum начислен один раз |
-| CRS-05 | 2D crossing utility, depth неизвестна | insufficient_data, не подтверждённое вертикальное расхождение |
-| CRS-06 | Половина AOI неизвестна в strict | соответствующее ограничение блокирует/требует данные |
-| CRS-07 | То же в exploratory при разрешённой policy | finding, assumption и unverified_length отражены |
-| CRS-08 | Overlapping coverage gaps | unverified_length не удваивается |
-
-## 7. Количества и стоимость
-
-| ID | Сценарий | Ожидаемый результат |
-|---|---|---|
-| CST-01 | Коридор 100m, paired layout | route_length=100; физические длины — по явной модели; не route_length=200 |
-| CST-02 | Пара труб и один trench | pipe quantities могут удваиваться, trench/crossing — по единице каталога |
-| CST-03 | Смена покрытия/метода | корректные неперекрывающиеся интервалы |
-| CST-04 | Нет одной ставки | partial + unpriced item, не 0 |
-| CST-05 | Денежная арифметика | Decimal/rounding policy, exact fixture total |
-| CST-06 | Демо-каталог | synthetic label на экране, JSON, CSV, HTML |
-| CST-07 | Baseline другой версии цен | нельзя показывать обычный процент экономии без предупреждения/нормализации |
-| CST-08 | Baseline cost=0 | деления на ноль нет; percentage unavailable |
-| CST-09 | Локальная замена geometry | quantities и стоимость пересчитаны, stale items не остаются |
-| CST-10 | Неаддитивный reranking | metadata не обещает exact optimum по финальному показателю |
-
-## 8. Jobs и транзакции
-
-| ID | Сценарий | Ожидаемый результат |
-|---|---|---|
-| JOB-01 | Дублируется HTTP с Idempotency-Key | один run |
-| JOB-02 | Тот же key, другой body | 409 |
-| JOB-03 | Брокер недоступен после DB commit | outbox pending; публикация после восстановления |
-| JOB-04 | Повторная доставка задания | нет duplicate alternatives/export artifacts |
-| JOB-05 | Worker упал посередине | lease/attempt recovery, понятное состояние, retry policy |
-| JOB-06 | Cancel при поиске | cooperative exit, сохранённая история, terminal cancelled |
-| JOB-07 | Refresh браузера | run продолжается, client восстанавливает прогресс |
-| JOB-08 | SSE reconnect | нет потери значимых событий, polling fallback работает |
-| JOB-09 | Queue overloaded | контролируемый отказ/ожидание, API не зависает |
-| JOB-10 | Memory/time лимит | диагностируемый outcome, только validated partial routes |
-
-## 9. Безопасность
-
-SEC-01: viewer не создаёт сценарии и не публикует данные. SEC-02: пользователь A не читает features/runs/artifacts/MVT пользователя B без membership. SEC-03: raw upload нельзя выполнить/скачать без auth через известный путь. SEC-04: zip traversal/zip bomb/oversized geometry отклоняются. SEC-05: mapping не выполняет eval/SQL/shell. SEC-06: GDAL remote/VSI/SQLite extensions не включаются данными пользователя. SEC-07: XSS в name/raw fields не исполняется. SEC-08: CSRF проверяется для mutations. SEC-09: demo credentials не включаются в production. SEC-10: exports CSV нейтрализуют формулы. SEC-11: чувствительные геоданные не попадают в публичные логи/телеметрию. SEC-12: secrets отсутствуют в repo и build artifacts.
-
-## 10. Метаморфные геометрические тесты
-
-Для простой length-only модели с одинаково преобразованными start/goal/obstacles/width/clearances:
-- перенос всей сцены не меняет допустимость и длину;
-- поворот на 90° на соответствующей квадратной решётке не меняет минимальную длину;
-- перестановка feature IDs/порядка ввода не меняет стоимость результата;
-- масштабирование геометрии, ширины, clearance и resolution одним коэффициентом масштабирует длину; фиксированные цены событий не обязаны масштабироваться;
-- добавление hard obstacle не может расширить допустимое множество путей в той же модели.
-
-Произвольный поворот относительно фиксированной решётки не обязан сохранять точную дискретную длину. Не писать математически неверный тест «любой поворот → тот же путь».
-
-## 11. Исследовательские материалы: отрицательные проверки
-
-Если добавляется optional entropy research:
-- пять уникальных unit cells должны быть связны по общей стороне;
-- координаты ошибочной T со скриншота `(3,3),(2,2),(1,1),(2,1),(3,1)` не проходят этот тест;
-- correct T и U могут иметь одинаковую энтропию попарных расстояний: descriptor не является уникальным ID;
-- равномерное масштабирование не меняет нормированную distance entropy;
-- никакой entropy value не заполняет capacity/flow/thermal power.
-
-Эти проверки включены в companion validator только как независимая иллюстрация математического ограничения. Они не являются тестами маршрутизатора.
-
-## 12. E2E приёмка
-
-**E2E-01 — demo:** чистый запуск → demo project → выбрать scenario → рассчитать → увидеть backend-generated обход → открыть finding/cost → экспортировать GeoJSON+HTML → reload → прежний run сохранён.
-
-**E2E-02 — import:** загрузить предоставленный synthetic GeoJSON → выбрать mapping → validate → publish → использовать новую version → backend run. Повторить с небольшим GeoPackage, созданным тестами.
-
-**E2E-03 — изменение:** добавить запретный polygon на текущий маршрут → новая scenario revision → новый run → маршрут изменился или честное no_route; старый доступен.
-
-**E2E-04 — качество:** удалить depth/capacity → соответствующие статусы insufficient_data; UI и export не показывают «полностью проверено».
-
-**E2E-05 — offline:** запретить исходящую сеть после установки зависимостей → демо-карта, assets, API, routing и exports работают. Bootstrap может требовать интернет для скачивания зависимостей; runtime demo — нет.
-
-**E2E-06 — темы/экран:** desktop widths, dark/light, keyboard focus, сворачиваемые panels; никаких недоступных важнейших controls.
-
-## 13. Benchmarks
-
-В benchmark report для каждого теста: fixture hash, количество объектов, AOI, CRS, resolution, число states/candidates, algorithm/version, cold/warm, host, pipeline timings, peak memory, outcome, assertions.
-
-Отдельные измерения: import 1k/10k features, routing small/medium, batch 5 sequential runs, cancellation latency, metadata API under compute load. Не сравнивать разные алгоритмы на разных budget/constraints и затем объявлять улучшение.
-
-Пороговые цели — `TECH_SPEC.md`, они подтверждаются только замерами. Производительность не достигается отключением финальной валидации или подменой данных предрассчитанной линией.
-
-## 14. Финальный evidence pack
-
-Codex должен приложить к реализации `docs/implementation/acceptance-report.md`: commit, версии окружения, выполненные команды с exit codes, тестовые totals, ссылки на локальные отчёты/скриншоты UI, benchmark measurements, известные ограничения и фактически закрытые P0/P1/P2.
-
-Непроведённые проверки перечислить явно. В README отдельные секции «Работает», «Требует данных», «Не реализовано», без смешивания с roadmap.
+Current local smoke evidence and open gates are in `implementation/progress.md`.

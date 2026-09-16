@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
-    "generate:api": "openapi-typescript ../../packages/api-client/openapi.json -o src/shared/api-schema.ts --root-types",
-    "check:api": "openapi-typescript ../../packages/api-client/openapi.json -o src/shared/api-schema.ts --root-types --check",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run"
@@ -17,8 +15,6 @@
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "lucide-react": "1.42.0",
-    "maplibre-gl": "5.24.0",
-    "openapi-fetch": "^0.17.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-router-dom": "7.18.3",
@@ -30,7 +26,6 @@
     "@eslint/js": "10.0.1",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/react": "16.3.3",
-    "@types/geojson": "7946.0.16",
     "@types/node": "26.5.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
@@ -40,7 +35,6 @@
     "eslint-plugin-react-refresh": "0.5.6",
     "globals": "17.12.0",
     "jsdom": "30.0.1",
-    "openapi-typescript": "^7.13.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "typescript-eslint": "8.69.0",

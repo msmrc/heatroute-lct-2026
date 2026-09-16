@@ -6,7 +6,6 @@ import { Toaster } from "sonner";
 
 import { App } from "./app/App";
 import "./styles.css";
-import "maplibre-gl/dist/maplibre-gl.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,4 +26,3 @@ createRoot(root).render(
     </BrowserRouter>
   </StrictMode>,
 );
-

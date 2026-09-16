@@ -1,93 +1,37 @@
-# Подключение данных организаторов без разрушения системы
+# Organizer data playbook
 
-## 1. Цель
+The official input is one GeoJSON FeatureCollection in EPSG:4326. Do not build a second generic
+mapping pipeline into P0.
 
-Уметь заменить синтетическую территорию подтверждённой поставкой, сохранив frontend/API/domain contracts и историю прежних расчётов. Изменения формата обрабатываются adapters/mappings; появление новой предметной семантики — отдельной versioned доработкой соответствующего модуля.
+## Before importing
 
-Нельзя гарантировать, что любая неизвестная поставка потребует только mapping. Геометрия без топологии, новая система координат, высотная модель или требование гидравлики могут потребовать дополнительной реализации. Архитектура должна локализовать изменения, а не скрывать их.
+- preserve the original file read-only outside Git;
+- record filename, byte size, SHA-256, delivery date and permission to process/display;
+- confirm it is the organizer contract version expected by the current build;
+- never upload organizer data to public services or commit it to the repository.
 
-## 2. Что запросить до полной выдачи
+## Inspection
 
-Небольшой обезличенный sample + словарь полей + перечень критериев достаточны для ранней адаптации. Запросить:
+Use `POST /api/v1/official/imports/inspect` for a non-persisting check or the web upload for a
+durable import. Review counts for all seven types, duplicate IDs, geometry/type combinations,
+typed references, required technical fields and CRS assumptions. Unknown values are errors or
+explicit unknowns, never silently mapped defaults.
 
-| Область | Конкретный вопрос |
-|---|---|
-| Форматы | Какие файлы/слои/архивы, реальные объёмы и количество объектов? |
-| Координаты | Горизонтальная CRS, порядок осей, единицы, local grids, точность? |
-| Высоты | Есть ли depth/elevation, относительно чего, какая система высот? |
-| Топология | Есть ли IDs концов, node/edge links, supply/return, циклы, bridge crossings? |
-| Подключение | Где разрешена врезка, кто подтвердил, к каким датам и нагрузкам относится? |
-| Мощность | Резерв gross/net, учтены ли reservations, источник и время значения? |
-| Правила | Какие ограничения обязательны, источники и согласованные толкования? |
-| Стоимость | Нужна ли оценка, какая методика/цены/валюта/база/состав работ? |
-| Будущие объекты | Ввод/вывод, planning date, status и достоверность планов? |
-| 3D | Форматы моделей, геопривязка, связка с IDs, цель — визуализация или расчёт? |
-| Оценка | Как проверяют трассы, есть ли эталонные кейсы и performance limits? |
-| Доступ | Можно ли хранить/экспортировать/демонстрировать, какие запреты на внешние сервисы? |
-| Регламент | Разрешён ли заранее написанный код и открытые/синтетические данные? |
+## Acceptance fixture
 
-Из присланной карточки задачи эти ответы не следуют. Не выдавать предполагаемые требования за регламент хакатона.
+Before the full delivery, maintain a sanitized official-like fixture with:
 
-## 3. Шаг A — инвентаризация без изменения источника
+- one source and a directed existing network;
+- chambers and at least one interior line tie-in;
+- nearby and distant future OKS with connection points;
+- every restriction type and boundary cases;
+- shared-trunk, separate-route and no-route outcomes.
 
-Скопировать поставку в защищённый raw storage, вычислить hashes. Сохранить оригинальные filenames, encoding, timestamps и права использования. Не загружать инфраструктуру в публичный репозиторий и не отправлять во внешние модели.
+Do not tune coordinates, IDs, route thresholds or catalog values to one delivery. A second fixture
+of the same contract must run without code or manual-route changes.
 
-Построить inventory: архивы/слои, CRS, kinds, число features, geometry types, columns/types, missing values, extent, примерно ожидаемый memory budget. Неподдерживаемые форматы выделить в отдельный список, не пропустить молча.
+## If the delivery disagrees with the appendix
 
-Выход: `docs/data-onboarding/<delivery>/inventory.md` и machine-readable inspection.
-
-## 4. Шаг B — подтверждение координат и связей
-
-Сопоставить несколько контрольных объектов с известной геопривязкой, подтверждённой организаторами. Проверить единицы и оси. Для local CRS получить параметры, не подбирать визуальный сдвиг «чтобы совпало».
-
-Проверить node/edge relationships и реальные правила junction creation. Отдельно определить: geometry represents pipe, paired corridor, schematic line или construction axis. Не выводить эти смыслы из цвета слоя.
-
-Выход: подтверждённая transformation config + topology semantics ADR либо список blockers.
-
-## 5. Шаг C — mapping и canonical preview
-
-Создать новый MappingProfileVersion. Для каждого критического поля: исходное поле, canonical target, unit conversion, null policy, evidence status, source ref. Сначала sample, потом полная версия.
-
-Все нераспознанные коды (например, непонятный method/type) — unknown/unmapped с отчётом, не случайный default. Новое поле сохраняется в raw_properties, но не становится предметным правилом без реализации.
-
-Выход: reviewed mapping, import report, quarantine report, coverage limitations. Нет необходимости менять React-компонент под название каждого исходного столбца.
-
-## 6. Шаг D — data-readiness matrix
-
-| Возможность | Минимальные основания | При недостатке |
-|---|---|---|
-| Отображение | геометрия, source CRS и права отображения | слой не публикуется/нужна геопривязка |
-| Предварительная трасса | корректные препятствия/coverage, entry, candidates, профиль геометрии | exploratory или blocker по policy |
-| Разрешённая точка подключения | явные разрешения/правила кандидатов | requires_review, не автоматически eligible |
-| Оценка стоимости | quantity model и необходимые rates | partial/unavailable |
-| Capacity screening | нагрузка, сопоставимый резерв/его смысл | insufficient_data |
-| Вертикальные проверки | отметки/геометрия и единая vertical datum | не выполнены |
-| Гидравлика/тепло | полная модель, параметры и boundary conditions | not_performed/insufficient_data |
-
-Покрытие оценивается пространственно и по видам данных. Наличие «слоя коммуникаций» не означает полноту всех типов сетей на территории.
-
-## 7. Шаг E — калибровка правил, не подгонка ответа
-
-Создать draft RuleProfile/CostCatalog с явными источниками. Обсудить с экспертами несколько кейсов: прямой подход, обход здания, переход дороги, неизвестная глубина, недопустимый кандидат, отсутствие пути в AOI.
-
-Получить подтверждение, какие outcomes ожидаются. Если новая методика меняет результат, версия правил меняется и создаётся новый run. Не редактировать старую трассу и не подгонять веса так, чтобы она визуально совпала с картинкой эксперта без объяснения.
-
-Выход: `reviewed` профиль в рамках продукта, протокол допущений, regression fixtures (если права на данные позволяют).
-
-## 8. Шаг F — replay и сравнение
-
-Один сценарий воспроизвести на старой и новой версии. Показать отличие исходных данных, геометрии, candidate eligibility, findings и стоимости. При изменении CRS/rules/costs указать причины несопоставимости.
-
-На real subset измерить импорт, graph/search, память и rendering. Resolution/budget корректировать через ADR; не убирать препятствия ради скорости без объявленной approximation и финальной проверки.
-
-Выход: data-onboarding report с перечнем работающих, ограниченных и заблокированных возможностей.
-
-## 9. Шаг G — инженерные плагины
-
-Только после readiness добавить/активировать гидравлическую или вертикальную модель. Создать эталонные небольшие сети с проверяемыми параметрами, контролем балансов/сходимости и agreed thresholds. Версия физической модели включается в паспорт.
-
-При недостающем поле задать вопрос или отключить check, не вводить «типичное» значение без явного assumption. Если assumption разрешён, результат остаётся сценарным, а не подтверждённым.
-
-## 10. Критерий успешной адаптации
-
-Форматы организаторов не проникли в routing/domain/UI; профиль mappings повторно применяется; raw и старые результаты сохранены; новое качество/coverage понятно; реальные runs воспроизводимы; непроведённые проверки показаны; изменения семантики покрыты тестами. Только после этого поставка считается подключённой в заявленном объёме.
+Stop at import, keep the original file unchanged, record a minimal reproducible example and ask the
+PM for an organizer clarification. Contract changes require versioned DTO/schema tests and a
+roadmap decision; they are not handled through ad-hoc field guessing.

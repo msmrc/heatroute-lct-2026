@@ -442,6 +442,42 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .run-detail-grid h2 { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; font-size: 12px; }
 .full-passport-link { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 9px 10px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 650; }
 
+/* Official Java workspace */
+.official-page { max-width: 1240px; }
+.official-hero { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(250px, .6fr); gap: 14px; margin-bottom: 14px; }
+.official-upload-card { position: relative; display: grid; min-height: 150px; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 22px; overflow: hidden; }
+.official-upload-card > input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.official-upload-card h2, .official-report-card h2, .official-job-card h2 { font-size: 17px; font-weight: 650; letter-spacing: -.025em; }
+.official-upload-card p, .official-job-card > p, .official-valid p { margin-top: 6px; color: var(--muted-foreground); font-size: 13px; line-height: 1.55; }
+.official-status-card { display: grid; min-height: 150px; align-content: center; gap: 7px; padding: 22px; }
+.official-status-card > span { color: var(--muted-foreground); font-size: 12px; }
+.official-status-card > strong { font-size: 27px; letter-spacing: -.045em; }
+.official-status-card > p { color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.official-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(340px, .7fr); align-items: start; gap: 14px; }
+.official-report-card, .official-job-card { display: grid; gap: 18px; padding: 20px; }
+.official-report-card > header, .official-job-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.official-report-card h2, .official-job-card h2 { margin-top: 4px; }
+.official-metrics { display: grid; grid-template-columns: repeat(4, 1fr); overflow: hidden; border: 1px solid var(--border-soft); border-radius: 10px; }
+.official-metrics div { display: grid; gap: 4px; padding: 13px; border-right: 1px solid var(--border-soft); }
+.official-metrics div:last-child { border-right: 0; }
+.official-metrics dt { color: var(--muted-foreground); font-size: 12px; }
+.official-metrics dd { font-size: 18px; font-weight: 650; }
+.official-types { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 8px; }
+.official-types div { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 11px; border-radius: 8px; background: var(--surface-soft); }
+.official-types span { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.official-types strong { font-size: 13px; }
+.official-valid { display: flex; gap: 11px; padding: 14px; border-radius: 10px; background: var(--success-soft); color: var(--success); }
+.official-valid strong { font-size: 13px; }
+.official-valid p { color: inherit; opacity: .86; }
+.official-errors { display: grid; max-height: 320px; overflow: auto; border: 1px solid var(--border-soft); border-radius: 10px; }
+.official-errors article { display: flex; gap: 10px; padding: 12px; border-bottom: 1px solid var(--border-soft); color: var(--danger); }
+.official-errors article:last-child { border-bottom: 0; }
+.official-errors article div { display: grid; gap: 3px; }
+.official-errors strong { font-size: 12px; }
+.official-errors p, .official-errors small { color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
+.official-job-card .progress-block { margin-top: 2px; }
+.official-result { max-height: 360px; overflow: auto; margin: 0; padding: 13px; border-radius: 9px; background: var(--surface-soft); font-size: 12px; line-height: 1.5; }
+
 /* Product copy stays readable on dense planning screens. Twelve pixels is the
    floor for secondary metadata; interactive labels use thirteen or more. */
 .app-brand small, .app-nav > p, .api-state, .sidebar-project-meta, .eyebrow,
@@ -488,6 +524,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .inspector-panel { position: fixed; z-index: 20; top: 58px; right: 0; bottom: 0; width: 330px; box-shadow: -16px 0 40px rgba(0,0,0,.12); }
   .workspace-grid.is-right-collapsed .inspector-panel { width: 42px; box-shadow: none; }
   .quality-grid, .import-grid { grid-template-columns: 1fr; }
+  .official-grid { grid-template-columns: 1fr; }
   .import-aside { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -538,6 +575,12 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .quality-score { grid-column: auto; grid-template-columns: auto 1fr; }
   .quality-score > .badge { grid-column: 2; }
   .catalog-grid { grid-template-columns: 1fr; }
+  .official-hero { grid-template-columns: 1fr; }
+  .official-upload-card { grid-template-columns: auto 1fr; }
+  .official-upload-card > button { grid-column: 1 / -1; }
+  .official-metrics { grid-template-columns: repeat(2, 1fr); }
+  .official-metrics div:nth-child(2) { border-right: 0; }
+  .official-metrics div:nth-child(-n+2) { border-bottom: 1px solid var(--border-soft); }
   .page-toolbar { align-items: stretch; flex-direction: column; }
   .workspace-title > a, .workspace-title > svg, .workspace-title > span { display: none; }
   .workspace-actions > button:first-of-type { display: none; }

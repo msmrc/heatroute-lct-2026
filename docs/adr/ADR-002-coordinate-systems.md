@@ -1,20 +1,10 @@
 # ADR-002: coordinate systems
 
-- Status: accepted
-- Date: 2026-09-07
+- Status: amended for the official contract
+- Date: 2026-09-15
 
-## Decision
-
-GeoJSON request and response geometry is RFC 7946 longitude/latitude in EPSG:4326. Every
-project records one confirmed metric working CRS and the exact pyproj transformation used.
-Computational geometry uses that CRS. EPSG:3857 is display-only.
-
-Canonical persistence starts with a WGS84 PostGIS geometry column. Metric derivatives are
-reproducible caches keyed by dataset version, project CRS and transform metadata; M1 may add
-materialized metric geometry after measured query profiling.
-
-## Consequences
-
-`ST_SetSRID` is never used as reprojection. Missing grids or an unconfirmed source CRS block
-publication instead of silently selecting a ballpark transform.
-
+GeoJSON request and response geometry is RFC 7946 longitude/latitude in EPSG:4326. All metric
+geometry uses fixed EPSG:32637 as required by the task. Import persists both SRIDs and indexes both
+geometry columns. Java transforms through Proj4J; PostGIS may verify but must not substitute
+`ST_SetSRID` for reprojection. Lengths, buffers, splits, distances and crossing angles are never
+computed in degrees or display-only EPSG:3857.

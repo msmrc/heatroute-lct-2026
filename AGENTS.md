@@ -1,46 +1,41 @@
-# HeatRoute: project instructions for Codex
+# HeatRoute repository instructions
 
-## Goal
-Build a backend-first web system for preliminary district-heating route planning. Use the supplied specifications, real algorithms and explicitly synthetic demo inputs. Do not substitute a polished frontend mock for working computation.
+## Source of truth
 
-## Read before implementation
-Read `docs/TECH_SPEC.md`, then the relevant sections of `docs/DATA_CONTRACTS.md`, `docs/ACCEPTANCE.md`, `docs/UI_SPEC.md` and `docs/IMPLEMENTATION_PLAN.md`. Real-data onboarding is defined in `docs/ORGANIZER_DATA_PLAYBOOK.md`. Technical references are in `docs/SOURCES.md`.
+The organizer documents override repository prose. The active implementation baseline is
+`docs/implementation/OFFICIAL_TZ_ROADMAP.md`; the next-shift checklist is
+`docs/implementation/TOMORROW_HANDOFF.md`. Historical M0–M7 evidence is not an acceptance claim.
 
 ## Architecture
-- Modular Java 11/Spring Boot 2.6.3 backend as required by the official task; PostgreSQL/PostGIS; Spring Batch with PostgreSQL-backed durable job state; persistent versioned results. The former Python/FastAPI/Celery backend is a temporary migration oracle only and must not receive new official-scope features.
-- Raw → staging → canonical imports. Source schemas belong in adapters/mappings, not in routing or React.
-- Domain services must run and be tested without a browser. No long-running CPU/GDAL work inside HTTP handlers.
-- React/TypeScript/Vite + official shadcn/ui + MapLibre. Reuse components and tokens; no landing-page-first workflow.
 
-## Non-negotiable correctness
-- No fabricated routes, costs, throughput, engineering checks or performance claims.
-- Unknown is not zero, infinity or passed. Keep geometry, cost, capacity and hydraulic statuses separate.
-- Compute metric geometry in a confirmed project CRS; API GeoJSON is longitude/latitude WGS84.
-- Validate complete route corridors and connectors, not just endpoints. Revalidate after every geometric edit.
-- XY line crossings do not automatically create physical pipe junctions.
-- Road portals grant narrow exceptions only; they do not override unrelated obstacles.
-- Distinguish supply/return pipes from construction corridor quantities.
-- Hard restrictions cannot be converted to penalties. Entropy is never an engineering capacity model.
-- No-route in a discretized, bounded graph is not proof of physical impossibility.
-- Immutable data/rule/cost/scenario versions and complete cache keys are mandatory.
+- Backend: Java 11, Spring Boot 2.6.3, springdoc 1.7.0, JDBC, JTS/Proj4J, Liquibase.
+- State: PostgreSQL 17 + PostGIS. Durable job state is stored and leased in PostgreSQL.
+- Frontend: React 19, TypeScript, Vite, TanStack Query and the repository design system.
+- Runtime: `db`, `api`, `web`; `gateway` is added by the VPS overlay.
+- `apps/api` is the only backend. Do not add Python, FastAPI, Celery, Alembic or Redis back.
 
-## Working approach
-Follow `docs/implementation/OFFICIAL_TZ_ROADMAP.md` R0–R9. The older M0–M7 milestones describe prototype history and are not evidence of official-TZ completion. Implement a real backend/job-to-map vertical slice before extended UI. Bonus work remains explicitly unavailable until the mandatory official 2D pipeline is implemented and validated.
+Keep domain algorithms framework-independent. Controllers orchestrate; repositories own SQL;
+the final geometry and arithmetic must be independently validated before export.
 
-Preserve existing user changes. Inspect the checkout before edits. Do not replace a working stack without a specific compatibility reason and ADR. Do not deploy, publish private data, perform destructive operations or change production credentials without authorization.
+## Required workflow
 
-Use stable compatible dependencies, checked against official docs, and commit lockfiles. Do not ship unpinned latest images. Never fetch sensitive infrastructure data into third-party tools without explicit permission.
+1. Work only inside the exact repository root on `E:` and preserve unrelated changes.
+2. Update `docs/implementation/progress.md` and roadmap status with every completed gate.
+3. Add focused Java tests for every official table boundary, geometry invariant and failure mode.
+4. Run `pwsh -File scripts/dev.ps1 test`, `lint`, `typecheck`, then a live Compose smoke for
+   API-affecting changes.
+5. Never claim an R-stage complete while any item in its “Готово, когда” list is unverified.
 
-## Verification
-Implement and run documented equivalents of: `make bootstrap`, `make up`, `make migrate`, `make seed-demo`, `make test`, `make test-integration`, `make test-e2e`, `make benchmark-demo`, `make lint`, `make typecheck`, `make export-openapi`.
+Do not hard-code organizer coordinates, IDs or a single dataset layout beyond the official
+contract. WGS84 is the API boundary; all metric work uses EPSG:32637. Large files must be streamed.
 
-These commands are requirements, not existing commands until implemented. Report actual commands, exit codes, passed/failed checks and environment blockers. Never claim tests ran when they did not.
+## Storage and secrets
 
-Keep `docs/implementation/progress.md` current. At session end, state the completed milestone, evidence, remaining issues and next actionable step. A plan or a screenshot alone is not completion.
+Keep toolchains/caches on `E:\job\.tooling`. Never commit `.env.vps`, credentials, SSH keys,
+database dumps, uploads or generated artifacts. Do not modify files under Downloads.
 
-## VPS deployment
-The shared demo VPS is updated only through the documented procedure in
-`docs/operations/VPS_DEPLOYMENT.md`. Before changing it, verify the repository is clean, create a
-database backup, fast-forward `master`, validate the merged Compose config, rebuild, wait for
-health checks and run the smoke checks. Never copy `.env.vps`, `secrets/`, database dumps or SSH
-keys into Git, and never expose the API, PostgreSQL or Redis ports publicly.
+## VPS
+
+Use only `docs/operations/VPS_DEPLOYMENT.md`. Update by fast-forwarding `master`, backing up the
+database, rebuilding Compose, and verifying readiness plus a real official import/job. Never use
+`git reset --hard` or delete the PostgreSQL volume as an update shortcut.

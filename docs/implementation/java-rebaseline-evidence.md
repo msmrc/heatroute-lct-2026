@@ -1,9 +1,9 @@
 # Java official-TZ rebaseline evidence
 
-Updated: 2026-09-15
+Updated: 2026-09-16
 
-This file records only verified results for the replacement backend required by the official task.
-The Python implementation remains the production fallback until the cutover gates in ADR-005 pass.
+This file records only verified results for the official Java backend. The cutover is complete;
+there is no parallel backend runtime.
 
 ## Verified foundation
 
@@ -12,8 +12,8 @@ The Python implementation remains the production fallback until the cutover gate
 - Database: PostgreSQL/PostGIS with Liquibase migrations and separate WGS 84 / metric geometry
   columns (`EPSG:4326` and `EPSG:32637`) protected by GiST indexes.
 - Runtime container uses pinned Maven and Eclipse Temurin image digests and UID 10001.
-- `compose.java.yaml` intentionally keeps Compose schema 3.8 so it can be parsed by the required
-  docker-compose 1.29.2. A fresh named stack reached readiness and was removed with its test volumes.
+- Default `compose.yaml` uses schema 3.8 so it can be parsed by docker-compose 1.29.2. A fresh
+  stack reached readiness with PostGIS, Java API and the production web image.
 - The Java Docker build ran 26 tests with zero failures.
 
 ## Verified official input slice
@@ -81,9 +81,9 @@ The Python implementation remains the production fallback until the cutover gate
 
 - Separate production worker process and calculation-job steps.
 - Spatially indexed large-network candidate search and persisted selected tie-ins.
-- Multi-OKS routing, flow aggregation, reconstruction, exact restrictions and output generation.
+- Multi-OKS routing, reconstruction, integrated restrictions and output generation.
 - Large-input memory/load evidence and clean Ubuntu Server 22 acceptance deployment.
-- Frontend cutover to the Java compatibility API.
+- Dedicated worker process before load testing.
 
-No HeatRoute test containers or volumes were left running after verification. The VPS was not
-modified by this rebaseline.
+The Java web client passed a browser smoke and a live fixture completed through the default stack.
+VPS deployment evidence is recorded separately in the release handoff after each update.

@@ -1,12 +1,8 @@
+version: "3.8"
+
 services:
-  migrate:
-    image: heatroute-api
   api:
     image: heatroute-api
-  worker:
-    image: heatroute-worker
-  scheduler:
-    image: heatroute-scheduler
   web:
     image: heatroute-web
 

@@ -1,21 +1,12 @@
-# ADR-003: jobs and idempotency
+# ADR-003: PostgreSQL durable jobs
 
-- Status: accepted
-- Date: 2026-09-07
+- Status: amended and active
+- Date: 2026-09-15
 
-## Decision
+PostgreSQL is the source of truth for job state. A job row stores immutable type/import input,
+state, phase, progress, attempt, lease, cancellation request, result and failure. Workers atomically
+claim queued or expired jobs, renew leases, make durable effects idempotent and cooperate with
+cancellation. Broker delivery is intentionally absent from the current production path.
 
-PostgreSQL stores durable job state, run outcomes, events and an outbox. Celery with Redis
-provides at-least-once delivery. A task message contains an immutable job ID, not the full
-scenario. Workers acquire a database lease and every durable effect is idempotent.
-
-Stale `If-Match` revisions return HTTP 412. Reusing an `Idempotency-Key` with a different
-canonical request body returns HTTP 409. The initial idempotency retention is seven days and
-is configurable; completed run records remain immutable beyond key expiry.
-
-## Consequences
-
-`acks_late` is defense in depth, not exactly-once delivery. Broker failure after the request
-transaction leaves a pending outbox row. Cooperative cancellation and lease recovery are
-implemented before long routing jobs are enabled.
-
+The development API process runs the scheduler/worker, but the domain service and lease protocol
+must remain safe when moved into a separate JVM service before production load testing.

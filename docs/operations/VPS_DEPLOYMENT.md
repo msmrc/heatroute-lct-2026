@@ -1,31 +1,19 @@
-# HeatRoute demo VPS: deployment and updates
+# HeatRoute demo VPS: Java deployment and updates
 
-## Deployment contract
+## Contract
 
-- Server: `root@130.49.150.217`
-- Checkout: `/opt/heatroute`
-- Private repository: `git@github.com:msmrc/heatroute-lct-2026.git` with a repository-scoped,
-  read-only deploy key configured through local `core.sshCommand`
-- Deployed branch: `master`
-- Compose files: `compose.yaml` + `compose.vps.yaml`
-- Secrets: `/opt/heatroute/.env.vps`
-- Public endpoint: `https://130-49-150-217.sslip.io/`
-- Public firewall ports: `22/tcp`, `80/tcp`, `443/tcp`
+- checkout: `/opt/heatroute`, branch `master`;
+- compose: `compose.yaml` + `compose.vps.yaml`;
+- secrets: `/opt/heatroute/.env.vps`, mode 600, never committed;
+- public endpoint: `https://130-49-150-217.sslip.io/`;
+- services: PostGIS `db`, Java `api`, React/Nginx `web`, Caddy `gateway`;
+- only 22, 80 and 443 are public; 5173, 8000 and 55432 remain loopback/internal.
 
-This is a public **demo** deployment. Caddy terminates HTTPS and renews its public certificate
-automatically. The application deliberately keeps its internal demo principal because the current
-frontend has no login screen. Do not publish ports 5173, 8000, 55432 or 56379 on a non-loopback
-address. Before using real or sensitive data, select the permanent domain, implement the login UI,
-and switch to
-`HEATROUTE_ENV=production` and `HEATROUTE_DEMO_MODE=false`.
+The demo VPS release is Java-only. Liquibase runs automatically during API startup. The current
+server OS is newer than the official Ubuntu Server 22 acceptance target, so a separate clean
+Ubuntu 22 rehearsal is still required for R9.
 
-The real `.env.vps`, SSH keys, volumes and backups are server state. They must never be committed
-or copied into issue/chat logs.
-
-## Standard agent update procedure
-
-Connect through SSH, then run each block deliberately. Do not turn this into `git reset --hard` or
-delete volumes to fix an update.
+## Standard update
 
 ```bash
 cd /opt/heatroute
@@ -33,11 +21,7 @@ umask 022
 test "$(git rev-parse --show-toplevel)" = /opt/heatroute
 test "$(git branch --show-current)" = master
 test -z "$(git status --porcelain)" || { echo 'STOP: VPS checkout is dirty'; exit 1; }
-```
 
-Record the current release and create a database backup before migrations:
-
-```bash
 previous_sha=$(git rev-parse HEAD)
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 mkdir -p /opt/heatroute/backups
@@ -48,70 +32,37 @@ docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml \
   exec -T db pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc \
   > "/opt/heatroute/backups/heatroute-${timestamp}-${previous_sha}.dump"
 chmod 600 "/opt/heatroute/backups/heatroute-${timestamp}-${previous_sha}.dump"
-```
 
-Fast-forward and validate the effective configuration before touching running services:
-
-```bash
 git fetch origin master
 git merge --ff-only origin/master
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml config --quiet
-```
-
-Build and deploy. `migrate` runs Alembic before the API becomes healthy.
-
-```bash
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml build --pull
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml \
   up -d --remove-orphans --wait --wait-timeout 300
 ```
 
-Verify all layers, not just the public HTML:
+## Verification
 
 ```bash
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml ps
 curl --fail --silent http://127.0.0.1:8000/api/v1/health/ready
-docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml \
-  exec -T api python -m heatroute seed-demo --wait 60
+curl --fail --silent http://127.0.0.1:8000/v3/api-docs | grep -q '/api/v1/official/imports'
 curl --fail --silent --resolve 130-49-150-217.sslip.io:443:127.0.0.1 \
-  https://130-49-150-217.sslip.io/
+  https://130-49-150-217.sslip.io/ | grep -q HeatRoute
 ```
 
-Report the deployed commit (`git rev-parse HEAD`), Compose service status, readiness response and
-seeded `workspace_url`. Never put the real passwords or `.env.vps` contents into the report.
-
-## If an update fails
-
-First capture diagnostics; do not remove volumes:
+For a real contract smoke, upload only a non-sensitive fixture already present in the checkout:
 
 ```bash
-cd /opt/heatroute
-docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml ps -a
-docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml logs --tail 300
+curl --fail --silent -F file=@apps/api/src/test/resources/fixtures/official-minimal.geojson \
+  http://127.0.0.1:8000/api/v1/official/imports
 ```
 
-If rollback is required, check out the previously recorded commit without rewriting branch
-history, rebuild it and repeat the health checks:
+Record deployed SHA, service health and import state without printing secrets.
 
-```bash
-git switch --detach "$previous_sha"
-docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml build
-docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml \
-  up -d --remove-orphans --wait --wait-timeout 300
-```
+## Failure and rollback
 
-After the incident is understood, return to the deployment branch with `git switch master`.
-Restoring the database dump is a separate, destructive operation; do it only with explicit owner
-approval and after preserving the current database.
-
-## Routine operations
-
-```bash
-cd /opt/heatroute
-docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml ps
-docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml logs -f --tail 200
-docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml restart api worker scheduler web gateway
-```
-
-Rotate the SSH deploy key in GitHub and on the VPS as one operation. Provider-managed DNS remains
-out of scope until a permanent domain is selected.
+Capture `docker compose ... ps -a` and `docker compose ... logs --tail 300` first. Do not delete
+volumes. If rollback is required, detach at `$previous_sha`, rebuild and repeat health checks;
+return to `master` after the incident is understood. Restoring a DB dump is destructive and needs
+explicit owner approval.

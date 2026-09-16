@@ -1,16 +1,12 @@
-name: heatroute
+version: "3.8"
 
 services:
   db:
     image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
-    # Local-development profile: favor deterministic startup on Docker Desktop.
-    # Production deployments must retain PostgreSQL's durability defaults.
-    command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-heatroute}
       POSTGRES_USER: ${POSTGRES_USER:-heatroute}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-heatroute_dev_only}
-      POSTGRES_INITDB_ARGS: --no-sync
     ports:
       - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_HOST_PORT:-55432}:5432"
     volumes:
@@ -21,111 +17,30 @@ services:
       timeout: 3s
       retries: 60
       start_period: 10s
-    stop_grace_period: 2m
     restart: unless-stopped
-
-  redis:
-    image: redis:8.2.2-alpine@sha256:59b6e694653476de2c992937ebe1c64182af4728e54bb49e9b7a6c26614d8933
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports:
-      - "${REDIS_BIND_ADDRESS:-127.0.0.1}:${REDIS_HOST_PORT:-56379}:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    restart: unless-stopped
-
-  migrate:
-    build:
-      context: .
-      dockerfile: infra/docker/backend.Dockerfile
-    # The PostGIS image briefly accepts connections during first-time initialization
-    # before restarting PostgreSQL. Retry the idempotent migration through that window.
-    command:
-      - sh
-      - -c
-      - |
-        attempt=1
-        while [ "$$attempt" -le 30 ]; do
-          alembic upgrade head && exit 0
-          echo "database not ready for migrations (attempt $$attempt/30)"
-          attempt=$$((attempt + 1))
-          sleep 2
-        done
-        exit 1
-    environment: &backend-environment
-      HEATROUTE_ENV: development
-      HEATROUTE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-heatroute}:${POSTGRES_PASSWORD:-heatroute_dev_only}@db:5432/${POSTGRES_DB:-heatroute}
-      HEATROUTE_REDIS_URL: redis://redis:6379/0
-      HEATROUTE_CELERY_BROKER_URL: redis://redis:6379/1
-      HEATROUTE_CELERY_RESULT_BACKEND: redis://redis:6379/2
-      HEATROUTE_ARTIFACT_ROOT: /var/lib/heatroute/artifacts
-      HEATROUTE_DEMO_MODE: "true"
-      MPLCONFIGDIR: /tmp/matplotlib
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: "no"
 
   api:
     build:
       context: .
       dockerfile: infra/docker/backend.Dockerfile
-    environment: *backend-environment
+    environment:
+      HEATROUTE_JDBC_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-heatroute}
+      HEATROUTE_DATABASE_USER: ${POSTGRES_USER:-heatroute}
+      HEATROUTE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-heatroute_dev_only}
+      HEATROUTE_UPLOAD_TMP: /var/lib/heatroute/tmp
     ports:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${API_HOST_PORT:-8000}:8000"
     volumes:
-      # Bind the ignored local artifact directory so host-side integration tests
-      # and container workers resolve the same content-addressed files.
-      - ./artifacts:/var/lib/heatroute/artifacts
+      - artifact-data:/var/lib/heatroute
     depends_on:
-      migrate:
-        condition: service_completed_successfully
-      redis:
+      db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=2)"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8000/api/v1/health/ready"]
       interval: 5s
       timeout: 3s
-      retries: 20
-      start_period: 10s
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: .
-      dockerfile: infra/docker/backend.Dockerfile
-    command: ["celery", "-A", "heatroute.workers.celery_app:celery_app", "worker", "--loglevel=INFO", "--queues=compute,ingest,export,outbox", "--concurrency=1"]
-    environment: *backend-environment
-    volumes:
-      - ./artifacts:/var/lib/heatroute/artifacts
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "celery -A heatroute.workers.celery_app:celery_app inspect ping -d celery@$${HOSTNAME} --timeout 3 | grep -q pong"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 15s
-    restart: unless-stopped
-
-  scheduler:
-    build:
-      context: .
-      dockerfile: infra/docker/backend.Dockerfile
-    command: ["celery", "-A", "heatroute.workers.celery_app:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/heatroute-celerybeat"]
-    environment: *backend-environment
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
+      retries: 30
+      start_period: 20s
     restart: unless-stopped
 
   web:
@@ -147,4 +62,4 @@ services:
 
 volumes:
   postgres-data:
-  redis-data:
+  artifact-data:

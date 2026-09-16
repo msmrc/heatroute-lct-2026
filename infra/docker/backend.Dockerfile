@@ -1,28 +1,21 @@
-FROM ghcr.io/astral-sh/uv:0.10.3@sha256:7a88d4c4e6f44200575000638453a5a381db0ae31ad5c3a51b14f8687c9d93a3 AS uv
-FROM python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7
+FROM maven:3.9.12-eclipse-temurin-11-alpine@sha256:f66d7a8e40ef1f9f4dcac12ff7b6a54bc5db9288878c679c3303378bb8bbe160 AS build
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
-    PATH="/app/.venv/bin:$PATH" \
-    PYTHONPATH="/app/apps/api/src"
+WORKDIR /workspace
+COPY apps/api/pom.xml ./pom.xml
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline
+COPY apps/api/src ./src
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp verify
 
-COPY --from=uv /uv /uvx /bin/
+FROM eclipse-temurin:11.0.28_6-jre-alpine@sha256:6cde7e6ae3c23c3636f3fb4b92836d1323c13929d9ee27da1885cc231c086101
+
+RUN addgroup -S -g 10001 heatroute \
+    && adduser -S -D -H -u 10001 -G heatroute heatroute \
+    && mkdir -p /var/lib/heatroute/artifacts /var/lib/heatroute/tmp \
+    && chown -R heatroute:heatroute /var/lib/heatroute
+
 WORKDIR /app
-
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
-
-COPY alembic.ini ./
-COPY migrations ./migrations
-COPY apps/api/src ./apps/api/src
-
-RUN groupadd --system --gid 10001 heatroute \
-    && useradd --system --uid 10001 --gid heatroute --home /app heatroute \
-    && mkdir -p /var/lib/heatroute/artifacts \
-    && chown heatroute:heatroute /var/lib/heatroute/artifacts
+COPY --from=build --chown=heatroute:heatroute /workspace/target/heatroute-backend.jar /app/heatroute-backend.jar
 
 USER heatroute
 EXPOSE 8000
-CMD ["uvicorn", "heatroute.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-Djava.security.egd=file:/dev/urandom", "-jar", "/app/heatroute-backend.jar"]

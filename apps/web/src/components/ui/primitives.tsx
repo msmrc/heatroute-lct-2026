@@ -73,7 +73,7 @@ export function StateView({
 
 export function StatusBadge({ value }: { value: string }) {
   const normalized = value.toLowerCase();
-  const success = ["succeeded", "published", "ready_to_publish", "valid_in_model", "known_complete", "routes_found", "complete"];
+  const success = ["succeeded", "published", "ready_to_publish", "valid", "valid_in_model", "known_complete", "routes_found", "complete"];
   const danger = ["failed", "rejected", "invalid_in_model"];
   const warning = ["partial", "needs_review", "insufficient_data", "cancel_requested", "unknown", "unavailable"];
   const active = ["queued", "running", "inspecting", "validating", "publishing"];
@@ -88,6 +88,7 @@ export function StatusBadge({ value }: { value: string }) {
           : "neutral";
   const labels: Record<string, string> = {
     succeeded: "Готово",
+    valid: "Валидно",
     published: "Опубликовано",
     ready_to_publish: "Готово к публикации",
     valid_in_model: "Допустимо в модели",

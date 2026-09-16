@@ -1,10 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import type { FeatureCollection } from "geojson";
 import { Check, Layers3, LoaderCircle } from "lucide-react";
-import maplibregl, {
+import {
+  Map as MapLibreMap,
+  NavigationControl,
+  ScaleControl,
+  setWorkerUrl,
   type LayerSpecification,
   type MapGeoJSONFeature,
 } from "maplibre-gl";
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import proj4 from "proj4";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -25,6 +30,7 @@ const MAP_PADDING_METERS = 700;
 const CONTEXT_SOURCE = "heatroute-context";
 const ROUTE_SOURCE = "heatroute-route";
 
+setWorkerUrl(workerUrl);
 proj4.defs(METRIC_CRS, "+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs +type=crs");
 
 export interface SelectedMapObject {
@@ -160,7 +166,7 @@ function routeFeatureCollection(variant: OfficialRouteVariant): MapFeatureCollec
   return { type: "FeatureCollection", features: [...reconstructionSections, ...edges, ...reconstructionChambers, ...points] };
 }
 
-function addOverlayLayers(map: maplibregl.Map, contextData: FeatureCollection, routeData: MapFeatureCollection) {
+function addOverlayLayers(map: MapLibreMap, contextData: FeatureCollection, routeData: MapFeatureCollection) {
   map.addSource(CONTEXT_SOURCE, { type: "geojson", data: contextData });
   map.addSource(ROUTE_SOURCE, { type: "geojson", data: routeData });
 
@@ -207,7 +213,7 @@ function selectedObject(feature: MapGeoJSONFeature): SelectedMapObject {
   };
 }
 
-function setLayerVisibility(map: maplibregl.Map, ids: string[], visible: boolean) {
+function setLayerVisibility(map: MapLibreMap, ids: string[], visible: boolean) {
   for (const id of ids) {
     if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
   }
@@ -220,7 +226,7 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
   onSelect?: (object: SelectedMapObject | null) => void;
 }) {
   const targetRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
   const baseLayerIdsRef = useRef<string[]>([]);
   const [layers, setLayers] = useState<MapLayersState>({ base: true, restrictions: false, network: true, route: true });
   const [layerMenuOpen, setLayerMenuOpen] = useState(false);
@@ -263,7 +269,7 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
     const contextData = context.data
       ? context.data as unknown as FeatureCollection
       : emptyContext;
-    const map = new maplibregl.Map({
+    const map = new MapLibreMap({
       container: targetRef.current,
       style: BASEMAP_STYLE_URL,
       center: [(bounds.minLon + bounds.maxLon) / 2, (bounds.minLat + bounds.maxLat) / 2],
@@ -274,8 +280,8 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
       attributionControl: { compact: true },
     });
     mapRef.current = map;
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-    map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+    map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
+    map.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
 
     const resizeObserver = new ResizeObserver(() => map.resize());
     resizeObserver.observe(targetRef.current);

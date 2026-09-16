@@ -74,11 +74,16 @@ and runtime services were removed. The frontend calls only the current official 
   navigation collapses to an icon rail with persisted state. Framework/runtime status, theme
   controls and developer-only labels were removed from this flow; stack, version, team Dragons and
   Swagger moved to `/system`.
-- The map now uses the same MapLibre 5.24 renderer and vector CARTO Positron treatment as the local
+- The map now uses the same MapLibre renderer and vector CARTO Positron treatment as the local
   GdeBenzin project: warm background, amber road hierarchy, calm water/parks and Russian labels.
   OpenLayers and the raster OSM tile path were removed from the web dependency graph. Four
   persistent layer buttons and the map legend remain consolidated in one compact menu;
   restrictions start hidden and layer visibility changes in-place without rebuilding the map.
+- MapLibre GL JS was upgraded to the patched 6.10.0 release after auditing production dependencies
+  against GHSA-jrc7-96c5-q579. The Vite worker is now loaded as an explicit module worker, the
+  basemap customization uses the stricter v6 style types, and CI rejects new high-severity runtime
+  dependency advisories. A real-browser replay confirmed vector tiles, route overlays, all three
+  variants, vertical profile, diagnostics modal and the direct official-file upload flow.
 
 ## Roadmap truth
 

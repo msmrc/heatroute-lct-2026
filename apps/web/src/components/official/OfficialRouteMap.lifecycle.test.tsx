@@ -48,12 +48,13 @@ vi.mock("../../shared/api", async (loadOriginal) => ({
 }));
 
 vi.mock("maplibre-gl", () => ({
-  default: {
-    Map: maplibre.Map,
-    NavigationControl: maplibre.NavigationControl,
-    ScaleControl: maplibre.ScaleControl,
-  },
+  Map: maplibre.Map,
+  NavigationControl: maplibre.NavigationControl,
+  ScaleControl: maplibre.ScaleControl,
+  setWorkerUrl: vi.fn(),
 }));
+
+vi.mock("maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url", () => ({ default: "/maplibre-worker.js" }));
 
 beforeEach(() => {
   maplibre.layers.clear();

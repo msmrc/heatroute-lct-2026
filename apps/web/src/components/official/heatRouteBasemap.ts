@@ -1,4 +1,4 @@
-import type { Map as MapLibreMap } from "maplibre-gl";
+import type { AllLayoutProperties, AllPaintProperties, ExpressionSpecification, Map as MapLibreMap } from "maplibre-gl";
 
 const configuredStyleUrl: unknown = import.meta.env.VITE_BASEMAP_STYLE_URL;
 
@@ -7,7 +7,7 @@ export const BASEMAP_STYLE_URL = typeof configuredStyleUrl === "string" && confi
   ? configuredStyleUrl
   : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
-const RUSSIAN_LABEL = ["coalesce", ["get", "name:ru"], ["get", "name"], ["get", "name:latin"]];
+const RUSSIAN_LABEL: ExpressionSpecification = ["coalesce", ["get", "name:ru"], ["get", "name"], ["get", "name:latin"]];
 const ROAD_FILL = { motorway: "#f4a62a", trunk: "#f7b44e", primary: "#fbc96c", secondary: "#fce1a6", minor: "#ffffff" } as const;
 const ROAD_CASE = { motorway: "#d8871b", trunk: "#de982f", primary: "#e6b24c", secondary: "#ead59a", minor: "#e4e0d5" } as const;
 const ROAD_WIDTH = {
@@ -46,8 +46,10 @@ export function applyGdeBenzinBasemapStyle(map: MapLibreMap): void {
 
   for (const layer of layers) {
     const sourceLayer = layer["source-layer"];
-    const setPaint = (property: string, value: unknown) => map.setPaintProperty(layer.id, property, value);
-    const setLayout = (property: string, value: unknown) => map.setLayoutProperty(layer.id, property, value);
+    const setPaint = <K extends keyof AllPaintProperties>(property: K, value: AllPaintProperties[K]) =>
+      map.setPaintProperty(layer.id, property, value);
+    const setLayout = <K extends keyof AllLayoutProperties>(property: K, value: AllLayoutProperties[K]) =>
+      map.setLayoutProperty(layer.id, property, value);
 
     if (layer.type === "background") setPaint("background-color", "#f6f5ef");
     if (sourceLayer === "water" && layer.type === "fill") setPaint("fill-color", "#cfe2ea");

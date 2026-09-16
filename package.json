@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter @heatroute/web dev",
     "build": "pnpm --filter @heatroute/web build",
+    "preview": "pnpm --filter @heatroute/web preview",
     "lint": "pnpm --filter @heatroute/web lint",
     "typecheck": "pnpm --filter @heatroute/web typecheck",
     "test": "pnpm --filter @heatroute/web test && node --test scripts/local-demo-server.test.mjs"

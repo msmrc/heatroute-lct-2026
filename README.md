@@ -76,6 +76,17 @@ Bundle не подменяет отчёт импорта демонстраци�
 записывает фактические 233 277 байт, SHA-256 и все 323 предупреждения официального
 compatibility-профиля.
 
+Для проверки именно production-сборки при работающем локальном API:
+
+```powershell
+$env:VITE_DEV_API_PROXY = 'http://127.0.0.1:8000'
+pnpm build
+pnpm preview -- --host 127.0.0.1 --port 5175 --strictPort
+```
+
+После этого стенд доступен на `http://localhost:5175/`; preview проксирует тот же `/api` и не
+требует изменения frontend-конфигурации.
+
 ## Документы
 
 1. [Старт следующей смены](docs/implementation/TOMORROW_HANDOFF.md)

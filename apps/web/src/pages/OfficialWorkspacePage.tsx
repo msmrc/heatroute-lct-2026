@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Eye, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
-import { useRef, useState } from "react";
+import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Card, ProgressBar, StateView, StatusBadge } from "../components/ui/primitives";
@@ -17,7 +17,6 @@ import {
   getLatestOfficialRun,
   getOfficialRun,
   humanFileSize,
-  type OfficialImport,
 } from "../shared/api";
 
 const IMPORT_KEY = "heatroute.officialImportId";
@@ -34,6 +33,7 @@ export function OfficialWorkspacePage() {
   const [importId, setImportId] = useState(() => localStorage.getItem(IMPORT_KEY) ?? "");
   const [jobId, setJobId] = useState(() => localStorage.getItem(JOB_KEY) ?? "");
   const [runId, setRunId] = useState(() => localStorage.getItem(RUN_KEY) ?? "");
+  const [processingFilename, setProcessingFilename] = useState("");
 
   const imported = useQuery({
     queryKey: ["official-import", importId],
@@ -63,16 +63,39 @@ export function OfficialWorkspacePage() {
   });
 
   const upload = useMutation({
-    mutationFn: createOfficialImport,
-    onSuccess: (value: OfficialImport) => {
-      localStorage.setItem(IMPORT_KEY, value.id);
+    mutationFn: async (file: File) => {
+      const importedValue = await createOfficialImport(file);
+      if (!importedValue.report.valid) return { importedValue };
+      try {
+        const runValue = await createOfficialRun(importedValue.id);
+        return { importedValue, runValue };
+      } catch (runError) {
+        return { importedValue, runError };
+      }
+    },
+    onSuccess: ({ importedValue, runValue, runError }) => {
+      localStorage.setItem(IMPORT_KEY, importedValue.id);
       localStorage.removeItem(JOB_KEY);
       localStorage.removeItem(RUN_KEY);
-      setImportId(value.id);
+      setImportId(importedValue.id);
       setJobId("");
       setRunId("");
-      queryClient.setQueryData(["official-import", value.id], value);
-      toast.success("GeoJSON проверен и сохранён");
+      queryClient.setQueryData(["official-import", importedValue.id], importedValue);
+
+      if (runValue) {
+        localStorage.setItem(RUN_KEY, runValue.id);
+        setRunId(runValue.id);
+        queryClient.setQueryData(["official-run", runValue.id], runValue);
+        if (runValue.job_id) {
+          localStorage.setItem(JOB_KEY, runValue.job_id);
+          setJobId(runValue.job_id);
+        }
+        toast.success("Файл принят, расчёт запущен");
+      } else if (runError) {
+        toast.error(`Файл загружен, но расчёт не запущен: ${errorText(runError)}`);
+      } else {
+        toast.error("В файле есть ошибки. Исправьте их перед расчётом.");
+      }
     },
     onError: (error) => toast.error(errorText(error)),
   });
@@ -132,6 +155,36 @@ export function OfficialWorkspacePage() {
   const currentRun = run.data;
   const activeRun = currentRun && currentJob?.run_id === currentRun.id ? currentRun : undefined;
   const isJobActive = currentJob?.state === "queued" || currentJob?.state === "running" || currentJob?.state === "cancel_requested";
+  const isRunActive = currentRun?.state === "queued" || currentRun?.state === "running";
+  const isProcessing = upload.isPending || Boolean(runId && (!currentRun || isRunActive));
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) {
+      setProcessingFilename(file.name);
+      upload.mutate(file);
+    }
+    event.currentTarget.value = "";
+  }
+
+  if (isProcessing) {
+    return (
+      <div className="official-processing-screen" role="status" aria-live="polite">
+        <div className="official-processing-card">
+          <span className="official-processing-icon"><LoaderCircle className="is-spinning" size={24} /></span>
+          <div>
+            <span className="eyebrow">{upload.isPending ? "Подготовка данных" : "Расчёт маршрутов"}</span>
+            <h1>{upload.isPending ? "Проверяем файл" : "Строим варианты подключения"}</h1>
+            <p>{processingFilename || currentImport?.original_filename || "Набор данных"}</p>
+          </div>
+          {!upload.isPending && currentJob ? (
+            <ProgressBar current={currentJob.progress_current} total={currentJob.progress_total} label={currentJob.phase} />
+          ) : <div className="official-processing-line"><i /></div>}
+          <small>Экран с результатами откроется автоматически.</small>
+        </div>
+      </div>
+    );
+  }
 
   if (currentImport && currentRun?.state === "completed" && currentRun.result) {
     return (
@@ -151,11 +204,7 @@ export function OfficialWorkspacePage() {
               type="file"
               accept=".geojson,.json,application/geo+json,application/json"
               disabled={upload.isPending}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) upload.mutate(file);
-                event.currentTarget.value = "";
-              }}
+              onChange={handleFileChange}
             />
             <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
               {upload.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <UploadCloud size={16} />}
@@ -166,7 +215,7 @@ export function OfficialWorkspacePage() {
         <RouteVisualization
           result={currentRun.result}
           importId={currentRun.import_id}
-          warningCount={currentImport.report.warnings.length}
+          warnings={currentImport.report.warnings}
         />
       </div>
     );
@@ -193,11 +242,7 @@ export function OfficialWorkspacePage() {
             type="file"
             accept=".geojson,.json,application/geo+json,application/json"
             disabled={upload.isPending}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) upload.mutate(file);
-              event.currentTarget.value = "";
-            }}
+            onChange={handleFileChange}
           />
           <div className="official-upload-actions">
             <Button onClick={() => inputRef.current?.click()} disabled={upload.isPending}>

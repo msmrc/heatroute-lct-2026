@@ -1,13 +1,14 @@
-import { AlertTriangle, Focus, MapPin, MapPinned, Network, X, ZoomIn, ZoomOut } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Focus, MapPin, MapPinned, Network, X, ZoomIn, ZoomOut } from "lucide-react";
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 
 import type {
   OfficialCalculationResult,
+  OfficialInputWarning,
   OfficialRouteNode,
   OfficialRouteVariant,
 } from "../../shared/api";
 import { Button } from "../ui/button";
-import { Badge } from "../ui/primitives";
+import { Badge, Dialog } from "../ui/primitives";
 import type { SelectedMapObject } from "./OfficialRouteMap";
 
 const OfficialRouteMap = lazy(async () => {
@@ -18,6 +19,7 @@ const OfficialRouteMap = lazy(async () => {
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 590;
 const CANVAS_PADDING = 58;
+const EMPTY_WARNINGS: OfficialInputWarning[] = [];
 
 function formatLength(value: number): string {
   return value >= 1_000
@@ -87,11 +89,11 @@ function RouteNodeGlyph({ node, x, y, selected, onSelect }: {
 export function RouteVisualization({
   result,
   importId,
-  warningCount = 0,
+  warnings = EMPTY_WARNINGS,
 }: {
   result: OfficialCalculationResult;
   importId: string;
-  warningCount?: number;
+  warnings?: OfficialInputWarning[];
 }) {
   const defaultVariant = result.variants.find((item) => item.id === result.preferred_variant_id) ?? result.variants[0];
   const [variantId, setVariantId] = useState(defaultVariant?.id ?? "");
@@ -99,6 +101,7 @@ export function RouteVisualization({
   const [selectedObject, setSelectedObject] = useState<SelectedMapObject | null>(null);
   const [zoom, setZoom] = useState(1);
   const [viewMode, setViewMode] = useState<"map" | "schematic">("map");
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false);
   const variant = result.variants.find((item) => item.id === variantId) ?? defaultVariant;
 
   const layout = useMemo(() => {
@@ -275,10 +278,55 @@ export function RouteVisualization({
             <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
             <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
             <article><span>Камер и врезок</span><strong>{variant.nodes.filter((node) => node.chamber).length}</strong><small>{variant.edges.length} участков</small></article>
-            <article className={variant.valid ? "is-success" : "is-danger"}><span>Проверка структуры</span><strong>{variant.valid ? "Пройдена" : "Есть ошибки"}</strong><small>{variant.validation_issues.length} ошибок · {warningCount} предупреждений</small></article>
+            <button
+              type="button"
+              className={variant.valid ? "is-success" : "is-danger"}
+              aria-haspopup="dialog"
+              aria-label={`Открыть результаты проверки: ${variant.validation_issues.length} ошибок, ${warnings.length} предупреждений`}
+              onClick={() => setValidationDialogOpen(true)}
+            >
+              <span>Проверка структуры</span>
+              <strong>{variant.valid ? "Пройдена" : "Есть ошибки"}</strong>
+              <small>{variant.validation_issues.length} ошибок · <u>{warnings.length} предупреждений</u></small>
+            </button>
           </div>
         </footer>
       </div>
+      <Dialog
+        open={validationDialogOpen}
+        title="Результаты проверки"
+        description={`${variant.validation_issues.length} ошибок · ${warnings.length} предупреждений во входных данных`}
+        onClose={() => setValidationDialogOpen(false)}
+      >
+        <div className="validation-dialog-content">
+          {warnings.length > 0 ? (
+            <div className="validation-warning-list">
+              {warnings.map((warning, index) => (
+                <article key={`${warning.code}-${warning.feature_index}-${index}`}>
+                  <AlertTriangle size={17} />
+                  <div>
+                    <strong>{warning.code}</strong>
+                    <p>{warning.message}</p>
+                    <small>
+                      Объект #{warning.feature_index}
+                      {warning.feature_id ? ` · ${warning.feature_id}` : ""}
+                      {warning.field ? ` · поле ${warning.field}` : ""}
+                    </small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="validation-dialog-empty">
+              <CheckCircle2 size={22} />
+              <div><strong>Предупреждений нет</strong><p>Входные данные прошли проверку без замечаний.</p></div>
+            </div>
+          )}
+          <div className="dialog-actions">
+            <Button variant="outline" onClick={() => setValidationDialogOpen(false)}>Закрыть</Button>
+          </div>
+        </div>
+      </Dialog>
     </section>
   );
 }

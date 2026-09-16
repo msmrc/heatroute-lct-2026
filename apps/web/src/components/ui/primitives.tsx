@@ -6,6 +6,7 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
+import { useEffect } from "react";
 import type { HTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 
 import { cn } from "../../shared/cn";
@@ -150,6 +151,15 @@ export function Dialog({
   children: ReactNode;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, open]);
+
   if (!open) return null;
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>

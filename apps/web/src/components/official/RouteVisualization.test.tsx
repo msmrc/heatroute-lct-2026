@@ -54,13 +54,32 @@ const result: OfficialCalculationResult = {
 
 describe("RouteVisualization", () => {
   it("opens on the preferred variant and exposes no-route diagnostics when switched", async () => {
-    const { container } = render(<RouteVisualization result={result} importId="import-1" />);
+    const { container } = render(
+      <RouteVisualization
+        result={result}
+        importId="import-1"
+        warnings={[{
+          code: "FIELD_DEFAULTED",
+          feature_index: 7,
+          feature_id: "oks-7",
+          field: "height",
+          message: "Значение высоты восстановлено по умолчанию",
+        }]}
+      />,
+    );
 
     expect(screen.getByRole("tab", { name: /Общая сеть/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText(/2 из 2 ОКС/)).toBeTruthy();
     expect(await screen.findByText("Интерактивная карта")).toBeTruthy();
     expect(container.querySelector(".route-results-drawer")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
     expect(container.querySelector(".route-workspace-inspector")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /Открыть результаты проверки/ }));
+    expect(screen.getByRole("dialog", { name: "Результаты проверки" })).toBeTruthy();
+    expect(screen.getByText("Значение высоты восстановлено по умолчанию")).toBeTruthy();
+    expect(screen.getByText(/Объект #7 · oks-7 · поле height/)).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: "Закрыть" })[0]!);
+    expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
     expect(screen.getByText(/ОКС 2: Маршрут не найден/)).toBeTruthy();

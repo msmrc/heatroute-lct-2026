@@ -282,6 +282,14 @@ and runtime services were removed. The frontend calls only the current official 
   real calculation, public/internal contracts and restart recovery. The immutable organizer file
   now reproduces preferred independent 17/17, shared 16/17 and diverse 14/17; team/demo documents
   use those current figures rather than the superseded first-slice result.
+- Full-story browser verification then exercised the primary local path instead of only “open
+  demo” and exposed a real `405` on file upload. `local-demo-server.mjs` now accepts only the exact
+  organizer bytes (size plus SHA-256), replays the completed run for that import and returns 422/413
+  for unrelated or oversized data instead of showing a false result. Four Node tests protect the
+  multipart parser and replay boundary. The same browser session verified both POST requests, the
+  rendered 17/17 result and an error-free console. A second visual failure showed that route
+  overlays waited for every remote CARTO tile; initialization now uses `style.load`, so calculated
+  geometry is visible as soon as the style graph exists. A Vitest lifecycle regression protects it.
 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,

@@ -7,7 +7,6 @@
     "build": "pnpm --filter @heatroute/web build",
     "lint": "pnpm --filter @heatroute/web lint",
     "typecheck": "pnpm --filter @heatroute/web typecheck",
-    "test": "pnpm --filter @heatroute/web test"
+    "test": "pnpm --filter @heatroute/web test && node --test scripts/local-demo-server.test.mjs"
   }
 }
-

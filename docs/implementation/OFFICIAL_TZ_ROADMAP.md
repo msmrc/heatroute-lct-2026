@@ -598,7 +598,7 @@ P0 считается завершённым только если одновр�
 
 - 107 локальных backend tests; pinned Java 11 CI, integration job и отдельный Ubuntu 22 full
   2× topology run зелёные;
-- web lint/typecheck/production build и 14 Vitest tests;
+- web lint/typecheck/production build, 15 Vitest tests и 4 теста локального replay API;
 - официальный fixture: 144 объекта, 17 demand points, 204 tie-in candidates и три валидных
   obstacle-aware варианта;
 - strict seven-type output, independent validator, incremental download и official-output map;

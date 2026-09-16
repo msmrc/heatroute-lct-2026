@@ -280,7 +280,9 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
     const resizeObserver = new ResizeObserver(() => map.resize());
     resizeObserver.observe(targetRef.current);
 
-    void map.once("load", () => {
+    // Do not wait for every remote basemap tile: the calculated route must appear as soon as the
+    // style graph is ready, even on a slow or partially unavailable external tile connection.
+    void map.once("style.load", () => {
       applyGdeBenzinBasemapStyle(map);
       baseLayerIdsRef.current = (map.getStyle().layers ?? []).map((layer) => layer.id);
       addOverlayLayers(map, contextData, routeData);

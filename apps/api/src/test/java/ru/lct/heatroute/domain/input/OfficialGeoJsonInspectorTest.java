@@ -5,8 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryType;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 class OfficialGeoJsonInspectorTest {
     private final OfficialGeoJsonInspector inspector = new OfficialGeoJsonInspector(new ObjectMapper());
@@ -97,6 +102,36 @@ class OfficialGeoJsonInspectorTest {
                         "DUPLICATE_FEATURE_ID",
                         "UNKNOWN_REFERENCE",
                         "MISSING_OKS_CONNECTION_POINT");
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "heatroute.scale.input", matches = ".+")
+    void streamsOptInByteBoundaryFixtureWithinTheConfiguredHeap() throws Exception {
+        Path path = Path.of(System.getProperty("heatroute.scale.input"));
+        long expectedBytes = Long.parseLong(System.getProperty("heatroute.scale.expectedBytes"));
+        assertThat(Files.size(path)).isEqualTo(expectedBytes);
+
+        long started = System.nanoTime();
+        OfficialInputReport report;
+        try (InputStream input = Files.newInputStream(path)) {
+            report = inspector.inspect(input);
+        }
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000;
+        long peakHeapBytes = ManagementFactory.getMemoryPoolMXBeans().stream()
+                .filter(pool -> pool.getType() == MemoryType.HEAP)
+                .mapToLong(pool -> pool.getPeakUsage().getUsed())
+                .sum();
+
+        assertThat(report.isValid()).isTrue();
+        assertThat(report.getFeatureCount()).isEqualTo(144);
+        assertThat(report.getSha256()).hasSize(64);
+        System.out.printf(
+                "R9_INPUT_SCALE bytes=%d elapsed_ms=%d peak_heap_bytes=%d max_heap_bytes=%d sha256=%s%n",
+                expectedBytes,
+                elapsedMs,
+                peakHeapBytes,
+                Runtime.getRuntime().maxMemory(),
+                report.getSha256());
     }
 
     private OfficialInputReport inspect(String json) {

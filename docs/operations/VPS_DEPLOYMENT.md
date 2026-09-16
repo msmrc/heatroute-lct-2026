@@ -54,7 +54,7 @@ curl --fail --silent --resolve 130-49-150-217.sslip.io:443:127.0.0.1 \
 For a real contract smoke, upload only a non-sensitive fixture already present in the checkout:
 
 ```bash
-curl --fail --silent -F file=@apps/api/src/test/resources/fixtures/official-minimal.geojson \
+curl --fail --silent -F file=@datasets/official/lct-2026.geojson \
   http://127.0.0.1:8000/api/v1/official/imports
 ```
 

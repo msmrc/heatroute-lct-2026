@@ -55,27 +55,23 @@ class OfficialGeoJsonInspectorTest {
     }
 
     @Test
-    void acceptsOfficialEndToEndFixtureWithoutLoadingTheCollectionTree() {
-        InputStream input = getClass().getResourceAsStream("/fixtures/official-minimal.geojson");
-        assertThat(input).isNotNull();
-
-        OfficialInputReport report = inspector.inspect(input);
-
-        assertThat(report.isValid()).isTrue();
-        assertThat(report.getFeatureCount()).isEqualTo(8);
-        assertThat(report.getFeatureCounts()).containsEntry("oks_future", 2L);
-    }
-
-    @Test
-    void acceptsProvidedDatasetShapeWithExplicitCompatibilityWarnings() {
-        InputStream input = getClass().getResourceAsStream("/fixtures/provided-dataset-compatibility.geojson");
+    void acceptsUntouchedOrganizerDatasetWithExplicitCompatibilityWarnings() {
+        InputStream input = getClass().getResourceAsStream("/official/lct-2026.geojson");
         assertThat(input).isNotNull();
 
         OfficialInputReport report = inspector.inspect(input);
 
         assertThat(report.isValid()).isTrue();
         assertThat(report.getInputProfile()).isEqualTo(OfficialGeoJsonInspector.PROVIDED_DATASET_PROFILE);
-        assertThat(report.getFeatureCount()).isEqualTo(5);
+        assertThat(report.getSha256()).isEqualTo("07921d7740c0297a63111846d4b77dfb6ccb33da65ffd7ccb14c5b2d786dd7d0");
+        assertThat(report.getFeatureCount()).isEqualTo(144);
+        assertThat(report.getFeatureCounts())
+                .containsEntry("source", 1L)
+                .containsEntry("heat_network", 29L)
+                .containsEntry("heat_chamber", 9L)
+                .containsEntry("oks_connection_point", 17L)
+                .containsEntry("restriction", 88L);
+        assertThat(report.getWarnings()).hasSize(323);
         assertThat(report.getWarnings()).extracting(OfficialInputWarning::getCode)
                 .contains(
                         "NUMERIC_ID_NORMALIZED",
@@ -88,10 +84,12 @@ class OfficialGeoJsonInspectorTest {
 
     @Test
     void rejectsDuplicateIdsUnknownReferencesAndFutureOksWithoutConnectionPoint() {
-        InputStream input = getClass().getResourceAsStream("/fixtures/official-invalid-references.geojson");
-        assertThat(input).isNotNull();
-
-        OfficialInputReport report = inspector.inspect(input);
+        OfficialInputReport report = inspect("{\"type\":\"FeatureCollection\",\"features\":["
+                + feature("source", "src", point(37.60, 55.75), "") + ","
+                + feature("oks_future", "oks", polygon(), ",\"flow_tph\":8.3,\"heat_load\":1.2") + ","
+                + feature("oks_future", "oks", polygon(), ",\"flow_tph\":4.1,\"heat_load\":0.8") + ","
+                + feature("oks_connection_point", "cp", point(37.603, 55.753), ",\"oks_id\":\"missing\"")
+                + "]}");
 
         assertThat(report.isValid()).isFalse();
         assertThat(report.getErrors()).extracting(OfficialInputError::getCode)

@@ -8,6 +8,8 @@ HeatRoute — монорепозиторий конкурсного решени
 
 - `apps/api` — Java API, официальный GeoJSON-контракт, PostGIS, Liquibase, durable jobs;
 - `apps/web` — React/TypeScript UI для загрузки официального файла и topology job;
+- `datasets/official/lct-2026.geojson` — единственный отслеживаемый набор геоданных, побайтовая
+  копия файла постановщика задачи;
 - `infra` — pinned Docker images, Nginx и Caddy;
 - `docs/implementation/OFFICIAL_TZ_ROADMAP.md` — единый roadmap R0–R9;
 - `docs/implementation/TOMORROW_HANDOFF.md` — точка входа для следующей смены.
@@ -46,6 +48,7 @@ pwsh -File scripts/dev.ps1 typecheck
 4. [Контракты данных](docs/DATA_CONTRACTS.md)
 5. [Критерии приёмки](docs/ACCEPTANCE.md)
 6. [Обновление VPS](docs/operations/VPS_DEPLOYMENT.md)
+7. [Повторный аудит официального соответствия](docs/implementation/OFFICIAL_ALIGNMENT_AUDIT.md)
 
 Старые `m*-evidence.md` описывают прежний прототип и используются только как историческая
 справка. Они не подтверждают готовность Java-решения.

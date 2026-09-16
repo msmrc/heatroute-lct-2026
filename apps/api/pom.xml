@@ -120,6 +120,18 @@
 
     <build>
         <finalName>heatroute-backend</finalName>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <testResource>
+                <directory>../../datasets/official</directory>
+                <includes>
+                    <include>lct-2026.geojson</include>
+                </includes>
+                <targetPath>official</targetPath>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

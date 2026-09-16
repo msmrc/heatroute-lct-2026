@@ -10,7 +10,7 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Verified in this cutover
 
-- Maven `verify` succeeds in the pinned Java 11 builder image; 26 Java tests pass.
+- Maven tests pass locally with 28 Java tests; CI verifies them on the pinned Java 11 runtime.
 - Web ESLint, TypeScript, Vitest (4 tests) and production Vite build pass.
 - Compose starts PostGIS, Java API and web; all three become healthy.
 - `/api/v1/health/ready` reports PostGIS ready.
@@ -38,13 +38,18 @@ and runtime services were removed. The frontend calls only the current official 
   no existing flow/upstream links and no chamber diameters.
 - Input contract v2 now has a named compatibility profile with explicit warnings; the strict
   official profile remains available.
-- A compact synthetic fixture covers this shape. The organizer file itself is not committed.
+- The byte-identical organizer file is now the only tracked geodata at
+  `datasets/official/lct-2026.geojson`; synthetic GeoJSON fixtures and the old demo pack were
+  removed. Narrow invalid-input cases are constructed inline in unit tests.
 - Topology analysis now falls back to geometric source connectivity when the whole dataset omits
   upstream links, while preserving explicit-link validation for the strict profile.
 - Full findings and PM questions are in `SUPPLIED_DATASET_AUDIT.md`.
 - Production verification passed on the untouched file: import `valid`, 144 features, zero blocking
   errors, 323 explicit compatibility warnings. The durable topology job completed on attempt 1
   with zero issues and 204 deterministic candidates for the 17 demand points.
+- Repository and production dataset cleanup is complete: the synthetic imports and the obsolete
+  pre-compatibility invalid import were removed after a database backup. Production retains one
+  valid import with the official SHA-256.
 
 ## Roadmap truth
 
@@ -60,7 +65,9 @@ and runtime services were removed. The frontend calls only the current official 
   and reconstruction are not implemented.
 - R6 — partial: catalog and crossing geometry exist; route-search and final-validator integration
   are not implemented.
-- R7 — not implemented: official costing, ranking, diversity and strict output export.
+- R7 — primitives only: exact segment/reconstruction rates, depth multiplier, unconnected penalty
+  and score exist in Java, but full variant costing, ranking, diversity and strict output export
+  are not implemented.
 - R8 — not implemented; optional after mandatory 2D.
 - R9 — not complete: no 3 GB/500 MB/50-user evidence and current VPS OS is not the required
   Ubuntu Server 22 acceptance target.
@@ -72,6 +79,7 @@ all-OKS input assembly, deterministic shared/separate candidate trees and a fram
 tree validator. Do not start depth, MVT or additional file formats before this slice passes.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
+The current cross-check against all three organizer artifacts is in `OFFICIAL_ALIGNMENT_AUDIT.md`.
 
 ## Workstation note
 

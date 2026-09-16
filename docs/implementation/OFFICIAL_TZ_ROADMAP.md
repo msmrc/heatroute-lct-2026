@@ -55,7 +55,8 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 - PostgreSQL/PostGIS и двойное хранение WGS84/EPSG:32637.
 - Java durable-job lease/cancel/recovery протокол.
 - Принципы независимой проверки результата после маршрутизации.
-- Набор геометрических тестовых приёмов и synthetic fixtures как справочный материал.
+- Набор геометрических тестовых приёмов; файловые synthetic fixtures удалены, узкие отрицательные
+  случаи теперь формируются непосредственно в unit tests.
 - Docker-окружение и same-origin web proxy.
 
 ### 2.3. Что нельзя считать выполненным
@@ -221,7 +222,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 |---|---|---|
 | R0 | Закрыт | — |
 | R1 | Закрыт для текущего single-process контура | Вынести worker перед нагрузочным тестом |
-| R2 | Функционально частично закрыт | 3 ГБ memory evidence, replay/dedup, расширенные fixtures |
+| R2 | Функционально частично закрыт | 3 ГБ memory evidence, replay/dedup, дополнительные inline cases |
 | R3 | Функциональный vertical slice | Indexed large-network search, persisted selected tie-ins |
 | R4 | Не начат | Multi-OKS forest, shared trunks, variants, independent validator |
 | R5 | Частично | Reconstruction propagation и chamber reconstruction |
@@ -570,3 +571,5 @@ P0 считается завершённым только если одновр�
 6. positive/negative fixtures и стабильная нормализованная топология.
 
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.
+Повторная сверка технологий, внутреннего ТЗ, официальных документов и реального файла находится в
+`OFFICIAL_ALIGNMENT_AUDIT.md`.

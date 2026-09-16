@@ -1,5 +1,8 @@
 # M4 web workspace evidence
 
+> Historical evidence only. The synthetic files referenced below were removed on 2026-09-16 and
+> are not part of the active Java project or current acceptance proof.
+
 Date: 2026-09-08
 
 ## Result

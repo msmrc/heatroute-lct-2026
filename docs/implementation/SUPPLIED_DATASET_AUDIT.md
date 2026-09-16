@@ -2,8 +2,11 @@
 
 **Dataset received:** 2026-09-16  
 **Source file:** `!!!_Датасет.geojson`  
-**Handling rule:** the organizer file stays outside Git; only a compact synthetic compatibility
-fixture is committed.
+**Tracked canonical copy:** `datasets/official/lct-2026.geojson`
+**SHA-256:** `07921d7740c0297a63111846d4b77dfb6ccb33da65ffd7ccb14c5b2d786dd7d0`
+
+The tracked copy is byte-identical to the organizer file and is the only geodata file retained in
+the repository. Synthetic compatibility and demo datasets were removed.
 
 ## Observed shape
 

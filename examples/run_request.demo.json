@@ -1,8 +1,0 @@
-{
-  "method": "POST",
-  "path": "/api/v1/scenario-revisions/d70a5431-c91f-5b48-aeab-6eebece760b6/runs",
-  "headers": {
-    "Idempotency-Key": "heatroute-demo-first-run-v1"
-  },
-  "body": {}
-}

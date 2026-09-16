@@ -95,7 +95,8 @@ Do not mix official costing into the first PR; expose explicit placeholder quant
 ## Known operational notes
 
 - Local Docker data and tool caches must remain on `E:`.
-- Never commit `.env.vps`, keys, dumps or organizer datasets.
+- Never commit `.env.vps`, keys or dumps. The sole approved organizer dataset is the byte-identical
+  `datasets/official/lct-2026.geojson`; do not add copies or synthetic dataset files.
 - VPS updates follow `docs/operations/VPS_DEPLOYMENT.md`; take a DB backup first.
 - Database schema history is now Liquibase under `apps/api/src/main/resources/db/changelog`.
 - On the current Windows workstation Docker Desktop is blocked after reboot by a stale internal

@@ -123,10 +123,20 @@ output contract. The appendix golden example and required scale limits remain op
 
 ## Critical path to a valid submission
 
+### Appendix 10.8 arithmetic note
+
+The appendix explicitly calls the coordinates and numeric values in its shortened GeoJSON example
+illustrative. Applying the normative tables to its dimensions gives 27,942,288 RUB for 145.2 m of
+DU 200 road crossing and 15,152,250 RUB for 75 m of DU 250 reconstruction, not the illustrative
+27,942,307 and 15,152,283. The normative total is 51,094,538 RUB and score 2.091247064 (2.091 at
+three decimals). A golden test locks these table/formula results and also records the -19/-33 RUB
+differences, so the implementation cannot silently drift toward the inconsistent example numbers.
+
 1. **R4/R9 performance:** profile the integrated search on denser geometry and record reproducible
    time/memory evidence; the published 2D R6 boundary matrix is now complete.
-2. **R7 complete variant:** reproduce the organizer appendix arithmetic example as a golden test;
-   strict output serialization, validation, download and map consumption are implemented.
+2. **R7 complete variant:** closed against the normative appendix tables/formulas with the section
+   10.8 illustrative-value discrepancy documented; serialization, validation, download and map
+   consumption are implemented. Remaining scale proof belongs to R9.
 3. **R9 acceptance:** test docker-compose 1.29.2 on Ubuntu 22, separate worker if required, then
    produce measured 3 GB input, 500 MB output and 50-user evidence.
 

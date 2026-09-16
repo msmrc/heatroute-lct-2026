@@ -235,7 +235,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R4 | Функциональный obstacle-aware checkpoint + три стратегии + GIS | Performance, quality/diversity fixtures и persisted selected tie-ins |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
 | R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification и R9 performance evidence |
-| R7 | Costs/score/rank + strict seven-type export/validator/API + official-output map | Acceptance arithmetic fixture из приложения |
+| R7 | Закрыт по нормативным 2D формулам, strict export/validator/API и official-output map | Scale evidence относится к R9 |
 | R8 | Не начат, optional | Depth rerouting после P0 2D |
 | R9 | Не начат | Limits/load/Ubuntu 22/submission kit |
 
@@ -428,8 +428,9 @@ positive/boundary/negative поведение проверяются для че
 feature-by-feature preflight и инкрементально пишется `JsonGenerator`; all-seven-type fixture
 включает реконструкцию камеры. Для complete/ranked варианта карта запрашивает отфильтрованный
 `variant_id` через тот же валидированный adapter; внутренний preview остаётся только для заведомо
-неполного supplied dataset. До gate остаётся golden-арифметический пример из технического
-приложения.
+неполного supplied dataset. Golden-test воспроизводит нормативные ставки и формулы на размерах
+примера 10.8; условные значения самого примера расходятся с таблицей на 19/33 рубля, что отдельно
+зафиксировано в alignment audit.
 
 Задачи:
 

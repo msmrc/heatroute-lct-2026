@@ -70,7 +70,6 @@ Already usable:
 Still blocking official P0:
 
 - large-network performance and broader route-quality/diversity evidence;
-- appendix arithmetic golden evidence;
 - large-file/load/Ubuntu 22 acceptance evidence.
 
 ## Developer: next vertical slice
@@ -78,10 +77,10 @@ Still blocking official P0:
 Continue from `domain/export`; do not replace the immutable run/job contract. R7 component costs,
 length, score/rank, strict seven-type serialization, independent whitelist/type/reference
 validation, feature-by-feature preflight and incremental Jackson download are already integrated.
-Reproduce the appendix arithmetic example as a golden test. Complete variants are already fetched
-per `variant_id` and rendered from the strict official output model; the internal map conversion is
-only a fallback for incomplete results. Then profile the integrated route search on a denser
-in-code fixture. The published
+R7 is closed against the normative appendix tables and formulas. Section 10.8 explicitly calls its
+numbers illustrative and differs by 19/33 RUB; keep the golden expectations derived from tables
+4.1, 5.1, 8 and 9. Complete variants are fetched per `variant_id` and rendered from the strict
+official output model. Next, profile the integrated route search on a denser in-code fixture. The published
 2D R6 row-by-row matrix is complete; do not fold unresolved `railway` semantics or optional depth
 into that claim.
 Do not mix optional depth, MVT or extra formats into this gate.

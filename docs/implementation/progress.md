@@ -212,17 +212,17 @@ and runtime services were removed. The frontend calls only the current official 
   special crossings and final validation have exact-value and positive/boundary/negative coverage.
   The supplied `railway` alias remains conservative pending organizer clarification; vertical
   depth rules belong to optional R8.
-- R7 — partial: full component costing, length totals, score/rank, strict seven-type adapter,
-  independent output validator, incremental download and official-output map rendering are
-  integrated. Appendix arithmetic golden evidence remains.
+- R7 — complete for mandatory 2D: component costing, length, score/rank, all seven output types,
+  independent validation, incremental download and official-output map rendering are integrated.
+  The section 10.8 illustrative-number discrepancy is documented and the normative arithmetic is
+  locked by a golden test.
 - R8 — not implemented; optional after mandatory 2D.
 - R9 — not complete: no 3 GB/500 MB/50-user evidence and current VPS OS is not the required
   Ubuntu Server 22 acceptance target.
 
 ## Next change
 
-Finish R7 with the organizer appendix arithmetic golden. Then profile the obstacle search on denser
-geometry. Do not start
+Profile the obstacle search on denser geometry, then close R2/R9 scale and deployment evidence. Do not start
 depth, MVT or additional file formats before the mandatory 2D gate.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.

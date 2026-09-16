@@ -3,6 +3,7 @@ package ru.lct.heatroute.domain.economics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
@@ -79,6 +80,54 @@ class OfficialVariantEconomicsCalculatorTest {
         assertThat(result.isComplete()).isFalse();
         assertThat(result.getScore()).isNull();
         assertThat(result.getIncompleteReasons()).containsExactly("RECONSTRUCTION_INPUT_UNAVAILABLE");
+    }
+
+    @Test
+    void reproducesAppendixExampleFromNormativeRatesAndFormulas() {
+        RouteNode tieIn = new RouteNode(
+                "tie", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "net-12");
+        RouteNode demand = new RouteNode(
+                "node", "demand_connection", coordinate(145.2, 0), false, false, 0, "oks-1");
+        RouteSection road = new RouteSection(
+                "special", "road", "road-1",
+                List.of(coordinate(0, 0), coordinate(145.2, 0)), 145.2, 90.0);
+        RouteEdge newNetwork = new RouteEdge(
+                "new-1", "tie", "node", 145.2,
+                List.of(coordinate(0, 0), coordinate(145.2, 0)), List.of(road),
+                new BigDecimal("80.0"), 200);
+        NetworkReconstructionSection reconstructionSection = new NetworkReconstructionSection(
+                "recon-1", "net-12", List.of(coordinate(-75, 0), coordinate(0, 0)), 75,
+                new BigDecimal("100.0"), new BigDecimal("80.0"), new BigDecimal("180.0"),
+                150, 250, true);
+        ExistingNetworkReconstructionResult reconstruction = new ExistingNetworkReconstructionResult(
+                List.of(reconstructionSection), List.of(), List.of());
+
+        VariantEconomics result = calculator.calculate(
+                List.of(tieIn, demand),
+                List.of(newNetwork),
+                List.of(new RouteConnection(
+                        "oks-1", "cp-1", new BigDecimal("80.0"), "connected", null)),
+                reconstruction);
+
+        assertThat(result.getConstructionCost()).isEqualByComparingTo("27942288.00");
+        assertThat(result.getChamberConstructionCost()).isEqualByComparingTo("3000000.00");
+        assertThat(result.getTieInCost()).isEqualByComparingTo("5000000.00");
+        assertThat(result.getReconstructionCost()).isEqualByComparingTo("15152250.00");
+        assertThat(result.getChamberReconstructionCost()).isEqualByComparingTo("0.00");
+        assertThat(result.getUnconnectedPenalty()).isEqualByComparingTo("0.00");
+        assertThat(result.getCalculatedCost()).isEqualByComparingTo("51094538.00");
+        assertThat(result.getNewNetworkLength()).isEqualByComparingTo("145.2");
+        assertThat(result.getReconstructionLength()).isEqualByComparingTo("75.0");
+        assertThat(result.getLength()).isEqualByComparingTo("220.2");
+        assertThat(result.getScore()).isEqualByComparingTo("2.091247064");
+        assertThat(result.getScore().setScale(3, RoundingMode.HALF_UP)).isEqualByComparingTo("2.091");
+
+        // Section 10.8 labels its numbers illustrative. Its stated component values differ from
+        // the normative tables by 19 and 33 rubles; the engine follows sections 4, 5, 8 and 9.
+        assertThat(result.getConstructionCost().subtract(new BigDecimal("27942307")))
+                .isEqualByComparingTo("-19");
+        assertThat(result.getReconstructionCost().subtract(new BigDecimal("15152283")))
+                .isEqualByComparingTo("-33");
     }
 
     private RouteCoordinate coordinate(double x, double y) {

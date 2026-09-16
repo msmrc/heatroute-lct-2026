@@ -204,6 +204,9 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 ### 7.1. Принятая архитектура
 
 - React/TypeScript frontend и same-origin Nginx proxy.
+- Для промежуточной проверки R4 frontend отображает интерактивную метрическую схему EPSG:32637
+  из внутреннего run result. Это demo/evidence слой, а не замена обязательной визуализации
+  официального семитипного GeoJSON после R7.
 - Единственный API и вычислительное ядро на Java 11 / Spring Boot 2.6.3.
 - springdoc-openapi-ui 1.7.0, PostgreSQL/PostGIS, JDBC, Liquibase, JTS и Proj4J.
 - Git history хранит старую реализацию только для археологии; runtime и активный source tree её не содержат.
@@ -224,7 +227,7 @@ multi-OKS логика R4–R7 и приёмочные нагрузки R9 ещ�
 | R1 | Закрыт для текущего single-process контура | Вынести worker перед нагрузочным тестом |
 | R2 | Функционально частично закрыт | 3 ГБ memory evidence, replay/dedup, дополнительные inline cases |
 | R3 | Функциональный vertical slice | Indexed large-network search, persisted selected tie-ins |
-| R4 | Первый vertical slice | Obstacle-aware search, normalization, third diverse variant |
+| R4 | Первый vertical slice + интерактивная схема результата | Obstacle-aware search, normalization, third diverse variant |
 | R5 | Частично | Reconstruction propagation и chamber reconstruction |
 | R6 | Частично | Интеграция правил в search и final validation |
 | R7 | Не начат | Official costs/score/diversity/seven-type export |

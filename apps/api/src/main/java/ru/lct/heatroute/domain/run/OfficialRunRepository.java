@@ -55,6 +55,15 @@ public class OfficialRunRepository {
         return rows.stream().findFirst();
     }
 
+    public Optional<OfficialRunView> findLatestCompleted() {
+        List<OfficialRunView> rows = jdbcTemplate.query(
+                "SELECT " + COLUMNS + " FROM official_runs "
+                        + "WHERE state = 'completed' AND result IS NOT NULL "
+                        + "ORDER BY completed_at DESC, created_at DESC LIMIT 1",
+                (resultSet, rowNumber) -> map(resultSet));
+        return rows.stream().findFirst();
+    }
+
     public void markRunning(UUID id) {
         int updated = jdbcTemplate.update(
                 "UPDATE official_runs SET state = 'running', started_at = COALESCE(started_at, now()) "

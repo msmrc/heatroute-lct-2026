@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Eye, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge, Card, ProgressBar, StateView, StatusBadge } from "../components/ui/primitives";
 import { Button } from "../components/ui/button";
+import { RouteVisualization } from "../components/official/RouteVisualization";
 import {
   ApiError,
   cancelOfficialJob,
@@ -13,6 +14,7 @@ import {
   createTopologyJob,
   getOfficialImport,
   getOfficialJob,
+  getLatestOfficialRun,
   getOfficialRun,
   humanFileSize,
   type OfficialImport,
@@ -71,6 +73,25 @@ export function OfficialWorkspacePage() {
       setRunId("");
       queryClient.setQueryData(["official-import", value.id], value);
       toast.success("GeoJSON проверен и сохранён");
+    },
+    onError: (error) => toast.error(errorText(error)),
+  });
+  const loadDemo = useMutation({
+    mutationFn: () => getLatestOfficialRun(),
+    onSuccess: (value) => {
+      localStorage.setItem(IMPORT_KEY, value.import_id);
+      localStorage.setItem(RUN_KEY, value.id);
+      setImportId(value.import_id);
+      setRunId(value.id);
+      queryClient.setQueryData(["official-run", value.id], value);
+      if (value.job_id) {
+        localStorage.setItem(JOB_KEY, value.job_id);
+        setJobId(value.job_id);
+      } else {
+        localStorage.removeItem(JOB_KEY);
+        setJobId("");
+      }
+      toast.success("Готовый расчёт открыт");
     },
     onError: (error) => toast.error(errorText(error)),
   });
@@ -141,10 +162,16 @@ export function OfficialWorkspacePage() {
               event.currentTarget.value = "";
             }}
           />
-          <Button onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
-            {upload.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <FileJson2 size={16} />}
-            {upload.isPending ? "Проверяем…" : "Выбрать файл"}
-          </Button>
+          <div className="official-upload-actions">
+            <Button onClick={() => inputRef.current?.click()} disabled={upload.isPending}>
+              {upload.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <FileJson2 size={16} />}
+              {upload.isPending ? "Проверяем…" : "Выбрать файл"}
+            </Button>
+            <Button variant="outline" onClick={() => loadDemo.mutate()} disabled={loadDemo.isPending}>
+              {loadDemo.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Eye size={16} />}
+              Открыть демо
+            </Button>
+          </div>
         </Card>
 
         <Card className="official-status-card">
@@ -231,7 +258,12 @@ export function OfficialWorkspacePage() {
                   {activeRun && <div><dt>Алгоритм</dt><dd>{activeRun.algorithm_version}</dd></div>}
                 </dl>
                 {currentJob.error_message && <p className="text-danger">{currentJob.error_code}: {currentJob.error_message}</p>}
-                {currentJob.result !== undefined && <pre className="official-result">{JSON.stringify(currentJob.result, null, 2)}</pre>}
+                {currentJob.result !== undefined && (
+                  <details className="official-result-details">
+                    <summary>Технический JSON результата</summary>
+                    <pre className="official-result">{JSON.stringify(currentJob.result, null, 2)}</pre>
+                  </details>
+                )}
                 <div className="card-actions">
                   <Button variant="outline" onClick={() => void job.refetch()}><RotateCcw size={15} /> Обновить</Button>
                   {isJobActive && <Button variant="outline" disabled={cancelJob.isPending} onClick={() => cancelJob.mutate()}>Отменить</Button>}
@@ -245,6 +277,10 @@ export function OfficialWorkspacePage() {
             )}
           </Card>
         </div>
+      )}
+
+      {currentRun?.state === "completed" && currentRun.result && (
+        <RouteVisualization result={currentRun.result} />
       )}
     </div>
   );

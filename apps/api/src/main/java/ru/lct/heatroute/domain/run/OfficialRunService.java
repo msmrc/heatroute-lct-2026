@@ -36,4 +36,9 @@ public class OfficialRunService {
     public OfficialRunView find(UUID runId) {
         return runRepository.find(runId).orElse(null);
     }
+
+    @Transactional(readOnly = true)
+    public OfficialRunView findLatestCompleted() {
+        return runRepository.findLatestCompleted().orElse(null);
+    }
 }

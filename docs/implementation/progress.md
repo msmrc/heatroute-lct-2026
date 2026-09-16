@@ -54,6 +54,11 @@ and runtime services were removed. The frontend calls only the current official 
   all 17 demands. The independent variant validly connected 16 and preserved one explicit
   `NO_NON_CROSSING_ROUTE`; the preferred shared variant connected all 17 with 21 sections,
   3,448.671 m total length and zero validator issues.
+- The official workspace now has an interactive EPSG:32637 engineering diagram for completed
+  runs: variant switching, route/node rendering, zoom, node inspection, KPIs and no-route
+  diagnostics. `GET /api/v1/official/runs/latest` powers a dataset-independent “open demo” action.
+  This viewer intentionally shows the current internal R4 graph, not the still-missing official
+  seven-type R7 export or a cartographic basemap.
 
 ## Roadmap truth
 
@@ -65,8 +70,9 @@ and runtime services were removed. The frontend calls only the current official 
 - R3 — functional vertical slice: topology validation, chamber rule, deterministic candidates and
   line splitting. Indexed large-network search and persistence of selected tie-ins remain.
 - R4 — first vertical slice implemented: immutable all-demand runs, deterministic independent and
-  shared-trunk strategies, partial no-route and an independent tree/crossing/chamber validator.
-  Obstacle-aware search, normalization/local improvement and three-way diversity remain.
+  shared-trunk strategies, partial no-route, an independent tree/crossing/chamber validator and an
+  interactive result viewer. Obstacle-aware search, normalization/local improvement and three-way
+  diversity remain.
 - R5 — partial: pure sizing/DU/continuous-length rules exist; existing-network flow propagation
   and reconstruction are not implemented.
 - R6 — partial: catalog and crossing geometry exist; route-search and final-validator integration

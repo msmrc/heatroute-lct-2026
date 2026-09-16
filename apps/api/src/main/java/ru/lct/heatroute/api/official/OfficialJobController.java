@@ -59,6 +59,16 @@ public class OfficialJobController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(runService.create(imported));
     }
 
+    @GetMapping("/runs/latest")
+    @Operation(operationId = "getLatestCompletedOfficialRun", summary = "Read the latest completed calculation for the visual demo")
+    public OfficialRunView getLatestCompletedRun() {
+        OfficialRunView run = runService.findLatestCompleted();
+        if (run == null) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "RUN_NOT_FOUND", "No completed official run was found");
+        }
+        return run;
+    }
+
     @GetMapping("/runs/{runId}")
     @Operation(operationId = "getOfficialRun", summary = "Read immutable calculation run state and result")
     public OfficialRunView getRun(@PathVariable UUID runId) {

@@ -63,11 +63,61 @@ export interface OfficialRun {
   state: string;
   algorithm_version: string;
   input_sha256: string;
-  result?: unknown;
+  result?: OfficialCalculationResult;
   error_code?: string;
   error_message?: string;
   created_at: string;
   completed_at?: string;
+}
+
+export interface OfficialRouteCoordinate {
+  xm: number;
+  ym: number;
+}
+
+export interface OfficialRouteNode {
+  id: string;
+  root: boolean;
+  chamber: boolean;
+  node_type: string;
+  target_id?: string | null;
+  coordinate: OfficialRouteCoordinate;
+  base_incident_sections: number;
+}
+
+export interface OfficialRouteEdge {
+  id: string;
+  length_m: number;
+  upstream_node_id: string;
+  downstream_node_id: string;
+}
+
+export interface OfficialRouteConnection {
+  status: "connected" | "no_route";
+  flow_tph: number;
+  demand_id: string;
+  connection_point_id: string;
+  reason?: string;
+}
+
+export interface OfficialRouteVariant {
+  id: string;
+  strategy: string;
+  valid: boolean;
+  nodes: OfficialRouteNode[];
+  edges: OfficialRouteEdge[];
+  connections: OfficialRouteConnection[];
+  total_length_m: number;
+  validation_issues: unknown[];
+  no_route_demand_count: number;
+  connected_demand_count: number;
+}
+
+export interface OfficialCalculationResult {
+  variants: OfficialRouteVariant[];
+  demand_count: number;
+  algorithm_version: string;
+  preferred_variant_id: string;
 }
 
 const configuredApiBase: unknown = import.meta.env.VITE_API_BASE_URL;
@@ -115,6 +165,10 @@ export function createOfficialRun(importId: string): Promise<OfficialRun> {
 
 export function getOfficialRun(runId: string, signal?: AbortSignal): Promise<OfficialRun> {
   return request(`/official/runs/${encodeURIComponent(runId)}`, { signal });
+}
+
+export function getLatestOfficialRun(signal?: AbortSignal): Promise<OfficialRun> {
+  return request("/official/runs/latest", { signal });
 }
 
 export function getOfficialJob(jobId: string, signal?: AbortSignal): Promise<OfficialJob> {

@@ -54,6 +54,9 @@ Already usable:
   tree/chamber/crossing validator;
 - production evidence on the organizer file: the preferred shared variant connects all 17 demands
   with zero structural validator issues.
+- interactive R4 result diagram with variant comparison, node inspection, no-route diagnostics and
+  a latest-completed-run demo endpoint; it renders the internal metric graph and must later be
+  replaced or extended by the official R7 seven-type output adapter.
 
 Still blocking official P0:
 

@@ -62,6 +62,9 @@ jobs:
           IMPORT_JSON=$(curl --fail --silent -F "file=@datasets/official/lct-2026.geojson;type=application/geo+json" http://localhost:8000/api/v1/official/imports)
           IMPORT_ID=$(printf '%s' "$IMPORT_JSON" | jq -r '.id')
           test "$(printf '%s' "$IMPORT_JSON" | jq -r '.report.feature_count')" = "144"
+          MAP_JSON=$(curl --fail --silent "http://localhost:8000/api/v1/official/imports/${IMPORT_ID}/map?minLon=37.60&minLat=55.68&maxLon=37.68&maxLat=55.72")
+          test "$(printf '%s' "$MAP_JSON" | jq -r '.type')" = "FeatureCollection"
+          test "$(printf '%s' "$MAP_JSON" | jq -r '[.features[].properties.object_type] | index("heat_network") != null')" = "true"
           RUN_JSON=$(curl --fail --silent -X POST "http://localhost:8000/api/v1/official/imports/${IMPORT_ID}/runs")
           RUN_ID=$(printf '%s' "$RUN_JSON" | jq -r '.id')
           JOB_ID=$(printf '%s' "$RUN_JSON" | jq -r '.job_id')

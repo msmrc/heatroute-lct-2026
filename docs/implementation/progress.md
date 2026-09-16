@@ -59,11 +59,13 @@ and runtime services were removed. The frontend calls only the current official 
   all 17 demands. The independent variant validly connected 16 and preserved one explicit
   `NO_NON_CROSSING_ROUTE`; the preferred shared variant connected all 17 with 21 sections,
   3,448.671 m total length and zero validator issues.
-- The official workspace now has an interactive EPSG:32637 engineering diagram for completed
-  runs: variant switching, route/node rendering, zoom, node inspection, KPIs and no-route
-  diagnostics. `GET /api/v1/official/runs/latest` powers a dataset-independent “open demo” action.
-  This viewer intentionally shows the current internal R4 graph, not the still-missing official
-  seven-type R7 export or a cartographic basemap.
+- The official workspace now defaults to an OpenLayers GIS view: OpenStreetMap basemap, calculated
+  route/nodes transformed from EPSG:32637, and bounded WGS84 source layers from PostGIS. Users can
+  toggle the basemap, existing heat network, restrictions and result, inspect map objects, switch
+  route variants, or return to the EPSG:32637 engineering diagram. The bounded
+  `GET /api/v1/official/imports/{id}/map` endpoint caps a viewport at 10,000 features and reports
+  truncation. `GET /api/v1/official/runs/latest` powers the dataset-independent “open demo” action.
+  This remains an R4 evidence viewer, not the still-missing official seven-type R7 export.
 
 ## Roadmap truth
 
@@ -76,8 +78,8 @@ and runtime services were removed. The frontend calls only the current official 
   line splitting. Indexed large-network search and persistence of selected tie-ins remain.
 - R4 — first vertical slice implemented: immutable all-demand runs, deterministic independent and
   shared-trunk strategies, partial no-route, an independent tree/crossing/chamber validator and an
-  interactive result viewer. Obstacle-aware search, normalization/local improvement and three-way
-  diversity remain.
+  interactive GIS/result viewer. Obstacle-aware search, normalization/local improvement and
+  three-way diversity remain.
 - R5 — partial: pure sizing/DU/continuous-length rules exist; existing-network flow propagation
   and reconstruction are not implemented.
 - R6 — partial: catalog and crossing geometry exist; route-search and final-validator integration

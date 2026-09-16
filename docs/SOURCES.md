@@ -9,8 +9,11 @@ used only to implement those requirements:
 - PostgreSQL 17 and PostGIS 3.5 manuals;
 - Liquibase 4.33 documentation;
 - LocationTech JTS and Proj4J documentation;
+- OpenLayers 10 documentation and BSD-2-Clause license;
+- OpenStreetMap standard tile usage policy and attribution requirements;
 - GeoJSON RFC 7946;
 - Docker Compose file format 3.8 / docker-compose 1.29.2 documentation.
 
-Dependency choices and versions are pinned in `apps/api/pom.xml` and Dockerfiles. Any library
+Dependency choices and versions are pinned in `apps/api/pom.xml`, `apps/web/package.json` and
+Dockerfiles. Any library
 change affecting Java 11 or the official deployment target requires an ADR and a clean build test.

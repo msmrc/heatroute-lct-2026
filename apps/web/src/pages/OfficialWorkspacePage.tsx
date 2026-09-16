@@ -280,7 +280,7 @@ export function OfficialWorkspacePage() {
       )}
 
       {currentRun?.state === "completed" && currentRun.result && (
-        <RouteVisualization result={currentRun.result} />
+        <RouteVisualization result={currentRun.result} importId={currentRun.import_id} />
       )}
     </div>
   );

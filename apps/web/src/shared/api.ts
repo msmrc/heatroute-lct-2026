@@ -120,6 +120,19 @@ export interface OfficialCalculationResult {
   preferred_variant_id: string;
 }
 
+export interface OfficialMapBounds {
+  minLon: number;
+  minLat: number;
+  maxLon: number;
+  maxLat: number;
+}
+
+export interface OfficialMapFeatureCollection {
+  type: "FeatureCollection";
+  features: unknown[];
+  truncated: boolean;
+}
+
 const configuredApiBase: unknown = import.meta.env.VITE_API_BASE_URL;
 const rawBase = typeof configuredApiBase === "string" ? configuredApiBase : "/api/v1";
 const absoluteBase = rawBase.startsWith("/") ? `${window.location.origin}${rawBase}` : rawBase;
@@ -153,6 +166,15 @@ export function createOfficialImport(file: File): Promise<OfficialImport> {
 
 export function getOfficialImport(importId: string, signal?: AbortSignal): Promise<OfficialImport> {
   return request(`/official/imports/${encodeURIComponent(importId)}`, { signal });
+}
+
+export function getOfficialMap(
+  importId: string,
+  bounds: OfficialMapBounds,
+  signal?: AbortSignal,
+): Promise<OfficialMapFeatureCollection> {
+  const query = new URLSearchParams(Object.entries(bounds).map(([key, value]) => [key, String(value)]));
+  return request(`/official/imports/${encodeURIComponent(importId)}/map?${query}`, { signal });
 }
 
 export function createTopologyJob(importId: string): Promise<OfficialJob> {

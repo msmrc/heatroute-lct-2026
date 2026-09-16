@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import ru.lct.heatroute.api.error.ApiException;
@@ -24,6 +25,7 @@ import ru.lct.heatroute.domain.input.OfficialImportService;
 import ru.lct.heatroute.domain.input.OfficialImportView;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 import ru.lct.heatroute.domain.topology.TopologyAnalysisService;
+import ru.lct.heatroute.domain.topology.OfficialMapService;
 
 @RestController
 @RequestMapping("/api/v1/official/imports")
@@ -32,14 +34,17 @@ public class OfficialImportController {
     private final OfficialGeoJsonInspector inspector;
     private final OfficialImportService importService;
     private final TopologyAnalysisService topologyAnalysisService;
+    private final OfficialMapService mapService;
 
     public OfficialImportController(
             OfficialGeoJsonInspector inspector,
             OfficialImportService importService,
-            TopologyAnalysisService topologyAnalysisService) {
+            TopologyAnalysisService topologyAnalysisService,
+            OfficialMapService mapService) {
         this.inspector = inspector;
         this.importService = importService;
         this.topologyAnalysisService = topologyAnalysisService;
+        this.mapService = mapService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -85,6 +90,21 @@ public class OfficialImportController {
                     "Topology analysis requires a valid official import");
         }
         return topologyAnalysisService.analyze(importId);
+    }
+
+    @GetMapping(value = "/{importId}/map", produces = "application/geo+json")
+    @Operation(
+            operationId = "getOfficialMapFeatures",
+            summary = "Read WGS84 official features intersecting a bounded map viewport")
+    public ResponseEntity<String> map(
+            @PathVariable UUID importId,
+            @RequestParam double minLon,
+            @RequestParam double minLat,
+            @RequestParam double maxLon,
+            @RequestParam double maxLat) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.valueOf("application/geo+json"))
+                .body(mapService.findMapFeatures(importId, minLon, minLat, maxLon, maxLat));
     }
 
     @PostMapping(value = "/inspect", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

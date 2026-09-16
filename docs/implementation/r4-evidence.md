@@ -21,6 +21,10 @@
 - Candidate selection tries farther R3 tie-ins when the nearest straight connection would cross an
   already accepted new section; if every candidate conflicts, only that demand becomes no-route.
 - The official UI can queue the full run and display its immutable run/job provenance and result.
+- Completed runs render on an OpenLayers/OpenStreetMap GIS view. Route nodes are transformed from
+  EPSG:32637, while a bounded Java/PostGIS endpoint returns intersecting official WGS84 restrictions,
+  heat-network sections, chambers, sources and connection points. Each source/result layer can be
+  toggled and map objects can be inspected; the previous metric schematic remains available.
 
 ## Automated evidence
 
@@ -49,6 +53,10 @@ It does not yet search around official forbidden buffers or build special passag
 shared with R6. It currently produces the independent baseline plus one shared heuristic variant,
 not three fully diverse alternatives. A variant rejected by the independent validator is retained
 for diagnostics but cannot become preferred.
+
+The GIS view proves coordinate placement and source/result comparison only. It does not make the
+straight sections obstacle-aware and is not the strict seven-type R7 deliverable. Standard OSM tiles
+are a best-effort external basemap; the route and official vector layers remain usable independently.
 
 R4 closes only after obstacle-aware route search, route normalization/local improvement and the
 remaining alternative-diversity gate pass on official-like boundary cases.

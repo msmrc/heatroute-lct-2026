@@ -1,8 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { OfficialCalculationResult } from "../../shared/api";
 import { RouteVisualization } from "./RouteVisualization";
+
+vi.mock("./OfficialRouteMap", () => ({
+  OfficialRouteMap: () => <div>Интерактивная карта</div>,
+}));
 
 const result: OfficialCalculationResult = {
   algorithm_version: "test",
@@ -50,10 +54,11 @@ const result: OfficialCalculationResult = {
 
 describe("RouteVisualization", () => {
   it("opens on the preferred variant and exposes no-route diagnostics when switched", () => {
-    render(<RouteVisualization result={result} />);
+    render(<RouteVisualization result={result} importId="import-1" />);
 
     expect(screen.getByRole("tab", { name: /Общая сеть/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("2 / 2")).toBeTruthy();
+    expect(screen.getByText("Интерактивная карта")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
     expect(screen.getByText(/ОКС 2: NO_ROUTE/)).toBeTruthy();

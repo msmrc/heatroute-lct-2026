@@ -30,6 +30,39 @@ public class OfficialFeatureRepository {
                 importId);
     }
 
+    public String findMapFeatures(
+            UUID importId,
+            double minLongitude,
+            double minLatitude,
+            double maxLongitude,
+            double maxLatitude) {
+        return jdbcTemplate.queryForObject(
+                "WITH visible AS ("
+                        + "SELECT feature_id, object_type, attributes, geometry_wgs84 "
+                        + "FROM official_features "
+                        + "WHERE import_id = ? AND geometry_wgs84 && ST_MakeEnvelope(?, ?, ?, ?, 4326) "
+                        + "ORDER BY feature_id LIMIT 10001"
+                        + "), numbered AS ("
+                        + "SELECT *, row_number() OVER () AS row_number FROM visible"
+                        + ") SELECT jsonb_build_object("
+                        + "'type', 'FeatureCollection', "
+                        + "'features', COALESCE(jsonb_agg(jsonb_build_object("
+                        + "'type', 'Feature', "
+                        + "'id', feature_id, "
+                        + "'geometry', ST_AsGeoJSON(geometry_wgs84)::jsonb, "
+                        + "'properties', attributes || jsonb_build_object("
+                        + "'feature_id', feature_id, 'object_type', object_type)"
+                        + ") ORDER BY feature_id) FILTER (WHERE row_number <= 10000), '[]'::jsonb), "
+                        + "'truncated', COALESCE(bool_or(row_number > 10000), false)"
+                        + ")::text FROM numbered",
+                String.class,
+                importId,
+                minLongitude,
+                minLatitude,
+                maxLongitude,
+                maxLatitude);
+    }
+
     private ImportedOfficialFeature map(ResultSet resultSet) throws SQLException {
         try {
             JsonNode attributes = objectMapper.readTree(resultSet.getString(3));

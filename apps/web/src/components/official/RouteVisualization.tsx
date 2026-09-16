@@ -1,8 +1,9 @@
-import { AlertTriangle, CheckCircle2, Focus, Network, Route, ZoomIn, ZoomOut } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Focus, MapPinned, Network, Route, ZoomIn, ZoomOut } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Badge, Card } from "../ui/primitives";
 import { Button } from "../ui/button";
+import { OfficialRouteMap } from "./OfficialRouteMap";
 import type {
   OfficialCalculationResult,
   OfficialRouteNode,
@@ -71,11 +72,12 @@ function RouteNodeGlyph({ node, x, y, selected, onSelect }: {
   );
 }
 
-export function RouteVisualization({ result }: { result: OfficialCalculationResult }) {
+export function RouteVisualization({ result, importId }: { result: OfficialCalculationResult; importId: string }) {
   const defaultVariant = result.variants.find((variant) => variant.id === result.preferred_variant_id) ?? result.variants[0];
   const [variantId, setVariantId] = useState(defaultVariant?.id ?? "");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [viewMode, setViewMode] = useState<"map" | "schematic">("map");
   const variant = result.variants.find((item) => item.id === variantId) ?? defaultVariant;
 
   const layout = useMemo(() => {
@@ -113,8 +115,8 @@ export function RouteVisualization({ result }: { result: OfficialCalculationResu
       <header className="route-visualization__header">
         <div>
           <span className="eyebrow">Результат расчёта</span>
-          <h2>Инженерная схема подключения</h2>
-          <p>Фактические координаты EPSG:32637. Линии показывают структуру рассчитанной сети без картографической подложки.</p>
+          <h2>Маршруты на карте</h2>
+          <p>Расчётная трасса, существующая теплосеть и ограничения совмещены на OpenStreetMap. Инженерная схема доступна отдельным режимом.</p>
         </div>
         <div className="route-variant-tabs" role="tablist" aria-label="Варианты маршрута">
           {result.variants.map((item) => (
@@ -151,16 +153,24 @@ export function RouteVisualization({ result }: { result: OfficialCalculationResu
 
       <Card className="route-canvas-card">
         <div className="route-canvas-toolbar">
-          <div className="route-canvas-caption"><Network size={16} /><span>Расчётная схема</span><Badge tone="violet">EPSG:32637</Badge></div>
-          <div className="route-zoom-controls">
-            <Button variant="ghost" aria-label="Уменьшить" onClick={() => setZoom((value) => Math.max(.75, value - .25))}><ZoomOut size={16} /></Button>
-            <span>{Math.round(zoom * 100)}%</span>
-            <Button variant="ghost" aria-label="Увеличить" onClick={() => setZoom((value) => Math.min(2.5, value + .25))}><ZoomIn size={16} /></Button>
-            <Button variant="ghost" aria-label="Показать всю схему" onClick={() => setZoom(1)}><Focus size={16} /></Button>
+          <div className="route-canvas-caption">{viewMode === "map" ? <MapPinned size={16} /> : <Network size={16} />}<span>{viewMode === "map" ? "Географическая карта" : "Расчётная схема"}</span><Badge tone="violet">{viewMode === "map" ? "WGS84" : "EPSG:32637"}</Badge></div>
+          <div className="route-canvas-actions">
+            <div className="route-view-switch" role="group" aria-label="Режим визуализации">
+              <button type="button" className={viewMode === "map" ? "is-active" : undefined} onClick={() => setViewMode("map")}><MapPinned size={14} /> Карта</button>
+              <button type="button" className={viewMode === "schematic" ? "is-active" : undefined} onClick={() => setViewMode("schematic")}><Network size={14} /> Схема</button>
+            </div>
+            {viewMode === "schematic" && <div className="route-zoom-controls">
+              <Button variant="ghost" aria-label="Уменьшить" onClick={() => setZoom((value) => Math.max(.75, value - .25))}><ZoomOut size={16} /></Button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <Button variant="ghost" aria-label="Увеличить" onClick={() => setZoom((value) => Math.min(2.5, value + .25))}><ZoomIn size={16} /></Button>
+              <Button variant="ghost" aria-label="Показать всю схему" onClick={() => setZoom(1)}><Focus size={16} /></Button>
+            </div>}
           </div>
         </div>
 
-        <div className="route-canvas-wrap">
+        {viewMode === "map" ? (
+          <OfficialRouteMap importId={importId} variant={variant} />
+        ) : <div className="route-canvas-wrap">
           <svg className="route-canvas" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} role="img" aria-label={`${variantName(variant)}, ${variant.edges.length} участков`}>
             <defs>
               <pattern id="route-grid-small" width="25" height="25" patternUnits="userSpaceOnUse">
@@ -212,11 +222,11 @@ export function RouteVisualization({ result }: { result: OfficialCalculationResu
               </dl>
             </aside>
           )}
-        </div>
+        </div>}
 
         <footer className="route-canvas-footer">
-          <span><Route size={15} /> Охват схемы: {Math.round(layout.rangeX)} × {Math.round(layout.rangeY)} м</span>
-          <span>Нажмите на узел, чтобы увидеть координаты</span>
+          <span><Route size={15} /> Охват: {Math.round(layout.rangeX)} × {Math.round(layout.rangeY)} м</span>
+          <span>{viewMode === "map" ? "Нажмите на трассу или объект, чтобы увидеть данные" : "Нажмите на узел, чтобы увидеть координаты"}</span>
         </footer>
       </Card>
 

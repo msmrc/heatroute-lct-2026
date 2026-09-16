@@ -7,7 +7,7 @@
 - secrets: `/opt/heatroute/.env.vps`, mode 600, never committed;
 - public endpoint: `https://130-49-150-217.sslip.io/`;
 - services: PostGIS `db`, Java `api`, React/Nginx `web`, Caddy `gateway`;
-- web CSP allows the CARTO Positron style, vector tiles, sprites and glyphs used by MapLibre; its
+- web CSP allows the CARTO Positron style, TileJSON, sprites, glyphs and sharded `*.basemaps.cartocdn.com` vector tiles used by MapLibre; its
   Referer policy preserves the origin required by the basemap service;
 - only 22, 80 and 443 are public; 5173, 8000 and 55432 remain loopback/internal.
 

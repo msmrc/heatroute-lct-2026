@@ -7,6 +7,8 @@
 - secrets: `/opt/heatroute/.env.vps`, mode 600, never committed;
 - public endpoint: `https://130-49-150-217.sslip.io/`;
 - services: PostGIS `db`, Java `api`, React/Nginx `web`, Caddy `gateway`;
+- web CSP allows raster images only from the configured default OSM tile origin; its Referer policy
+  preserves the origin required by the standard tile service;
 - only 22, 80 and 443 are public; 5173, 8000 and 55432 remain loopback/internal.
 
 The demo VPS release is Java-only. Liquibase runs automatically during API startup. The current

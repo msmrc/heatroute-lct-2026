@@ -4,14 +4,16 @@ The detailed plan is `implementation/OFFICIAL_TZ_ROADMAP.md`. This file defines 
 
 | Order | Stage | Owner focus | Exit gate |
 |---:|---|---|---|
-| 1 | R4 | Developer | Multi-OKS trees, shared/separate variants, independent validator |
-| 2 | R5 remainder | Developer | Upstream reconstruction and chamber reconstruction |
-| 3 | R6 integration | Developer | Exact constraints inside search and final validation |
-| 4 | R7 | Developer + PM | Official rates, score, diverse alternatives, seven-type export |
-| 5 | R9 early | Developer | Large-file/load instrumentation and Ubuntu 22 rehearsal |
-| 6 | R8 | Developer | Preserve the completed solver/validator, XY feedback, technical nodes and XYZ evidence |
+| 1 | Q&A-P0 economics | Developer | Supplied run gets complete cost/rank/export without reconstruction; connect-vs-penalty choice works |
+| 2 | Q&A-P0 geometry | Developer | Normal OKS egress, 45°/90° preference, non-standard bend ×1.5 |
+| 3 | Q&A-P0 crossings/tie-ins | Developer | Overlap uses max `K_special`; every new chamber ray costs one tie-in |
+| 4 | Q&A-P0 scale | Developer | Routing uses bounded PostGIS windows/cursors instead of one full Java feature list |
+| 5 | R9 acceptance | Developer + PM | Updated supplied-profile contract, offline package and Ubuntu 22 evidence |
+| 6 | Strict reconstruction / R8 | Developer | Preserve as optional profiles pending written organizer clarifications |
 
-PM owns organizer clarifications, official catalog transcription review, fixture provenance,
+The active clarification checklist is
+`implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`. PM owns written organizer clarifications,
+official catalog transcription review, fixture provenance,
 acceptance evidence and protection of P0 scope. The developer owns implementation, boundary/golden
 tests, deterministic contracts and measured evidence. See `implementation/TOMORROW_HANDOFF.md`
 for the exact first slice.

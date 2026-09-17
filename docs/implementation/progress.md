@@ -1,6 +1,25 @@
 # Current implementation progress
 
-**Updated:** 2026-09-16
+## Organizer video clarification review — 2026-09-17
+
+The full organizer Q&A recording was reviewed against `origin/master` at `c5413b8`. The active
+decisions and unresolved contradictions are recorded in
+`ORGANIZER_VIDEO_CLARIFICATIONS.md`; `docs/ALGORITHM.md`, `docs/IMPLEMENTATION_PLAN.md`, the roadmap,
+handoff, contracts and acceptance gates now point to that interpretation.
+
+This review changes readiness claims but does not change production code:
+
+- supplied-profile reconstruction is no longer mandatory and must not block cost/rank/export;
+- all 17 supplied connection points are inside OKS polygons and require normal egress;
+- connect-vs-penalty, bend ×1.5, overlap max `K_special` and per-ray tie-in cost remain P0 gaps;
+- depth moves behind the mandatory 2D result and disputed depth constants await written confirmation;
+- routing still materializes the import as one Java list and requires bounded PostGIS access for
+  real 2–3 GB city data.
+
+Historical R5/R7/R8 evidence below remains valid for the implementation that was tested, but it is
+not proof that the clarified supplied-dataset P0 is complete.
+
+**Updated:** 2026-09-17
 
 ## Active baseline
 

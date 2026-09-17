@@ -1,7 +1,18 @@
 # Technical sources
 
-Primary product requirements are the organizer PDF and technical DOCX. External documentation is
-used only to implement those requirements:
+Primary product requirements are the organizer PDF and technical DOCX. The later organizer video
+Q&A is an active scope clarification for the supplied dataset, but direct conflicts still require
+written confirmation. The extracted decisions, timestamps and unresolved questions are recorded in
+`implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`.
+
+Source precedence:
+
+1. organizer PDF and technical DOCX for exact tables, fields and formulas;
+2. later organizer Q&A for current supplied-dataset scope and implementation priority;
+3. repository prose and roadmaps;
+4. external documentation, used only to implement the requirements.
+
+External implementation sources:
 
 - Spring Boot 2.6.3 reference documentation;
 - springdoc-openapi 1.7.0 documentation;

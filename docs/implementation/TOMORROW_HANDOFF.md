@@ -64,6 +64,11 @@ $env:JAVA_HOME = 'E:\job\.tooling\apps\temurin-11\jdk-11.0.32.1+1'
 
 ## Current reality
 
+Before using the older handoff below, read `ORGANIZER_VIDEO_CLARIFICATIONS.md`. The organizer Q&A
+changed the active supplied-dataset scope: reconstruction is not mandatory, depth is second-stage,
+and several 2D/economics rules are not yet implemented. Older statements that R4–R8 need no
+algorithm changes are superseded by this note.
+
 The mandatory 2D Java pipeline is implemented end to end on contract-complete fixtures. The public
 UI exposes only what the backend can prove. Do not restore legacy screens or fabricate missing
 organizer fields.
@@ -100,15 +105,24 @@ Already usable:
   imported filename in the toolbar and a collapsible navigation rail. Technical stack, version,
   team and Swagger live on the separate `/system` page instead of the work screen.
 
-External decisions before an unconditional official P0 claim:
+Implementation work before an unconditional official P0 claim:
+
+- allow complete supplied-profile cost/rank/export without reconstruction;
+- enforce normal egress from the containing OKS for all 17 demand points;
+- optimize connect versus official unconnected penalty;
+- account for non-standard bend ×1.5, max overlapping `K_special` and one tie-in per new ray;
+- separate optional depth from mandatory 2D and remove whole-import Java-list routing.
+
+External decisions still required:
 
 - organizer approval that the passing full 2× topology gate represents the hidden maximum;
-- organizer clarification of `railway` and missing reconstruction attributes;
+- organizer clarification of `railway`, reduced output types and disputed depth/length rules;
 - production-like Ubuntu 22 host rehearsal only if clean ephemeral CI is not accepted.
 
 ## Developer: next vertical slice
 
-Continue from `domain/export`; do not replace the immutable run/job contract. R7 component costs,
+Preserve the immutable run/job contract, but do not treat current R7 as final for the supplied
+profile. Continue from routing/economics/export. R7 component costs,
 length, score/rank, strict seven-type serialization, independent whitelist/type/reference
 validation, feature-by-feature preflight and incremental Jackson download are already integrated.
 R7 is closed against the normative appendix tables and formulas. Section 10.8 explicitly calls its
@@ -117,8 +131,8 @@ numbers illustrative and differs by 19/33 RUB; keep the golden expectations deri
 official output model. Dense constraint lookup uses adaptive JTS STRtree and is locked by a
 1,001-constraint/20,000-query fixture. The project-owned full 2× topology gate passes on Ubuntu 22
 / Java 11 with 34/34 demands; obtain organizer approval before calling it the official maximum.
-R8 depth is separately complete for published rules. Do not fold unresolved `railway` semantics
-into either the R6 or R8 claim.
+R8 is preserved evidence for the published rules, but must become a separate second-stage mode.
+Do not change disputed 0.5 m / 0.7 m / slope semantics before a written organizer answer.
 Repeated imports are idempotent by `(contract_version, raw_sha256)` and concurrent duplicates are
 resolved by PostgreSQL `ON CONFLICT`; preserve this invariant in all future import changes.
 Job execution is bounded by `HEATROUTE_JOB_CONCURRENCY` (default 2, hard maximum 16) and active
@@ -135,12 +149,11 @@ Do not mix MVT or extra formats into the remaining external acceptance gate.
 
 1. Сначала проверь чистый `master`, запусти команды из раздела «Start in five minutes» и пройди
    основной сценарий `файл -> loader -> карта -> варианты -> предупреждения -> профиль`.
-2. Не переписывай работающие R4–R8. Ближайший продуктовый остаток — не новый алгоритм, а внешняя
-   приёмка: подтверждение максимального профиля нагрузки, трактовка `railway` и недостающих полей
-   реконструкции у постановщика.
+2. Не переписывай каркас R4–R8, но исправь перечисленные в
+   `ORGANIZER_VIDEO_CLARIFICATIONS.md` Q&A-P0 правила. Реконструкция supplied dataset больше не
+   должна считаться внешним блокером результата.
 3. Для конкурсной сдачи собирай материалы по `docs/CONTEST_SUBMISSION.md`, а критерии сверяй с
-   `docs/ACCEPTANCE.md`. Не называй реконструкцию полной на поставленном наборе: необходимых полей
-   в нём объективно нет.
+   `docs/ACCEPTANCE.md`. Реконструкцию показывай только как расширенный strict-profile.
 4. Если потребуется менять R8, сначала сохрани инварианты из
    `docs/implementation/R8_VERTICAL_EVIDENCE.md`: полка 4 м, шаг глубины 0.5 м, уклон не более
    0.10 м/м, независимая валидация, честный partial/no-route при невозможном проходе.
@@ -159,7 +172,7 @@ Do not mix MVT or extra formats into the remaining external acceptance gate.
 - keep MVT and extra formats outside P0 until the external R9 decisions close;
 - review every “complete” claim against `docs/ACCEPTANCE.md`, not old M-stage evidence.
 - ask the organizer to resolve the supplied-dataset mismatch, especially `railway`, direct demand
-  on connection points and the missing existing-network reconstruction attributes.
+  on connection points, reduced output types, continuous-length branching and disputed depth rules.
 
 ## Known operational notes
 

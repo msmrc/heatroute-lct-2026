@@ -12,13 +12,21 @@ An R-stage is complete only when its roadmap checklist and evidence are both com
 
 ## Official P0 release
 
-- one run handles all `oks_future` and automatically chooses feasible tie-ins;
+The active supplied-dataset gate follows
+`implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`. Reconstruction/depth evidence is retained for
+strict/optional profiles and does not replace the following 2D gates.
+
+- one run handles all demand objects (`oks_future` in strict profile or direct connection points in
+  supplied profile) and automatically chooses feasible tie-ins;
 - shared/separate topology, chambers and tree invariants pass independent validation;
-- official flow, 18-row DU table, continuous lengths and upstream reconstruction are exact;
+- official flow, 18-row DU table and continuous lengths are exact;
+- every demand exits its containing OKS along a validated normal egress segment;
+- connect-vs-penalty, bend ×1.5, overlap max `K_special` and per-ray tie-in cost are exact;
 - every restriction and special crossing has positive, boundary and negative tests;
 - official costs, penalties and score reproduce appendix examples;
 - up to three alternatives are materially different and ranked deterministically;
-- strict seven-type GeoJSON passes the published JSON Schema and cross-feature reference validation;
+- supplied-profile GeoJSON is downloadable and ranked without reconstruction baseline; strict
+  reconstruction output remains valid when all source fields exist;
 - partial no-route output preserves successful OKS and lists/penalizes failures;
 - 3 GB input, 500 MB output, 16 GB RAM and 50-user evidence is recorded;
 - clean Ubuntu Server 22 / docker-compose 1.29.2 deployment and restart recovery pass;
@@ -39,7 +47,8 @@ Current local smoke evidence and open gates are in `implementation/progress.md`.
 | 50 concurrent users | Passed for public API sessions | Runs `35126566499` and `35129162919`; 50 simultaneous imports, one durable ID; both include the connection-pool starvation fix |
 | Ubuntu 22 / docker-compose 1.29.2 / restart recovery | Passed in clean CI | Run `35129162919`; production-like host may still be requested |
 | Full calculation beyond supplied topology | Passed on project 2× profile | Run `35119722470`: 288 features, 34 demands, 408 candidates, 481,092 KiB peak RSS; organizer/PM must still approve the maximum profile |
-| Supplied-file final reconstruction/score/export | Blocked on source data | Requires missing flow, upstream direction and chamber diameter or a waiver |
+| Supplied-file score/rank/export without reconstruction | Open implementation gap | Video Q&A removes reconstruction from mandatory scope; current gating must be changed |
+| Normal OKS egress and Q&A economics rules | Open implementation gap | Add normal exit, connect-vs-penalty, bend ×1.5, overlap max coefficient and per-ray tie-in cost |
 
 Detailed byte/memory and concurrency measurements are in
 `implementation/R9_INPUT_SCALE_EVIDENCE.md` and

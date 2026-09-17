@@ -1,5 +1,11 @@
 # Official data contracts
 
+For the active supplied-dataset interpretation, read
+`implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`. Exact PDF/DOCX fields remain the strict
+profile, while the later organizer Q&A permits a reduced result without existing-network
+reconstruction. The reduced output whitelist still requires written confirmation; until then the
+implementation must not fabricate missing reconstruction fields.
+
 ## Input
 
 `POST /api/v1/official/imports` accepts one multipart field `file` containing a GeoJSON

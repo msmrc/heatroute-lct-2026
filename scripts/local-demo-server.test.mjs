@@ -80,7 +80,7 @@ test("a different file is rejected instead of showing an unrelated result", asyn
 
   const response = await fetch(`${baseUrl}/api/v1/official/imports`, { method: "POST", body });
   assert.equal(response.status, 422);
-  assert.match((await response.json()).message, /только для официального конкурсного GeoJSON/);
+  assert.match((await response.json()).message, /не содержит результата для этого GeoJSON/);
 });
 
 test("multipart payloads beyond the replay boundary are rejected early", async (t) => {

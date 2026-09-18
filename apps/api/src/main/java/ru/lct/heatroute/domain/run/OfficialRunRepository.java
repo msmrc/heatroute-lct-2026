@@ -98,10 +98,13 @@ public class OfficialRunRepository {
     }
 
     public void markCancelled(UUID id) {
-        terminalUpdate(
-                "UPDATE official_runs SET state = 'cancelled', completed_at = now() "
+        int updated = jdbcTemplate.update(
+                "UPDATE official_runs SET state = 'cancelled', completed_at = COALESCE(completed_at, now()) "
                         + "WHERE id = ? AND state IN ('queued', 'running')",
                 id);
+        if (updated != 1 && !find(id).map(run -> "cancelled".equals(run.getState())).orElse(false)) {
+            throw new IllegalStateException("Run cannot transition to cancelled");
+        }
     }
 
     private OfficialRunView map(ResultSet resultSet) throws SQLException {

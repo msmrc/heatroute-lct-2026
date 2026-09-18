@@ -195,7 +195,35 @@ function addOverlayLayers(map: MapLibreMap, contextData: FeatureCollection, rout
     { id: "route-casing", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": "rgba(255,255,255,.96)", "line-width": ["match", ["get", "route_kind"], "trunk", 8, "special", 9, 6.5] } },
     { id: "route-line", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_route"], paint: { "line-color": ["match", ["get", "route_kind"], "trunk", "#5e4be2", "special", "#ed6a3b", "#7464e8"], "line-width": ["match", ["get", "route_kind"], "trunk", 4.5, "special", 5, 3.5] } },
     { id: "reconstruction-nodes", type: "circle", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_reconstruction_chamber"], paint: { "circle-radius": 7, "circle-color": "#d94f70", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.4 } },
-    { id: "route-nodes", type: "circle", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_node"], paint: { "circle-radius": ["match", ["get", "node_type"], "demand_connection", 5, 6], "circle-color": ["case", ["==", ["get", "node_type"], "demand_connection"], "#45a55a", ["==", ["get", "root"], true], "#ed6a3b", "#7357f6"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.4 } },
+    {
+      id: "route-nodes",
+      type: "circle",
+      source: ROUTE_SOURCE,
+      filter: ["==", ["get", "map_layer"], "calculated_node"],
+      // Technical nodes describe a parameter change along a segment. Keep them in the
+      // selectable layer for inspection, but avoid presenting them as physical chambers.
+      paint: {
+        "circle-radius": [
+          "match",
+          ["get", "node_type"],
+          "technical_node", 2,
+          "demand_connection", 5,
+          "new_branch_chamber", 7,
+          "new_tie_in_chamber", 6,
+          "existing_chamber_tie_in", 6,
+          2,
+        ],
+        "circle-color": [
+          "case",
+          ["==", ["get", "node_type"], "technical_node"], "#8b949e",
+          ["==", ["get", "node_type"], "demand_connection"], "#45a55a",
+          ["==", ["get", "root"], true], "#ed6a3b",
+          "#7357f6",
+        ],
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": ["case", ["==", ["get", "node_type"], "technical_node"], 1, 2.4],
+      },
+    },
   ];
   layers.forEach((layer) => map.addLayer(layer));
 }

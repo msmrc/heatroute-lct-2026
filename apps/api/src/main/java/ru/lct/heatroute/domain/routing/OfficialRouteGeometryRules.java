@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.locationtech.jts.algorithm.MinimumDiameter;
@@ -14,6 +15,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineSegment;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.linearref.LengthIndexedLine;
+import org.locationtech.jts.operation.distance.DistanceOp;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.locationtech.jts.index.strtree.STRtree;
@@ -26,6 +28,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 @Component
 public class OfficialRouteGeometryRules {
     static final double EPSILON_M = 0.01;
+    static final double NORMAL_EGRESS_MARGIN_M = 0.25;
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
     private static final Comparator<Constraint> CONSTRAINT_ORDER = Comparator
             .comparing((Constraint item) -> item.type)
@@ -98,17 +101,146 @@ public class OfficialRouteGeometryRules {
             if (exemptFeatureIds.contains(constraint.id)) {
                 continue;
             }
-            if (constraint.rule.isForbidden()) {
-                // A connection point may be placed on its own OKS boundary in the supplied
-                // compatibility dataset. Permit only that endpoint's egress by omitting the
-                // containing object from this one route calculation.
-                if (constraint.blocked.covers(startPoint) || constraint.blocked.covers(endPoint)) {
-                    continue;
-                }
+            if ("oks".equals(constraint.type)
+                    && constraint.rule.isForbidden()
+                    && (constraint.blocked.covers(startPoint) || constraint.blocked.covers(endPoint))
+                    && !constraint.source.covers(startPoint)
+                    && !constraint.source.covers(endPoint)) {
+                // A tie-in on an existing network may already be located inside the published
+                // building setback. Permit the local approach to that endpoint, but keep the
+                // building footprint itself as a hard obstacle. The former implementation
+                // omitted the complete OKS constraint and could therefore route through a house.
+                result.add(new Constraint(
+                        constraint.id,
+                        constraint.type,
+                        constraint.source,
+                        constraint.source,
+                        constraint.rule));
+                continue;
             }
             result.add(constraint);
         }
         return result;
+    }
+
+    /**
+     * Returns the compulsory first leg for a connection point located inside an OKS. The leg goes
+     * through the closest boundary point and continues along the same outward normal beyond the
+     * clearance required by the selected DU.
+     */
+    Optional<NormalEgress> normalEgress(
+            List<ImportedOfficialFeature> features,
+            int diameter,
+            Coordinate connectionPoint) {
+        Geometry point = geometryFactory.createPoint(connectionPoint);
+        Constraint nearest = null;
+        Coordinate boundaryPoint = null;
+        double nearestDistance = Double.POSITIVE_INFINITY;
+        for (Constraint constraint : baseConstraints(features, diameter)) {
+            if (!"oks".equals(constraint.type) || !constraint.source.covers(point)) {
+                continue;
+            }
+            Geometry boundary = constraint.source.getBoundary();
+            if (boundary.isEmpty()) {
+                continue;
+            }
+            Coordinate candidate = DistanceOp.nearestPoints(point, boundary)[1];
+            double distance = connectionPoint.distance(candidate);
+            if (distance < nearestDistance - EPSILON_M
+                    || (Math.abs(distance - nearestDistance) <= EPSILON_M
+                            && (nearest == null || constraint.id.compareTo(nearest.id) < 0))) {
+                nearest = constraint;
+                boundaryPoint = candidate;
+                nearestDistance = distance;
+            }
+        }
+        if (nearest == null || boundaryPoint == null || nearestDistance <= EPSILON_M) {
+            return Optional.empty();
+        }
+        double directionX = (boundaryPoint.x - connectionPoint.x) / nearestDistance;
+        double directionY = (boundaryPoint.y - connectionPoint.y) / nearestDistance;
+        double minimumExitDistance = nearestDistance
+                + catalog.existingBuildingClearanceM(diameter).doubleValue()
+                + NORMAL_EGRESS_MARGIN_M;
+        Coordinate minimumExit = new Coordinate(
+                connectionPoint.x + directionX * minimumExitDistance,
+                connectionPoint.y + directionY * minimumExitDistance);
+        if (!nearest.blocked.covers(geometryFactory.createPoint(minimumExit))) {
+            return Optional.of(new NormalEgress(
+                    nearest.id, new Coordinate(connectionPoint), minimumExit));
+        }
+        double envelopeSpan = Math.hypot(
+                nearest.blocked.getEnvelopeInternal().getWidth(),
+                nearest.blocked.getEnvelopeInternal().getHeight());
+        double rayLength = nearestDistance + envelopeSpan
+                + 2 * catalog.existingBuildingClearanceM(diameter).doubleValue()
+                + NORMAL_EGRESS_MARGIN_M;
+        Coordinate rayEnd = new Coordinate(
+                connectionPoint.x + directionX * rayLength,
+                connectionPoint.y + directionY * rayLength);
+        Geometry boundaryIntersections = geometryFactory
+                .createLineString(new Coordinate[] {connectionPoint, rayEnd})
+                .intersection(nearest.blocked.getBoundary());
+        double outerBoundaryDistance = nearestDistance;
+        for (Coordinate intersection : boundaryIntersections.getCoordinates()) {
+            double projection = (intersection.x - connectionPoint.x) * directionX
+                    + (intersection.y - connectionPoint.y) * directionY;
+            if (projection > outerBoundaryDistance) {
+                outerBoundaryDistance = projection;
+            }
+        }
+        // For a concave footprint the nearest normal can cross another wing of the same buffered
+        // OKS. Use the last intersection along that normal so the routing start is outside the
+        // complete building clearance, not merely outside its nearest wall.
+        double exitDistance = outerBoundaryDistance + NORMAL_EGRESS_MARGIN_M;
+        Coordinate exit = new Coordinate(
+                connectionPoint.x + directionX * exitDistance,
+                connectionPoint.y + directionY * exitDistance);
+        return Optional.of(new NormalEgress(nearest.id, new Coordinate(connectionPoint), exit));
+    }
+
+    List<RouteValidationIssue> validateMandatoryEgress(
+            RouteEdge edge,
+            LineString route,
+            List<ImportedOfficialFeature> features,
+            int diameter) {
+        List<RouteValidationIssue> issues = new ArrayList<>();
+        // Route edges are directed from the existing-network root towards demand. Only the demand
+        // endpoint must leave its containing OKS; a tie-in may legitimately lie near another OKS.
+        validateEndpointEgress(edge, route, features, diameter, false, issues);
+        return issues;
+    }
+
+    private void validateEndpointEgress(
+            RouteEdge edge,
+            LineString route,
+            List<ImportedOfficialFeature> features,
+            int diameter,
+            boolean fromStart,
+            List<RouteValidationIssue> issues) {
+        int endpointIndex = fromStart ? 0 : route.getNumPoints() - 1;
+        int adjacentIndex = fromStart ? 1 : route.getNumPoints() - 2;
+        Coordinate endpoint = route.getCoordinateN(endpointIndex);
+        NormalEgress expected = normalEgress(features, diameter, endpoint).orElse(null);
+        if (expected == null) {
+            return;
+        }
+        Coordinate adjacent = route.getCoordinateN(adjacentIndex);
+        double requiredLength = endpoint.distance(expected.exit);
+        double actualLength = endpoint.distance(adjacent);
+        double normalX = expected.exit.x - endpoint.x;
+        double normalY = expected.exit.y - endpoint.y;
+        double actualX = adjacent.x - endpoint.x;
+        double actualY = adjacent.y - endpoint.y;
+        double cross = Math.abs(normalX * actualY - normalY * actualX);
+        double alignmentTolerance = Math.max(
+                2 * EPSILON_M * actualLength, requiredLength * actualLength * 1e-4);
+        if (actualLength + 2 * EPSILON_M < requiredLength || cross > alignmentTolerance) {
+            issues.add(issue(
+                    "OKS_NORMAL_EGRESS_VIOLATION",
+                    edge.getId(),
+                    "Route must leave its containing OKS by the nearest-boundary normal beyond DU clearance"));
+        }
     }
 
     List<Constraint> routeAvoidanceConstraints(List<LineString> routes) {
@@ -177,6 +309,16 @@ public class OfficialRouteGeometryRules {
         return true;
     }
 
+    boolean pointInsideForbiddenClearance(Coordinate coordinate, ConstraintIndex constraints) {
+        Geometry point = geometryFactory.createPoint(coordinate);
+        for (Constraint constraint : constraints.query(point.getEnvelopeInternal())) {
+            if (constraint.rule.isForbidden() && constraint.preparedBlocked.covers(point)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     boolean lineAllowed(LineString line, List<Constraint> constraints) {
         return lineAllowed(line, index(constraints));
     }
@@ -214,10 +356,11 @@ public class OfficialRouteGeometryRules {
                 .thenComparing(span -> span.constraint.type)
                 .thenComparing(span -> span.constraint.id));
 
+        List<MergedSpan> merged = mergeSpans(spans);
         List<Double> cuts = new ArrayList<>();
         cuts.add(indexed.getStartIndex());
         cuts.add(indexed.getEndIndex());
-        for (Span span : spans) {
+        for (MergedSpan span : merged) {
             cuts.add(span.start);
             cuts.add(span.end);
         }
@@ -230,19 +373,20 @@ public class OfficialRouteGeometryRules {
                 continue;
             }
             double middle = (start + end) / 2.0;
-            List<Span> active = spans.stream()
+            MergedSpan active = merged.stream()
                     .filter(span -> middle >= span.start - EPSILON_M && middle <= span.end + EPSILON_M)
-                    .collect(Collectors.toList());
+                    .findFirst()
+                    .orElse(null);
             Geometry extracted = indexed.extractLine(start, end);
             List<RouteCoordinate> coordinates = routeCoordinates(extracted.getCoordinates());
-            if (active.isEmpty()) {
+            if (active == null) {
                 result.add(new RouteSection("base", null, null, coordinates, extracted.getLength(), null));
             } else {
-                String types = active.stream().map(span -> span.constraint.type).distinct()
+                String types = active.spans.stream().map(span -> span.constraint.type).distinct()
                         .collect(Collectors.joining("+"));
-                String ids = active.stream().map(span -> span.constraint.id).distinct()
+                String ids = active.spans.stream().map(span -> span.constraint.id).distinct()
                         .collect(Collectors.joining("+"));
-                double angle = active.stream().mapToDouble(span -> span.angle).min().orElse(90.0);
+                double angle = active.spans.stream().mapToDouble(span -> span.angle).min().orElse(90.0);
                 result.add(new RouteSection("special", types, ids, coordinates, extracted.getLength(), angle));
             }
         }
@@ -253,17 +397,25 @@ public class OfficialRouteGeometryRules {
         return result;
     }
 
+    private List<MergedSpan> mergeSpans(List<Span> spans) {
+        List<MergedSpan> result = new ArrayList<>();
+        for (Span span : spans) {
+            if (result.isEmpty() || span.start > result.get(result.size() - 1).end + EPSILON_M) {
+                result.add(new MergedSpan(span));
+            } else {
+                result.get(result.size() - 1).add(span);
+            }
+        }
+        return result;
+    }
+
     List<RouteValidationIssue> validate(
             RouteEdge edge,
             LineString route,
             List<Constraint> constraints) {
-        List<RouteValidationIssue> issues = new ArrayList<>();
+        List<RouteValidationIssue> issues = new ArrayList<>(validateForbidden(edge, route, constraints));
         for (Constraint constraint : constraints) {
-            if (constraint.rule.isForbidden() && intersectsInterior(route, constraint)) {
-                issues.add(issue(
-                        "FORBIDDEN_CLEARANCE_VIOLATION",
-                        edge.getId(),
-                        "Route violates " + constraint.type + " clearance at " + constraint.id));
+            if (constraint.rule.isForbidden()) {
                 continue;
             }
             if (!constraint.rule.isForbidden() && hasSpecialCrossing(route, constraint)) {
@@ -285,6 +437,22 @@ public class OfficialRouteGeometryRules {
                             edge.getId(),
                             "Crossing of " + constraint.type + " is not split into a special section"));
                 }
+            }
+        }
+        return issues;
+    }
+
+    List<RouteValidationIssue> validateForbidden(
+            RouteEdge edge,
+            LineString route,
+            List<Constraint> constraints) {
+        List<RouteValidationIssue> issues = new ArrayList<>();
+        for (Constraint constraint : constraints) {
+            if (constraint.rule.isForbidden() && intersectsInterior(route, constraint)) {
+                issues.add(issue(
+                        "FORBIDDEN_CLEARANCE_VIOLATION",
+                        edge.getId(),
+                        "Route violates " + constraint.type + " clearance at " + constraint.id));
             }
         }
         return issues;
@@ -425,6 +593,22 @@ public class OfficialRouteGeometryRules {
         SpatialConstraintRule rule() { return rule; }
     }
 
+    static final class NormalEgress {
+        private final String oksId;
+        private final Coordinate start;
+        private final Coordinate exit;
+
+        private NormalEgress(String oksId, Coordinate start, Coordinate exit) {
+            this.oksId = oksId;
+            this.start = new Coordinate(start);
+            this.exit = new Coordinate(exit);
+        }
+
+        String oksId() { return oksId; }
+        Coordinate start() { return new Coordinate(start); }
+        Coordinate exit() { return new Coordinate(exit); }
+    }
+
     static final class ConstraintIndex {
         private static final int LINEAR_SCAN_THRESHOLD = 256;
         private final List<Constraint> all;
@@ -463,6 +647,23 @@ public class OfficialRouteGeometryRules {
             this.end = end;
             this.constraint = constraint;
             this.angle = angle;
+        }
+    }
+
+    private static final class MergedSpan {
+        private final double start;
+        private double end;
+        private final List<Span> spans = new ArrayList<>();
+
+        private MergedSpan(Span first) {
+            start = first.start;
+            end = first.end;
+            spans.add(first);
+        }
+
+        private void add(Span next) {
+            end = Math.max(end, next.end);
+            spans.add(next);
         }
     }
 }

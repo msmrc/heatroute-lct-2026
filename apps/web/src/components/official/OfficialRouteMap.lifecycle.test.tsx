@@ -129,6 +129,38 @@ describe("OfficialRouteMap lifecycle", () => {
 
     unmount();
   });
+
+  it("keeps technical nodes inspectable without rendering them as chambers", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { unmount } = render(
+      <QueryClientProvider client={queryClient}>
+        <OfficialRouteMap runId="run-1" importId="import-1" variant={variantWithTechnicalNode()} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(maplibre.layers).toContain("route-nodes"));
+    const routeNodes = maplibre.map.addLayer.mock.calls
+      .map(([layer]) => layer as { id: string; paint?: Record<string, unknown> })
+      .find((layer) => layer.id === "route-nodes");
+
+    expect(routeNodes?.paint?.["circle-radius"]).toEqual([
+      "match",
+      ["get", "node_type"],
+      "technical_node", 2,
+      "demand_connection", 5,
+      "new_branch_chamber", 7,
+      "new_tie_in_chamber", 6,
+      "existing_chamber_tie_in", 6,
+      2,
+    ]);
+    const colorExpression = JSON.stringify(routeNodes?.paint?.["circle-color"]);
+    expect(colorExpression).toContain("technical_node");
+    expect(colorExpression).toContain("#8b949e");
+    expect(colorExpression).toContain("demand_connection");
+    expect(colorExpression).toContain("#45a55a");
+
+    unmount();
+  });
 });
 
 function variant(): OfficialRouteVariant {
@@ -153,5 +185,15 @@ function variant(): OfficialRouteVariant {
     sizing_issues: [],
     connected_demand_count: 1,
     no_route_demand_count: 0,
+  };
+}
+
+function variantWithTechnicalNode(): OfficialRouteVariant {
+  return {
+    ...variant(),
+    nodes: [
+      ...variant().nodes,
+      { id: "technical", node_type: "technical_node", coordinate: { xm: 413_050, ym: 6_174_050 }, root: false, chamber: false, base_incident_sections: 0 },
+    ],
   };
 }

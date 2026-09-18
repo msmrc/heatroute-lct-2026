@@ -113,7 +113,7 @@ public class OfficialJobController {
                 throw new ApiException(
                         HttpStatus.CONFLICT,
                         "OFFICIAL_EXPORT_INCOMPLETE",
-                        "Official export requires complete reconstruction inputs and a ranked result");
+                        "Official export requires a complete costed and ranked result");
             }
             throw exception;
         }

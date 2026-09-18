@@ -27,13 +27,13 @@ The official technical fields are `id`, `object_type`, `diameter`, `flow_tph`, `
 `oks_id`, `restriction_type` and `upstream_object_id`, required according to object type.
 Unknown or missing required values must produce localized errors with feature index/ID and field.
 
-The supplied 2026-09-16 dataset does not match that published table. It is accepted through the
-explicit `provided_dataset_compatibility` profile: numeric IDs are normalized, connection points
-carry their own demand, and missing existing-network reconstruction fields are warnings. No
-missing engineering value is silently invented. See `implementation/SUPPLIED_DATASET_AUDIT.md`.
+The supplied reference dataset is accepted through the `baseline_input` profile: numeric IDs and
+direct demand on connection points are normal contract values. Missing existing-network reconstruction fields
+remain actionable warnings. No missing engineering value is silently invented. See
+`implementation/SUPPLIED_DATASET_AUDIT.md`.
 
-The machine-readable Draft 2020-12 contracts are versioned in `docs/contracts`. The strict input,
-the explicitly separate supplied-dataset compatibility profile and the strict output are compiled
+The machine-readable Draft 2020-12 contracts are versioned in `docs/contracts`. The extended input,
+the explicitly separate baseline input profile and the output are compiled
 by a standards-compliant validator in CI. JSON Schema covers per-feature shape and scalar rules;
 the streaming Java validators additionally enforce uniqueness, references, topology and totals.
 
@@ -83,8 +83,8 @@ scoping across multiple alternatives. Optional R8 output now adds numeric `depth
 the calculated pair-envelope axis. Two-dimensional consumers remain compatible with these valid
 GeoJSON positions.
 
-Only valid variants with complete economics and an integer rank are exportable. If the supplied
-compatibility-profile file cannot establish reconstruction baselines, the endpoint returns
+Only valid variants with complete economics and an integer rank are exportable. If an input file
+cannot establish reconstruction baselines, the endpoint returns
 `409 OFFICIAL_EXPORT_INCOMPLETE`; it never publishes a plausible-looking partial official result.
 The optional `variant_id` query limits the same validated contract to one alternative for the map;
 omitting it downloads every ranked alternative in one FeatureCollection.

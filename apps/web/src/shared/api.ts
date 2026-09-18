@@ -20,7 +20,7 @@ export type OfficialInputWarning = OfficialInputError;
 
 export interface OfficialInputReport {
   contract_version: string;
-  input_profile: "strict_official" | "provided_dataset_compatibility";
+  input_profile: "extended_input" | "baseline_input";
   sha256: string;
   feature_count: number;
   feature_counts: Record<string, number>;
@@ -74,6 +74,7 @@ export interface OfficialRun {
 export interface OfficialRunParameters {
   minimum_depth_m: number;
   maximum_depth_m: number;
+  depth_enabled?: boolean;
 }
 
 export interface OfficialRouteCoordinate {
@@ -152,6 +153,13 @@ export interface OfficialRouteConnection {
   demand_id: string;
   connection_point_id: string;
   reason?: string;
+  diagnostics?: {
+    candidate_count: number;
+    attempted_candidate_count: number;
+    attempted_target_ids: string[];
+    direct_blockers: string[];
+    maximum_search_corridor_m: number;
+  };
 }
 
 export interface OfficialCalculationIssue {

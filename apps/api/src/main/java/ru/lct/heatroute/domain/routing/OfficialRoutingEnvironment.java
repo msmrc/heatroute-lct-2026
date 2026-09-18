@@ -5,18 +5,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.locationtech.jts.geom.Coordinate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 final class OfficialRoutingEnvironment {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutingEnvironment.class);
+    private static final double WINDOW_MARGIN_M = 610.0;
     private final List<ImportedOfficialFeature> features;
+    private final RoutingFeatureSource source;
     private final OfficialRouteGeometryRules rules;
     private final Map<Integer, List<Constraint>> baseByDiameter = new HashMap<>();
+    private long visibilitySearches;
+    private long visibilityNodes;
+    private long visibilityPairs;
 
     OfficialRoutingEnvironment(
             List<ImportedOfficialFeature> features,
             OfficialRouteGeometryRules rules) {
+        this(features, new InMemoryRoutingFeatureSource(features), rules);
+    }
+
+    OfficialRoutingEnvironment(
+            List<ImportedOfficialFeature> features,
+            RoutingFeatureSource source,
+            OfficialRouteGeometryRules rules) {
         this.features = features;
+        this.source = source;
         this.rules = rules;
     }
 
@@ -28,10 +44,62 @@ final class OfficialRoutingEnvironment {
         List<Constraint> base = baseByDiameter.computeIfAbsent(
                 diameter,
                 ignored -> rules.baseConstraints(features, diameter));
-        return rules.applicableConstraints(base, exemptFeatureIds, start, end);
+        List<Constraint> all = new java.util.ArrayList<>(base);
+        all.addAll(rules.baseConstraints(source.findInMetricWindow(window(start, end)), diameter));
+        return rules.applicableConstraints(all, exemptFeatureIds, start, end);
     }
 
     List<Constraint> depthAvoidanceConstraints(Set<String> featureIds) {
-        return rules.depthAvoidanceConstraints(features, featureIds);
+        List<ImportedOfficialFeature> matching = new java.util.ArrayList<>(features);
+        matching.addAll(source.findByFeatureIds(featureIds));
+        return rules.depthAvoidanceConstraints(matching, featureIds);
+    }
+
+    java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgress(int diameter, Coordinate point) {
+        return rules.normalEgress(featuresInWindow(point, point), diameter, point);
+    }
+
+    boolean pointInsideForbiddenClearance(int diameter, Coordinate point) {
+        List<Constraint> all = new java.util.ArrayList<>(baseByDiameter.computeIfAbsent(
+                diameter,
+                ignored -> rules.baseConstraints(features, diameter)));
+        all.addAll(rules.baseConstraints(source.findInMetricWindow(window(point, point)), diameter));
+        return rules.pointInsideForbiddenClearance(point, rules.index(all));
+    }
+
+    List<ImportedOfficialFeature> featuresInWindow(Coordinate start, Coordinate end) {
+        List<ImportedOfficialFeature> result = new java.util.ArrayList<>(features);
+        result.addAll(source.findInMetricWindow(window(start, end)));
+        return result;
+    }
+
+    void recordVisibilitySearch(int nodeCount, double corridorExpansionM) {
+        visibilitySearches++;
+        visibilityNodes += nodeCount;
+        visibilityPairs += (long) nodeCount * (nodeCount - 1) / 2;
+        if (visibilitySearches == 1 || visibilitySearches % 25 == 0) {
+            LOGGER.info(
+                    "Routing visibility profile searches={} total_nodes={} total_pairs={} last_nodes={} corridor_m={}",
+                    visibilitySearches,
+                    visibilityNodes,
+                    visibilityPairs,
+                    nodeCount,
+                    corridorExpansionM);
+        }
+    }
+
+    void logVisibilitySummary(String phase) {
+        LOGGER.info(
+                "Routing phase profile phase={} searches={} total_nodes={} total_pairs={}",
+                phase,
+                visibilitySearches,
+                visibilityNodes,
+                visibilityPairs);
+    }
+
+    private org.locationtech.jts.geom.Envelope window(Coordinate start, Coordinate end) {
+        org.locationtech.jts.geom.Envelope result = new org.locationtech.jts.geom.Envelope(start, end);
+        result.expandBy(WINDOW_MARGIN_M);
+        return result;
     }
 }

@@ -13,6 +13,15 @@ class OfficialRunParametersTest {
 
         assertThat(parameters.getMinimumDepthM()).isEqualByComparingTo("0.7");
         assertThat(parameters.getMaximumDepthM()).isEqualByComparingTo("10.0");
+        assertThat(parameters.isDepthEnabled()).isFalse();
+    }
+
+    @Test
+    void enablesOptionalDepthOnlyWhenExplicitlyRequested() {
+        OfficialRunParameters parameters = new OfficialRunParameters(
+                new BigDecimal("0.7"), new BigDecimal("10.0"), true).validated();
+
+        assertThat(parameters.isDepthEnabled()).isTrue();
     }
 
     @Test

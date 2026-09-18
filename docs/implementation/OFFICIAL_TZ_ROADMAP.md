@@ -2,11 +2,13 @@
 
 **Статус документа:** рабочая база для ПМа и разработчиков
 **Дата аудита:** 15 сентября 2026 года
-**Последнее обновление:** 17 сентября 2026 года
+**Последнее обновление:** 18 сентября 2026 года
 **Главный вывод:** видеовстреча организаторов сузила активный supplied-dataset scope. Java-контур,
-2D routing и эксплуатационная база сохраняются, но P0 нельзя считать закрытым до исправления
-normal egress, connect-vs-penalty, bend cost, overlapping special coefficients, per-ray tie-in cost
-и зависимости rank/export от реконструкции. Реконструкция и R8 остаются расширенными режимами.
+2D routing и эксплуатационная база сохраняются. Q&A-правила normal egress, connect-vs-penalty,
+bend cost, overlapping special coefficients, per-ray tie-in и profile-aware rank/export реализованы
+и проверены локальным supplied-file циклом. Spatial-window calculation и повтор полного Java 11
+gate после этих изменений остаются открытыми.
+Реконструкция и R8 остаются расширенными режимами.
 Полная запись решений и противоречий находится в `ORGANIZER_VIDEO_CLARIFICATIONS.md`.
 
 > **Active-scope override.** Разделы этого roadmap, где реконструкция названа обязательным P0 или
@@ -56,11 +58,11 @@ PDF/DOCX имеют приоритет для точных таблиц и ко�
 - строгий выходной GeoJSON;
 - загрузка до 3 ГБ, выгрузка до 500 МБ и до 50 пользователей.
 
-Платформенный блокер устранён, однако видеовстреча выявила новые P0-разрывы именно в supplied
-profile: реконструкция ошибочно блокирует rank/export, выход из собственного OKS не фиксирован по
-нормали, геометрически возможный объект нельзя осознанно оставить по penalty, а bend/overlap/per-ray
-tie-in правила ещё не представлены в экономике. Внутренние R9 gates остаются полезным evidence,
-но не закрывают эти алгоритмические расхождения.
+Платформенный блокер устранён. Выявленные видеовстречей supplied-profile разрывы реализованы в
+текущем рабочем дереве, но прежние R9 gates были выполнены до этих изменений и не подтверждают их.
+Для 2–3 ГБ calculation flow материализует только core-сеть и точки подключения, а ограничения и
+существующие ОКС получает через PostGIS spatial windows в EPSG:32637. До принятия изменения нужна
+отдельная проверка эквивалентности и памяти для плотного окна.
 
 ### 2.2. Что можно сохранить
 
@@ -127,25 +129,25 @@ Q&A-правила.
 |---|---|---|---|---|
 | Backend stack | Java 11, Spring Boot 2.6.3, springdoc 1.7.0 | Тот же стек | Закрыто | P0 |
 | Развёртывание | Java API + PostGIS + web + Caddy; Compose 3.8 | Ubuntu Server 22, docker-compose 1.29.2 | Clean Ubuntu 22 + Compose 1.29.2 CI прошёл; VPS не обновлялся | P0 |
-| Вход | Потоковый GeoJSON, строгий и supplied-dataset compatibility profiles, PostGIS | Официальный контракт, до 3 ГБ | Новый файл поддержан; exact 3 GiB streaming boundary passed on Java 11 | P0 |
+| Вход | Потоковый GeoJSON, appendix и official contest dataset profiles, PostGIS | Официальный контракт, до 3 ГБ | Подтверждённый конкурсный файл поддержан; exact 3 GiB streaming boundary passed on Java 11 | P0 |
 | Расчётная CRS | WGS84 + EPSG:32637 при импорте | Фиксированная EPSG:32637 для метров | Закрыто для импорта | P0 |
 | Объём запуска | Все 17 ОКС и 34 ОКС в 2× gate обрабатываются одним immutable run | Все `oks_future` за один запуск | Реализовано и измерено | P0 |
 | Врезки | R3 candidates используются R4 planner; разные стратегии выбирают разные подключения | Автоматический поиск и выбор | Функционально реализовано | P0 |
-| Совместное подключение | Independent/shared/diverse деревья, общие участки и partial no-route | Общие участки, разделение потоков, отдельные подключения | Реализовано, независимо проверено и измерено | P0 |
+| Совместное подключение | Independent/shared/diverse деревья; shared использует денежный seed search, присоединение к построенным рёбрам и whole-tree local search с section-aware split/contract | Общие участки, разделение потоков, отдельные подключения | Реализован `cost-tree-5`; focused/full-dataset проверка ожидается | P0 |
 | Камеры | Явные route nodes и независимый validator | Разветвления только в камерах, максимум четыре примыкающих участка | Реализовано и покрыто тестами | P0 |
-| Геометрия | JTS visibility search, adaptive STRtree, buffered constraints, shortcut normalization и final validation | Прямые рациональные участки, отсутствие зигзагов и пересечений вне узлов | Реализовано; 2× performance gate пройден | P0 |
+| Геометрия | JTS visibility search, adaptive STRtree, buffered constraints, shortcut normalization и final validation | Прямые рациональные участки, отсутствие зигзагов и пересечений вне узлов | Supplied-file: все варианты валидны после запрета транзита через OKS и повторной проверки с финальным DU; оптимизация runtime остаётся открытой | P0 |
 | Расходы | Bottom-up sizing подключён к принятым деревьям R4 | Сумма `flow_tph` подключённых через участок ОКС | Реализовано для новой сети | P0 |
 | Диаметры | Официальный Java-каталог назначает DU каждому рассчитанному и реконструируемому участку | Точная таблица из 18 ДУ | Реализовано | P0 |
 | Предельная длина | Bottom-up sizing автоматически повышает DU с непрерывным same-DU tracking | Сброс только при смене ДУ | Реализовано и покрыто всеми границами каталога | P0 |
-| Существующая сеть | Upstream reconstruction реализована | Для supplied profile реконструкция не обязательна и не блокирует результат | Требуется profile-aware отключение/gating | P0 |
-| Ограничения | Динамические OKS buffers и запретные типы участвуют в search и final validation | Точная опубликованная 2D-таблица | Полная exact/boundary/negative matrix | P0 |
-| Специальные проходы | Spans объединяются, но составной type не поддержан экономикой | Один overlap span с максимальным `K_special` | Требуется исправление | P0 |
-| Стоимость | Каталог без отдельной bend-компоненты; tie-in считается по root node | Bend ×1.5; 5 млн за каждый новый луч | Требуется исправление | P0 |
-| Ранжирование | Rank удерживается при unavailable reconstruction | Supplied profile ранжируется без reconstruction baseline | Требуется исправление | P0 |
-| Неподключённые ОКС | Penalty только после фактического failure | `no_route` участвует в оптимизации против marginal connection cost | Требуется исправление | P0 |
-| Выход | Adapter блокирует supplied profile при incomplete reconstruction | Валидный supplied result скачивается без обязательной реконструкции | Требуется исправление/контрактное уточнение | P0 |
-| Глубина | Профиль встроен в каждый расчёт | Отдельный второй этап, не блокирующий 2D | Требуется развязать pipeline; solver сохранить | P1/бонус |
-| Большие файлы | Streaming parser и incremental strict writer | Вход 3 ГБ и выход 500 МБ без whole-file heap | Exact 3 GiB / ≥500 MiB и 2× topology прошли | P0 |
+| Существующая сеть | Upstream reconstruction реализована | Для supplied profile реконструкция не обязательна и не блокирует результат | Реализовано локально; verification pending | P0 |
+| Ограничения | Динамические OKS buffers и запретные типы участвуют в search и final validation | Точная опубликованная 2D-таблица | Полная exact/boundary/negative matrix; OKS footprint hard-blocked, кроме terminal normal-egress собственного объекта | P0 |
+| Специальные проходы | Union span и composite type поддержаны | Один overlap span с максимальным `K_special` | Реализовано локально; verification pending | P0 |
+| Стоимость | Segment-wise bend ×1.5; tie-in считается по каждому root ray | Bend ×1.5; 5 млн за каждый новый луч | Supplied-file verified; shared score 48.672753143 ниже independent 64.318630863 | P0 |
+| Ранжирование | Supplied rank не требует reconstruction baseline; strict требует | Supplied profile ранжируется без reconstruction baseline | Supplied-file verified: full-coverage shared 17/17 выбран rank 1 | P0 |
+| Неподключённые ОКС | Direct exclusive spur сравнивается с penalty | `no_route` участвует в оптимизации против marginal connection cost | Реализовано локально; verification pending | P0 |
+| Выход | Supplied adapter допускает отсутствие reconstruction | Валидный supplied result скачивается без обязательной реконструкции | Реализовано локально; reduced whitelist требует подтверждения | P0 |
+| Глубина | Default run 2D-only; `depth_enabled=true` включает сохранённый R8 | Отдельный второй этап, не блокирующий 2D | Реализовано локально; verification pending | P1/бонус |
+| Большие файлы | Streaming parser/writer, keyset paging и PostGIS route windows | Вход 3 ГБ и выход 500 МБ без whole-file heap | Dense-window/equivalence gate нового calculation path | P0 |
 | Нагрузка | Bounded workers, heartbeat, contract+SHA dedup и воспроизводимый probe | До 50 пользователей | 50 concurrent API sessions measured; граница тяжёлых jobs явно документирована | P0 |
 | Документация | Submission brief, demo, algorithm, acceptance, evidence и JSON Schema | Конкурсное описание алгоритма, no-route, выхода, глубины и границ | Закрыто и синхронизировано | P0 |
 
@@ -248,11 +250,11 @@ Q&A-правила.
 | R1 | Закрыт для bounded in-process worker contour | Отдельный process — только если потребуют R9 measurements |
 | R2 | Функционально закрыт, включая contract+SHA replay/dedup, 3 GiB boundary и full 2× topology gate | Organizer-approved maximum profile |
 | R3 | Закрыт: topology, candidates, split и persisted selected tie-in targets | — |
-| R4 | Закрыт: obstacle-aware routing, три стратегии, GIS, adaptive STRtree и независимая validation | Hidden maximum profile остаётся внешним |
+| R4 | Функционально реализован: obstacle-aware routing, coverage-first fallback/ranking, три стратегии, GIS, adaptive STRtree и независимая validation | Полный Java 11 gate: 136 тестов, supplied fixture preferred = 17/17; live Compose smoke обязателен после пересборки |
 | R5 | Функционально закрыт на contract-complete fixtures | В поставленном файле отсутствуют baseline/direction поля реконструкции |
-| R6 | Published 2D rules + search/final-validator + полная boundary matrix | `railway` clarification |
-| R7 | Закрыт по нормативным 2D формулам, strict export/validator/API, JSON Schema и official-output map | — |
-| R8 | Функционально закрыт по опубликованным правилам: immutable depth parameters, solver/validator, separate XY detour, piecewise cost, technical nodes, XYZ и UI | `railway` зависит от разъяснения |
+| R6 | Published 2D rules + search/final-validator + полная boundary matrix; `railway` mapped to `tram_tracks` | Q&A-P0 economics/egress gaps |
+| R7 | Exact economics/rank и streamed GeoJSON реализованы; supplied export HTTP 200, 487 features | Повтор полного Java 11 gate после profile-aware export change |
+| R8 | Функционально закрыт по опубликованным правилам: immutable depth parameters, solver/validator, separate XY detour, piecewise cost, technical nodes, XYZ и UI; `railway` uses tram parameters | Disputed general depth rules |
 | R9 | Ubuntu 22/Compose 1.29.2, restart recovery, 3 GiB input, 500 MiB output, 50-user API и full 2× topology gates автоматизированы | Organizer-approved maximum profile и production-like host evidence |
 
 ## 8. Полный roadmap
@@ -429,8 +431,8 @@ Q&A-правила.
 **Статус:** обязательная 2D-матрица закрыта: точные значения каждой опубликованной строки и
 positive/boundary/negative поведение проверяются для четырёх запретов, трёх диапазонов отступа от
 ОКС, road/tram и трёх utility crossings. Ровно допустимый отступ считается валидным; проникновение
-на 0,01 м блокируется. `railway` остаётся отдельным консервативным compatibility-правилом до ответа
-организатора, а вертикальные глубины относятся к optional R8.
+на 0,01 м блокируется. `railway` в конкурсном наборе является алиасом `tram_tracks`, а вертикальные
+глубины относятся к optional R8.
 
 ### R7 Стоимость, ранжирование и официальный экспорт
 
@@ -439,8 +441,9 @@ positive/boundary/negative поведение проверяются для че
 
 **Текущий статус:** seven-type 2D adapter, exact-field/type/reference validator и download endpoint
 реализованы для полностью рассчитанных вариантов. Один файл содержит все ranked alternatives,
-а IDs узлов/реконструкции scoped по варианту. Поставленный организатором файл намеренно не
-экспортируется из-за отсутствующих baseline/direction данных реконструкции. Экспорт проходит
+а IDs узлов/реконструкции scoped по варианту. Поставленный организатором baseline-профиль
+экспортируется без выдуманных полей реконструкции; расширенный strict-profile по-прежнему требует
+полный baseline/direction contract. Экспорт проходит
 feature-by-feature preflight и инкрементально пишется `JsonGenerator`; all-seven-type fixture
 включает реконструкцию камеры. Для complete/ranked варианта карта запрашивает отфильтрованный
 `variant_id` через тот же валидированный adapter; внутренний preview остаётся только для заведомо
@@ -624,13 +627,17 @@ P0 считается завершённым только если одновр�
 
 ## 13. Немедленный следующий шаг
 
-Не продолжать MVT, косметический UI или дополнительные форматы до закрытия Q&A-P0.
+Не продолжать MVT, косметический UI или дополнительные форматы. Локальный цикл базового файла
+import → run → export пройден: 137.1 секунды, все варианты валидны, экспорт HTTP 200. Следующий шаг —
+один полный Java 11 gate на итоговом состоянии и проверка эквивалентности/памяти spatial-window
+calculation. Кооперативная отмена CPU-bound planner уже подтверждена отдельным локальным сценарием.
 
-Следующий шаг — по порядку реализовать profile-aware economics/export без обязательной
-реконструкции, normal OKS egress, connect-vs-penalty, bend ×1.5, overlap max `K_special` и per-ray
-tie-in cost. Затем отделить R8 от обязательного 2D и устранить full-list загрузку геометрии при
-расчёте. Параллельно ПМ получает письменные ответы по непрерывной длине, глубине, railway и
-сокращённому выходному контракту.
+Непрерывная длина, трактовка 0,7 м и необязательное присутствие разрешённых выходных типов приняты
+как продуктовые решения и больше не блокируют обязательный 2D-контур. Открыты только отдельные
+параметры дополнительного глубинного расчёта.
+
+Условия возврата обязательной реконструкции зафиксированы отдельно в
+`docs/implementation/RECONSTRUCTION_DEFERRED.md`.
 Текущий checkpoint не публиковался на VPS; развёртывание выполняется только отдельной командой.
 
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.

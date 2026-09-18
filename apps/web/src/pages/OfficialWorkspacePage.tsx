@@ -147,7 +147,11 @@ export function OfficialWorkspacePage() {
   });
   const cancelJob = useMutation({
     mutationFn: () => cancelOfficialJob(jobId),
-    onSuccess: (value) => queryClient.setQueryData(["official-job", value.id], value),
+    onSuccess: (value) => {
+      queryClient.setQueryData(["official-job", value.id], value);
+      void run.refetch();
+      toast.success("Отмена расчёта запрошена");
+    },
     onError: (error) => toast.error(errorText(error)),
   });
 
@@ -157,7 +161,8 @@ export function OfficialWorkspacePage() {
   const activeRun = currentRun && currentJob?.run_id === currentRun.id ? currentRun : undefined;
   const isJobActive = currentJob?.state === "queued" || currentJob?.state === "running" || currentJob?.state === "cancel_requested";
   const isRunActive = currentRun?.state === "queued" || currentRun?.state === "running";
-  const isProcessing = upload.isPending || Boolean(runId && (!currentRun || isRunActive));
+  const isRunLoading = Boolean(runId) && run.isPending && !run.isError;
+  const isProcessing = upload.isPending || isRunLoading || Boolean(isRunActive);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -181,7 +186,12 @@ export function OfficialWorkspacePage() {
           {!upload.isPending && currentJob ? (
             <ProgressBar current={currentJob.progress_current} total={currentJob.progress_total} label={currentJob.phase} />
           ) : <div className="official-processing-line"><i /></div>}
-          <small>Экран с результатами откроется автоматически.</small>
+          <small>Поиск сложного маршрута может занять несколько минут. Экран с результатами откроется автоматически.</small>
+          {!upload.isPending && jobId && (job.isPending || isJobActive) && (
+            <Button variant="outline" disabled={cancelJob.isPending} onClick={() => cancelJob.mutate()}>
+              {cancelJob.isPending ? "Отменяем…" : "Отменить расчёт"}
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -202,6 +212,10 @@ export function OfficialWorkspacePage() {
           </div>
           <div className="map-workspace-status"><CheckCircle2 size={16} /> Данные проверены <span>·</span> Расчёт завершён</div>
           <div className="map-workspace-actions">
+            <Button variant="outline" onClick={() => loadDemo.mutate()} disabled={loadDemo.isPending}>
+              {loadDemo.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Eye size={16} />}
+              {loadDemo.isPending ? "Открываем…" : "Последний расчёт"}
+            </Button>
             <Button
               variant="outline"
               disabled={!exportReady}
@@ -317,7 +331,7 @@ export function OfficialWorkspacePage() {
               </div>
             )}
             {currentImport.report.valid && (
-              <div className="official-valid"><CheckCircle2 size={18} /><div><strong>Данные готовы к расчёту</strong><p>{currentImport.report.input_profile === "strict_official" ? "Структура файла проверена, можно анализировать сеть и точки подключения." : "Файл принят с допустимыми отклонениями. Перед использованием результата ознакомьтесь с предупреждениями."}</p></div></div>
+              <div className="official-valid"><CheckCircle2 size={18} /><div><strong>Данные готовы к расчёту</strong><p>Структура файла проверена, можно анализировать сеть и точки подключения.</p></div></div>
             )}
           </Card>
 

@@ -2,9 +2,11 @@ package ru.lct.heatroute.domain.job;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
@@ -33,6 +35,7 @@ public class OfficialJobWorker {
     private final TaskExecutor taskExecutor;
     private final Semaphore availableSlots;
     private final Set<UUID> activeJobs = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Thread> activeThreads = new ConcurrentHashMap<>();
 
     public OfficialJobWorker(
             OfficialJobRepository repository,
@@ -53,6 +56,7 @@ public class OfficialJobWorker {
 
     @Scheduled(fixedDelayString = "${heatroute.jobs.poll-delay-ms:500}")
     public void poll() {
+        repository.finalizeRequestedCancellations();
         if (!availableSlots.tryAcquire()) {
             return;
         }
@@ -82,10 +86,21 @@ public class OfficialJobWorker {
         }
     }
 
+    @Scheduled(fixedDelayString = "${heatroute.jobs.cancel-delay-ms:500}")
+    public void interruptCancelledJobs() {
+        activeThreads.forEach((jobId, thread) -> {
+            if (repository.isCancellationRequested(jobId)) {
+                thread.interrupt();
+            }
+        });
+    }
+
     private void executeClaimed(OfficialJobView job) {
+        activeThreads.put(job.getId(), Thread.currentThread());
         try {
             execute(job);
         } finally {
+            activeThreads.remove(job.getId());
             activeJobs.remove(job.getId());
             availableSlots.release();
         }
@@ -111,6 +126,10 @@ public class OfficialJobWorker {
                 runRepository.markCompleted(job.getRunId(), result);
             }
             repository.markCompleted(job.getId(), result);
+        } catch (CancellationException exception) {
+            Thread.interrupted();
+            cancelRun(job);
+            repository.markCancelled(job.getId());
         } catch (Exception exception) {
             LOGGER.error("Official job failed job_id={}", job.getId(), exception);
             String message = exception.getMessage() == null ? "Unexpected worker failure" : exception.getMessage();

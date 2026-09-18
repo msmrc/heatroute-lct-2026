@@ -37,9 +37,9 @@ public class OfficialConstraintCatalog {
         result.put("social_area", forbidden("social_area", "1.0"));
         result.put("prohibited_site", forbidden("prohibited_site", "1.0"));
         result.put("water", forbidden("water", "1.0"));
-        // Compatibility aliases present in the supplied contest dataset. Railway remains
-        // conservatively forbidden until the organizer publishes a special-passage rule.
-        result.put("railway", forbidden("railway", "1.5"));
+        // The supplied dataset labels tram tracks as railway. Keep the wire value, but apply the
+        // published tram-track crossing rule throughout routing, depth and economics.
+        result.put("railway", special("railway", "1.5", null, "45", "3.0", "1.2", "1.75"));
         result.put("oks", forbidden("oks", "5.0"));
         result.put("road", special("road", "1.5", null, "45", "3.0", "1.0", "1.60"));
         result.put("tram_tracks", special("tram_tracks", "1.5", null, "45", "3.0", "1.2", "1.75"));

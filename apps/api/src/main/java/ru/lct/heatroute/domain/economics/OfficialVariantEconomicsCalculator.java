@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
@@ -15,6 +17,7 @@ import ru.lct.heatroute.domain.reconstruction.ChamberReconstruction;
 import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
 import ru.lct.heatroute.domain.reconstruction.NetworkReconstructionSection;
 import ru.lct.heatroute.domain.routing.RouteConnection;
+import ru.lct.heatroute.domain.routing.RouteCoordinate;
 import ru.lct.heatroute.domain.routing.RouteEdge;
 import ru.lct.heatroute.domain.routing.RouteNode;
 import ru.lct.heatroute.domain.routing.RouteSection;
@@ -23,6 +26,10 @@ import ru.lct.heatroute.domain.depth.DepthProfileResult;
 @Component
 public class OfficialVariantEconomicsCalculator {
     private static final BigDecimal TWO_DIMENSIONAL_DEPTH_M = new BigDecimal("3.0");
+    private static final BigDecimal NON_STANDARD_BEND_MULTIPLIER = new BigDecimal("1.5");
+    // Coordinates are stored at millimetre precision; this accepts numerical noise only, not a
+    // near-45-degree design choice.
+    private static final double STANDARD_BEND_TOLERANCE_DEGREES = 0.001;
 
     private final OfficialPipeCatalog pipeCatalog;
     private final OfficialEconomics economics;
@@ -39,11 +46,25 @@ public class OfficialVariantEconomicsCalculator {
             List<RouteEdge> edges,
             List<RouteConnection> connections,
             ExistingNetworkReconstructionResult reconstruction) {
+        return calculate(nodes, edges, connections, reconstruction, true);
+    }
+
+    /**
+     * Calculates a variant for an input profile. Strict profiles require an available
+     * reconstruction calculation; the baseline profile can rank and export the
+     * independently calculable new-network result without it.
+     */
+    public VariantEconomics calculate(
+            List<RouteNode> nodes,
+            List<RouteEdge> edges,
+            List<RouteConnection> connections,
+            ExistingNetworkReconstructionResult reconstruction,
+            boolean reconstructionRequired) {
         BigDecimal construction = edges.stream()
                 .map(this::edgeCost)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal chamberConstruction = newChamberCost(nodes, edges);
-        long tieInCount = nodes.stream().filter(RouteNode::isRoot).count();
+        long tieInCount = tieInCount(nodes, edges);
         BigDecimal tieIns = economics.tieInCost().multiply(BigDecimal.valueOf(tieInCount));
         BigDecimal reconstructionCost = reconstruction.getNetworkSections().stream()
                 .map(this::reconstructionCost)
@@ -68,11 +89,11 @@ public class OfficialVariantEconomicsCalculator {
                 .map(NetworkReconstructionSection::getLengthM)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(3, RoundingMode.HALF_UP);
         BigDecimal totalLength = newLength.add(reconstructionLength).setScale(3, RoundingMode.HALF_UP);
-        boolean complete = reconstruction.isAvailable();
         List<String> incompleteReasons = new ArrayList<>();
-        if (!complete) {
+        if (!reconstruction.isAvailable()) {
             incompleteReasons.add("RECONSTRUCTION_INPUT_UNAVAILABLE");
         }
+        boolean complete = !reconstructionRequired || reconstruction.isAvailable();
         return new VariantEconomics(
                 complete,
                 money(construction),
@@ -89,10 +110,60 @@ public class OfficialVariantEconomicsCalculator {
                 incompleteReasons);
     }
 
+    /**
+     * Returns whether it is cheaper to leave a demand unconnected than to retain its exclusive
+     * new-network spur. Reconstruction of the supplied existing network is deliberately not
+     * part of this local decision: it is unavailable for the baseline input profile and is not
+     * caused by one candidate connection alone.
+     */
+    public boolean connectionCostsMoreThanPenalty(
+            RouteConnection connection,
+            List<RouteEdge> exclusiveEdges,
+            List<RouteNode> removableNodes) {
+        return marginalConnectionCost(exclusiveEdges, removableNodes)
+                .compareTo(economics.unconnectedPenalty(connection.getFlowTph())) > 0;
+    }
+
+    public boolean connectionCostsMoreThanPenalty(
+            RouteConnection connection,
+            List<RouteEdge> exclusiveEdges,
+            List<RouteNode> removableNodes,
+            boolean independentTieIn) {
+        BigDecimal marginal = marginalConnectionCost(exclusiveEdges, removableNodes);
+        if (independentTieIn) marginal = marginal.add(economics.tieInCost());
+        return marginal.compareTo(economics.unconnectedPenalty(connection.getFlowTph())) > 0;
+    }
+
+    public BigDecimal marginalConnectionCost(
+            List<RouteEdge> exclusiveEdges,
+            List<RouteNode> removableNodes) {
+        BigDecimal construction = exclusiveEdges.stream()
+                .map(this::edgeCost)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal chambers = newChamberCost(removableNodes, exclusiveEdges);
+        BigDecimal tieIns = economics.tieInCost().multiply(BigDecimal.valueOf(
+                tieInCount(removableNodes, exclusiveEdges)));
+        return money(construction.add(chambers).add(tieIns));
+    }
+
+    /**
+     * Each newly laid ray entering the existing network is an independent tie-in. A single
+     * chamber may therefore have more than one tie-in when it starts several new branches.
+     */
+    private long tieInCount(List<RouteNode> nodes, List<RouteEdge> edges) {
+        java.util.Set<String> rootIds = nodes.stream()
+                .filter(RouteNode::isRoot)
+                .map(RouteNode::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        return edges.stream()
+                .filter(edge -> rootIds.contains(edge.getUpstreamNodeId()))
+                .count();
+    }
+
     private BigDecimal edgeCost(RouteEdge edge) {
         PipeCatalogEntry pipe = pipeCatalog.byDiameter(edge.getDiameter()).orElseThrow();
         DepthProfileResult profile = edge.getDepthProfile();
-        if (edge.getSections().isEmpty()) {
+        if (edge.getSections().isEmpty() && edge.getCoordinates().size() < 2) {
             return economics.newNetworkCost(
                     pipe,
                     edge.getLengthM(),
@@ -101,47 +172,123 @@ public class OfficialVariantEconomicsCalculator {
                             ? TWO_DIMENSIONAL_DEPTH_M
                             : profile.averageDepth(BigDecimal.ZERO, edge.getLengthM()));
         }
+        List<RouteSection> sections = edge.getSections().isEmpty()
+                ? List.of(new RouteSection("base", null, null, edge.getCoordinates(),
+                        edge.getLengthM().doubleValue(), null))
+                : edge.getSections();
         BigDecimal result = BigDecimal.ZERO;
-        BigDecimal sectionTotal = edge.getSections().stream()
+        BigDecimal sectionTotal = sections.stream()
                 .map(RouteSection::getLengthM)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (sectionTotal.signum() == 0) return BigDecimal.ZERO;
         BigDecimal cumulative = BigDecimal.ZERO;
-        for (int index = 0; index < edge.getSections().size(); index++) {
-            RouteSection section = edge.getSections().get(index);
+        double[] previousDirection = null;
+        for (int index = 0; index < sections.size(); index++) {
+            RouteSection section = sections.get(index);
             BigDecimal station = edge.getLengthM().multiply(cumulative)
                     .divide(sectionTotal, 12, RoundingMode.HALF_UP);
             cumulative = cumulative.add(section.getLengthM());
-            BigDecimal end = index == edge.getSections().size() - 1
+            BigDecimal end = index == sections.size() - 1
                     ? edge.getLengthM()
                     : edge.getLengthM().multiply(cumulative)
                             .divide(sectionTotal, 12, RoundingMode.HALF_UP);
-            if (profile == null) {
-                result = result.add(economics.newNetworkCost(
-                        pipe,
-                        section.getLengthM(),
-                        crossingType(section),
-                        TWO_DIMENSIONAL_DEPTH_M));
-                continue;
+            double geometryLength = polylineLength(section.getCoordinates());
+            if (geometryLength == 0.0) continue;
+            double consumed = 0.0;
+            for (int coordinateIndex = 1; coordinateIndex < section.getCoordinates().size(); coordinateIndex++) {
+                RouteCoordinate from = section.getCoordinates().get(coordinateIndex - 1);
+                RouteCoordinate to = section.getCoordinates().get(coordinateIndex);
+                double dx = to.getXM().subtract(from.getXM()).doubleValue();
+                double dy = to.getYM().subtract(from.getYM()).doubleValue();
+                double geometrySegmentLength = Math.hypot(dx, dy);
+                if (geometrySegmentLength == 0.0) continue;
+                BigDecimal segmentStart = station.add(end.subtract(station)
+                        .multiply(BigDecimal.valueOf(consumed / geometryLength)));
+                consumed += geometrySegmentLength;
+                BigDecimal segmentEnd = coordinateIndex == section.getCoordinates().size() - 1
+                        ? end
+                        : station.add(end.subtract(station)
+                                .multiply(BigDecimal.valueOf(consumed / geometryLength)));
+                if (segmentEnd.compareTo(segmentStart) <= 0) {
+                    previousDirection = new double[]{dx, dy};
+                    continue;
+                }
+                BigDecimal segmentLength = section.getLengthM()
+                        .multiply(BigDecimal.valueOf(geometrySegmentLength / geometryLength));
+                boolean standard = previousDirection == null || isStandardBend(previousDirection, dx, dy);
+                result = result.add(segmentCost(
+                        pipe, profile, crossingType(section), segmentLength, segmentStart, segmentEnd,
+                        standard ? BigDecimal.ONE : NON_STANDARD_BEND_MULTIPLIER));
+                previousDirection = new double[]{dx, dy};
             }
-            List<BigDecimal> cuts = new ArrayList<>();
-            cuts.add(station);
-            profile.getPoints().stream()
-                    .map(point -> point.getStationM())
-                    .filter(point -> point.compareTo(station) > 0 && point.compareTo(end) < 0)
-                    .forEach(cuts::add);
-            cuts.add(end);
-            for (int piece = 1; piece < cuts.size(); piece++) {
-                BigDecimal pieceStart = cuts.get(piece - 1);
-                BigDecimal pieceEnd = cuts.get(piece);
-                BigDecimal pieceLength = section.getLengthM()
-                        .multiply(pieceEnd.subtract(pieceStart))
-                        .divide(end.subtract(station), 12, RoundingMode.HALF_UP);
-                result = result.add(economics.newNetworkCost(
-                        pipe,
-                        pieceLength,
-                        crossingType(section),
-                        profile.averageDepth(pieceStart, pieceEnd)));
-            }
+        }
+        return result;
+    }
+
+    private BigDecimal segmentCost(
+            PipeCatalogEntry pipe,
+            DepthProfileResult profile,
+            SpecialCrossingType crossing,
+            BigDecimal segmentLength,
+            BigDecimal start,
+            BigDecimal end,
+            BigDecimal bendMultiplier) {
+        if (profile == null) return constructionSegmentCost(
+                pipe, segmentLength, crossing, TWO_DIMENSIONAL_DEPTH_M, bendMultiplier);
+        BigDecimal normalizedStart = start.setScale(3, RoundingMode.HALF_UP);
+        BigDecimal normalizedEnd = end.setScale(3, RoundingMode.HALF_UP);
+        if (normalizedEnd.compareTo(normalizedStart) <= 0) return BigDecimal.ZERO;
+        BigDecimal result = BigDecimal.ZERO;
+        NavigableSet<BigDecimal> cuts = new TreeSet<>();
+        cuts.add(normalizedStart);
+        profile.getPoints().stream()
+                .map(point -> point.getStationM())
+                .filter(point -> point.compareTo(normalizedStart) > 0 && point.compareTo(normalizedEnd) < 0)
+                .forEach(cuts::add);
+        cuts.add(normalizedEnd);
+        List<BigDecimal> orderedCuts = new ArrayList<>(cuts);
+        for (int piece = 1; piece < orderedCuts.size(); piece++) {
+            BigDecimal pieceStart = orderedCuts.get(piece - 1);
+            BigDecimal pieceEnd = orderedCuts.get(piece);
+            BigDecimal pieceLength = segmentLength.multiply(pieceEnd.subtract(pieceStart))
+                    .divide(normalizedEnd.subtract(normalizedStart), 12, RoundingMode.HALF_UP);
+            result = result.add(constructionSegmentCost(
+                    pipe, pieceLength, crossing, profile.averageDepth(pieceStart, pieceEnd), bendMultiplier));
+        }
+        return result;
+    }
+
+    public BigDecimal constructionSegmentCost(
+            PipeCatalogEntry pipe,
+            BigDecimal lengthM,
+            SpecialCrossingType crossing,
+            BigDecimal averageDepthM,
+            BigDecimal bendMultiplier) {
+        return economics.newNetworkCost(pipe, lengthM, crossing, averageDepthM).multiply(bendMultiplier);
+    }
+
+    public boolean isStandardBend(double[] previousDirection, double dx, double dy) {
+        double denominator = Math.hypot(previousDirection[0], previousDirection[1]) * Math.hypot(dx, dy);
+        double cosine = Math.max(-1.0, Math.min(1.0,
+                (previousDirection[0] * dx + previousDirection[1] * dy) / denominator));
+        double change = Math.toDegrees(Math.acos(cosine));
+        return isWithinTolerance(change, 0.0)
+                || isWithinTolerance(change, 45.0)
+                || isWithinTolerance(change, 90.0);
+    }
+
+    private boolean isWithinTolerance(double actual, double expected) {
+        return Math.abs(actual - expected) <= STANDARD_BEND_TOLERANCE_DEGREES;
+    }
+
+    private double polylineLength(List<RouteCoordinate> coordinates) {
+        double result = 0.0;
+        for (int index = 1; index < coordinates.size(); index++) {
+            RouteCoordinate from = coordinates.get(index - 1);
+            RouteCoordinate to = coordinates.get(index);
+            result += Math.hypot(
+                    to.getXM().subtract(from.getXM()).doubleValue(),
+                    to.getYM().subtract(from.getYM()).doubleValue());
         }
         return result;
     }
@@ -172,14 +319,24 @@ public class OfficialVariantEconomicsCalculator {
         if (!"special".equals(section.getKind()) || section.getRestrictionType() == null) {
             return SpecialCrossingType.BASE;
         }
-        switch (section.getRestrictionType()) {
+        return java.util.Arrays.stream(section.getRestrictionType().split("\\+"))
+                .map(String::trim)
+                .filter(type -> !type.isEmpty())
+                .map(this::singleCrossingType)
+                .max(java.util.Comparator.comparing(SpecialCrossingType::getCostMultiplier))
+                .orElse(SpecialCrossingType.BASE);
+    }
+
+    private SpecialCrossingType singleCrossingType(String restrictionType) {
+        switch (restrictionType) {
             case "road": return SpecialCrossingType.ROAD;
-            case "tram_tracks": return SpecialCrossingType.TRAM_TRACKS;
+            case "tram_tracks":
+            case "railway": return SpecialCrossingType.TRAM_TRACKS;
             case "gas_pipeline": return SpecialCrossingType.GAS_PIPELINE;
             case "power_cable": return SpecialCrossingType.POWER_CABLE;
             case "heat_network": return SpecialCrossingType.HEAT_NETWORK;
             default: throw new IllegalArgumentException(
-                    "Unsupported special crossing type: " + section.getRestrictionType());
+                    "Unsupported special crossing type: " + restrictionType);
         }
     }
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://heatroute.dragons.team/contracts/lct-2026-provided-dataset.schema.json",
-  "title": "HeatRoute supplied organizer dataset compatibility profile",
-  "description": "Machine-readable shape of the supplied 2026-09-16 GeoJSON. It deliberately permits the documented omissions; the Java inspector reports every omission as a deterministic warning.",
+  "title": "HeatRoute baseline input profile",
+  "description": "Machine-readable baseline GeoJSON profile. The Java inspector reports missing optional reconstruction baseline data as actionable warnings; railway is a supported source alias for tram_tracks.",
   "type": "object",
   "required": ["type", "features"],
   "properties": {

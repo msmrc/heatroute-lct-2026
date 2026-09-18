@@ -28,6 +28,7 @@ import ru.lct.heatroute.domain.depth.OfficialDepthProfileValidator;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.input.OfficialGeoJsonInspector;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
 import ru.lct.heatroute.domain.routing.OfficialCalculationResult;
 import ru.lct.heatroute.domain.routing.OfficialObstacleRouter;
@@ -46,7 +47,8 @@ class OfficialGeoJsonExporterTest {
     private final OfficialEconomics economics = new OfficialEconomics();
     private final OfficialOutputContractValidator validator = new OfficialOutputContractValidator();
     private final OfficialGeoJsonExporter exporter = new OfficialGeoJsonExporter(
-            objectMapper, pipeCatalog, economics, validator);
+            objectMapper, pipeCatalog, economics, validator,
+            new OfficialVariantEconomicsCalculator(pipeCatalog, economics));
 
     @Test
     void exportsStrictSevenTypeContractWithoutNullOrForeignProperties() throws Exception {
@@ -90,12 +92,10 @@ class OfficialGeoJsonExporterTest {
                 .filter(feature -> "heat_network".equals(
                         feature.path("properties").path("object_type").asText())))
                 .allSatisfy(feature -> {
-                    assertThat(feature.path("properties").path("depth_start").decimalValue())
-                            .isGreaterThanOrEqualTo(new BigDecimal("0.7"));
-                    assertThat(feature.path("properties").path("depth_end").decimalValue())
-                            .isGreaterThanOrEqualTo(new BigDecimal("0.7"));
+                    assertThat(feature.path("properties").has("depth_start")).isFalse();
+                    assertThat(feature.path("properties").has("depth_end")).isFalse();
                     assertThat(feature.path("geometry").path("coordinates"))
-                            .allSatisfy(position -> assertThat(position.size()).isEqualTo(3));
+                            .allSatisfy(position -> assertThat(position.size()).isEqualTo(2));
                 });
         JsonNode summary = StreamSupport.stream(output.path("features").spliterator(), false)
                 .filter(feature -> "variant_summary".equals(
@@ -108,7 +108,23 @@ class OfficialGeoJsonExporterTest {
                 .map(field -> summary.path(field).decimalValue())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(summary.path("calculated_cost").decimalValue()).isEqualByComparingTo(componentTotal);
+        String summaryVariantId = summary.path("variant_id").asText();
+        BigDecimal exportedConstruction = StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "heat_network".equals(
+                        feature.path("properties").path("object_type").asText()))
+                .filter(feature -> summaryVariantId.equals(
+                        feature.path("properties").path("variant_id").asText()))
+                .map(feature -> feature.path("properties").path("cost").decimalValue())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(exportedConstruction).isEqualByComparingTo(summary.path("construction_cost").decimalValue());
         assertThat(summary.path("rank").asInt()).isEqualTo(1);
+        long tieInFeatures = StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "tie_in".equals(feature.path("properties").path("object_type").asText()))
+                .filter(feature -> summaryVariantId.equals(
+                        feature.path("properties").path("variant_id").asText()))
+                .count();
+        assertThat(summary.path("tie_in_cost").decimalValue()).isEqualByComparingTo(
+                economics.tieInCost().multiply(BigDecimal.valueOf(tieInFeatures)));
     }
 
     @Test
@@ -124,6 +140,44 @@ class OfficialGeoJsonExporterTest {
     }
 
     @Test
+    void exportsRankedResultWhenOnlyExistingNetworkReconstructionIsUnavailable() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (500000 6170000)", "{}"),
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
+                        "{\"upstream_object_id\":\"source\"}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
+        OfficialCalculationResult result = planner().plan(
+                features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true))),
+                ru.lct.heatroute.domain.run.OfficialRunParameters.defaults(),
+                OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
+
+        JsonNode calculation = objectMapper.valueToTree(result);
+        assertThat(calculation.path("variants").path(0).path("reconstruction").path("available").asBoolean())
+                .isFalse();
+        assertThat(calculation.path("variants").path(0).path("economics").path("complete").asBoolean())
+                .isTrue();
+        assertThat(calculation.path("variants").path(0).path("rank").asInt()).isEqualTo(1);
+
+        ObjectNode output = exporter.export(calculation, features);
+        assertThat(validator.validate(output, true)).isEmpty();
+        assertThat(validate(load("lct-2026-output.schema.json"), output)).isEmpty();
+        assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "tie_in".equals(feature.path("properties").path("object_type").asText())))
+                .singleElement()
+                .satisfies(feature -> {
+                    assertThat(feature.path("properties").has("existing_diameter")).isFalse();
+                    assertThat(feature.path("properties").path("required_diameter").isInt()).isTrue();
+                });
+
+        ((ObjectNode) calculation).put("input_profile", OfficialGeoJsonInspector.EXTENDED_INPUT_PROFILE);
+        assertThatThrownBy(() -> exporter.export(calculation, features))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("tie-in baseline is missing");
+    }
+
+    @Test
     void splitsDepthChangesIntoReferencedTechnicalNodesAndExactXyzSegments() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("source", "source", "POINT (500000 6170000)", "{}"),
@@ -136,7 +190,9 @@ class OfficialGeoJsonExporterTest {
         OfficialCalculationResult result = planner().plan(
                 features,
                 new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
-                        new TieInCandidate("cp", "network", "heat_network", 50, true))));
+                        new TieInCandidate("cp", "network", "heat_network", 50, true))),
+                new ru.lct.heatroute.domain.run.OfficialRunParameters(
+                        new BigDecimal("0.7"), new BigDecimal("10"), true));
 
         ObjectNode output = exporter.export(objectMapper.valueToTree(result), features);
 
@@ -156,6 +212,48 @@ class OfficialGeoJsonExporterTest {
                         feature.path("properties").path("object_type").asText()))
                 .map(feature -> feature.path("properties").path("id").asText()))
                 .anyMatch(id -> id.contains(":depth:"));
+    }
+
+    @Test
+    void labelsGeometryOnlyIntermediateNodesWithoutDepthSuffix() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (500000 6170000)", "{}"),
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
+                        "{\"upstream_object_id\":\"source\",\"flow_tph\":2,\"diameter\":50}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
+        ObjectNode calculation = objectMapper.valueToTree(planner().plan(
+                features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true)))));
+        ObjectNode edge = (ObjectNode) calculation.path("variants").path(0).path("edges").path(0);
+        edge.remove("depth_profile");
+        ObjectNode section = (ObjectNode) edge.putArray("sections").addObject();
+        section.put("kind", "base");
+        section.put("length_m", edge.path("length_m").decimalValue());
+        ArrayNode coordinates = section.putArray("coordinates");
+        coordinates.addObject().put("xm", 500000).put("ym", 6170000);
+        coordinates.addObject().put("xm", 500050).put("ym", 6170020);
+        coordinates.addObject().put("xm", 500100).put("ym", 6170000);
+
+        ObjectNode output = exporter.export(calculation, features);
+
+        assertThat(validator.validate(output)).isEmpty();
+        List<String> generatedNodeIds = StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "technical_node".equals(
+                        feature.path("properties").path("object_type").asText()))
+                .map(feature -> feature.path("properties").path("id").asText())
+                .filter(id -> id.contains(":technical:" + edge.path("id").asText() + ":"))
+                .collect(Collectors.toList());
+        assertThat(generatedNodeIds).singleElement()
+                .satisfies(id -> assertThat(id).contains(":geometry:"));
+        assertThat(generatedNodeIds).noneMatch(id -> id.contains(":depth:"));
+        assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "heat_network".equals(
+                        feature.path("properties").path("object_type").asText())))
+                .allSatisfy(feature -> {
+                    assertThat(feature.path("properties").has("depth_start")).isFalse();
+                    assertThat(feature.path("properties").has("depth_end")).isFalse();
+                });
     }
 
     @Test

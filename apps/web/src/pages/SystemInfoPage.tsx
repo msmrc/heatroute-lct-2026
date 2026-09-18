@@ -62,15 +62,15 @@ export function SystemInfoPage() {
             <ExternalLink size={17} />
           </a>
           <a href="/api/v1/official/contracts/input.schema.json" target="_blank" rel="noreferrer">
-            <span><strong>Схема исходных данных</strong><small>Строгий официальный входной GeoJSON</small></span>
+            <span><strong>Расширенная схема входа</strong><small>Полный контракт входного GeoJSON</small></span>
             <ExternalLink size={17} />
           </a>
           <a href="/api/v1/official/contracts/provided-dataset.schema.json" target="_blank" rel="noreferrer">
-            <span><strong>Схема набора постановщика</strong><small>Явный профиль совместимости переданного файла</small></span>
+            <span><strong>Базовая схема входа</strong><small>Формат совместимых входных GeoJSON</small></span>
             <ExternalLink size={17} />
           </a>
           <a href="/api/v1/official/contracts/output.schema.json" target="_blank" rel="noreferrer">
-            <span><strong>Схема результата</strong><small>Проверяемый семитиповый GeoJSON</small></span>
+            <span><strong>Схема результата</strong><small>Допустимые типы объектов выходного GeoJSON</small></span>
             <ExternalLink size={17} />
           </a>
         </Card>

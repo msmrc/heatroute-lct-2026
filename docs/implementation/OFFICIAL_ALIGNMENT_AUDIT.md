@@ -29,7 +29,7 @@ The only tracked geodata file is `datasets/official/lct-2026.geojson`.
 - 17 demand connection points, 88 restrictions, 29 network sections, 9 chambers and 1 source.
 
 All synthetic GeoJSON files and the old demo pack were removed. Invalid-input unit cases are built
-inline, while the real organizer file is loaded as the compatibility regression resource.
+inline, while the real organizer file is loaded as the official contest regression resource.
 The production database was backed up and reduced to one valid import with the same official hash;
 the old eight-feature fixture import and obsolete invalid attempt were removed.
 
@@ -38,18 +38,19 @@ the old eight-feature fixture import and obsolete invalid attempt were removed.
 | Requirement in the appendix | Supplied GeoJSON | Consequence |
 |---|---|---|
 | Seven input types | Five types; no `oks_future` or `oks_existing` | The published strict profile cannot describe the file literally |
-| `id` is a string | All 144 IDs are integers | IDs are normalized to decimal strings with warnings |
-| `oks_future` polygon has `flow_tph` and `heat_load` | Demand is stored directly on 17 `oks_connection_point` points; no heat load | Points are treated as demand objects; heat load cannot be recovered |
+| `id` is a string | All 144 IDs are integers | Confirmed contest IDs are normalized internally without warnings |
+| `oks_future` polygon has `flow_tph` and `heat_load` | Demand is stored directly on 17 `oks_connection_point` points; no heat load | Q&A confirmed that points are the demand objects |
 | Connection point has `oks_id` | `oks_id` is absent | No building-to-point reference can be validated |
 | Existing network has `diameter`, `flow_tph`, `upstream_object_id` | 29 sections contain only diameter | Reconstruction load and authoritative direction to source are unavailable |
 | Existing chamber has `diameter`, `upstream_object_id` | 9 chambers contain neither | Chamber reconstruction baseline and authoritative direction are unavailable |
-| Existing buildings are `oks_existing` | 85 polygons are restrictions with `restriction_type=oks` | Treated as a compatibility alias; DU-dependent 5/7/9 m clearance must be applied during routing |
-| Restriction catalog contains `tram_tracks`, not `railway` | One polygon has `restriction_type=railway` | Current conservative rule forbids crossing at 1.5 m; organizer clarification is required |
+| Existing buildings are `oks_existing` | 85 polygons are restrictions with `restriction_type=oks` | Confirmed contest restriction; DU-dependent 5/7/9 m clearance is applied during routing |
+| Restriction catalog contains `tram_tracks`, not `railway` | One polygon has `restriction_type=railway` | Confirmed dataset naming error; apply the complete `tram_tracks` rule |
 
-The file is accepted only through the named `provided_dataset_compatibility` profile. Its 323
-warnings are deterministic: 144 numeric IDs, 17 direct-demand points, 86 restriction aliases,
-29 missing existing-network flows, 38 missing upstream links and 9 missing chamber diameters. No
-missing engineering values are fabricated.
+The file is accepted through the confirmed `official_contest_dataset` profile. Its 76 actionable
+warnings are deterministic: 29 missing existing-network flows, 38 missing upstream links and
+9 missing chamber diameters. Numeric IDs, direct-demand points and
+`oks` restrictions are normal contest input and produce no warnings. No missing engineering values
+are fabricated.
 
 ## Technology alignment
 
@@ -80,7 +81,7 @@ Remaining documentation/acceptance drift:
 
 - historical M-stage evidence describes a removed Python prototype and is not acceptance proof;
 - the internal strict input model is faithful to the appendix but not to the supplied file;
-- strict input, supplied-dataset compatibility and output contracts are published as Draft 2020-12
+- appendix input, official contest dataset and output contracts are published as Draft 2020-12
   JSON Schema, served by the Java API and checked against the real file and actual exporter output;
 - optional hydraulics, MVT, Shapefile and GeoParquet work from the old prototype is outside the
   mandatory contest path and must not displace R4-R7.
@@ -105,7 +106,7 @@ Remaining documentation/acceptance drift:
 ## What is already proven on the supplied data
 
 - import state `valid`, 144 features, zero blocking errors;
-- compatibility warnings are explicit and reproducible;
+- actionable reconstruction warnings are explicit and reproducible; `railway` follows `tram_tracks`;
 - source, 29 network sections and 9 chambers are geometrically connected;
 - durable topology job completes on attempt 1 with zero topology issues;
 - 204 deterministic tie-in candidates are produced for 17 demand points;
@@ -151,8 +152,6 @@ passes on both a strict appendix-shaped fixture constructed in code and the supp
 
 1. Confirm that the supplied GeoJSON, not the published seven-type table, is the judging input.
 2. Confirm that `oks_connection_point.flow_tph` replaces `oks_future` plus `oks_id` for this case.
-3. Define the `railway` rule: forbidden area or special passage, including clearance, angle,
-   extension, depth and multiplier.
-4. Provide `flow_tph`, `upstream_object_id` and chamber `diameter`, or explicitly waive existing
+3. Provide `flow_tph`, `upstream_object_id` and chamber `diameter`, or explicitly waive existing
    network/chamber reconstruction for the supplied file.
-5. Confirm whether evaluation requires literal Ubuntu Server 22 and docker-compose 1.29.2.
+4. Confirm whether evaluation requires literal Ubuntu Server 22 and docker-compose 1.29.2.

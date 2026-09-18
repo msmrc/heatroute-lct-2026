@@ -35,7 +35,7 @@ class OfficialGeoJsonInspectorTest {
         assertThat(report.getFeatureCount()).isEqualTo(7);
         assertThat(report.getFeatureCounts()).containsEntry("oks_future", 1L);
         assertThat(report.getSha256()).hasSize(64);
-        assertThat(report.getInputProfile()).isEqualTo(OfficialGeoJsonInspector.STRICT_PROFILE);
+        assertThat(report.getInputProfile()).isEqualTo(OfficialGeoJsonInspector.EXTENDED_INPUT_PROFILE);
     }
 
     @Test
@@ -60,14 +60,14 @@ class OfficialGeoJsonInspectorTest {
     }
 
     @Test
-    void acceptsUntouchedOrganizerDatasetWithExplicitCompatibilityWarnings() {
+    void acceptsUntouchedOfficialContestDatasetWithOnlyActionableWarnings() {
         InputStream input = getClass().getResourceAsStream("/official/lct-2026.geojson");
         assertThat(input).isNotNull();
 
         OfficialInputReport report = inspector.inspect(input);
 
         assertThat(report.isValid()).isTrue();
-        assertThat(report.getInputProfile()).isEqualTo(OfficialGeoJsonInspector.PROVIDED_DATASET_PROFILE);
+        assertThat(report.getInputProfile()).isEqualTo(OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
         assertThat(report.getSha256()).isEqualTo("07921d7740c0297a63111846d4b77dfb6ccb33da65ffd7ccb14c5b2d786dd7d0");
         assertThat(report.getFeatureCount()).isEqualTo(144);
         assertThat(report.getFeatureCounts())
@@ -76,15 +76,17 @@ class OfficialGeoJsonInspectorTest {
                 .containsEntry("heat_chamber", 9L)
                 .containsEntry("oks_connection_point", 17L)
                 .containsEntry("restriction", 88L);
-        assertThat(report.getWarnings()).hasSize(323);
+        assertThat(report.getWarnings()).hasSize(76);
         assertThat(report.getWarnings()).extracting(OfficialInputWarning::getCode)
                 .contains(
+                        "MISSING_CHAMBER_DIAMETER",
+                        "MISSING_EXISTING_NETWORK_VALUE",
+                        "MISSING_EXISTING_NETWORK_LINK")
+                .doesNotContain(
                         "NUMERIC_ID_NORMALIZED",
                         "CONNECTION_POINT_AS_DEMAND",
                         "COMPATIBILITY_RESTRICTION_ALIAS",
-                        "MISSING_CHAMBER_DIAMETER",
-                        "MISSING_EXISTING_NETWORK_VALUE",
-                        "MISSING_EXISTING_NETWORK_LINK");
+                        "RAILWAY_RULE_PENDING");
     }
 
     @Test

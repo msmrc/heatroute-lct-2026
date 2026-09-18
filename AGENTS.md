@@ -31,7 +31,8 @@ contract. WGS84 is the API boundary; all metric work uses EPSG:32637. Large file
 
 ## Storage and secrets
 
-Keep toolchains/caches on `E:\job\.tooling`. Never commit `.env.vps`, credentials, SSH keys,
+Keep toolchains/caches in the ignored checkout-local `.tooling` directory or set
+`HEATROUTE_TOOLING_ROOT` for an external cache. Never commit `.env.vps`, credentials, SSH keys,
 database dumps, uploads or generated artifacts. Do not modify files under Downloads.
 
 ## VPS

@@ -45,7 +45,7 @@ describe("OfficialWorkspacePage", () => {
       created_at: "2026-09-16T00:00:00Z",
       report: {
         contract_version: "1",
-        input_profile: "strict_official",
+        input_profile: "extended_input",
         sha256: "hash",
         feature_count: 10,
         feature_counts: { demand: 10 },
@@ -78,6 +78,7 @@ describe("OfficialWorkspacePage", () => {
     fireEvent.change(input!, { target: { files: [new File(["{}"], "network.geojson", { type: "application/geo+json" })] } });
 
     expect((await screen.findByRole("status")).textContent).toContain("Строим варианты подключения");
+    expect(screen.getByRole("button", { name: "Отменить расчёт" })).toBeTruthy();
     expect(screen.queryByText("Проверка данных")).toBeNull();
     expect(api.createOfficialRun).toHaveBeenCalledWith("import-1");
     await waitFor(() => expect(localStorage.getItem("heatroute.officialRunId")).toBe("run-1"));
@@ -110,6 +111,21 @@ describe("OfficialWorkspacePage", () => {
     expect((exportButton as HTMLButtonElement).disabled).toBe(false);
     expect(exportButton.getAttribute("title")).toBe("Скачать официальный GeoJSON");
   });
+
+  it("can replace a persisted result with the latest completed run", async () => {
+    localStorage.setItem("heatroute.officialImportId", "import-1");
+    localStorage.setItem("heatroute.officialRunId", "run-1");
+    api.getOfficialImport.mockResolvedValue(completedImport());
+    api.getOfficialRun.mockResolvedValue(completedRun(true));
+    api.getLatestOfficialRun.mockResolvedValue({ ...completedRun(true), id: "run-2" });
+
+    renderWorkspace();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Последний расчёт" }));
+
+    await waitFor(() => expect(localStorage.getItem("heatroute.officialRunId")).toBe("run-2"));
+    expect(api.getLatestOfficialRun).toHaveBeenCalledOnce();
+  });
 });
 
 function renderWorkspace() {
@@ -130,7 +146,7 @@ function completedImport() {
     created_at: "2026-09-16T00:00:00Z",
     report: {
       contract_version: "2",
-      input_profile: "provided_dataset_compatibility",
+      input_profile: "baseline_input",
       sha256: "hash",
       feature_count: 144,
       feature_counts: { heat_network: 29 },

@@ -1,5 +1,8 @@
 # Handoff — Артём / PM / developer
 
+Отложенная реконструкция и условия её повторного включения зафиксированы в
+`docs/implementation/RECONSTRUCTION_DEFERRED.md`.
+
 **Prepared:** 2026-09-16
 **Repository:** `git@github.com:msmrc/heatroute-lct-2026.git`
 **Branch:** `master`
@@ -17,8 +20,8 @@
   endpoints.
 - CI has Java verify/image, web quality/build and clean Ubuntu 22 / Compose 1.29.2 integration
   gates, including 50 concurrent imports, a real all-OKS calculation and restart recovery.
-- OpenAPI comes from springdoc and is committed at `packages/api-client/openapi.json`; strict input,
-  supplied-dataset compatibility and output JSON Schemas are published by the Java API.
+- OpenAPI comes from springdoc and is committed at `packages/api-client/openapi.json`; appendix input,
+  official contest dataset and output JSON Schemas are published by the Java API.
 - Commit `e47cd72` is deployed on the VPS. Production now runs only PostGIS, Java API, web and
   gateway; public HTTPS, Java readiness, official import, topology and immutable calculation run
   were verified.
@@ -65,18 +68,49 @@ $env:JAVA_HOME = 'E:\job\.tooling\apps\temurin-11\jdk-11.0.32.1+1'
 ## Current reality
 
 Before using the older handoff below, read `ORGANIZER_VIDEO_CLARIFICATIONS.md`. The organizer Q&A
-changed the active supplied-dataset scope: reconstruction is not mandatory, depth is second-stage,
-and several 2D/economics rules are not yet implemented. Older statements that R4–R8 need no
-algorithm changes are superseded by this note.
+changed the active supplied-dataset scope: reconstruction is not mandatory and depth is
+second-stage. The clarified 2D/economics rules are implemented in the current working tree but have
+not yet passed the final Java/web/Compose verification. Older R4–R8 evidence predates these changes.
 
 The mandatory 2D Java pipeline is implemented end to end on contract-complete fixtures. The public
 UI exposes only what the backend can prove. Do not restore legacy screens or fabricate missing
 organizer fields.
 
-The newly supplied dataset is not shaped like the published seven-type contract. Read
-`SUPPLIED_DATASET_AUDIT.md` before changing validation or routing. Use its 17 connection points as
-demand objects under the named compatibility profile; never fabricate missing existing flows or
-upstream links.
+The current active engineering task is still routing performance on the supplied 17-point file.
+Visibility checks were deduplicated, corridor selection was narrowed geometrically and cooperative
+cancellation now terminates a CPU-bound run in under one second in the local Compose check. A
+bounded 55-second probe still did not complete, so do not mark this gate closed; profile route-call
+count and visibility-node count before changing the official routing rules further. The UI no
+longer stays forever on the processing screen when its persisted run/import lookup fails.
+Candidate evaluation now also uses admissible straight-line lower bounds to avoid obstacle searches
+that cannot improve the current direct assignment or shared-pair plan. This is an optimization only:
+the accepted route still passes the unchanged obstacle and final geometry validators. Its final
+runtime has not yet been measured.
+The next probe should read `Routing visibility profile` and `Routing phase profile` from API logs;
+they report bounded search/node/pair counters without logging organizer geometry or properties.
+That probe is now complete: the corrected circumscribed navigation hull reduced the supplied-file
+runtime from 220.4 to 118.9 seconds and candidate pairs from 40.22M to 17.29M. The two correctness
+findings from that run are now resolved. Run `cc9b8cf6-fef0-43a5-a01a-382a7093cfca` completed in
+137.1 seconds; independent/shared/diverse are all valid and ranked, connect 14/16/9 demands, and
+shared is rank 1. Its supplied-profile export returns HTTP 200 with a 487-feature GeoJSON covering
+all three variants. Missing baseline tie-in diameter is allowed only in the supplied profile; the
+  extended strict profile still requires it. After that checkpoint, `cost-tree-3` was implemented
+  locally: third and subsequent demands may attach to an existing shared chamber or split an
+  existing route edge at a new chamber; the choice is made by full-tree cost after bottom-up
+  flow/diameter sizing. This newer stage has not yet passed the Java 11, supplied-file or Compose
+  verification gates, so the older run above is not evidence for `cost-tree-3`.
+  The subsequent `cost-tree-4` local-improvement pass also revisits independent root rays and
+  replaces them with branches of the growing tree whenever full construction cost decreases (or
+  cost is equal and the number of tie-in rays falls). It is likewise unverified.
+  `cost-tree-5` extends the same operation to every terminal demand and contracts orphan/degree-two
+  generated chambers before rerouting it against the remaining complete tree. Its lexicographic
+  objective is full cost, tie-in rays, length and generated chamber count. Runtime is bounded to
+  two accepted relocations and a nearest-chamber/edge shortlist per demand. This stage is unverified.
+
+The supplied dataset is the confirmed judging format even though it is not shaped like the
+published seven-type appendix contract. Read `SUPPLIED_DATASET_AUDIT.md` before changing validation
+or routing. Use its 17 connection points as demand objects under the `official_contest_dataset`
+profile; never fabricate missing existing flows or upstream links.
 
 Already usable:
 
@@ -105,24 +139,31 @@ Already usable:
   imported filename in the toolbar and a collapsible navigation rail. Technical stack, version,
   team and Swagger live on the separate `/system` page instead of the work screen.
 
-Implementation work before an unconditional official P0 claim:
+Implemented locally; final verification required before an unconditional official P0 claim:
 
 - allow complete supplied-profile cost/rank/export without reconstruction;
 - enforce normal egress from the containing OKS for all 17 demand points;
 - optimize connect versus official unconnected penalty;
 - account for non-standard bend ×1.5, max overlapping `K_special` and one tie-in per new ray;
-- separate optional depth from mandatory 2D and remove whole-import Java-list routing.
+- separate optional depth from mandatory 2D.
+
+Implemented scale slice; final verification required:
+
+- calculation materializes only core network/connection objects and fetches restrictions and
+  existing OKS through PostGIS metric windows. Verify PostGIS equivalence and memory behavior for
+  an unusually dense single window before closing the scale gate.
 
 External decisions still required:
 
 - organizer approval that the passing full 2× topology gate represents the hidden maximum;
-- organizer clarification of `railway`, reduced output types and disputed depth/length rules;
+- organizer clarification of reduced output types and disputed depth/length rules;
 - production-like Ubuntu 22 host rehearsal only if clean ephemeral CI is not accepted.
 
 ## Developer: next vertical slice
 
-Preserve the immutable run/job contract, but do not treat current R7 as final for the supplied
-profile. Continue from routing/economics/export. R7 component costs,
+Preserve the immutable run/job contract. The local supplied-file Q&A-P0 routing/economics/export
+cycle is verified; next verify it together with the spatial-window calculation in the full Java 11
+gate. R7 component costs,
 length, score/rank, strict seven-type serialization, independent whitelist/type/reference
 validation, feature-by-feature preflight and incremental Jackson download are already integrated.
 R7 is closed against the normative appendix tables and formulas. Section 10.8 explicitly calls its
@@ -160,8 +201,9 @@ Do not mix MVT or extra formats into the remaining external acceptance gate.
 5. Любую новую контрольную точку: локальные тесты -> commit -> push -> дождаться всех GitHub Actions.
    На VPS не выкладывать, пока владелец явно не скажет это сделать.
 
-Текущее честное ограничение результата: 324 записи в интерфейсе — это 323 входных предупреждения
-официального файла и 1 предупреждение реконструкции. Вертикальных ошибок после этого checkpoint нет.
+Текущее честное ограничение результата: 77 записей в интерфейсе — это 76 содержательных входных
+предупреждений и 1 итоговое предупреждение реконструкции. `railway` трактуется как алиас
+`tram_tracks`. Вертикальных ошибок после этого checkpoint нет.
 
 ## PM: tasks tomorrow
 
@@ -171,8 +213,8 @@ Do not mix MVT or extra formats into the remaining external acceptance gate.
 - supply or approve an official-like maximum-topology fixture and load-test environment;
 - keep MVT and extra formats outside P0 until the external R9 decisions close;
 - review every “complete” claim against `docs/ACCEPTANCE.md`, not old M-stage evidence.
-- ask the organizer to resolve the supplied-dataset mismatch, especially `railway`, direct demand
-  on connection points, reduced output types, continuous-length branching and disputed depth rules.
+- ask the organizer to resolve the remaining supplied-dataset questions: reduced output types,
+  continuous-length branching and disputed depth rules.
 
 ## Known operational notes
 

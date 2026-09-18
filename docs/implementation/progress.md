@@ -7,14 +7,20 @@ decisions and unresolved contradictions are recorded in
 `ORGANIZER_VIDEO_CLARIFICATIONS.md`; `docs/ALGORITHM.md`, `docs/IMPLEMENTATION_PLAN.md`, the roadmap,
 handoff, contracts and acceptance gates now point to that interpretation.
 
-This review changes readiness claims but does not change production code:
+The review was followed by a local Q&A-P0 implementation pass:
 
-- supplied-profile reconstruction is no longer mandatory and must not block cost/rank/export;
-- all 17 supplied connection points are inside OKS polygons and require normal egress;
-- connect-vs-penalty, bend ×1.5, overlap max `K_special` and per-ray tie-in cost remain P0 gaps;
-- depth moves behind the mandatory 2D result and disputed depth constants await written confirmation;
-- routing still materializes the import as one Java list and requires bounded PostGIS access for
-  real 2–3 GB city data.
+- supplied-profile reconstruction no longer blocks cost/rank/export; strict-profile gating remains;
+- demand points inside OKS receive validated nearest-boundary normal egress with DU 5/7/9 m clearance;
+- direct exclusive spurs are compared with penalty; bend ×1.5, overlap max `K_special` and per-ray
+  tie-in cost are integrated;
+- default runs are mandatory 2D; optional R8 requires `depth_enabled=true`;
+- calculation materializes only core network/connection features; restrictions and existing OKS
+  are fetched from PostGIS by EPSG:32637 route windows. A dense-window and PostGIS equivalence gate
+  is still required before this scale slice can be accepted.
+
+Focused planner/export tests, a final shared-OKS regression, a healthy local Compose build and the
+real supplied-file import → run → export cycle have now been run. The full Java 11/lint/typecheck/R9
+gate has not been repeated on this final working tree and remains the next verification checkpoint.
 
 Historical R5/R7/R8 evidence below remains valid for the implementation that was tested, but it is
 not proof that the clarified supplied-dataset P0 is complete.
@@ -26,6 +32,24 @@ not proof that the clarified supplied-dataset P0 is complete.
 The production path is Java-only. `apps/api` contains Java 11 / Spring Boot 2.6.3; default,
 offline and VPS Compose use that image. Python application code, dependencies, migrations, tests
 and runtime services were removed. The frontend calls only the current official Java endpoints.
+
+### Official contest input correction
+
+- Organizer Q&A confirmed that the supplied GeoJSON shape is the judging input and that
+  `oks_connection_point.flow_tph` directly represents demand. The active profile is now
+  `official_contest_dataset`, not a compatibility exception.
+- Numeric IDs, direct-demand connection points and `restriction_type=oks` are accepted without
+  warnings. The unchanged organizer file now produces 76 actionable warnings: 29 missing existing
+  flows, 38 inferred upstream links and 9 chamber diameters. `railway` is treated as `tram_tracks`.
+- The UI presents the file as ready for calculation and keeps only reconstruction warnings.
+  The routing, sizing and depth algorithms are unchanged by this contract correction.
+- Final Java 11 `OfficialDatasetRoutingTest` passes on the untouched 233,277-byte organizer file
+  and generates a completed three-variant replay bundle with 76 input warnings and zero route/depth
+  issues. A local browser pass confirms the map, 17/17, 16/17 and 14/17 variants, grouped diagnostics
+  and a validated longitudinal profile.
+- The same browser pass exposed a remaining UI defect: after switching from profile mode back to
+  the map and then changing variants, the CARTO basemap and some route overlays can disappear while
+  the result data remains present. Treat this as an open renderer-lifecycle bug before demo freeze.
 
 ## Verified in this cutover
 
@@ -61,7 +85,7 @@ and runtime services were removed. The frontend calls only the current official 
   29 network sections, 9 chambers and one source.
 - It materially differs from the published input table: numeric IDs, no `oks_future`, no `oks_id`,
   no existing flow/upstream links and no chamber diameters.
-- Input contract v2 now has a named compatibility profile with explicit warnings; the strict
+- Input contract v2 now has a named official contest profile with explicit actionable warnings; the strict
   official profile remains available.
 - The byte-identical organizer file is now the only tracked geodata at
   `datasets/official/lct-2026.geojson`; synthetic GeoJSON fixtures and the old demo pack were
@@ -70,7 +94,7 @@ and runtime services were removed. The frontend calls only the current official 
   upstream links, while preserving explicit-link validation for the strict profile.
 - Full findings and PM questions are in `SUPPLIED_DATASET_AUDIT.md`.
 - Production verification passed on the untouched file: import `valid`, 144 features, zero blocking
-  errors, 323 explicit compatibility warnings. The durable topology job completed on attempt 1
+  errors, 76 actionable warnings. The durable topology job completed on attempt 1
   with zero issues and 204 deterministic candidates for the 17 demand points.
 - Repository and production dataset cleanup is complete: the synthetic imports and the obsolete
   pre-compatibility invalid import were removed after a database backup. Production retains one
@@ -154,7 +178,7 @@ and runtime services were removed. The frontend calls only the current official 
   requires a DU larger than the supplied baseline. Missing direction, existing flow or chamber DU
   produces `RECONSTRUCTION_INPUT_UNAVAILABLE`; no baseline is inferred.
 - The map/API expose reconstruction sections, chambers, old/new DU and added/resulting flow. The
-  supplied organizer file displays one grouped Russian warning because its documented compatibility
+  supplied organizer file displays one grouped Russian warning because the official contest
   profile lacks reconstruction inputs.
 - Verification: 56 Java tests pass locally in Java-11 compatibility mode, including every flow and
   length boundary of all 18 catalog rows, partial tie-in, overlapping loads, chamber reconstruction
@@ -186,10 +210,9 @@ and runtime services were removed. The frontend calls only the current official 
   types, WGS84 geometry, unique IDs, network references and one summary per variant. Tests prove
   component-sum equality, multi-variant ID isolation and rejection of incomplete calculations.
 - `GET /api/v1/official/runs/{runId}/export` returns `application/geo+json` for a complete result.
-  The organizer file remains intentionally non-exportable and returns
-  `409 OFFICIAL_EXPORT_INCOMPLETE`, because its reconstruction baseline is absent.
-- The workspace exposes the download only when a variant has complete economics and rank. For the
-  organizer demo it shows a disabled, explanatory action rather than downloading a partial file.
+  Baseline/supplied profile may omit `existing_diameter` on a tie-in and remains exportable without
+  invented reconstruction data; extended strict profile still rejects the same omission.
+- The workspace exposes the download when variants have complete economics and rank.
 - Complete ranked alternatives are requested with `variant_id` and rendered on the map from the
   same strict output types used by download. `variant_summary` is correctly omitted from spatial
   layers. The internal nodes/edges conversion remains only as a preview fallback for the supplied
@@ -214,8 +237,7 @@ and runtime services were removed. The frontend calls only the current official 
 - Road and tram accept exactly 45° and reject just below it; their 3 m extensions produce a 6 m
   special span around a linear crossing. Utility crossings produce the required 2+2 m span, and
   the final validator rejects a crossing omitted from special sections.
-- `railway` is tested separately as the supplied-dataset compatibility rule (1.5 m forbidden
-  clearance), not represented as a published official row while organizer clarification is open.
+- `railway` is tested as a supplied-dataset alias of the published `tram_tracks` special crossing.
 - Full backend verification: 75 tests, zero failures; the official dataset routing case retains
   the prepared-geometry performance path.
 
@@ -281,7 +303,7 @@ and runtime services were removed. The frontend calls only the current official 
 - Final depth/scale checkpoint run `35120982320` passes backend, web and clean integration gates;
   Java 11 run `35120995991` repeats the full 2× calculation in 2:14.65 with 406,608 KiB peak RSS,
   34/34 demands connected and three valid variants.
-- Draft 2020-12 schemas for strict input, the supplied-dataset compatibility profile and strict
+- Draft 2020-12 schemas for appendix input, the official contest dataset profile and strict
   output are versioned in `docs/contracts`, served by the Java API and compiled by NetworkNT 2.0.3.
   Contract tests validate the actual organizer file and the actual exporter result, not only hand
   written examples.
@@ -295,8 +317,8 @@ and runtime services were removed. The frontend calls only the current official 
 - Contest-path browser audit found two issues that isolated unit/API gates did not expose. The
   local read-only bundle had replaced the real import report with a synthetic SHA, serialized byte
   size and zero warnings; it now uses `OfficialGeoJsonInspector` over the exact organizer bytes and
-  asserts 233,277 bytes, the official SHA-256 and 323 warnings. The warning dialog groups those 323
-  records into seven localized causes, uses readable 13–14 px text and separates input, depth and
+  asserts 233,277 bytes, the official SHA-256 and 76 warnings. The warning dialog groups those 76
+  records into three localized causes, uses readable 13–14 px text and separates input, depth and
   reconstruction diagnostics. At 1280×720 the map/profile switch had also overlapped the third
   route tab; the responsive top controls are now separated. A real Chromium smoke opens the demo,
   switches to `Альтернативные врезки`, opens the grouped modal and renders the longitudinal profile
@@ -340,7 +362,7 @@ and runtime services were removed. The frontend calls only the current official 
 - R0 — complete: official gap audit, Java decision and team roadmap.
 - R1 — complete for current single-process foundation: Java runtime, PostGIS readiness, Liquibase,
   Swagger, durable PostgreSQL job state, claim/lease/cancel/recovery, Docker and CI.
-- R2 — complete for the published and supplied compatibility contracts, including deterministic
+- R2 — complete for the appendix and official contest dataset contracts, including deterministic
   contract+SHA replay/deduplication, published schemas and the exact 3 GiB streaming boundary.
 - R3 — functionally complete: topology validation, chamber rule, deterministic candidates, line
   splitting and adaptive dense-constraint lookup. Selected tie-in target IDs are part of every
@@ -355,7 +377,7 @@ and runtime services were removed. The frontend calls only the current official 
   reconstruction because its existing-network baseline and direction fields are absent.
 - R6 — complete for the published mandatory 2D table: dynamic OKS buffers, hard forbidden zones,
   special crossings and final validation have exact-value and positive/boundary/negative coverage.
-  The supplied `railway` alias remains conservative pending organizer clarification; vertical
+  The supplied `railway` value uses the complete `tram_tracks` rule; vertical
   depth rules belong to optional R8.
 - R7 — complete for mandatory 2D: component costing, length, score/rank, all seven output types,
   independent validation, incremental download and official-output map rendering are integrated.
@@ -384,16 +406,132 @@ and runtime services were removed. The frontend calls only the current official 
 
 ## Next change
 
-Obtain organizer/PM approval for the maximum profile and, if required, a production-like Ubuntu 22 host rehearsal.
-Depth limits are now immutable persisted run parameters rather than process-local constants.
+Continue profiling and optimizing the 17-demand routing calculation before any further cosmetic UI
+work. On 17 September the real `baseline_input` import completed successfully (144 features, 17
+connection points, no blocking errors), but the background calculation remained `running` after a
+12-minute manual timeout. The first optimization pass now builds each visibility graph once, limits
+navigation obstacles by actual distance to the route corridor and caps the simplified convex hull
+at 12 navigation vertices. Three bounded 55-second manual probes still did not complete, so the
+performance gate remains open and completion time must not be claimed yet.
+
+The next optimization pass adds admissible Euclidean lower bounds before expensive obstacle
+searches. Direct assignments skip a farther candidate only after an already valid route proves it
+cannot win; shared-pair candidates are skipped when even their obstacle-free lower bound cannot
+beat the two independent routes or the best pair already found. These bounds do not weaken any
+crossing rule or final validation and preserve deterministic tie-breaking. Final runtime measurement
+is pending an explicitly requested verification run.
+The routing environment now emits bounded phase diagnostics for visibility-search count, accumulated
+navigation nodes and candidate edge pairs (first search, every 25 searches and each completed
+variant phase). A first measured run completed in 220.4 seconds with 402 visibility searches and
+40,223,610 candidate pairs, but naive vertex sampling caused unacceptable route loss. Replacing it
+with a circumscribed 12-sided navigation hull restored connected boundary traversal. The final real
+run `74a18b63-726a-4548-97fe-f862dfb1a9ad` completed in 118.9 seconds with 287 searches and
+17,288,729 pairs. The focused obstacle-router suite passes 12/12, including a detailed 48-vertex
+convex obstacle.
+
+The two correctness gaps found by that probe are fixed. Mandatory egress rebuilding now applies
+only to terminal `demand_connection` nodes, and shared junction candidates are built between the
+already completed OKS egresses and rejected while they remain inside an OKS. Final supplied-file run
+`cc9b8cf6-fef0-43a5-a01a-382a7093cfca` completed in 137.1 seconds. Independent/shared/diverse are
+all valid and ranked, connect 14/16/9 demands, and shared is the preferred rank-1 variant. Explicit
+economic exclusions remain separated from geometric no-route results. The same run exports HTTP
+200 `application/geo+json`: a 169,412-byte `FeatureCollection` with 487 features across all three
+variants. Baseline tie-ins without `existing_diameter` are omitted from reconstruction fields rather
+than fabricated; extended strict profile retains the completeness failure. Focused suites passed
+during correction (17/17 planner/export); after the final search-limit change the shared-OKS
+regression passed 1/1 on the final state.
+
+Cancellation is now cooperative inside visibility-graph construction and route search. A running
+real calculation reached terminal `cancelled` state for both job and run in 0.5–0.7 seconds. Stale
+requested cancellations are finalized after restart. The full-screen web state has its own cancel
+button and no longer interprets a failed/missing persisted run request as an infinite calculation;
+the browser returns to the workspace and exposes the actual import/API error.
+
+The local Compose stack is now healthy at configurable host ports and builds from a checkout whose
+path contains non-ASCII characters. `scripts/dev.ps1` creates an environment-relative ASCII
+junction for Docker build context when required; tool caches remain checkout-local by default.
+Web verification is green: 16 Vitest tests, 4 local API tests, lint and typecheck. Runtime packaging
+is separated from the explicit `test` image target, so starting the service does not silently claim
+that the long test gate passed.
+
+Route-result quality follow-up on 18 September removed three misleading behaviours found in the
+interactive map. Generated `technical_node` points remain selectable but are rendered as small
+neutral markers instead of physical chambers. Exported intermediate IDs now use `:geometry:` for
+polyline/section boundaries and reserve `:depth:` for actual depth-profile breakpoints. Failed
+connections include bounded diagnostics: candidate/attempt counts, attempted target IDs, direct
+blocking constraints and the maximum search corridor.
+
+Coverage is now prioritized during generation and ranking. Candidate search falls back beyond the
+nearest four only when none of them is routable; a failed first pass is retried with the failed
+demands first; feasible exclusive spurs are no longer deleted merely because their construction
+cost exceeds the unconnected penalty. Variant rank compares connected-demand count before the
+published economic score. Numeric demand IDs use natural order (`1, 2, ... 10`) rather than
+lexicographic order. The final Java 11 gate passes 136 tests with the supplied 17-demand dataset
+selecting a preferred 17/17-connected variant; three explicitly gated scale tests remain skipped.
+Frontend verification passes 17 Vitest and 4 local API tests, plus lint and typecheck. The processing
+screen exposes cancellation immediately after `job_id` is returned, even before the first polling
+response.
+
+The 18 September building/cost correction removes the former endpoint loophole that could drop an
+entire `oks` constraint whenever a route endpoint fell inside its clearance. The footprint now
+remains a hard obstacle; a demand may enter only its own OKS through the terminal normal-egress
+leg. Concave footprints use the first valid clearance exit and extend to the last buffered-boundary
+intersection only when the minimum exit is still blocked. Shared junctions are rejected inside any
+forbidden clearance, and every edge is checked and, when possible, rerouted after bottom-up sizing
+with its final DU.
+
+The focused obstacle/planner suites pass 29/29, and the five supplied-data egress regressions pass
+1/1 as one grouped test. The final untouched supplied-file test passes in 468.506 seconds. All three
+variants are valid: independent connects 15/17 (7,442.981 m, score 64.318630863), shared connects
+17/17 (6,409.452 m, score 48.672753143) and diverse connects 13/17 (9,808.406 m, score
+94.580208806). Shared is therefore the preferred full-coverage economic variant. This is a bounded
+deterministic search over the implemented topologies, not a proof of the global optimum. The next
+algorithmic task is reuse/caching of visibility graphs and a true multi-demand tree optimizer; the
+current full-dataset runtime is not suitable for an interactive loading screen.
+
+The next routing stage replaces greedy pair acceptance with a monetary constrained-tree search.
+Shared branches are compared against their independent baseline using full marginal construction
+cost (pipe diameter, branch chamber and tie-in), not geometric length alone. Candidate junctions
+include the three-terminal geometric median, and a deterministic beam of up to 96 states selects
+compatible branch combinations while enforcing demand exclusivity, existing-chamber capacity and
+the route validator after every addition. The algorithm version is now `cost-tree-2`. This removes
+the known greedy-choice defect; it remains a bounded constrained-Steiner approximation rather than
+an unsupported claim of a proven global optimum. Focused and full-dataset verification is pending
+because it was not requested in this implementation turn.
+
+The following `cost-tree-3` stage removes the remaining pair-only topology limitation. For each
+unassigned demand, `shared` now evaluates both a separate tie-in and attachment to an existing
+branch chamber or an interior point of a built route edge. An interior attachment splits the edge
+and its `RouteSection` metadata at a new chamber, adds one branch, validates the complete tree and
+then performs bottom-up flow/DU sizing before comparing total new-network construction cost. This
+allows third and subsequent demands to reuse one upstream trunk instead of creating parallel rays.
+Only restrictions present in the imported dataset participate in routing; background-map roads are
+not synthesized as constraints. A focused three-demand regression was added. Tests, full-dataset
+runtime and live Compose behaviour remain unverified in this implementation turn.
+
+`cost-tree-4` adds the local improvement pass required to reduce order-dependent parallel routes.
+After the initial shared tree is built, every remaining independent root ray is temporarily removed
+and evaluated as a branch of the rest of the network. The replacement is accepted only when the
+complete bottom-up-sized network is cheaper, or when the rounded monetary result is equal and the
+number of independent tie-in rays decreases. Every candidate still passes the tree, chamber-degree,
+cycle and outside-node intersection validator. This keeps the official monetary objective primary
+while preferring one reusable trunk over equivalent parallel rays. Verification remains pending.
+
+`cost-tree-5` generalizes that pass from independent root rays to every terminal demand in the
+shared forest. Each demand is detached, orphan chambers are pruned, degree-two generated chambers
+are contracted with their section metadata preserved, and the demand is rerouted against the whole
+remaining network. A candidate is accepted only by a strictly decreasing lexicographic objective:
+full sized construction cost, tie-in ray count, total route length, then generated chamber count.
+The search is deterministically bounded to two accepted relocations and, during this improvement
+pass, the four nearest chambers plus the nearest projection on three route edges per demand;
+it is a whole-tree local improvement, not a claim of an exact local or global Steiner optimum.
+Focused and supplied-file verification remain pending.
 
 Older `m1-evidence.md` … `m6-engineering-evidence.md` are historical prototype records only.
 The current cross-check against all three organizer artifacts is in `OFFICIAL_ALIGNMENT_AUDIT.md`.
 
 ## Workstation note
 
-After the latest Windows reboot, local Docker Desktop fails during startup on a stale internal
-AF_UNIX socket. No project volume or Docker data was reset or deleted. CI and the VPS deployment
-are green, so this is a workstation repair item rather than an application blocker. Diagnose it
-separately before relying on local Compose; do not use factory reset or relocate Docker data from
-`E:`.
+Docker Desktop and the local Compose stack are operational. The default ports 5173 and 8000 were
+occupied by unrelated local processes, so the verified instance uses `WEB_HOST_PORT=5174` and
+`API_HOST_PORT=8080` without stopping those processes.

@@ -95,7 +95,7 @@ export function createLocalDemoServer({ bundle, contracts = new Map() }) {
         const declaredLength = Number(request.headers["content-length"] ?? 0);
         if (declaredLength > maximumMultipartBytes) {
           request.resume();
-          send(response, 413, { message: "Локальный стенд принимает только официальный конкурсный GeoJSON" });
+          send(response, 413, { message: "Размер GeoJSON превышает предел локального демонстрационного стенда" });
           return;
         }
         const body = await requestBody(request, maximumMultipartBytes);
@@ -107,7 +107,7 @@ export function createLocalDemoServer({ bundle, contracts = new Map() }) {
         const sha256 = createHash("sha256").update(file.bytes).digest("hex");
         if (file.bytes.length !== expectedSize || sha256 !== expectedSha256) {
           send(response, 422, {
-            message: "Локальное демо воспроизводит расчёт только для официального конкурсного GeoJSON",
+            message: "Локальный демонстрационный стенд не содержит результата для этого GeoJSON",
           });
           return;
         }
@@ -115,7 +115,7 @@ export function createLocalDemoServer({ bundle, contracts = new Map() }) {
         send(response, 200, currentImport);
       } catch (error) {
         if (error?.code === "PAYLOAD_TOO_LARGE") {
-          send(response, 413, { message: "Локальный стенд принимает только официальный конкурсный GeoJSON" });
+          send(response, 413, { message: "Размер GeoJSON превышает предел локального демонстрационного стенда" });
           return;
         }
         send(response, 500, { message: "Не удалось прочитать загруженный файл" });

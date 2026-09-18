@@ -29,7 +29,7 @@ exist in the official Java API. Do not restore a screen before its Java contract
 - All calculated variants are compared in the floating selector and result island; partial variants
   keep a structured no-route explanation instead of hiding failed objects.
 - Selecting calculated or reconstructed geometry exposes flow, DU, length, chamber/tie-in and cost
-  attributes. Validation, input compatibility, depth and reconstruction findings are grouped in a
+  attributes. Validation, input contract, depth and reconstruction findings are grouped in a
   dedicated dialog.
 - The strict official-output download is available only when the complete result passes the Java
   adapter and validator. Appendix arithmetic remains executable backend evidence rather than a

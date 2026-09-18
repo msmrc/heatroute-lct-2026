@@ -47,8 +47,9 @@ Current local smoke evidence and open gates are in `implementation/progress.md`.
 | 50 concurrent users | Passed for public API sessions | Runs `35126566499` and `35129162919`; 50 simultaneous imports, one durable ID; both include the connection-pool starvation fix |
 | Ubuntu 22 / docker-compose 1.29.2 / restart recovery | Passed in clean CI | Run `35129162919`; production-like host may still be requested |
 | Full calculation beyond supplied topology | Passed on project 2× profile | Run `35119722470`: 288 features, 34 demands, 408 candidates, 481,092 KiB peak RSS; organizer/PM must still approve the maximum profile |
-| Supplied-file score/rank/export without reconstruction | Open implementation gap | Video Q&A removes reconstruction from mandatory scope; current gating must be changed |
-| Normal OKS egress and Q&A economics rules | Open implementation gap | Add normal exit, connect-vs-penalty, bend ×1.5, overlap max coefficient and per-ray tie-in cost |
+| Supplied-file score/rank/export without reconstruction | Implemented, verification pending | Supplied profile bypasses reconstruction gating; strict profile retains it |
+| Normal OKS egress and Q&A economics rules | Implemented, verification pending | Normal exit, connect-vs-penalty, bend ×1.5, overlap max coefficient and per-ray tie-in are integrated |
+| Bounded 2–3 GB calculation | Partial | Repository/JDBC reads are keyset-paged; analyzer/planner still materialize the accumulated feature list |
 
 Detailed byte/memory and concurrency measurements are in
 `implementation/R9_INPUT_SCALE_EVIDENCE.md` and

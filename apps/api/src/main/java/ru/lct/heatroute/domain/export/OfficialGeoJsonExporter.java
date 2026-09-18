@@ -26,16 +26,20 @@ import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.PipeCatalogEntry;
 import ru.lct.heatroute.domain.engineering.SpecialCrossingType;
+import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
+import ru.lct.heatroute.domain.input.OfficialGeoJsonInspector;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 @Component
 public class OfficialGeoJsonExporter {
     private static final BigDecimal TWO_DIMENSIONAL_DEPTH_M = new BigDecimal("3.0");
+    private static final BigDecimal NON_STANDARD_BEND_MULTIPLIER = new BigDecimal("1.5");
 
     private final ObjectMapper objectMapper;
     private final OfficialPipeCatalog pipeCatalog;
     private final OfficialEconomics economics;
     private final OfficialOutputContractValidator validator;
+    private final OfficialVariantEconomicsCalculator economicsCalculator;
     private final OfficialGeoJsonStreamWriter streamWriter;
     private final CoordinateTransform toWgs84;
 
@@ -43,11 +47,13 @@ public class OfficialGeoJsonExporter {
             ObjectMapper objectMapper,
             OfficialPipeCatalog pipeCatalog,
             OfficialEconomics economics,
-            OfficialOutputContractValidator validator) {
+            OfficialOutputContractValidator validator,
+            OfficialVariantEconomicsCalculator economicsCalculator) {
         this.objectMapper = objectMapper;
         this.pipeCatalog = pipeCatalog;
         this.economics = economics;
         this.validator = validator;
+        this.economicsCalculator = economicsCalculator;
         this.streamWriter = new OfficialGeoJsonStreamWriter(objectMapper);
         CRSFactory factory = new CRSFactory();
         CoordinateReferenceSystem metric = factory.createFromParameters(
@@ -62,12 +68,13 @@ public class OfficialGeoJsonExporter {
         collection.put("type", "FeatureCollection");
         ArrayNode output = collection.putArray("features");
         forEachFeature(calculation, inputFeatures, null, output::add);
-        assertValid(validator.validate(collection));
+        assertValid(validator.validate(collection, allowsMissingTieInDiameter(calculation)));
         return collection;
     }
 
     public void validate(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures) {
-        OfficialOutputContractValidator.ValidationSession session = validator.begin();
+        OfficialOutputContractValidator.ValidationSession session = validator.begin(
+                allowsMissingTieInDiameter(calculation));
         forEachFeature(calculation, inputFeatures, null, session::accept);
         assertValid(session.finish());
     }
@@ -76,7 +83,8 @@ public class OfficialGeoJsonExporter {
             JsonNode calculation,
             List<ImportedOfficialFeature> inputFeatures,
             String variantId) {
-        OfficialOutputContractValidator.ValidationSession session = validator.begin();
+        OfficialOutputContractValidator.ValidationSession session = validator.begin(
+                allowsMissingTieInDiameter(calculation));
         forEachFeature(calculation, inputFeatures, variantId, session::accept);
         assertValid(session.finish());
     }
@@ -124,9 +132,14 @@ public class OfficialGeoJsonExporter {
         if (variants.isEmpty()) {
             throw new IllegalStateException("OFFICIAL_EXPORT_INCOMPLETE: no fully costed ranked variant");
         }
+        boolean allowMissingTieInDiameter = allowsMissingTieInDiameter(calculation);
         for (JsonNode variant : variants) {
-            appendVariant(output, variant, inputById);
+            appendVariant(output, variant, inputById, allowMissingTieInDiameter);
         }
+    }
+
+    private boolean allowsMissingTieInDiameter(JsonNode calculation) {
+        return OfficialGeoJsonInspector.isBaselineInputProfile(calculation.path("input_profile").asText());
     }
 
     private void assertValid(List<String> issues) {
@@ -138,7 +151,8 @@ public class OfficialGeoJsonExporter {
     private void appendVariant(
             Consumer<ObjectNode> output,
             JsonNode variant,
-            Map<String, ImportedOfficialFeature> inputById) {
+            Map<String, ImportedOfficialFeature> inputById,
+            boolean allowMissingTieInDiameter) {
         String variantId = variant.path("id").asText();
         Map<String, JsonNode> nodes = new HashMap<>();
         variant.path("nodes").forEach(node -> nodes.put(node.path("id").asText(), node));
@@ -150,9 +164,6 @@ public class OfficialGeoJsonExporter {
         }
         for (JsonNode node : variant.path("nodes")) {
             String nodeType = node.path("node_type").asText();
-            if (node.path("root").asBoolean()) {
-                appendTieIn(output, variantId, node, maxDiameterByNode, inputById);
-            }
             if (node.path("chamber").asBoolean() && nodeType.startsWith("new_")) {
                 appendNewChamber(output, variantId, node, maxDiameterByNode);
             }
@@ -160,6 +171,13 @@ public class OfficialGeoJsonExporter {
                 appendTechnicalNode(output, variantId, node.path("id").asText(), coordinate(node.path("coordinate")));
             }
         }
+        appendTieIns(
+                output,
+                variantId,
+                variant.path("nodes"),
+                variant.path("edges"),
+                inputById,
+                allowMissingTieInDiameter);
         generatedTechnicalNodes.forEach((id, coordinate) ->
                 appendTechnicalNode(output, variantId, id, coordinate));
         appendReconstruction(output, variantId, variant.path("reconstruction"));
@@ -189,6 +207,7 @@ public class OfficialGeoJsonExporter {
                 .map(section -> section.path("length_m").decimalValue())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal cumulative = BigDecimal.ZERO;
+        double[] previousDirection = null;
         for (int index = 0; index < sections.size(); index++) {
             JsonNode section = sections.get(index);
             BigDecimal sectionStart = edgeLength.multiply(cumulative)
@@ -199,16 +218,45 @@ public class OfficialGeoJsonExporter {
                     : edgeLength.multiply(cumulative).divide(sectionTotal, 12, RoundingMode.HALF_UP);
             String kind = section.path("kind").asText("base");
             SpecialCrossingType crossing = crossingType(kind, section.path("restriction_type").asText(null));
-            List<BigDecimal> cuts = profileCuts(depthProfile, sectionStart, sectionEnd);
-            for (int piece = 1; piece < cuts.size(); piece++) {
-                BigDecimal pieceStart = cuts.get(piece - 1);
-                BigDecimal pieceEnd = cuts.get(piece);
-                String startNode = pieceStart.signum() == 0
-                        ? outputId(variantId, edge.path("upstream_node_id").asText())
-                        : technicalNodeId(variantId, edge.path("id").asText(), pieceStart);
-                String endNode = pieceEnd.compareTo(edgeLength) == 0
-                        ? outputId(variantId, edge.path("downstream_node_id").asText())
-                        : technicalNodeId(variantId, edge.path("id").asText(), pieceEnd);
+            double geometryLength = coordinateLength(section.path("coordinates"));
+            if (geometryLength <= 1e-9) continue;
+            double consumed = 0.0;
+            for (int coordinateIndex = 1; coordinateIndex < section.path("coordinates").size(); coordinateIndex++) {
+                JsonNode from = section.path("coordinates").path(coordinateIndex - 1);
+                JsonNode to = section.path("coordinates").path(coordinateIndex);
+                double dx = to.path("xm").asDouble() - from.path("xm").asDouble();
+                double dy = to.path("ym").asDouble() - from.path("ym").asDouble();
+                double geometrySegmentLength = Math.hypot(dx, dy);
+                if (geometrySegmentLength <= 1e-9) continue;
+                BigDecimal segmentStart = sectionStart.add(sectionEnd.subtract(sectionStart)
+                        .multiply(BigDecimal.valueOf(consumed / geometryLength)));
+                consumed += geometrySegmentLength;
+                BigDecimal segmentEnd = coordinateIndex == section.path("coordinates").size() - 1
+                        ? sectionEnd
+                        : sectionStart.add(sectionEnd.subtract(sectionStart)
+                                .multiply(BigDecimal.valueOf(consumed / geometryLength)));
+                BigDecimal segmentLength = section.path("length_m").decimalValue()
+                        .multiply(BigDecimal.valueOf(geometrySegmentLength / geometryLength));
+                BigDecimal bendMultiplier = previousDirection == null || economicsCalculator.isStandardBend(previousDirection, dx, dy)
+                        ? BigDecimal.ONE : NON_STANDARD_BEND_MULTIPLIER;
+                List<BigDecimal> cuts = profileCuts(depthProfile, segmentStart, segmentEnd);
+                for (int piece = 1; piece < cuts.size(); piece++) {
+                    BigDecimal pieceStart = cuts.get(piece - 1);
+                    BigDecimal pieceEnd = cuts.get(piece);
+                    String startNode = pieceStart.signum() == 0
+                            ? endpointId(variantId, edge, nodes, true)
+                            : technicalNodeId(
+                                    variantId,
+                                    edge.path("id").asText(),
+                                    pieceStart,
+                                    isDepthProfileBreakpoint(depthProfile, pieceStart));
+                    String endNode = pieceEnd.compareTo(edgeLength) == 0
+                            ? endpointId(variantId, edge, nodes, false)
+                            : technicalNodeId(
+                                    variantId,
+                                    edge.path("id").asText(),
+                                    pieceEnd,
+                                    isDepthProfileBreakpoint(depthProfile, pieceEnd));
                 if (pieceStart.signum() > 0) {
                     technicalNodes.putIfAbsent(startNode, metricAtStation(
                             section.path("coordinates"), sectionStart, sectionEnd, pieceStart));
@@ -217,16 +265,14 @@ public class OfficialGeoJsonExporter {
                     technicalNodes.putIfAbsent(endNode, metricAtStation(
                             section.path("coordinates"), sectionStart, sectionEnd, pieceEnd));
                 }
-                BigDecimal length = section.path("length_m").decimalValue()
+                BigDecimal length = segmentLength
                         .multiply(pieceEnd.subtract(pieceStart))
-                        .divide(sectionEnd.subtract(sectionStart), 12, RoundingMode.HALF_UP);
-                BigDecimal depthStart = depthAt(depthProfile, pieceStart);
-                BigDecimal depthEnd = depthAt(depthProfile, pieceEnd);
-                BigDecimal cost = economics.newNetworkCost(
-                        pipe, length, crossing, averageDepth(depthProfile, pieceStart, pieceEnd));
+                        .divide(segmentEnd.subtract(segmentStart), 12, RoundingMode.HALF_UP);
+                BigDecimal cost = economicsCalculator.constructionSegmentCost(
+                        pipe, length, crossing, averageDepth(depthProfile, pieceStart, pieceEnd), bendMultiplier);
                 ObjectNode properties = properties(
                         "network:" + variantId + ":" + edge.path("id").asText()
-                                + ":" + index + ":" + (piece - 1),
+                                + ":" + index + ":" + coordinateIndex + ":" + (piece - 1),
                         "heat_network",
                         variantId);
                 properties.put("start_node_id", startNode);
@@ -236,36 +282,76 @@ public class OfficialGeoJsonExporter {
                 properties.set("length", objectMapper.valueToTree(length));
                 properties.put("laying_method", kind);
                 properties.set("cost", objectMapper.valueToTree(cost));
-                properties.set("depth_start", objectMapper.valueToTree(depthStart));
-                properties.set("depth_end", objectMapper.valueToTree(depthEnd));
-                output.accept(feature(lineGeometry(
-                        section.path("coordinates"),
-                        depthProfile,
-                        sectionStart,
-                        sectionEnd,
-                        pieceStart,
-                        pieceEnd,
-                        pipe.getEnvelopeHeightM()), properties));
+                    if (hasDepthProfile(depthProfile)) {
+                        properties.set("depth_start", objectMapper.valueToTree(depthAt(depthProfile, pieceStart)));
+                        properties.set("depth_end", objectMapper.valueToTree(depthAt(depthProfile, pieceEnd)));
+                        output.accept(feature(lineGeometry(
+                                section.path("coordinates"), depthProfile, sectionStart, sectionEnd,
+                                pieceStart, pieceEnd, pipe.getEnvelopeHeightM()), properties));
+                    } else {
+                        output.accept(feature(lineGeometry2d(
+                                section.path("coordinates"), sectionStart, sectionEnd, pieceStart, pieceEnd),
+                                properties));
+                    }
+                }
+                previousDirection = new double[]{dx, dy};
             }
         }
+    }
+
+    private String endpointId(
+            String variantId, JsonNode edge, Map<String, JsonNode> nodes, boolean upstream) {
+        String nodeId = edge.path(upstream ? "upstream_node_id" : "downstream_node_id").asText();
+        JsonNode node = nodes.get(nodeId);
+        if (upstream && node != null && node.path("root").asBoolean()) {
+            return tieInId(variantId, nodeId, edge.path("id").asText());
+        }
+        return outputId(variantId, nodeId);
+    }
+
+    private void appendTieIns(
+            Consumer<ObjectNode> output,
+            String variantId,
+            JsonNode nodes,
+            JsonNode edges,
+            Map<String, ImportedOfficialFeature> inputById,
+            boolean allowMissingTieInDiameter) {
+        Map<String, JsonNode> roots = new HashMap<>();
+        nodes.forEach(node -> {
+            if (node.path("root").asBoolean()) roots.put(node.path("id").asText(), node);
+        });
+        edges.forEach(edge -> {
+            JsonNode root = roots.get(edge.path("upstream_node_id").asText());
+            if (root != null) {
+                appendTieIn(output, variantId, root, edge, inputById, allowMissingTieInDiameter);
+            }
+        });
     }
 
     private void appendTieIn(
             Consumer<ObjectNode> output,
             String variantId,
             JsonNode node,
-            Map<String, Integer> maxDiameterByNode,
-            Map<String, ImportedOfficialFeature> inputById) {
+            JsonNode edge,
+            Map<String, ImportedOfficialFeature> inputById,
+            boolean allowMissingTieInDiameter) {
         String targetId = node.path("target_id").asText();
         ImportedOfficialFeature target = inputById.get(targetId);
-        if (target == null || !target.getAttributes().path("diameter").isNumber()) {
+        if (target == null) {
             throw new IllegalStateException("OFFICIAL_EXPORT_INCOMPLETE: tie-in baseline is missing for " + targetId);
         }
-        ObjectNode properties = properties(outputId(variantId, node.path("id").asText()), "tie_in", variantId);
+        boolean hasExistingDiameter = target.getAttributes().path("diameter").isNumber();
+        if (!hasExistingDiameter && !allowMissingTieInDiameter) {
+            throw new IllegalStateException("OFFICIAL_EXPORT_INCOMPLETE: tie-in baseline is missing for " + targetId);
+        }
+        ObjectNode properties = properties(tieInId(
+                variantId, node.path("id").asText(), edge.path("id").asText()), "tie_in", variantId);
         properties.put("existing_object_id", targetId);
         properties.put("existing_object_type", target.getObjectType());
-        properties.put("existing_diameter", target.getAttributes().path("diameter").asInt());
-        properties.put("required_diameter", maxDiameterByNode.get(node.path("id").asText()));
+        if (hasExistingDiameter) {
+            properties.put("existing_diameter", target.getAttributes().path("diameter").asInt());
+        }
+        properties.put("required_diameter", edge.path("diameter").asInt());
         properties.set("cost", objectMapper.valueToTree(economics.tieInCost()));
         output.accept(feature(pointGeometry(coordinate(node.path("coordinate"))), properties));
     }
@@ -365,6 +451,10 @@ public class OfficialGeoJsonExporter {
         return variantId + ":" + sourceId;
     }
 
+    private String tieInId(String variantId, String rootNodeId, String edgeId) {
+        return outputId(variantId, "tie-in:" + rootNodeId + ":" + edgeId);
+    }
+
     private ObjectNode feature(ObjectNode geometry, ObjectNode properties) {
         ObjectNode feature = objectMapper.createObjectNode();
         feature.put("type", "Feature");
@@ -453,6 +543,29 @@ public class OfficialGeoJsonExporter {
         return geometry;
     }
 
+    private ObjectNode lineGeometry2d(
+            JsonNode metricCoordinates,
+            BigDecimal sectionStart,
+            BigDecimal sectionEnd,
+            BigDecimal pieceStart,
+            BigDecimal pieceEnd) {
+        ObjectNode geometry = objectMapper.createObjectNode();
+        geometry.put("type", "LineString");
+        ArrayNode coordinates = geometry.putArray("coordinates");
+        double total = coordinateLength(metricCoordinates);
+        BigDecimal span = sectionEnd.subtract(sectionStart);
+        BigDecimal startFraction = pieceStart.subtract(sectionStart).divide(span, 12, RoundingMode.HALF_UP);
+        BigDecimal endFraction = pieceEnd.subtract(sectionStart).divide(span, 12, RoundingMode.HALF_UP);
+        for (BigDecimal fraction : List.of(startFraction, endFraction)) {
+            double[] metric = metricAtFraction(metricCoordinates, fraction.doubleValue(), total);
+            double[] wgs = transform(metric[0], metric[1]);
+            ArrayNode position = coordinates.addArray();
+            position.add(wgs[0]);
+            position.add(wgs[1]);
+        }
+        return geometry;
+    }
+
     private List<BigDecimal> profileCuts(JsonNode profile, BigDecimal start, BigDecimal end) {
         java.util.SortedSet<BigDecimal> cuts = new java.util.TreeSet<>();
         cuts.add(start);
@@ -464,8 +577,21 @@ public class OfficialGeoJsonExporter {
         return new ArrayList<>(cuts);
     }
 
-    private String technicalNodeId(String variantId, String edgeId, BigDecimal station) {
-        return outputId(variantId, "technical:" + edgeId + ":depth:" + station
+    private boolean hasDepthProfile(JsonNode profile) {
+        return profile.path("points").isArray() && profile.path("points").size() >= 2;
+    }
+
+
+    private boolean isDepthProfileBreakpoint(JsonNode profile, BigDecimal station) {
+        for (JsonNode point : profile.path("points")) {
+            if (station.compareTo(point.path("station_m").decimalValue()) == 0) return true;
+        }
+        return false;
+    }
+
+    private String technicalNodeId(String variantId, String edgeId, BigDecimal station, boolean depthBreakpoint) {
+        return outputId(variantId, "technical:" + edgeId + ":"
+                + (depthBreakpoint ? "depth:" : "geometry:") + station
                 .setScale(3, RoundingMode.HALF_UP).toPlainString());
     }
 
@@ -573,9 +699,19 @@ public class OfficialGeoJsonExporter {
 
     private SpecialCrossingType crossingType(String kind, String restrictionType) {
         if (!"special".equals(kind) || restrictionType == null) return SpecialCrossingType.BASE;
+        return java.util.Arrays.stream(restrictionType.split("\\+"))
+                .map(String::trim)
+                .filter(type -> !type.isEmpty())
+                .map(this::singleCrossingType)
+                .max(java.util.Comparator.comparing(SpecialCrossingType::getCostMultiplier))
+                .orElse(SpecialCrossingType.BASE);
+    }
+
+    private SpecialCrossingType singleCrossingType(String restrictionType) {
         switch (restrictionType) {
             case "road": return SpecialCrossingType.ROAD;
-            case "tram_tracks": return SpecialCrossingType.TRAM_TRACKS;
+            case "tram_tracks":
+            case "railway": return SpecialCrossingType.TRAM_TRACKS;
             case "gas_pipeline": return SpecialCrossingType.GAS_PIPELINE;
             case "power_cable": return SpecialCrossingType.POWER_CABLE;
             case "heat_network": return SpecialCrossingType.HEAT_NETWORK;

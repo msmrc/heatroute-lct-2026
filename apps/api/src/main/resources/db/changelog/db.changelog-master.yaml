@@ -29,6 +29,13 @@ databaseChangeLog:
       changes:
         - sqlFile:
             path: db/changelog/sql/20260916_004_input_profiles.sql
+
+  - changeSet:
+      id: 20260917-005-neutral-input-profiles
+      author: heatroute
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/20260917_005_neutral_input_profiles.sql
             splitStatements: true
             stripComments: true
   - changeSet:

@@ -4,10 +4,10 @@ The detailed plan is `implementation/OFFICIAL_TZ_ROADMAP.md`. This file defines 
 
 | Order | Stage | Owner focus | Exit gate |
 |---:|---|---|---|
-| 1 | Q&A-P0 economics | Developer | Supplied run gets complete cost/rank/export without reconstruction; connect-vs-penalty choice works |
-| 2 | Q&A-P0 geometry | Developer | Normal OKS egress, 45°/90° preference, non-standard bend ×1.5 |
-| 3 | Q&A-P0 crossings/tie-ins | Developer | Overlap uses max `K_special`; every new chamber ray costs one tie-in |
-| 4 | Q&A-P0 scale | Developer | Routing uses bounded PostGIS windows/cursors instead of one full Java feature list |
+| 1 | Q&A-P0 economics | Developer | Implemented locally; supplied rank/export, connect-vs-penalty and strict-profile regression require final verification |
+| 2 | Q&A-P0 geometry | Developer | Implemented locally; normal OKS egress and bend preference/economics require final verification |
+| 3 | Q&A-P0 crossings/tie-ins | Developer | Implemented locally; overlap max `K_special` and per-ray tie-in require final verification |
+| 4 | Q&A-P0 scale | Developer | Spatial-window calculation implemented locally; dense-window and PostGIS equivalence verification pending |
 | 5 | R9 acceptance | Developer + PM | Updated supplied-profile contract, offline package and Ubuntu 22 evidence |
 | 6 | Strict reconstruction / R8 | Developer | Preserve as optional profiles pending written organizer clarifications |
 

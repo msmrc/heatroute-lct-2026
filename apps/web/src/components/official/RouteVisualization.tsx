@@ -72,30 +72,6 @@ interface InputWarningGroup {
 }
 
 function inputWarningCopy(warning: OfficialInputWarning): { title: string; message: string } {
-  if (warning.code === "NUMERIC_ID_NORMALIZED") {
-    return {
-      title: "Идентификаторы приведены к строкам",
-      message: "Числовые ID безопасно преобразованы в строковый формат официального контракта.",
-    };
-  }
-  if (warning.code === "CONNECTION_POINT_AS_DEMAND") {
-    return {
-      title: "Точки подключения используются как ОКС",
-      message: "В файле нет отдельных объектов oks_future и связей oks_id, поэтому расход взят непосредственно из точек подключения.",
-    };
-  }
-  if (warning.code === "COMPATIBILITY_RESTRICTION_ALIAS" && warning.message.startsWith("railway ")) {
-    return {
-      title: "Слой railway принят по профилю совместимости",
-      message: "Объект railway учитывается как консервативное ограничение до уточнения правила постановщиком задачи.",
-    };
-  }
-  if (warning.code === "COMPATIBILITY_RESTRICTION_ALIAS") {
-    return {
-      title: "Здания учтены как ограничения",
-      message: "Объекты с типом ограничения oks приняты как существующая застройка и участвуют в проверке допустимых отступов.",
-    };
-  }
   if (warning.code === "MISSING_EXISTING_NETWORK_LINK") {
     return {
       title: "Нет направления существующей сети",
@@ -169,6 +145,16 @@ function noRouteReason(reason?: string): string {
   if (reason === "NO_ROUTE") return "Маршрут не найден";
   if (!reason) return "Маршрут не найден";
   return reason.replaceAll("_", " ").toLocaleLowerCase("ru-RU");
+}
+
+function noRouteDiagnostics(connection: OfficialCalculationResult["variants"][number]["connections"][number]): string {
+  const diagnostics = connection.diagnostics;
+  if (!diagnostics) return "";
+  const checked = `проверено точек врезки: ${diagnostics.attempted_candidate_count} из ${diagnostics.candidate_count}`;
+  const blockers = diagnostics.direct_blockers.length > 0
+    ? `; прямой путь блокируют: ${diagnostics.direct_blockers.join(", ")}`
+    : "";
+  return ` (${checked}, коридор поиска до ${diagnostics.maximum_search_corridor_m} м${blockers})`;
 }
 
 function calculationIssueTitle(issue: OfficialCalculationIssue): string {
@@ -556,7 +542,7 @@ export function RouteVisualization({
           )}
 
           {noRoute.length > 0 && (
-            <div className="route-inspector-warning"><AlertTriangle size={18} /><div><strong>Есть неподключённые объекты</strong><p>{noRoute.map((connection) => `ОКС ${connection.demand_id}: ${noRouteReason(connection.reason)}`).join(" · ")}</p></div></div>
+            <div className="route-inspector-warning"><AlertTriangle size={18} /><div><strong>Есть неподключённые объекты</strong><p>{noRoute.map((connection) => `ОКС ${connection.demand_id}: ${noRouteReason(connection.reason)}${noRouteDiagnostics(connection)}`).join(" · ")}</p></div></div>
           )}
           <div className="route-inspector-hint">Нажмите на трассу или объект на карте, чтобы увидеть его данные.</div>
         </aside>

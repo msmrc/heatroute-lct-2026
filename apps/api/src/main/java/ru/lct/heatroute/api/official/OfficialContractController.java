@@ -19,7 +19,7 @@ public class OfficialContractController {
             .cachePublic();
 
     @GetMapping(value = "/input.schema.json", produces = "application/schema+json")
-    @Operation(summary = "Download the strict seven-type organizer input JSON Schema")
+    @Operation(summary = "Download the extended seven-type input JSON Schema")
     public ResponseEntity<Resource> strictInputSchema() {
         return schema("lct-2026-input.schema.json");
     }

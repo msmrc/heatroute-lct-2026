@@ -16,6 +16,7 @@ data/
 tmp/
 output/
 target/
+.tooling/
 *.log
 
 # Editors and OS

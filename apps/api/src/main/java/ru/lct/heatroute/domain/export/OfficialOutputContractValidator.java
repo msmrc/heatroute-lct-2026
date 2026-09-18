@@ -16,20 +16,29 @@ public class OfficialOutputContractValidator {
     private static final Map<String, String> GEOMETRY = geometryTypes();
 
     public List<String> validate(JsonNode collection) {
+        return validate(collection, false);
+    }
+
+    public List<String> validate(JsonNode collection, boolean allowMissingTieInDiameter) {
         if (!"FeatureCollection".equals(collection.path("type").asText())
                 || !collection.path("features").isArray()) {
             return List.of("Root must be a GeoJSON FeatureCollection");
         }
-        ValidationSession session = begin();
+        ValidationSession session = begin(allowMissingTieInDiameter);
         collection.path("features").forEach(session::accept);
         return session.finish();
     }
 
     public ValidationSession begin() {
-        return new ValidationSession();
+        return begin(false);
+    }
+
+    public ValidationSession begin(boolean allowMissingTieInDiameter) {
+        return new ValidationSession(allowMissingTieInDiameter);
     }
 
     public final class ValidationSession {
+        private final boolean allowMissingTieInDiameter;
         private final List<String> issues = new ArrayList<>();
         private final Set<String> ids = new HashSet<>();
         private final Set<String> variants = new HashSet<>();
@@ -38,6 +47,10 @@ public class OfficialOutputContractValidator {
         private int index;
         private boolean finished;
 
+        private ValidationSession(boolean allowMissingTieInDiameter) {
+            this.allowMissingTieInDiameter = allowMissingTieInDiameter;
+        }
+
         public void accept(JsonNode feature) {
             if (finished) {
                 throw new IllegalStateException("Output validation session is already finished");
@@ -45,10 +58,14 @@ public class OfficialOutputContractValidator {
             int featureIndex = index++;
             JsonNode properties = feature.path("properties");
             String objectType = properties.path("object_type").asText();
-            Set<String> required = REQUIRED.get(objectType);
-            if (required == null) {
+            Set<String> configuredRequired = REQUIRED.get(objectType);
+            if (configuredRequired == null) {
                 issues.add("Feature " + featureIndex + " has unsupported object_type " + objectType);
                 return;
+            }
+            Set<String> required = new HashSet<>(configuredRequired);
+            if (allowMissingTieInDiameter && "tie_in".equals(objectType)) {
+                required.remove("existing_diameter");
             }
             if (!"Feature".equals(feature.path("type").asText())) {
                 issues.add("Feature " + featureIndex + " must have type Feature");
@@ -64,6 +81,9 @@ public class OfficialOutputContractValidator {
             }
             Set<String> allowed = new HashSet<>(required);
             allowed.addAll(OPTIONAL.getOrDefault(objectType, Set.of()));
+            if (allowMissingTieInDiameter && "tie_in".equals(objectType)) {
+                allowed.add("existing_diameter");
+            }
             List<String> forbidden = actual.stream()
                     .filter(field -> !allowed.contains(field))
                     .sorted()

@@ -114,13 +114,45 @@ public class OfficialRouteValidator {
                 exemptions.add(downstream.getTargetId());
             }
             int diameter = edge.getDiameter() == null ? 50 : edge.getDiameter();
-            List<OfficialRouteGeometryRules.Constraint> constraints = geometryRules.constraints(
+            issues.addAll(geometryRules.validateMandatoryEgress(edge, route, features, diameter));
+            List<OfficialRouteGeometryRules.Constraint> allConstraints = geometryRules.constraints(
                     features,
                     diameter,
                     exemptions,
                     route.getCoordinateN(0),
                     route.getCoordinateN(route.getNumPoints() - 1));
-            issues.addAll(geometryRules.validate(edge, route, constraints));
+            OfficialRouteGeometryRules.NormalEgress egress = "demand_connection".equals(downstream.getNodeType())
+                    ? geometryRules.normalEgress(features, diameter, downstream.getCoordinate().toCoordinate())
+                            .orElse(null)
+                    : null;
+            if (egress == null) {
+                issues.addAll(geometryRules.validate(edge, route, allConstraints));
+                continue;
+            }
+
+            Set<String> withOwnOksExempt = new HashSet<>(exemptions);
+            withOwnOksExempt.add(egress.oksId());
+            List<OfficialRouteGeometryRules.Constraint> outsideConstraints = geometryRules.constraints(
+                    features,
+                    diameter,
+                    withOwnOksExempt,
+                    route.getCoordinateN(0),
+                    route.getCoordinateN(route.getNumPoints() - 1));
+            issues.addAll(geometryRules.validate(edge, route, outsideConstraints));
+
+            // Only the final, validated normal-egress leg may enter the demand's own OKS. The
+            // independently checked route prefix must still avoid that building and its buffer.
+            if (route.getNumPoints() > 2) {
+                Coordinate[] outsideCoordinates = new Coordinate[route.getNumPoints() - 1];
+                for (int index = 0; index < outsideCoordinates.length; index++) {
+                    outsideCoordinates[index] = route.getCoordinateN(index);
+                }
+                LineString outsideRoute = geometryFactory.createLineString(outsideCoordinates);
+                List<OfficialRouteGeometryRules.Constraint> ownOks = allConstraints.stream()
+                        .filter(constraint -> egress.oksId().equals(constraint.id()))
+                        .collect(java.util.stream.Collectors.toList());
+                issues.addAll(geometryRules.validateForbidden(edge, outsideRoute, ownOks));
+            }
         }
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
                 .thenComparing(issue -> issue.getSubjectId() == null ? "" : issue.getSubjectId()));

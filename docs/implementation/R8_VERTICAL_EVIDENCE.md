@@ -59,5 +59,5 @@ Status: functional R8 implementation complete for the published depth rules
 
 The depth interval is validated before the run is queued and read back by the durable worker, so a
 restart cannot silently change the calculation parameters. The interval must include the ordinary
-3.0 m level and cannot go above the surface-side published minimum of 0.7 m. `railway` remains
-outside R8 until the organizer defines its official vertical rule.
+3.0 m level and cannot go above the surface-side published minimum of 0.7 m. `railway` is treated
+as `tram_tracks` and therefore uses the published tram vertical parameters.

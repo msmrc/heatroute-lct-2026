@@ -71,7 +71,7 @@ class OfficialVariantEconomicsCalculatorTest {
     }
 
     @Test
-    void withholdsFinalScoreWhenReconstructionInputsAreUnavailable() {
+    void preservesStrictProfileWhenReconstructionInputsAreUnavailable() {
         ExistingNetworkReconstructionResult reconstruction = new ExistingNetworkReconstructionResult(
                 List.of(), List.of(), List.of(new ru.lct.heatroute.domain.reconstruction.ReconstructionIssue(
                         "RECONSTRUCTION_INPUT_UNAVAILABLE", "network", "missing")));
@@ -82,6 +82,91 @@ class OfficialVariantEconomicsCalculatorTest {
         assertThat(result.isComplete()).isFalse();
         assertThat(result.getScore()).isNull();
         assertThat(result.getIncompleteReasons()).containsExactly("RECONSTRUCTION_INPUT_UNAVAILABLE");
+    }
+
+    @Test
+    void pricesAndRanksSuppliedProfileWhenReconstructionInputsAreUnavailable() {
+        ExistingNetworkReconstructionResult reconstruction = new ExistingNetworkReconstructionResult(
+                List.of(), List.of(), List.of(new ru.lct.heatroute.domain.reconstruction.ReconstructionIssue(
+                        "RECONSTRUCTION_INPUT_UNAVAILABLE", "network", "missing")));
+
+        VariantEconomics result = calculator.calculate(
+                List.of(), List.of(), List.of(), reconstruction, false);
+
+        assertThat(result.isComplete()).isTrue();
+        assertThat(result.getScore()).isEqualByComparingTo("0.000000000");
+        assertThat(result.getIncompleteReasons()).containsExactly("RECONSTRUCTION_INPUT_UNAVAILABLE");
+    }
+
+    @Test
+    void chargesEveryNewRayFromTheSameTieInChamberIndependently() {
+        RouteNode root = new RouteNode(
+                "root", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "existing");
+        RouteNode first = new RouteNode(
+                "first", "demand_connection", coordinate(10, 0), false, false, 0, "oks-1");
+        RouteNode second = new RouteNode(
+                "second", "demand_connection", coordinate(0, 10), false, false, 0, "oks-2");
+        RouteEdge firstRay = edge("first-ray", "root", "first", "base", null);
+        RouteEdge secondRay = edge("second-ray", "root", "second", "base", null);
+
+        VariantEconomics result = calculator.calculate(
+                List.of(root, first, second), List.of(firstRay, secondRay), List.of(),
+                ExistingNetworkReconstructionResult.empty());
+
+        assertThat(result.getTieInCost()).isEqualByComparingTo("10000000.00");
+    }
+
+    @Test
+    void appliesTheLargestSpecialCoefficientForOverlappingRestrictions() {
+        RouteEdge overlapping = edge("overlap", "start", "end", "special", "road+gas_pipeline");
+
+        VariantEconomics result = calculator.calculate(
+                List.of(), List.of(overlapping), List.of(), ExistingNetworkReconstructionResult.empty());
+
+        assertThat(result.getConstructionCost()).isEqualByComparingTo(officialEconomics.newNetworkCost(
+                pipeCatalog.byDiameter(50).orElseThrow(), new BigDecimal("10.000"),
+                ru.lct.heatroute.domain.engineering.SpecialCrossingType.ROAD, new BigDecimal("3.0")));
+    }
+
+    @Test
+    void comparesExclusiveSpurCostAgainstTheUnconnectedPenaltyWithoutReconstruction() {
+        RouteNode root = new RouteNode(
+                "root", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "existing");
+        RouteNode demand = new RouteNode(
+                "demand", "demand_connection", coordinate(10, 0), false, false, 0, "oks-1");
+        RouteConnection connection = new RouteConnection(
+                "oks-1", "cp-1", new BigDecimal("1.0"), "connected", null);
+
+        assertThat(calculator.connectionCostsMoreThanPenalty(
+                connection, List.of(edge("spur", "root", "demand", "base", null)), List.of(root, demand)))
+                .isFalse();
+        assertThat(calculator.marginalConnectionCost(
+                List.of(edge("spur", "root", "demand", "base", null)), List.of(root, demand)))
+                .isEqualByComparingTo("8740230.00");
+    }
+
+    @Test
+    void appliesBendCoefficientOnlyToTheFollowingNonStandardStraightSegment() {
+        RouteSection road = new RouteSection(
+                "special", "road", "road-1",
+                List.of(coordinate(0, 0), coordinate(10, 0), coordinate(13, 4)), 15, null);
+        RouteEdge edge = new RouteEdge(
+                "bent", "start", "end", 15,
+                List.of(coordinate(0, 0), coordinate(10, 0), coordinate(13, 4)), List.of(road),
+                new BigDecimal("3.5"), 50);
+
+        VariantEconomics result = calculator.calculate(
+                List.of(), List.of(edge), List.of(), ExistingNetworkReconstructionResult.empty());
+
+        var pipe = pipeCatalog.byDiameter(50).orElseThrow();
+        BigDecimal expected = officialEconomics.newNetworkCost(
+                        pipe, new BigDecimal("10"),
+                        ru.lct.heatroute.domain.engineering.SpecialCrossingType.ROAD, new BigDecimal("3.0"))
+                .add(officialEconomics.newNetworkCost(
+                        pipe, new BigDecimal("5"),
+                        ru.lct.heatroute.domain.engineering.SpecialCrossingType.ROAD, new BigDecimal("3.0"))
+                        .multiply(new BigDecimal("1.5")));
+        assertThat(result.getConstructionCost()).isEqualByComparingTo(expected);
     }
 
     @Test
@@ -172,11 +257,40 @@ class OfficialVariantEconomicsCalculatorTest {
         assertThat(result.getConstructionCost()).isEqualByComparingTo(expected);
     }
 
+    @Test
+    void ignoresSubMillimetreMappedIntervalsWhenPricingDepth() {
+        RouteSection base = new RouteSection(
+                "base", null, null,
+                List.of(coordinate(0, 0), coordinate(1, 0), coordinate(10_000, 0)), 1, null);
+        DepthProfileResult profile = new DepthProfileResult(
+                true,
+                List.of(point("0", "3"), point("1", "3")),
+                List.of(), List.of(), BigDecimal.ONE, BigDecimal.ONE);
+        RouteEdge edge = new RouteEdge(
+                "rounded-depth-edge", "start", "end", 1,
+                base.getCoordinates(), List.of(base), new BigDecimal("1"), 50, profile);
+
+        VariantEconomics result = calculator.calculate(
+                List.of(), List.of(edge), List.of(), ExistingNetworkReconstructionResult.empty());
+
+        assertThat(result.getConstructionCost()).isPositive();
+    }
+
     private DepthProfilePoint point(String station, String depth) {
         return new DepthProfilePoint(new BigDecimal(station), new BigDecimal(depth));
     }
 
     private RouteCoordinate coordinate(double x, double y) {
         return new RouteCoordinate(x, y);
+    }
+
+    private RouteEdge edge(
+            String id, String upstream, String downstream, String kind, String restrictionType) {
+        return new RouteEdge(
+                id, upstream, downstream, 10,
+                List.of(coordinate(0, 0), coordinate(10, 0)),
+                List.of(new RouteSection(kind, restrictionType, "restriction",
+                        List.of(coordinate(0, 0), coordinate(10, 0)), 10, null)),
+                new BigDecimal("3.5"), 50);
     }
 }

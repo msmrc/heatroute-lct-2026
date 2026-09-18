@@ -128,7 +128,7 @@
             "geometry": { "$ref": "#/$defs/point" },
             "properties": {
               "type": "object",
-              "required": ["id", "object_type", "variant_id", "existing_object_id", "existing_object_type", "existing_diameter", "required_diameter", "cost"],
+              "required": ["id", "object_type", "variant_id", "existing_object_id", "existing_object_type", "required_diameter", "cost"],
               "additionalProperties": false,
               "properties": {
                 "id": { "$ref": "#/$defs/id" },

@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -49,26 +50,19 @@ class OfficialDatasetRoutingTest {
     void officialDatasetProducesValidatedObstacleAwareVariants() throws Exception {
         List<ImportedOfficialFeature> features = loadOfficialFeatures();
         TopologyAnalysis topology = new ExistingNetworkTopologyAnalyzer().analyze(features);
-        OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
-                new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
-        OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
-        OfficialRoutePlanner planner = new OfficialRoutePlanner(
-                new OfficialRouteValidator(geometryRules),
-                new OfficialObstacleRouter(geometryRules),
-                pipeCatalog,
-                new OfficialNetworkSizer(pipeCatalog),
-                new OfficialExistingNetworkReconstructor(pipeCatalog),
-                new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()),
-                new OfficialDepthPlanner(
-                        new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipeCatalog),
-                        new OfficialDepthOptimizer(pipeCatalog, new OfficialEconomics()),
-                        new OfficialDepthProfileValidator(pipeCatalog)));
+        OfficialRoutePlanner planner = planner();
 
-        OfficialCalculationResult result = planner.plan(features, topology);
+        OfficialCalculationResult result = planner.plan(
+                features,
+                topology,
+                new OfficialRunParameters(null, null, true),
+                OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
 
         assertThat(topology.getTieInCandidates()).hasSize(204);
         assertThat(result.getDemandCount()).isEqualTo(17);
-        assertThat(result.getPreferredVariantId()).isNotNull();
+        assertThat(result.getPreferredVariantId())
+                .as(variantDiagnostics(result))
+                .isNotNull();
         assertThat(result.getVariants())
                 .extracting(RouteVariant::getId)
                 .containsExactly("independent", "shared", "diverse");
@@ -78,8 +72,8 @@ class OfficialDatasetRoutingTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(preferred.getConnectedDemandCount()).isEqualTo(17);
-        assertThat(preferred.getEconomics().isComplete()).isFalse();
-        assertThat(preferred.getEconomics().getScore()).isNull();
+        assertThat(preferred.getEconomics().isComplete()).isTrue();
+        assertThat(preferred.getEconomics().getScore()).isNotNull();
         assertThat(result.getVariants()).allSatisfy(variant -> {
             assertThat(variant.getEdges()).isNotEmpty();
             assertThat(variant.getEdges()).allSatisfy(edge -> {
@@ -100,8 +94,63 @@ class OfficialDatasetRoutingTest {
         assertThat(demoImport.path("input_size_bytes").asLong()).isEqualTo(233_277L);
         assertThat(demoImport.path("report").path("sha256").asText())
                 .isEqualTo("07921d7740c0297a63111846d4b77dfb6ccb33da65ffd7ccb14c5b2d786dd7d0");
-        assertThat(demoImport.path("report").path("warnings")).hasSize(323);
+        assertThat(demoImport.path("report").path("warnings")).hasSize(76);
         writeLocalDemoBundleIfRequested(demoBundle);
+    }
+
+    @Test
+    void ownOksEgressRoutesRemainValidForConcaveDatasetBuildings() throws Exception {
+        for (String demandId : List.of("1", "3", "8", "10", "16")) {
+            List<ImportedOfficialFeature> features = loadOfficialFeatures().stream()
+                    .filter(feature -> !"oks_connection_point".equals(feature.getObjectType())
+                            || demandId.equals(feature.getFeatureId()))
+                    .collect(Collectors.toList());
+            OfficialCalculationResult result = planner().plan(
+                    features,
+                    new ExistingNetworkTopologyAnalyzer().analyze(features),
+                    new OfficialRunParameters(null, null, false),
+                    OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
+            assertThat(result.getPreferredVariantId())
+                    .as("demand=" + demandId + "\n" + variantDiagnostics(result))
+                    .isNotNull();
+            assertThat(result.getVariants()).allMatch(RouteVariant::isValid);
+        }
+    }
+
+    private OfficialRoutePlanner planner() {
+        OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
+                new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
+        OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
+        return new OfficialRoutePlanner(
+                new OfficialRouteValidator(geometryRules),
+                new OfficialObstacleRouter(geometryRules),
+                pipeCatalog,
+                new OfficialNetworkSizer(pipeCatalog),
+                new OfficialExistingNetworkReconstructor(pipeCatalog),
+                new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()),
+                new OfficialDepthPlanner(
+                        new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipeCatalog),
+                        new OfficialDepthOptimizer(pipeCatalog, new OfficialEconomics()),
+                        new OfficialDepthProfileValidator(pipeCatalog)));
+    }
+
+    private String variantDiagnostics(OfficialCalculationResult result) {
+        return result.getVariants().stream()
+                .map(variant -> variant.getId()
+                        + " connected=" + variant.getConnectedDemandCount()
+                        + " issues=" + variant.getValidationIssues().stream()
+                                .map(issue -> issue.getCode() + ":" + issue.getSubjectId()
+                                        + ":" + issue.getMessage())
+                                .collect(Collectors.joining(" | "))
+                        + " edges=" + variant.getEdges().stream()
+                                .filter(edge -> variant.getValidationIssues().stream()
+                                        .anyMatch(issue -> edge.getId().equals(issue.getSubjectId())))
+                                .map(edge -> edge.getId() + ":du=" + edge.getDiameter()
+                                        + ":" + edge.getCoordinates().stream()
+                                                .map(coordinate -> coordinate.getXM() + "," + coordinate.getYM())
+                                                .collect(Collectors.joining(";")))
+                                .collect(Collectors.joining(" | ")))
+                .collect(Collectors.joining("\n"));
     }
 
     private ObjectNode buildLocalDemoBundle(OfficialCalculationResult result) throws Exception {

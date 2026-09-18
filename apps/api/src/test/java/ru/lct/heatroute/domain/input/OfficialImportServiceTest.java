@@ -120,7 +120,7 @@ class OfficialImportServiceTest {
     private OfficialInputReport report(String sha256) {
         return new OfficialInputReport(
                 OfficialGeoJsonInspector.CONTRACT_VERSION,
-                OfficialGeoJsonInspector.STRICT_PROFILE,
+                OfficialGeoJsonInspector.EXTENDED_INPUT_PROFILE,
                 sha256,
                 1,
                 Collections.emptyMap(),

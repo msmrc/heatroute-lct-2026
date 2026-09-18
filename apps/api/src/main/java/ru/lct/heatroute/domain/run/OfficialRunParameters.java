@@ -12,17 +12,24 @@ public class OfficialRunParameters {
 
     private final BigDecimal minimumDepthM;
     private final BigDecimal maximumDepthM;
+    private final boolean depthEnabled;
+
+    public OfficialRunParameters(BigDecimal minimumDepthM, BigDecimal maximumDepthM) {
+        this(minimumDepthM, maximumDepthM, false);
+    }
 
     @JsonCreator
     public OfficialRunParameters(
             @JsonProperty("minimum_depth_m") BigDecimal minimumDepthM,
-            @JsonProperty("maximum_depth_m") BigDecimal maximumDepthM) {
+            @JsonProperty("maximum_depth_m") BigDecimal maximumDepthM,
+            @JsonProperty("depth_enabled") Boolean depthEnabled) {
         this.minimumDepthM = minimumDepthM == null ? PUBLISHED_MINIMUM_DEPTH_M : minimumDepthM;
         this.maximumDepthM = maximumDepthM == null ? DEFAULT_MAXIMUM_DEPTH_M : maximumDepthM;
+        this.depthEnabled = Boolean.TRUE.equals(depthEnabled);
     }
 
     public static OfficialRunParameters defaults() {
-        return new OfficialRunParameters(PUBLISHED_MINIMUM_DEPTH_M, DEFAULT_MAXIMUM_DEPTH_M);
+        return new OfficialRunParameters(PUBLISHED_MINIMUM_DEPTH_M, DEFAULT_MAXIMUM_DEPTH_M, false);
     }
 
     public OfficialRunParameters validated() {
@@ -46,4 +53,5 @@ public class OfficialRunParameters {
 
     public BigDecimal getMinimumDepthM() { return minimumDepthM; }
     public BigDecimal getMaximumDepthM() { return maximumDepthM; }
+    public boolean isDepthEnabled() { return depthEnabled; }
 }

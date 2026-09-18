@@ -36,6 +36,13 @@ class OfficialConstraintRulesTest {
         assertThat(tram.getMinimumTopBelowSurfaceM()).isEqualByComparingTo("1.2");
         assertThat(tram.getCostMultiplier()).isEqualByComparingTo("1.75");
 
+        SpatialConstraintRule railwayAlias = catalog.find("railway").orElseThrow();
+        assertThat(railwayAlias.isForbidden()).isFalse();
+        assertThat(railwayAlias.getMinimumCrossingAngleDegrees()).isEqualByComparingTo("45");
+        assertThat(railwayAlias.getSpecialExtensionM()).isEqualByComparingTo("3.0");
+        assertThat(railwayAlias.getMinimumTopBelowSurfaceM()).isEqualByComparingTo("1.2");
+        assertThat(railwayAlias.getCostMultiplier()).isEqualByComparingTo("1.75");
+
         assertThat(catalog.find("gas_pipeline").orElseThrow().getVerticalClearanceM())
                 .isEqualByComparingTo("0.2");
         assertThat(catalog.find("power_cable").orElseThrow().getCostMultiplier())

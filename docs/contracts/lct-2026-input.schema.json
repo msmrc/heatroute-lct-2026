@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://heatroute.dragons.team/contracts/lct-2026-input.schema.json",
-  "title": "HeatRoute LCT 2026 strict input",
-  "description": "Published seven-type organizer input contract. Cross-feature IDs, references, topology and geometry validity are additionally checked by the streaming Java inspector.",
+  "title": "HeatRoute extended input",
+  "description": "Extended seven-type input contract. Cross-feature IDs, references, topology and geometry validity are additionally checked by the streaming Java inspector.",
   "type": "object",
   "required": ["type", "features"],
   "properties": {

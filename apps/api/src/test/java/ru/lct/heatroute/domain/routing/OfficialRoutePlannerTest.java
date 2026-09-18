@@ -51,6 +51,9 @@ class OfficialRoutePlannerTest {
     void nearbyDemandsPreferShorterSharedTrunk() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
+                feature("restriction", "shared-oks",
+                        "POLYGON ((95 -20, 110 -20, 110 30, 95 30, 95 -20))",
+                        "{\"restriction_type\":\"oks\"}"),
                 feature("oks_connection_point", "cp-a", "POINT (100 0)", "{\"flow_tph\":5}"),
                 feature("oks_connection_point", "cp-b", "POINT (100 10)", "{\"flow_tph\":7}"));
         TopologyAnalysis topology = topology(List.of(
@@ -64,10 +67,90 @@ class OfficialRoutePlannerTest {
         RouteVariant independent = result.getVariants().get(0);
         RouteVariant shared = result.getVariants().get(1);
         assertThat(shared.getTotalLengthM()).isLessThan(independent.getTotalLengthM());
+        assertThat(shared.getEconomics().getCalculatedCost())
+                .isLessThan(independent.getEconomics().getCalculatedCost());
         assertThat(shared.getEdges()).hasSize(3);
         assertThat(shared.getNodes()).filteredOn(RouteNode::isChamber).hasSize(2);
         assertThat(shared.isValid()).isTrue();
         assertThat(result.getPreferredVariantId()).isEqualTo("shared");
+        assertThat(result.getAlgorithmVersion()).isEqualTo("cost-tree-5");
+    }
+
+    @Test
+    void thirdDemandGraftsOntoTheAlreadyBuiltTree() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
+                feature("restriction", "shared-oks",
+                        "POLYGON ((95 -20, 110 -20, 110 40, 95 40, 95 -20))",
+                        "{\"restriction_type\":\"oks\"}"),
+                feature("oks_connection_point", "cp-a", "POINT (100 0)", "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "cp-b", "POINT (100 10)", "{\"flow_tph\":7}"),
+                feature("oks_connection_point", "cp-c", "POINT (100 20)", "{\"flow_tph\":6}"));
+        TopologyAnalysis topology = topology(List.of(
+                candidate("cp-a", "network", 100),
+                candidate("cp-b", "network", 100),
+                candidate("cp-c", "network", 100)));
+
+        RouteVariant shared = planner.plan(features, topology).getVariants().stream()
+                .filter(variant -> "shared".equals(variant.getId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(shared.isValid()).isTrue();
+        assertThat(shared.getConnectedDemandCount()).isEqualTo(3);
+        assertThat(shared.getNodes()).filteredOn(RouteNode::isRoot).hasSize(1);
+        assertThat(shared.getEdges())
+                .filteredOn(edge -> shared.getNodes().stream()
+                        .filter(RouteNode::isRoot)
+                        .map(RouteNode::getId)
+                        .anyMatch(edge.getUpstreamNodeId()::equals))
+                .hasSize(1);
+        assertThat(shared.getNodes())
+                .filteredOn(node -> "new_branch_chamber".equals(node.getNodeType()))
+                .isNotEmpty()
+                .allSatisfy(node -> assertThat(shared.getEdges().stream()
+                        .filter(edge -> edge.getUpstreamNodeId().equals(node.getId())
+                                || edge.getDownstreamNodeId().equals(node.getId()))
+                        .count()).isBetween(3L, 4L));
+        assertThat(shared.getEdges())
+                .anySatisfy(edge -> assertThat(edge.getFlowTph())
+                        .isEqualByComparingTo(new BigDecimal("18")));
+    }
+
+    @Test
+    void windowedConstraintSourceMatchesMaterializedPlannerResult() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
+                feature("restriction", "shared-oks",
+                        "POLYGON ((95 -20, 110 -20, 110 30, 95 30, 95 -20))",
+                        "{\"restriction_type\":\"oks\"}"),
+                feature("restriction", "road", "LINESTRING (45 -40, 45 40)",
+                        "{\"restriction_type\":\"road\"}"),
+                feature("oks_connection_point", "cp-a", "POINT (100 0)", "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "cp-b", "POINT (100 10)", "{\"flow_tph\":7}"));
+        TopologyAnalysis topology = topology(List.of(
+                candidate("cp-a", "network", 100),
+                candidate("cp-b", "network", 100)));
+        OfficialRunParameters parameters = OfficialRunParameters.defaults();
+
+        OfficialCalculationResult materialized = planner.plan(
+                features, topology, parameters, "baseline_input");
+        List<ImportedOfficialFeature> core = features.stream()
+                .filter(feature -> !"restriction".equals(feature.getObjectType()))
+                .collect(java.util.stream.Collectors.toList());
+        List<ImportedOfficialFeature> restrictions = features.stream()
+                .filter(feature -> "restriction".equals(feature.getObjectType()))
+                .collect(java.util.stream.Collectors.toList());
+        OfficialCalculationResult windowed = planner.plan(
+                core,
+                topology,
+                parameters,
+                "baseline_input",
+                new InMemoryRoutingFeatureSource(restrictions));
+
+        JsonNode windowedJson = objectMapper.valueToTree(windowed);
+        JsonNode materializedJson = objectMapper.valueToTree(materialized);
+        assertThat(windowedJson).isEqualTo(materializedJson);
     }
 
     @Test
@@ -123,7 +206,7 @@ class OfficialRoutePlannerTest {
         RouteVariant variant = planner.plan(
                 features,
                 topology(List.of(candidate("cp", "network", 100))),
-                new OfficialRunParameters(new BigDecimal("3.0"), new BigDecimal("3.0")))
+                new OfficialRunParameters(new BigDecimal("3.0"), new BigDecimal("3.0"), true))
                 .getVariants().get(0);
 
         assertThat(variant.getEdges()).singleElement().satisfies(edge -> {
@@ -138,6 +221,80 @@ class OfficialRoutePlannerTest {
             assertThat(edge.getDepthProfile().isComplete()).isTrue();
             assertThat(edge.getDepthProfile().getCrossings()).isEmpty();
         });
+    }
+
+    @Test
+    void mandatoryTwoDimensionalRouteDoesNotRequireOptionalDepthProfile() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (0 -10, 0 10)", "{}"),
+                feature("restriction", "cable", "LINESTRING (95 -20, 95 20)",
+                        "{\"restriction_type\":\"power_cable\"}"),
+                feature("oks_connection_point", "cp", "POINT (100 0)", "{\"flow_tph\":5}"));
+
+        RouteVariant variant = planner.plan(
+                features,
+                topology(List.of(candidate("cp", "network", 100))))
+                .getVariants().get(0);
+
+        assertThat(variant.isValid()).isTrue();
+        assertThat(variant.getEdges()).singleElement()
+                .extracting(RouteEdge::getDepthProfile)
+                .isNull();
+    }
+
+    @Test
+    void depthDetourPreservesMandatoryOksEgress() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (0 -10, 0 10)", "{}"),
+                feature("restriction", "cable", "LINESTRING (50 -20, 50 20)",
+                        "{\"restriction_type\":\"power_cable\"}"),
+                feature("restriction", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))",
+                        "{\"restriction_type\":\"oks\"}"),
+                feature("oks_connection_point", "cp", "POINT (100 0)", "{\"flow_tph\":5}"));
+
+        RouteVariant variant = planner.plan(
+                features,
+                topology(List.of(candidate("cp", "network", 100))),
+                new OfficialRunParameters(new BigDecimal("3.0"), new BigDecimal("3.0"), true))
+                .getVariants().get(0);
+
+        assertThat(variant.isValid()).isTrue();
+        assertThat(variant.getEdges()).singleElement().satisfies(edge -> {
+            List<RouteCoordinate> coordinates = edge.getCoordinates();
+            RouteCoordinate egress = coordinates.get(coordinates.size() - 2);
+            RouteCoordinate demand = coordinates.get(coordinates.size() - 1);
+            assertThat(distance(egress, demand)).isGreaterThanOrEqualTo(14.99);
+            assertThat(edge.getDepthProfile().isComplete()).isTrue();
+        });
+    }
+
+    @Test
+    void demandInsideOksLeavesByNearestBoundaryNormalAndClearsItsDuOffset() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
+                feature("restriction", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))",
+                        "{\"restriction_type\":\"oks\"}"),
+                feature("oks_connection_point", "cp", "POINT (100 0)", "{\"flow_tph\":5}"));
+
+        RouteVariant variant = planner.plan(
+                features,
+                topology(List.of(candidate("cp", "network", 100))))
+                .getVariants().get(0);
+
+        assertThat(variant.isValid()).isTrue();
+        assertThat(variant.getEdges()).singleElement().satisfies(edge -> {
+            List<RouteCoordinate> coordinates = edge.getCoordinates();
+            RouteCoordinate egress = coordinates.get(coordinates.size() - 2);
+            RouteCoordinate demand = coordinates.get(coordinates.size() - 1);
+            assertThat(demand.getXM()).isEqualByComparingTo(new BigDecimal("100.0"));
+            assertThat(distance(egress, demand)).isGreaterThanOrEqualTo(14.99);
+        });
+    }
+
+    private double distance(RouteCoordinate left, RouteCoordinate right) {
+        return Math.hypot(
+                left.getXM().subtract(right.getXM()).doubleValue(),
+                left.getYM().subtract(right.getYM()).doubleValue());
     }
 
     @Test
@@ -179,6 +336,59 @@ class OfficialRoutePlannerTest {
         assertThat(independent.getNodes())
                 .filteredOn(node -> "network-bad".equals(node.getTargetId()))
                 .isEmpty();
+    }
+
+    @Test
+    void searchesBeyondFourNearestTieInsWhenEarlierTargetsAreUnavailable() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network-a", "LINESTRING (10 10, 10 20)", "{}"),
+                feature("heat_network", "network-good", "LINESTRING (20 0, 20 5)", "{}"),
+                feature("oks_connection_point", "cp-a", "POINT (0 0)", "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "cp-b", "POINT (10 0)", "{\"flow_tph\":7}"));
+        TopologyAnalysis topology = topology(List.of(
+                candidate("cp-a", "network-a", 1),
+                candidate("cp-b", "network-bad-1", 1),
+                candidate("cp-b", "network-bad-2", 2),
+                candidate("cp-b", "network-bad-3", 3),
+                candidate("cp-b", "network-bad-4", 4),
+                candidate("cp-b", "network-bad-5", 5),
+                candidate("cp-b", "network-good", 6)));
+
+        RouteVariant independent = planner.plan(features, topology).getVariants().get(0);
+
+        assertThat(independent.getConnectedDemandCount()).isEqualTo(2);
+        assertThat(independent.getNodes())
+                .filteredOn(node -> "network-good".equals(node.getTargetId()))
+                .hasSize(1);
+    }
+
+    @Test
+    void preservesExpensiveButFeasibleConnectionForCoverageFirstGeneration() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (50000 -10, 50000 10)", "{}"),
+                feature("oks_connection_point", "cp", "POINT (0 0)", "{\"flow_tph\":5}"));
+
+        RouteVariant variant = planner.plan(
+                features,
+                topology(List.of(candidate("cp", "network", 50000))))
+                .getVariants().get(0);
+
+        assertThat(variant.getConnectedDemandCount()).isEqualTo(1);
+        assertThat(variant.getNoRouteDemandCount()).isZero();
+    }
+
+    @Test
+    void explainsNoRouteWhenNoTieInCandidatesExist() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("oks_connection_point", "cp", "POINT (0 0)", "{\"flow_tph\":5}"));
+
+        RouteConnection connection = planner.plan(features, topology(List.of()))
+                .getVariants().get(0).getConnections().get(0);
+
+        assertThat(connection.getReason()).isEqualTo("NO_TIE_IN_CANDIDATE");
+        assertThat(connection.getDiagnostics()).isNotNull();
+        assertThat(connection.getDiagnostics().getCandidateCount()).isZero();
+        assertThat(connection.getDiagnostics().getAttemptedCandidateCount()).isZero();
     }
 
     @Test

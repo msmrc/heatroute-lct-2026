@@ -79,6 +79,19 @@ public class OfficialJobRepository {
         return rows.stream().findFirst();
     }
 
+    public void finalizeRequestedCancellations() {
+        jdbcTemplate.update(
+                "UPDATE official_runs run SET state = 'cancelled', completed_at = COALESCE(run.completed_at, now()) "
+                        + "FROM official_jobs job WHERE job.run_id = run.id "
+                        + "AND job.cancellation_requested = true "
+                        + "AND run.state IN ('queued', 'running')");
+        jdbcTemplate.update(
+                "UPDATE official_jobs SET state = 'cancelled', phase = 'cancelled', "
+                        + "lease_owner = NULL, lease_until = NULL, completed_at = COALESCE(completed_at, now()), "
+                        + "updated_at = now() WHERE cancellation_requested = true "
+                        + "AND state IN ('queued', 'running')");
+    }
+
     public boolean isCancellationRequested(UUID id) {
         Boolean value = jdbcTemplate.queryForObject(
                 "SELECT cancellation_requested FROM official_jobs WHERE id = ?", Boolean.class, id);
@@ -121,7 +134,7 @@ public class OfficialJobRepository {
                         + "lease_owner = NULL, lease_until = NULL, completed_at = now(), updated_at = now() "
                         + "WHERE id = ? AND state IN ('queued', 'running')",
                 id);
-        if (updated != 1) {
+        if (updated != 1 && !find(id).map(job -> "cancelled".equals(job.getState())).orElse(false)) {
             throw new IllegalStateException("Job cannot transition to cancelled");
         }
     }

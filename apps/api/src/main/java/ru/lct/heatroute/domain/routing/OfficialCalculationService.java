@@ -1,5 +1,6 @@
 package ru.lct.heatroute.domain.routing;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -41,8 +42,17 @@ public class OfficialCalculationService {
         if (imported == null || !"valid".equals(imported.getState())) {
             return null;
         }
-        List<ImportedOfficialFeature> features = featureRepository.findByImport(importId);
+        // Core network and demand types are materialized; bulky restrictions and existing OKS
+        // geometries remain behind the PostGIS windowed routing source.
+        List<ImportedOfficialFeature> features = new ArrayList<>();
+        featureRepository.forEachCalculationCoreByImport(
+                importId, OfficialFeatureRepository.DEFAULT_PAGE_SIZE, features::add);
         TopologyAnalysis topology = topologyAnalyzer.analyze(features);
-        return routePlanner.plan(features, topology, parameters);
+        return routePlanner.plan(
+                features,
+                topology,
+                parameters,
+                imported.getReport().getInputProfile(),
+                featureRepository.routingFeatureSource(importId));
     }
 }

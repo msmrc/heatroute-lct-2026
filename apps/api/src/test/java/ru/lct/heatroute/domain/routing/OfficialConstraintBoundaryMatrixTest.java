@@ -14,7 +14,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 class OfficialConstraintBoundaryMatrixTest {
     private static final List<String> FORBIDDEN = List.of(
             "park", "social_area", "prohibited_site", "water");
-    private static final List<String> ANGLED_SPECIAL = List.of("road", "tram_tracks");
+    private static final List<String> ANGLED_SPECIAL = List.of("road", "tram_tracks", "railway");
     private static final List<String> UTILITY_SPECIAL = List.of(
             "gas_pipeline", "power_cable", "heat_network");
 
@@ -89,17 +89,6 @@ class OfficialConstraintBoundaryMatrixTest {
                     .extracting(RouteValidationIssue::getCode)
                     .contains("SPECIAL_CROSSING_SECTION_MISSING");
         }
-    }
-
-    @Test
-    void keepsRailwayCompatibilityRuleConservativelyForbiddenAtItsBoundary() throws Exception {
-        ImportedOfficialFeature railway = restriction(
-                "railway", "POLYGON ((-1 -1, 1 -1, 1 1, -1 1, -1 -1))");
-        List<OfficialRouteGeometryRules.Constraint> constraints = rules.baseConstraints(List.of(railway), 100);
-
-        assertThat(rules.lineAllowed(horizontal(2.51), constraints)).isTrue();
-        assertThat(rules.lineAllowed(horizontal(2.5), constraints)).isTrue();
-        assertThat(rules.lineAllowed(horizontal(2.49), constraints)).isFalse();
     }
 
     private void assertDynamicClearance(

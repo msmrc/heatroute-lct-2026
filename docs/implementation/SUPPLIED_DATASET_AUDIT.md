@@ -6,7 +6,7 @@
 **SHA-256:** `07921d7740c0297a63111846d4b77dfb6ccb33da65ffd7ccb14c5b2d786dd7d0`
 
 The tracked copy is byte-identical to the organizer file and is the only geodata file retained in
-the repository. Synthetic compatibility and demo datasets were removed.
+the repository. Synthetic compatibility-era and demo datasets were removed.
 
 ## Observed shape
 
@@ -36,16 +36,16 @@ The pre-change strict importer correctly reported the mismatch but made the supp
 unusable: 409 validation errors (`MISSING_FIELD`, `INVALID_NUMBER`, `INVALID_DIAMETER`, and
 unsupported restriction/geometry diagnostics).
 
-## Implemented compatibility profile
+## Implemented official contest profile
 
 Input contract v2 keeps the complete strict profile and adds
-`provided_dataset_compatibility`:
+`official_contest_dataset`:
 
-- integral IDs are normalized to decimal strings;
-- a connection point with `flow_tph` and no `oks_id` is treated as the demand object itself;
+- integral IDs are accepted and normalized internally without a warning;
+- a connection point with `flow_tph` and no `oks_id` is the confirmed demand object;
 - missing existing-network flow/upstream fields and chamber diameter become explicit warnings;
-- `oks` and `railway` restriction aliases are accepted and reported;
-- `railway` is conservatively treated as forbidden until an organizer rule is confirmed;
+- `oks` is accepted as the confirmed existing-building restriction type;
+- `railway` is the dataset alias for `tram_tracks` and uses the published tram crossing rule;
 - `oks` is treated as a forbidden building area, with the final clearance still determined by DU.
 
 The profile does not fabricate source direction, existing flows or reconstruction results. R3 now
@@ -56,10 +56,9 @@ supplied or a documented inference policy is approved.
 
 ## PM clarification required
 
-Ask the organizer which artifact is authoritative: the published attribute table or the supplied
-dataset. Specifically request rules for `railway`, confirmation that `oks_connection_point`
-contains the demand directly, and either the missing existing-network attributes or permission to
-derive topology and omit reconstruction where existing flow is unknown.
+The supplied dataset and direct demand on `oks_connection_point` are confirmed. Reconstruction is
+not mandatory for this profile. Remaining written questions concern the reduced output contract,
+continuous-length branching and disputed depth rules.
 
 ## Production verification
 
@@ -67,8 +66,8 @@ Commit `3d41730` was deployed to the VPS and the untouched supplied file was upl
 public HTTPS API:
 
 - import state: `valid`;
-- contract/profile: `lct-2026-official-input-v2` / `provided_dataset_compatibility`;
-- features: 144; blocking errors: 0; explicit warnings: 323;
+- contract/profile: `lct-2026-official-input-v2` / `official_contest_dataset`;
+- features: 144; blocking errors: 0; actionable warnings: 76;
 - topology job: `completed`, attempt 1;
 - topology result: one source, 29 network sections, 9 chambers, zero issues and 204 deterministic
   tie-in candidates for 17 demand points.

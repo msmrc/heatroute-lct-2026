@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.core.task.SyncTaskExecutor;
@@ -163,6 +164,41 @@ class OfficialJobWorkerTest {
 
         verify(repository).renewLease(eq(job.getId()), isA(UUID.class));
         verify(repository, timeout(2_000)).markCompleted(eq(job.getId()), isA(JsonNode.class));
+    }
+
+    @Test
+    void interruptsRunningCalculationAfterCancellationIsRequested() throws Exception {
+        UUID runId = UUID.randomUUID();
+        OfficialJobView job = runningJob("calculation", runId);
+        OfficialRunParameters parameters = prepareRun(runId);
+        java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        OfficialJobWorker concurrentWorker = new OfficialJobWorker(
+                repository,
+                topologyService,
+                calculationService,
+                runRepository,
+                new ObjectMapper(),
+                command -> new Thread(command).start(),
+                1);
+        when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
+        when(repository.isCancellationRequested(job.getId())).thenReturn(false, true);
+        when(calculationService.calculate(job.getImportId(), parameters)).thenAnswer(invocation -> {
+            entered.countDown();
+            try {
+                Thread.sleep(30_000);
+                throw new AssertionError("Calculation thread was not interrupted");
+            } catch (InterruptedException exception) {
+                throw new CancellationException("cancelled");
+            }
+        });
+
+        concurrentWorker.poll();
+        assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+        concurrentWorker.interruptCancelledJobs();
+
+        verify(runRepository, timeout(2_000)).markCancelled(runId);
+        verify(repository, timeout(2_000)).markCancelled(job.getId());
+        verify(repository, never()).markCompleted(eq(job.getId()), isA(JsonNode.class));
     }
 
     @Test

@@ -1,4 +1,4 @@
-FROM maven:3.9.12-eclipse-temurin-11-alpine@sha256:f66d7a8e40ef1f9f4dcac12ff7b6a54bc5db9288878c679c3303378bb8bbe160 AS build
+FROM maven:3.9.12-eclipse-temurin-11-alpine@sha256:f66d7a8e40ef1f9f4dcac12ff7b6a54bc5db9288878c679c3303378bb8bbe160 AS source
 
 WORKDIR /workspace
 COPY apps/api/pom.xml ./pom.xml
@@ -6,7 +6,12 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp dependency:go-offline
 COPY apps/api/src ./src
 COPY datasets/official /datasets/official
 COPY docs/contracts /docs/contracts
+
+FROM source AS test
 RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp verify
+
+FROM source AS build
+RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp package -DskipTests
 
 FROM eclipse-temurin:11.0.28_6-jre-alpine@sha256:6cde7e6ae3c23c3636f3fb4b92836d1323c13929d9ee27da1885cc231c086101
 

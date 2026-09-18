@@ -10,7 +10,7 @@
 - elapsed inspector time: 4,308 ms;
 - reported peak heap: 42,005,872 bytes;
 - streamed SHA-256: `7070908d6f52b3d45fe9455a4cdcfaacd4567aab6b33d0b6156e01feaf0eb9cb`;
-- result: valid compatibility-profile input, 144 features, zero blocking errors.
+- result: valid official-contest-profile input, 144 features, zero blocking errors.
 
 Command and fixture generation are documented in `docs/operations/R9_ACCEPTANCE.md`. The generated
 3 GiB file was verified by absolute path and exact size, then deleted from `E:`; it was never added

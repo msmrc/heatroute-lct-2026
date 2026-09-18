@@ -5,7 +5,7 @@ import type { OfficialCalculationResult } from "../../shared/api";
 import { RouteVisualization } from "./RouteVisualization";
 
 vi.mock("./OfficialRouteMap", () => ({
-  OfficialRouteMap: () => <div>Интерактивная карта</div>,
+  OfficialRouteMap: ({ variant }: { variant: { id: string } }) => <div>Интерактивная карта {variant.id}</div>,
 }));
 
 const result: OfficialCalculationResult = {
@@ -103,7 +103,7 @@ describe("RouteVisualization", () => {
 
     expect(screen.getByRole("tab", { name: /Общая сеть/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText(/2 из 2 ОКС/)).toBeTruthy();
-    expect(await screen.findByText("Интерактивная карта")).toBeTruthy();
+    expect(await screen.findByText("Интерактивная карта shared")).toBeTruthy();
     expect(container.querySelector(".route-results-drawer")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
     expect(container.querySelector(".route-workspace-inspector")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
 
@@ -111,6 +111,12 @@ describe("RouteVisualization", () => {
     expect(screen.getByText("Продольный профиль")).toBeTruthy();
     expect(screen.getByRole("img", { name: /Продольный профиль участка shared:trunk:1/ })).toBeTruthy();
     expect(screen.getByText("Газопровод")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Карта/ }));
+    expect(await screen.findByText("Интерактивная карта shared")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
+    expect(await screen.findByText("Интерактивная карта independent")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Общая сеть/ }));
 
     const validationTrigger = screen.getByRole("button", { name: /Открыть результаты проверки/ });
     validationTrigger.focus();
@@ -161,24 +167,24 @@ describe("RouteVisualization", () => {
     expect(screen.getByText(/Затронуто участков: 2 · ID 101, 102/)).toBeTruthy();
   });
 
-  it("groups and localizes repeated input compatibility warnings", () => {
+  it("groups repeated actionable input warnings", () => {
     render(
       <RouteVisualization
         result={result}
         runId="run-1"
         importId="import-1"
         warnings={[1, 2, 3].map((id) => ({
-          code: "NUMERIC_ID_NORMALIZED",
+          code: "MISSING_EXISTING_NETWORK_LINK",
           feature_index: id - 1,
           feature_id: String(id),
-          field: "id",
-          message: "Numeric identifier is normalized to its decimal string representation",
+          field: "upstream_object_id",
+          message: "upstream_object_id is absent; connectivity will be inferred geometrically",
         }))}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /3 предупреждения/ }));
-    expect(screen.getByText("Идентификаторы приведены к строкам")).toBeTruthy();
+    expect(screen.getByText("Нет направления существующей сети")).toBeTruthy();
     expect(screen.getByText(/3 объекта · примеры ID: 1, 2, 3/)).toBeTruthy();
     expect(screen.queryByText("Numeric identifier is normalized to its decimal string representation")).toBeNull();
   });

@@ -1,6 +1,6 @@
 # START HERE
 
-Продолжай разработку из `E:\job\_lct2026\heatroute_codex` на ветке `master`.
+Работай из корня текущего checkout на ветке `master`.
 
 Перед изменениями прочитай в этом порядке:
 
@@ -37,7 +37,7 @@ R7 component costing и score уже интегрированы; поставл�
 стоимость и не получает score без данных реконструкции. Строгий seven-type adapter, независимый
 whitelist/type/reference validator и download endpoint реализованы для contract-complete вариантов;
 для поставленного неполного файла endpoint честно отвечает `409 OFFICIAL_EXPORT_INCOMPLETE`.
-Строгий вход, supplied-dataset compatibility profile и выход опубликованы как JSON Schema Draft
+Расширенный вход, базовый входной профиль и выход опубликованы как JSON Schema Draft
 2020-12 в `docs/contracts`, упаковываются в Java runtime и доступны через
 `/api/v1/official/contracts/*.schema.json`; CI проверяет реальный файл и результат экспортера.
 Экспорт проходит preflight-проверку и затем инкрементально пишется Jackson `JsonGenerator` без
@@ -59,6 +59,6 @@ API tests. Точное full-calculation scale evidence
 Быстрая проверка состояния:
 
 ```powershell
-git -C E:\job\_lct2026\heatroute_codex status --short
-pwsh -File E:\job\_lct2026\heatroute_codex\scripts\dev.ps1 test
+git status --short
+pwsh -File scripts/dev.ps1 test
 ```

@@ -1,5 +1,19 @@
 # Current implementation progress
 
+## Code-quality rules and refactoring backlog — 2026-09-21
+
+[REFACTORING.md](REFACTORING.md) records the Java-focused audit baseline (`0096da4`), concrete
+rules for new/changed code, open correctness findings B-01–B-12, and staged work RF-00–RF-06.
+Feature development continues; broad structural refactoring is deferred until the active scope
+and its behavioral baseline are stable. Correctness and recovery fixes remain separate priority
+work, with reproducing tests before changes. AGENTS and handoff now link to these rules.
+The rules also require concise Russian JavaDoc/JSDoc for key entry points, domain algorithms
+and non-obvious contracts, with examples and a reviewer-oriented documentation check.
+
+This is documentation only. No application code was changed, and no B/RF/R gate was completed.
+The audit's Java findings are static; Java 11/Compose verification remains required. The evidence
+and limits of the previously run web checks are recorded in the new document.
+
 ## Organizer video clarification review — 2026-09-17
 
 The full organizer Q&A recording was reviewed against `origin/master` at `c5413b8`. The active

@@ -6,6 +6,11 @@ The organizer documents override repository prose. The active implementation bas
 `docs/implementation/OFFICIAL_TZ_ROADMAP.md`; the next-shift checklist is
 `docs/implementation/TOMORROW_HANDOFF.md`. Historical M0–M7 evidence is not an acceptance claim.
 
+Code-quality rules and the incremental refactoring backlog are in
+`docs/implementation/REFACTORING.md`. Read it before backend changes or refactoring. Apply the
+rules to new and substantially changed code; do not expand a feature task into a whole-codebase
+rewrite. Keep correctness fixes separate from behavior-preserving refactoring.
+
 ## Architecture
 
 - Backend: Java 11, Spring Boot 2.6.3, springdoc 1.7.0, JDBC, JTS/Proj4J, Liquibase.

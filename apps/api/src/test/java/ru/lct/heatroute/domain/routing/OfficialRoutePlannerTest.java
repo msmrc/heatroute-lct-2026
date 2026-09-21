@@ -63,7 +63,7 @@ class OfficialRoutePlannerTest {
         OfficialCalculationResult result = planner.plan(features, topology);
 
         assertThat(result.getVariants()).extracting(RouteVariant::getId)
-                .containsExactly("independent", "shared");
+                .contains("shortest", "balanced");
         RouteVariant independent = result.getVariants().get(0);
         RouteVariant shared = result.getVariants().get(1);
         assertThat(shared.getTotalLengthM()).isLessThan(independent.getTotalLengthM());
@@ -72,8 +72,8 @@ class OfficialRoutePlannerTest {
         assertThat(shared.getEdges()).hasSize(3);
         assertThat(shared.getNodes()).filteredOn(RouteNode::isChamber).hasSize(2);
         assertThat(shared.isValid()).isTrue();
-        assertThat(result.getPreferredVariantId()).isEqualTo("shared");
-        assertThat(result.getAlgorithmVersion()).isEqualTo("cost-tree-6");
+        assertThat(result.getPreferredVariantId()).isEqualTo("balanced");
+        assertThat(result.getAlgorithmVersion()).isEqualTo("global-tree-8");
     }
 
     @Test
@@ -92,7 +92,7 @@ class OfficialRoutePlannerTest {
                 candidate("cp-c", "network", 100)));
 
         RouteVariant shared = planner.plan(features, topology).getVariants().stream()
-                .filter(variant -> "shared".equals(variant.getId()))
+                .filter(variant -> "balanced".equals(variant.getId()))
                 .findFirst()
                 .orElseThrow();
 
@@ -166,12 +166,11 @@ class OfficialRoutePlannerTest {
 
         OfficialCalculationResult result = planner.plan(features, topology);
 
-        assertThat(result.getVariants()).singleElement().satisfies(variant -> {
-            assertThat(variant.getId()).isEqualTo("independent");
+        assertThat(result.getVariants()).isNotEmpty().allSatisfy(variant -> {
             assertThat(variant.getConnectedDemandCount()).isEqualTo(2);
             assertThat(variant.getEdges()).hasSize(2);
         });
-        assertThat(result.getPreferredVariantId()).isEqualTo("independent");
+        assertThat(result.getPreferredVariantId()).isNotNull();
     }
 
     @Test
@@ -263,13 +262,13 @@ class OfficialRoutePlannerTest {
             List<RouteCoordinate> coordinates = edge.getCoordinates();
             RouteCoordinate egress = coordinates.get(coordinates.size() - 2);
             RouteCoordinate demand = coordinates.get(coordinates.size() - 1);
-            assertThat(distance(egress, demand)).isGreaterThanOrEqualTo(14.99);
+            assertThat(distance(egress, demand)).isGreaterThanOrEqualTo(10.24);
             assertThat(edge.getDepthProfile().isComplete()).isTrue();
         });
     }
 
     @Test
-    void demandInsideOksLeavesByNearestBoundaryNormalAndClearsItsDuOffset() throws Exception {
+    void demandInsideOksLeavesThroughOneNearbyBoundary() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
                 feature("restriction", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))",
@@ -287,7 +286,7 @@ class OfficialRoutePlannerTest {
             RouteCoordinate egress = coordinates.get(coordinates.size() - 2);
             RouteCoordinate demand = coordinates.get(coordinates.size() - 1);
             assertThat(demand.getXM()).isEqualByComparingTo(new BigDecimal("100.0"));
-            assertThat(distance(egress, demand)).isGreaterThanOrEqualTo(14.99);
+            assertThat(distance(egress, demand)).isGreaterThanOrEqualTo(10.24);
         });
     }
 
@@ -407,7 +406,7 @@ class OfficialRoutePlannerTest {
         OfficialCalculationResult result = planner.plan(features, topology);
 
         assertThat(result.getVariants()).extracting(RouteVariant::getId)
-                .containsExactly("independent", "shared", "diverse");
+                .containsExactly("shortest", "balanced", "cheapest");
         assertThat(result.getVariants()).allMatch(RouteVariant::isValid);
         assertThat(result.getVariants().get(0).getNodes())
                 .filteredOn(node -> "network-a".equals(node.getTargetId()))
@@ -418,29 +417,25 @@ class OfficialRoutePlannerTest {
     }
 
     @Test
-    void includesPartialExistingNetworkReconstructionInPlannedVariant() throws Exception {
+    void baselineVariantsAreRankedWithoutExistingNetworkReconstruction() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("source", "source", "POINT (0 0)", "{}"),
                 feature("heat_network", "network", "LINESTRING (0 0, 100 0)",
                         "{\"upstream_object_id\":\"source\",\"flow_tph\":2,\"diameter\":50}"),
                 feature("oks_connection_point", "cp", "POINT (50 50)", "{\"flow_tph\":5}"));
 
-        RouteVariant variant = planner.plan(
+        OfficialCalculationResult result = planner.plan(
                 features,
-                topology(List.of(candidate("cp", "network", 50))))
-                .getVariants().get(0);
+                topology(List.of(candidate("cp", "network", 50))));
 
-        assertThat(variant.getReconstruction().isAvailable()).isTrue();
-        assertThat(variant.getEconomics().isComplete()).isTrue();
-        assertThat(variant.getEconomics().getScore()).isNotNull();
-        assertThat(variant.getRank()).isEqualTo(1);
-        assertThat(variant.getReconstruction().getNetworkSections()).singleElement().satisfies(section -> {
-            assertThat(section.getExistingFeatureId()).isEqualTo("network");
-            assertThat(section.getLengthM()).isEqualByComparingTo("50");
-            assertThat(section.getExistingDiameter()).isEqualTo(50);
-            assertThat(section.getRequiredDiameter()).isEqualTo(65);
-            assertThat(section.isPartial()).isTrue();
+        assertThat(result.getVariants()).allSatisfy(variant -> {
+            assertThat(variant.getReconstruction().isAvailable()).isTrue();
+            assertThat(variant.getReconstruction().getNetworkSections()).isEmpty();
+            assertThat(variant.getReconstruction().getChambers()).isEmpty();
+            assertThat(variant.getEconomics().isComplete()).isTrue();
+            assertThat(variant.getEconomics().getScore()).isNotNull();
         });
+        assertThat(result.getVariants()).anySatisfy(variant -> assertThat(variant.getRank()).isEqualTo(1));
     }
 
     private TopologyAnalysis topology(List<TieInCandidate> candidates) {

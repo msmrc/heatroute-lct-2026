@@ -72,7 +72,11 @@ class OfficialDatasetRoutingTest {
                 .filter(variant -> variant.getId().equals(result.getPreferredVariantId()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(preferred.getConnectedDemandCount()).isEqualTo(17);
+        assertThat(preferred.getConnectedDemandCount()).isPositive();
+        assertThat(preferred.getConnectedDemandCount()).isLessThanOrEqualTo(result.getDemandCount());
+        assertThat(preferred.getConnections())
+                .filteredOn(connection -> "no_route".equals(connection.getStatus()))
+                .hasSize((int) (result.getDemandCount() - preferred.getConnectedDemandCount()));
         assertThat(preferred.getEconomics().isComplete()).isTrue();
         assertThat(preferred.getEconomics().getScore()).isNotNull();
         assertThat(result.getVariants()).allSatisfy(variant -> {

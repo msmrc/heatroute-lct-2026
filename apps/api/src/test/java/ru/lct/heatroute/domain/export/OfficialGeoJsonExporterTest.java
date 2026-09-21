@@ -51,7 +51,7 @@ class OfficialGeoJsonExporterTest {
             new OfficialVariantEconomicsCalculator(pipeCatalog, economics));
 
     @Test
-    void exportsStrictSevenTypeContractWithoutNullOrForeignProperties() throws Exception {
+    void exportsStrictFourTypeContractWithoutNullOrForeignProperties() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("source", "source", "POINT (500000 6170000)", "{}"),
                 feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
@@ -77,10 +77,7 @@ class OfficialGeoJsonExporterTest {
                 .collect(Collectors.toSet());
         assertThat(types).containsExactlyInAnyOrder(
                 "heat_network",
-                "tie_in",
-                "heat_network_reconstruction",
                 "heat_chamber",
-                "heat_chamber_reconstruction",
                 "technical_node",
                 "variant_summary");
         assertThat(output.path("features")).allSatisfy(feature -> {
@@ -102,29 +99,25 @@ class OfficialGeoJsonExporterTest {
                         feature.path("properties").path("object_type").asText()))
                 .findFirst().orElseThrow().path("properties");
         BigDecimal componentTotal = StreamSupport.stream(List.of(
-                        "construction_cost", "chamber_construction_cost", "tie_in_cost",
-                        "reconstruction_cost", "chamber_reconstruction_cost", "unconnected_penalty")
+                        "construction_cost", "unconnected_penalty")
                         .spliterator(), false)
                 .map(field -> summary.path(field).decimalValue())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(summary.path("calculated_cost").decimalValue()).isEqualByComparingTo(componentTotal);
         String summaryVariantId = summary.path("variant_id").asText();
         BigDecimal exportedConstruction = StreamSupport.stream(output.path("features").spliterator(), false)
-                .filter(feature -> "heat_network".equals(
+                .filter(feature -> Set.of("heat_network", "heat_chamber", "tie_in").contains(
                         feature.path("properties").path("object_type").asText()))
                 .filter(feature -> summaryVariantId.equals(
                         feature.path("properties").path("variant_id").asText()))
                 .map(feature -> feature.path("properties").path("cost").decimalValue())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        assertThat(exportedConstruction).isEqualByComparingTo(summary.path("construction_cost").decimalValue());
+        assertThat(exportedConstruction).isEqualByComparingTo(
+                summary.path("construction_cost").decimalValue()
+                        .subtract(summary.path("existing_chamber_tie_in_cost").decimalValue()));
         assertThat(summary.path("rank").asInt()).isEqualTo(1);
-        long tieInFeatures = StreamSupport.stream(output.path("features").spliterator(), false)
-                .filter(feature -> "tie_in".equals(feature.path("properties").path("object_type").asText()))
-                .filter(feature -> summaryVariantId.equals(
-                        feature.path("properties").path("variant_id").asText()))
-                .count();
-        assertThat(summary.path("tie_in_cost").decimalValue()).isEqualByComparingTo(
-                economics.tieInCost().multiply(BigDecimal.valueOf(tieInFeatures)));
+        assertThat(summary.path("existing_chamber_tie_in_count").asInt()).isGreaterThanOrEqualTo(0);
+        assertThat(summary.path("existing_chamber_tie_in_cost").decimalValue()).isNotNegative();
     }
 
     @Test
@@ -140,7 +133,7 @@ class OfficialGeoJsonExporterTest {
     }
 
     @Test
-    void exportsRankedResultWhenOnlyExistingNetworkReconstructionIsUnavailable() throws Exception {
+    void exportsRankedBaselineResultWithoutReconstructionEntities() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("source", "source", "POINT (500000 6170000)", "{}"),
                 feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
@@ -154,27 +147,24 @@ class OfficialGeoJsonExporterTest {
                 OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
 
         JsonNode calculation = objectMapper.valueToTree(result);
-        assertThat(calculation.path("variants").path(0).path("reconstruction").path("available").asBoolean())
-                .isFalse();
-        assertThat(calculation.path("variants").path(0).path("economics").path("complete").asBoolean())
-                .isTrue();
-        assertThat(calculation.path("variants").path(0).path("rank").asInt()).isEqualTo(1);
+        assertThat(calculation.path("variants")).allSatisfy(variant -> {
+            assertThat(variant.path("reconstruction").path("available").asBoolean()).isTrue();
+            assertThat(variant.path("reconstruction").path("network_sections")).isEmpty();
+            assertThat(variant.path("reconstruction").path("chambers")).isEmpty();
+            assertThat(variant.path("economics").path("complete").asBoolean()).isTrue();
+        });
+        assertThat(calculation.path("variants")).anySatisfy(variant ->
+                assertThat(variant.path("rank").asInt()).isEqualTo(1));
 
         ObjectNode output = exporter.export(calculation, features);
         assertThat(validator.validate(output, true)).isEmpty();
         assertThat(validate(load("lct-2026-output.schema.json"), output)).isEmpty();
         assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
-                .filter(feature -> "tie_in".equals(feature.path("properties").path("object_type").asText())))
-                .singleElement()
-                .satisfies(feature -> {
-                    assertThat(feature.path("properties").has("existing_diameter")).isFalse();
-                    assertThat(feature.path("properties").path("required_diameter").isInt()).isTrue();
-                });
+                .map(feature -> feature.path("properties").path("object_type").asText()))
+                .doesNotContain("tie_in", "heat_network_reconstruction", "heat_chamber_reconstruction");
 
         ((ObjectNode) calculation).put("input_profile", OfficialGeoJsonInspector.EXTENDED_INPUT_PROFILE);
-        assertThatThrownBy(() -> exporter.export(calculation, features))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("tie-in baseline is missing");
+        assertThat(validator.validate(exporter.export(calculation, features), true)).isEmpty();
     }
 
     @Test

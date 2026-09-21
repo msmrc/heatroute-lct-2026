@@ -121,9 +121,9 @@ function groupInputWarnings(warnings: OfficialInputWarning[]): InputWarningGroup
 }
 
 function variantName(variant: OfficialRouteVariant): string {
-  if (variant.strategy === "balanced") return "Оптимальный баланс";
-  if (variant.strategy === "cheapest") return "Минимальная стоимость";
-  if (variant.strategy === "shortest") return "Минимальная длина";
+  if (variant.strategy === "balanced") return "Общая сеть";
+  if (variant.strategy === "cheapest") return "Альтернативные врезки";
+  if (variant.strategy === "shortest") return "Раздельные трассы";
   return "Вариант сети";
 }
 
@@ -548,8 +548,8 @@ export function RouteVisualization({
         <footer className="route-results-drawer">
           <header><strong>Результаты расчёта</strong><span>{variantName(variant)}</span></header>
           <div className="route-result-metrics">
-            <article><span>Минимальная длина</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
-            <article><span>Оптимальный баланс</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
+            <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
+            <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
             <article><span>{variant.economics?.complete ? "Стоимость" : "Известная стоимость"}</span><strong>{variant.economics ? formatMoney(variant.economics.calculated_cost) : "—"}</strong><small>{variant.economics?.score != null ? `показатель ${variant.economics.score.toLocaleString("ru-RU", { maximumFractionDigits: 3 })}` : "без реконструкции"}</small></article>
             <button
               type="button"

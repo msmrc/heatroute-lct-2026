@@ -577,3 +577,39 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
 - The resulting balanced variant connected 17/17 objects, measured 2,098.903 m and scored
   14.937905995. This restores the CI time budget, but route quality still needs improvement against
   the external 1.83 km / 286.2 million reference.
+
+# 2026-09-21 — global-tree-8 geometry correction (local, recheck required)
+
+- The planner can reuse the nearest eligible generated branch chamber instead of creating a new
+  chamber for every graft; the degree-four invariant remains enforced by the structural validator.
+- A failed independent ray can attach to the already built forest, so length-oriented and
+  alternative-target drafts are no longer discarded solely because one separate ray crosses the
+  accepted geometry.
+- A connection point inside its own OKS chooses a nearby boundary side facing the candidate
+  network when that side is no more than 10 m farther than the nearest boundary. The final own-OKS
+  leg no longer adds the foreign-building DU clearance; all other route segments retain it.
+- CI failure `#87` was diagnosed: the timed official routing method passed, while backend, web and
+  integration checks still asserted the superseded reconstruction, bend, railway, export and
+  variant-label contracts. The web label and integration complete-export expectations were aligned;
+  remaining backend expectation updates are not claimed complete.
+- One focused Java 11 run was performed after the first implementation. It failed because the final
+  validator still resolved the own-OKS exemption using the old nearest-only exit, and the wider
+  chamber search raised the official calculation to 148.9 s. Both causes were then changed: the
+  validator uses the actual approach direction and chamber reuse is limited to the nearest chamber.
+  Per the project check policy, the modified final state has not been rerun without a new explicit
+  verification request.
+
+# 2026-09-21 — amended-contract test alignment (local, verified)
+
+- Restored the established UI variant labels: `Раздельные трассы`, `Общая сеть` and
+  `Альтернативные врезки`; the internal strategies remain `shortest`, `balanced` and `cheapest`.
+- Backend expectations now cover the amended contract: forbidden `railway`, no arbitrary bend
+  multiplier, no existing-asset reconstruction, four exported object types, construction cost
+  including chambers/tie-ins, and valid partial results with explicit `no_route` connections.
+- The CI integration assertions use the same contract: one to three valid variants and a preferred
+  partial result whose `no_route` count exactly accounts for every unconnected demand.
+- Invalid route drafts are no longer published as official variants. A valid balanced partial
+  result is retained when a higher-coverage draft violates the no-crossing invariant.
+- Final Java 11 `mvn verify`: 143 tests, 0 failures, 0 errors, 3 opt-in scale tests skipped;
+  `OfficialDatasetRoutingTest` completed in 152.707 s. Final web Vitest: 8 files and 18 tests
+  passed. No lint, typecheck, Compose smoke or deployment was run in this checkpoint.

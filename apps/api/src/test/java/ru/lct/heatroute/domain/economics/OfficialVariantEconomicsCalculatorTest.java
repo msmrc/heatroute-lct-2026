@@ -3,7 +3,6 @@ package ru.lct.heatroute.domain.economics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.depth.DepthProfilePoint;
@@ -56,18 +55,18 @@ class OfficialVariantEconomicsCalculatorTest {
                 reconstruction);
 
         assertThat(result.isComplete()).isTrue();
-        assertThat(result.getConstructionCost()).isEqualByComparingTo("740230");
+        assertThat(result.getConstructionCost()).isEqualByComparingTo("8740230");
         assertThat(result.getChamberConstructionCost()).isEqualByComparingTo("3000000");
         assertThat(result.getTieInCost()).isEqualByComparingTo("5000000");
-        assertThat(result.getReconstructionCost()).isEqualByComparingTo("549945");
-        assertThat(result.getChamberReconstructionCost()).isEqualByComparingTo("3000000");
+        assertThat(result.getReconstructionCost()).isEqualByComparingTo("0");
+        assertThat(result.getChamberReconstructionCost()).isEqualByComparingTo("0");
         assertThat(result.getUnconnectedPenalty()).isEqualByComparingTo("101000000");
-        assertThat(result.getCalculatedCost()).isEqualByComparingTo("113290175");
+        assertThat(result.getCalculatedCost()).isEqualByComparingTo("109740230");
         assertThat(result.getNewNetworkLength()).isEqualByComparingTo("10");
-        assertThat(result.getReconstructionLength()).isEqualByComparingTo("5");
-        assertThat(result.getLength()).isEqualByComparingTo("15");
+        assertThat(result.getReconstructionLength()).isEqualByComparingTo("0");
+        assertThat(result.getLength()).isEqualByComparingTo("10");
         assertThat(result.getScore()).isEqualByComparingTo(
-                officialEconomics.score(new BigDecimal("113290175"), new BigDecimal("15")));
+                officialEconomics.score(new BigDecimal("109740230"), new BigDecimal("10")));
     }
 
     @Test
@@ -79,9 +78,9 @@ class OfficialVariantEconomicsCalculatorTest {
         VariantEconomics result = calculator.calculate(
                 List.of(), List.of(), List.of(), reconstruction);
 
-        assertThat(result.isComplete()).isFalse();
-        assertThat(result.getScore()).isNull();
-        assertThat(result.getIncompleteReasons()).containsExactly("RECONSTRUCTION_INPUT_UNAVAILABLE");
+        assertThat(result.isComplete()).isTrue();
+        assertThat(result.getScore()).isEqualByComparingTo("0.000000000");
+        assertThat(result.getIncompleteReasons()).isEmpty();
     }
 
     @Test
@@ -95,7 +94,7 @@ class OfficialVariantEconomicsCalculatorTest {
 
         assertThat(result.isComplete()).isTrue();
         assertThat(result.getScore()).isEqualByComparingTo("0.000000000");
-        assertThat(result.getIncompleteReasons()).containsExactly("RECONSTRUCTION_INPUT_UNAVAILABLE");
+        assertThat(result.getIncompleteReasons()).isEmpty();
     }
 
     @Test
@@ -146,7 +145,7 @@ class OfficialVariantEconomicsCalculatorTest {
     }
 
     @Test
-    void appliesBendCoefficientOnlyToTheFollowingNonStandardStraightSegment() {
+    void doesNotApplyAnInventedBendCoefficient() {
         RouteSection road = new RouteSection(
                 "special", "road", "road-1",
                 List.of(coordinate(0, 0), coordinate(10, 0), coordinate(13, 4)), 15, null);
@@ -164,8 +163,7 @@ class OfficialVariantEconomicsCalculatorTest {
                         ru.lct.heatroute.domain.engineering.SpecialCrossingType.ROAD, new BigDecimal("3.0"))
                 .add(officialEconomics.newNetworkCost(
                         pipe, new BigDecimal("5"),
-                        ru.lct.heatroute.domain.engineering.SpecialCrossingType.ROAD, new BigDecimal("3.0"))
-                        .multiply(new BigDecimal("1.5")));
+                        ru.lct.heatroute.domain.engineering.SpecialCrossingType.ROAD, new BigDecimal("3.0")));
         assertThat(result.getConstructionCost()).isEqualByComparingTo(expected);
     }
 
@@ -196,25 +194,18 @@ class OfficialVariantEconomicsCalculatorTest {
                         "oks-1", "cp-1", new BigDecimal("80.0"), "connected", null)),
                 reconstruction);
 
-        assertThat(result.getConstructionCost()).isEqualByComparingTo("27942288.00");
+        assertThat(result.getConstructionCost()).isEqualByComparingTo("35942288.00");
         assertThat(result.getChamberConstructionCost()).isEqualByComparingTo("3000000.00");
         assertThat(result.getTieInCost()).isEqualByComparingTo("5000000.00");
-        assertThat(result.getReconstructionCost()).isEqualByComparingTo("15152250.00");
+        assertThat(result.getReconstructionCost()).isEqualByComparingTo("0.00");
         assertThat(result.getChamberReconstructionCost()).isEqualByComparingTo("0.00");
         assertThat(result.getUnconnectedPenalty()).isEqualByComparingTo("0.00");
-        assertThat(result.getCalculatedCost()).isEqualByComparingTo("51094538.00");
+        assertThat(result.getCalculatedCost()).isEqualByComparingTo("35942288.00");
         assertThat(result.getNewNetworkLength()).isEqualByComparingTo("145.2");
-        assertThat(result.getReconstructionLength()).isEqualByComparingTo("75.0");
-        assertThat(result.getLength()).isEqualByComparingTo("220.2");
-        assertThat(result.getScore()).isEqualByComparingTo("2.091247064");
-        assertThat(result.getScore().setScale(3, RoundingMode.HALF_UP)).isEqualByComparingTo("2.091");
-
-        // Section 10.8 labels its numbers illustrative. Its stated component values differ from
-        // the normative tables by 19 and 33 rubles; the engine follows sections 4, 5, 8 and 9.
-        assertThat(result.getConstructionCost().subtract(new BigDecimal("27942307")))
-                .isEqualByComparingTo("-19");
-        assertThat(result.getReconstructionCost().subtract(new BigDecimal("15152283")))
-                .isEqualByComparingTo("-33");
+        assertThat(result.getReconstructionLength()).isEqualByComparingTo("0.0");
+        assertThat(result.getLength()).isEqualByComparingTo("145.2");
+        assertThat(result.getScore()).isEqualByComparingTo(
+                officialEconomics.score(new BigDecimal("35942288"), new BigDecimal("145.2")));
     }
 
     @Test

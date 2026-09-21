@@ -95,7 +95,7 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void normalEgressUsesTheFinalDuClearance() throws Exception {
+    void normalEgressStopsJustOutsideTheOwnOksBoundary() throws Exception {
         ImportedOfficialFeature building = restriction(
                 "oks", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))");
 
@@ -103,7 +103,31 @@ class OfficialObstacleRouterTest {
                 List.of(building), 500, new Coordinate(100, 0)).orElseThrow();
 
         assertThat(egress.exit().distance(new Coordinate(100, 0)))
-                .isCloseTo(17.25, org.assertj.core.data.Offset.offset(0.02));
+                .isCloseTo(10.25, org.assertj.core.data.Offset.offset(0.02));
+    }
+
+    @Test
+    void directionalEgressCanUseANearbySideFacingTheNetwork() throws Exception {
+        ImportedOfficialFeature building = restriction(
+                "oks", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))");
+
+        OfficialRouteGeometryRules.NormalEgress egress = rules.normalEgressTowards(
+                List.of(building), 100, new Coordinate(104, 0), new Coordinate(0, 0)).orElseThrow();
+
+        assertThat(egress.exit().x).isCloseTo(89.75, org.assertj.core.data.Offset.offset(0.02));
+        assertThat(egress.exit().distance(new Coordinate(104, 0)))
+                .isLessThanOrEqualTo(16.25);
+    }
+
+    @Test
+    void directionalEgressDoesNotCrossTheWholeBuildingForADistantOppositeSide() throws Exception {
+        ImportedOfficialFeature building = restriction(
+                "oks", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))");
+
+        OfficialRouteGeometryRules.NormalEgress egress = rules.normalEgressTowards(
+                List.of(building), 100, new Coordinate(108, 0), new Coordinate(0, 0)).orElseThrow();
+
+        assertThat(egress.exit().x).isCloseTo(110.25, org.assertj.core.data.Offset.offset(0.02));
     }
 
     @Test
@@ -165,12 +189,12 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void nonStandardBendCarriesDeterministicSearchPenalty() {
+    void arbitraryBendsDoNotReceiveAnInventedTariffMultiplier() {
         List<Coordinate> nodes = List.of(
                 new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(20, 10), new Coordinate(30, 15));
 
         assertThat(router.bendPenalty(nodes, 0, 1, 2)).isEqualTo(1.0);
-        assertThat(router.bendPenalty(nodes, 1, 2, 3)).isEqualTo(1.5);
+        assertThat(router.bendPenalty(nodes, 1, 2, 3)).isEqualTo(1.0);
     }
 
     @Test
@@ -252,7 +276,7 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void finalValidatorRejectsArbitraryExitFromContainingOks() throws Exception {
+    void finalValidatorAcceptsSingleBoundaryApproachToContainingOks() throws Exception {
         ImportedOfficialFeature ownOks = restriction(
                 "oks", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))");
         RouteNode root = node("root", 0, 0, true);
@@ -272,8 +296,7 @@ class OfficialObstacleRouterTest {
         OfficialRouteValidator validator = new OfficialRouteValidator(rules);
 
         assertThat(validator.validate(List.of(root, demand), List.of(invalid), List.of(ownOks)))
-                .extracting(RouteValidationIssue::getCode)
-                .contains("OKS_NORMAL_EGRESS_VIOLATION");
+                .isEmpty();
     }
 
     @Test

@@ -68,7 +68,7 @@ class OfficialGeoJsonInspectorTest {
 
         assertThat(report.isValid()).isTrue();
         assertThat(report.getInputProfile()).isEqualTo(OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
-        assertThat(report.getSha256()).isEqualTo("07921d7740c0297a63111846d4b77dfb6ccb33da65ffd7ccb14c5b2d786dd7d0");
+        assertThat(report.getSha256()).isEqualTo("cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130");
         assertThat(report.getFeatureCount()).isEqualTo(144);
         assertThat(report.getFeatureCounts())
                 .containsEntry("source", 1L)

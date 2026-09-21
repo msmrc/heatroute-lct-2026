@@ -36,12 +36,10 @@ class OfficialConstraintRulesTest {
         assertThat(tram.getMinimumTopBelowSurfaceM()).isEqualByComparingTo("1.2");
         assertThat(tram.getCostMultiplier()).isEqualByComparingTo("1.75");
 
-        SpatialConstraintRule railwayAlias = catalog.find("railway").orElseThrow();
-        assertThat(railwayAlias.isForbidden()).isFalse();
-        assertThat(railwayAlias.getMinimumCrossingAngleDegrees()).isEqualByComparingTo("45");
-        assertThat(railwayAlias.getSpecialExtensionM()).isEqualByComparingTo("3.0");
-        assertThat(railwayAlias.getMinimumTopBelowSurfaceM()).isEqualByComparingTo("1.2");
-        assertThat(railwayAlias.getCostMultiplier()).isEqualByComparingTo("1.75");
+        SpatialConstraintRule railway = catalog.find("railway").orElseThrow();
+        assertThat(railway.isForbidden()).isTrue();
+        assertThat(railway.getHorizontalClearanceM()).isEqualByComparingTo("1.0");
+        assertThat(railway.getCostMultiplier()).isEqualByComparingTo("1.00");
 
         assertThat(catalog.find("gas_pipeline").orElseThrow().getVerticalClearanceM())
                 .isEqualByComparingTo("0.2");
@@ -57,6 +55,7 @@ class OfficialConstraintRulesTest {
         assertRule("social_area", true, "1.0", null, null, null, null, "1.00");
         assertRule("prohibited_site", true, "1.0", null, null, null, null, "1.00");
         assertRule("water", true, "1.0", null, null, null, null, "1.00");
+        assertRule("railway", true, "1.0", null, null, null, null, "1.00");
         assertRule("road", false, "1.5", null, "45", "3.0", "1.0", "1.60");
         assertRule("tram_tracks", false, "1.5", null, "45", "3.0", "1.2", "1.75");
         assertRule("gas_pipeline", false, "2.0", "0.2", null, "2.0", null, "1.25");

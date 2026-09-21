@@ -44,7 +44,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 @Component
 public class OfficialRoutePlanner {
     private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutePlanner.class);
-    public static final String ALGORITHM_VERSION = "global-tree-7";
+    public static final String ALGORITHM_VERSION = "global-tree-8";
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double LENGTH_EPSILON_M = 1e-9;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
@@ -54,7 +54,7 @@ public class OfficialRoutePlanner {
     private static final int SHARED_NEIGHBOUR_FACTOR = 2;
     private static final int SHARED_SELECTION_BEAM_WIDTH = 24;
     private static final int MAX_GRAFT_EDGES_PER_DEMAND = 3;
-    private static final int MAX_GRAFT_JUNCTIONS_PER_DEMAND = 0;
+    private static final int MAX_GRAFT_JUNCTIONS_PER_DEMAND = 1;
     private static final int MAX_WHOLE_TREE_ACCEPTED_MOVES = 3;
 
     private final OfficialRouteValidator validator;
@@ -124,12 +124,13 @@ public class OfficialRoutePlanner {
         OfficialRoutingEnvironment routingEnvironment = windowed
                 ? obstacleRouter.prepare(features, source)
                 : obstacleRouter.prepare(features);
-        List<Demand> demands = demands(features, featuresById, routingEnvironment);
         Map<String, List<TieInCandidate>> candidatesByConnection = topology.getTieInCandidates().stream()
                 .collect(Collectors.groupingBy(
                         TieInCandidate::getConnectionPointId,
                         LinkedHashMap::new,
                         Collectors.toList()));
+        List<Demand> demands = demands(
+                features, featuresById, candidatesByConnection, routingEnvironment);
 
         VariantDraft independentDraft = coverageFirstIndependent(
                 demands,
@@ -140,16 +141,15 @@ public class OfficialRoutePlanner {
                 Collections.emptyMap(),
                 RoutePreference.SHORTEST,
                 "independent");
+        VariantDraft shortestDraft = completeWithTreeAttachments(
+                independentDraft, demands, routingEnvironment);
         routingEnvironment.logVisibilitySummary("independent");
         List<RouteVariant> variants = new ArrayList<>();
-        RouteVariant independent = null;
-        if (connectedCount(independentDraft) == demands.size()) {
-            independent = finish(
-                    "shortest", "shortest", independentDraft, features, validatedParameters,
-                    reconstructionRequired, routingEnvironment);
-            logVariantSummary(independent);
-            variants.add(independent);
-        }
+        RouteVariant independent = finish(
+                "shortest", "shortest", shortestDraft, features, validatedParameters,
+                reconstructionRequired, routingEnvironment);
+        logVariantSummary(independent);
+        variants.add(independent);
 
         VariantDraft sharedDraft = coverageFirstShared(
                 demands,
@@ -163,21 +163,21 @@ public class OfficialRoutePlanner {
         RouteVariant shared = finish(
                 "balanced", "balanced", sharedDraft, features, validatedParameters, reconstructionRequired, routingEnvironment);
         logVariantSummary(shared);
-        if (sharedDraft.sharedPairCount > 0
-                && (independent == null || !edgeSignature(independent).equals(edgeSignature(shared)))) {
+        if (!edgeSignature(independent).equals(edgeSignature(shared))) {
             variants.add(shared);
         }
 
-        if (connectedCount(independentDraft) == demands.size()) {
-            VariantDraft diverseDraft = independent(
+        if (connectedCount(shortestDraft) == demands.size()) {
+            VariantDraft diverseDraft = coverageFirstIndependent(
                     demands,
                     candidatesByConnection,
                     featuresById,
                     chamberIncidentCounts,
                     routingEnvironment,
-                    independentDraft.targetByDemand,
-                    RoutePreference.RIGHT,
+                    shortestDraft.targetByDemand,
+                    RoutePreference.SHORTEST,
                     "diverse");
+            diverseDraft = completeWithTreeAttachments(diverseDraft, demands, routingEnvironment);
             routingEnvironment.logVisibilitySummary("diverse");
             RouteVariant diverse = finish(
                     "cheapest", "cheapest", diverseDraft, features, validatedParameters,
@@ -192,6 +192,14 @@ public class OfficialRoutePlanner {
                 variants.add(diverse);
             }
         }
+
+        // Invalid drafts are diagnostic implementation details, not official route variants.
+        // In particular, a high-coverage draft may still contain a forbidden crossing that the
+        // independently built balanced tree avoids. Publishing that draft made the result break
+        // the official invariant even though a valid partial result was available.
+        variants = variants.stream()
+                .filter(RouteVariant::isValid)
+                .collect(Collectors.toList());
 
         Map<String, Integer> rankById = new HashMap<>();
         List<RouteVariant> rankable = variants.stream()
@@ -226,6 +234,34 @@ public class OfficialRoutePlanner {
                         .orElse(null);
         }
         return new OfficialCalculationResult(ALGORITHM_VERSION, inputProfile, demands.size(), variants, preferred);
+    }
+
+    /**
+     * Дополняет лес кратчайших независимых трасс общими ветвями, если отдельная трасса
+     * не может дойти до сети без пересечения уже принятой геометрии.
+     */
+    private VariantDraft completeWithTreeAttachments(
+            VariantDraft source,
+            List<Demand> demands,
+            OfficialRoutingEnvironment routingEnvironment) {
+        VariantDraft result = source.copy();
+        Set<String> failedIds = result.connections.stream()
+                .filter(connection -> "no_route".equals(connection.getStatus()))
+                .map(RouteConnection::getDemandId)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        for (Demand demand : demands) {
+            if (!failedIds.contains(demand.id)) {
+                continue;
+            }
+            TreeAttachment attachment = chooseTreeAttachment(demand, result, routingEnvironment);
+            if (attachment == null) {
+                continue;
+            }
+            result.connections.removeIf(connection -> connection.getDemandId().equals(demand.id));
+            result.failureDiagnostics.remove(demand.id);
+            addTreeAttachment(result, demand, attachment);
+        }
+        return result;
     }
 
     private void logVariantSummary(RouteVariant variant) {
@@ -771,7 +807,7 @@ public class OfficialRoutePlanner {
                         .comparingDouble((RouteNode node) -> node.getCoordinate().toCoordinate()
                                 .distance(demand.routingStart()))
                         .thenComparing(RouteNode::getId))
-                .limit(boundedWholeTreeSearch ? 0 : MAX_GRAFT_JUNCTIONS_PER_DEMAND)
+                .limit(1)
                 .collect(Collectors.toList());
         for (RouteNode junction : existingJunctions) {
             List<LineString> acceptedRoutes = draft.edges.stream()
@@ -884,8 +920,12 @@ public class OfficialRoutePlanner {
             return false;
         }
         int diameter = edge.getDiameter() == null ? 50 : edge.getDiameter();
-        OfficialRouteGeometryRules.NormalEgress egress = routingEnvironment.normalEgress(
-                        diameter, downstream.getCoordinate().toCoordinate())
+        List<RouteCoordinate> coordinates = edge.getCoordinates();
+        Coordinate approach = coordinates.size() >= 2
+                ? coordinates.get(coordinates.size() - 2).toCoordinate()
+                : edge.getCoordinates().get(0).toCoordinate();
+        OfficialRouteGeometryRules.NormalEgress egress = routingEnvironment.normalEgressTowards(
+                        diameter, downstream.getCoordinate().toCoordinate(), approach)
                 .orElse(null);
         if (egress == null) {
             return false;
@@ -1585,8 +1625,10 @@ public class OfficialRoutePlanner {
             }
             boolean demandEdge = "demand_connection".equals(downstream.getNodeType());
             OfficialRouteGeometryRules.NormalEgress egress = demandEdge
-                    ? routingEnvironment.normalEgress(
-                                    edge.getDiameter(), downstream.getCoordinate().toCoordinate())
+                    ? routingEnvironment.normalEgressTowards(
+                                    edge.getDiameter(),
+                                    downstream.getCoordinate().toCoordinate(),
+                                    upstream.getCoordinate().toCoordinate())
                             .orElse(null)
                     : null;
             List<Coordinate> routePrefix = edge.getCoordinates().stream()
@@ -1733,8 +1775,10 @@ public class OfficialRoutePlanner {
                     .filter(other -> other.getCoordinates().size() >= 2)
                     .map(this::routeLine)
                     .collect(Collectors.toList());
-            OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgress(
-                            edge.getDiameter(), downstream.getCoordinate().toCoordinate())
+            OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgressTowards(
+                            edge.getDiameter(),
+                            downstream.getCoordinate().toCoordinate(),
+                            upstream.getCoordinate().toCoordinate())
                     .orElse(null);
             Coordinate rerouteEnd = egress == null
                     ? downstream.getCoordinate().toCoordinate()
@@ -1838,6 +1882,7 @@ public class OfficialRoutePlanner {
     private List<Demand> demands(
             List<ImportedOfficialFeature> features,
             Map<String, ImportedOfficialFeature> featuresById,
+            Map<String, List<TieInCandidate>> candidatesByConnection,
             OfficialRoutingEnvironment routingEnvironment) {
         return byType(features, "oks_connection_point").stream()
                 .map(connection -> {
@@ -1850,8 +1895,15 @@ public class OfficialRoutePlanner {
                     }
                     BigDecimal resolvedFlow = flow == null ? BigDecimal.ZERO : flow;
                     Coordinate coordinate = connection.getMetricGeometry().getCoordinate();
-                    OfficialRouteGeometryRules.NormalEgress egress = routingEnvironment.normalEgress(
-                                    diameterFor(resolvedFlow), coordinate)
+                    Coordinate approachTarget = candidatesByConnection
+                            .getOrDefault(connection.getFeatureId(), List.of()).stream()
+                            .map(candidate -> featuresById.get(candidate.getTargetId()))
+                            .filter(java.util.Objects::nonNull)
+                            .map(target -> targetCoordinate(coordinate, target.getMetricGeometry()))
+                            .min(Comparator.comparingDouble(coordinate::distance))
+                            .orElse(coordinate);
+                    OfficialRouteGeometryRules.NormalEgress egress = routingEnvironment
+                            .normalEgressTowards(diameterFor(resolvedFlow), coordinate, approachTarget)
                             .orElse(null);
                     return new Demand(
                             demandId,

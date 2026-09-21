@@ -254,3 +254,20 @@ reconstruction, switches export to the four-type contract and installs the corre
 Only this focused method was executed; the complete suite was not run. The next algorithmic target
 is quality, not another wider brute-force search: reduce the current approximately 308.6 million
 cost and 2.099 km length toward the observed 286.2 million / 1.83 km reference.
+
+# Local follow-up after CI #87
+
+The unpushed `global-tree-8` working tree changes three routing decisions: reuse the nearest
+degree-compatible branch chamber, attach otherwise failed separate rays to the existing forest,
+and select a nearby own-OKS boundary side in the direction of the candidate network. CI #87 did not
+fail on the official performance method; it failed on stale backend/web/integration expectations
+left from the old contract. Web labels and integration complete-export expectations are updated.
+
+A focused Java 11 run exposed two regressions in the first draft: the validator used a different
+own-OKS exit than the builder, and evaluating three chambers per graft increased the official run.
+The working tree now resolves the validator exemption from the actual terminal approach and
+considers only the nearest reusable chamber. After aligning stale amended-contract expectations,
+the final Java 11 `mvn verify` passed 143 tests with 3 opt-in scale tests skipped; the official
+dataset class took 152.707 s. Web Vitest passed all 18 tests. Established labels were restored to
+`Раздельные трассы`, `Общая сеть` and `Альтернативные врезки`. The changes remain local and must not
+be pushed or deployed until separately requested; runtime and route quality are still open work.

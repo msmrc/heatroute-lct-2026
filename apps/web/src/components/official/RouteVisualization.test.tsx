@@ -11,11 +11,11 @@ vi.mock("./OfficialRouteMap", () => ({
 const result: OfficialCalculationResult = {
   algorithm_version: "test",
   demand_count: 2,
-  preferred_variant_id: "shared",
+  preferred_variant_id: "balanced",
   variants: [
     {
-      id: "independent",
-      strategy: "independent",
+      id: "shortest",
+      strategy: "shortest",
       valid: true,
       total_length_m: 1200,
       connected_demand_count: 1,
@@ -32,8 +32,8 @@ const result: OfficialCalculationResult = {
       edges: [{ id: "edge", length_m: 1200, upstream_node_id: "root", downstream_node_id: "demand" }],
     },
     {
-      id: "shared",
-      strategy: "shared_trunk",
+      id: "balanced",
+      strategy: "balanced",
       valid: true,
       total_length_m: 900,
       connected_demand_count: 2,
@@ -48,7 +48,7 @@ const result: OfficialCalculationResult = {
         { id: "demand", root: false, chamber: false, node_type: "demand_connection", target_id: "1", coordinate: { xm: 100, ym: 100 }, base_incident_sections: 0 },
       ],
       edges: [{
-        id: "shared:trunk:1",
+        id: "balanced:trunk:1",
         length_m: 900,
         upstream_node_id: "root",
         downstream_node_id: "demand",
@@ -103,19 +103,19 @@ describe("RouteVisualization", () => {
 
     expect(screen.getByRole("tab", { name: /Общая сеть/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText(/2 из 2 ОКС/)).toBeTruthy();
-    expect(await screen.findByText("Интерактивная карта shared")).toBeTruthy();
+    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
     expect(container.querySelector(".route-results-drawer")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
     expect(container.querySelector(".route-workspace-inspector")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: /Профиль/ }));
     expect(screen.getByText("Продольный профиль")).toBeTruthy();
-    expect(screen.getByRole("img", { name: /Продольный профиль участка shared:trunk:1/ })).toBeTruthy();
+    expect(screen.getByRole("img", { name: /Продольный профиль участка balanced:trunk:1/ })).toBeTruthy();
     expect(screen.getByText("Газопровод")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Карта/ }));
-    expect(await screen.findByText("Интерактивная карта shared")).toBeTruthy();
+    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
-    expect(await screen.findByText("Интерактивная карта independent")).toBeTruthy();
+    expect(await screen.findByText("Интерактивная карта shortest")).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: /Общая сеть/ }));
 
     const validationTrigger = screen.getByRole("button", { name: /Открыть результаты проверки/ });
@@ -145,7 +145,7 @@ describe("RouteVisualization", () => {
   it("groups missing reconstruction inputs into one localized warning", () => {
     const withReconstructionWarnings: OfficialCalculationResult = {
       ...result,
-      variants: result.variants.map((variant) => variant.id !== "shared" ? variant : {
+      variants: result.variants.map((variant) => variant.id !== "balanced" ? variant : {
         ...variant,
         reconstruction: {
           available: false,

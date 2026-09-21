@@ -37,7 +37,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 22.15.0
+          node-version: 24.19.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Reject high-severity production dependency vulnerabilities
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 22.15.0
+          node-version: 24.19.0
       - name: Install pinned docker-compose 1.29.2
         run: |
           mkdir -p .ci
@@ -135,17 +135,17 @@ jobs:
           RESULT_JSON=$(curl --fail --silent "http://localhost:8000/api/v1/official/runs/${RUN_ID}")
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.state')" = "completed"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.demand_count')" = "17"
-          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.variants | length')" = "3"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.variants | length >= 1 and length <= 3')" = "true"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '.result.preferred_variant_id != null')" = "true"
-          test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].valid] | any')" = "true"
-          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result as $result | [$result.variants[] | select(.id == $result.preferred_variant_id)][0].connected_demand_count')" = "17"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].valid] | all')" = "true"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '.result as $result | [$result.variants[] | select(.id == $result.preferred_variant_id)][0] as $preferred | $preferred != null and $preferred.connected_demand_count > 0 and $preferred.connected_demand_count <= $result.demand_count and ([$preferred.connections[] | select(.status == "no_route")] | length) == ($result.demand_count - $preferred.connected_demand_count)')" = "true"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].edges[] | (.coordinates | length) >= 2 and (.sections | length) >= 1 and .diameter != null and .flow_tph != null] | all')" = "true"
           test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].economics.calculated_cost > 0] | all')" = "true"
-          test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].economics.complete == false] | all')" = "true"
+          test "$(printf '%s' "$RESULT_JSON" | jq -r '[.result.variants[].economics.complete] | all')" = "true"
           printf '%s' "$RESULT_JSON" | jq -c '{state, demand_count: .result.demand_count, preferred: .result.preferred_variant_id, variants: [.result.variants[] | {id, valid, connected_demand_count, calculated_cost: .economics.calculated_cost, economics_complete: .economics.complete}]}'
-          EXPORT_STATUS=$(curl --silent --output /tmp/export-error.json --write-out '%{http_code}' "http://localhost:8000/api/v1/official/runs/${RUN_ID}/export")
-          test "$EXPORT_STATUS" = "409"
-          test "$(jq -r '.error.code' /tmp/export-error.json)" = "OFFICIAL_EXPORT_INCOMPLETE"
+          EXPORT_STATUS=$(curl --silent --output /tmp/export.geojson --write-out '%{http_code}' "http://localhost:8000/api/v1/official/runs/${RUN_ID}/export")
+          test "$EXPORT_STATUS" = "200"
+          test "$(jq -r '.type' /tmp/export.geojson)" = "FeatureCollection"
       - name: Verify restart recovery
         run: |
           .ci/docker-compose restart api

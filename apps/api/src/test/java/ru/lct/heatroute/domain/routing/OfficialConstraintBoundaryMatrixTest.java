@@ -13,8 +13,8 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 class OfficialConstraintBoundaryMatrixTest {
     private static final List<String> FORBIDDEN = List.of(
-            "park", "social_area", "prohibited_site", "water");
-    private static final List<String> ANGLED_SPECIAL = List.of("road", "tram_tracks", "railway");
+            "park", "social_area", "prohibited_site", "water", "railway");
+    private static final List<String> ANGLED_SPECIAL = List.of("road", "tram_tracks");
     private static final List<String> UTILITY_SPECIAL = List.of(
             "gas_pipeline", "power_cable", "heat_network");
 

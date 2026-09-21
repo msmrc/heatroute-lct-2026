@@ -638,6 +638,16 @@ calculation. Кооперативная отмена CPU-bound planner уже п
 
 Условия возврата обязательной реконструкции зафиксированы отдельно в
 `docs/implementation/RECONSTRUCTION_DEFERRED.md`.
+
+### Local quality follow-up, 21 September
+
+`global-tree-8` addresses the visible excess of sequential graft chambers and the circular own-OKS
+approach. It also restores partial/alternative drafts by attaching failed separate rays to the
+existing forest. The amended-contract regression expectations are now aligned and the final Java
+11 gate passed: 143 tests, 0 failures, 3 opt-in scale tests skipped; the official dataset test took
+152.707 s. Web Vitest also passed 18/18 with the established Russian labels restored. This remains
+an implementation checkpoint rather than a closed R-stage: route quality and the 152.7 s official
+runtime still require improvement, and lint/typecheck/live Compose were not part of this gate.
 Текущий checkpoint не публиковался на VPS; развёртывание выполняется только отдельной командой.
 
 Точная постановка и разделение задач на завтра находятся в `TOMORROW_HANDOFF.md`.

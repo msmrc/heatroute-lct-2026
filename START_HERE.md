@@ -4,12 +4,13 @@
 
 Перед изменениями прочитай в этом порядке:
 
-1. `docs/implementation/TOMORROW_HANDOFF.md`;
-2. `docs/implementation/OFFICIAL_ALIGNMENT_AUDIT.md`;
-3. `docs/implementation/OFFICIAL_TZ_ROADMAP.md`;
-4. `docs/TECH_SPEC.md` и `docs/DATA_CONTRACTS.md`;
-5. `docs/ACCEPTANCE.md`;
-6. `AGENTS.md`.
+1. `docs/operations/CONTEST_DELIVERY_CONTROL.md`;
+2. `docs/implementation/TOMORROW_HANDOFF.md`;
+3. `docs/implementation/OFFICIAL_ALIGNMENT_AUDIT.md`;
+4. `docs/implementation/OFFICIAL_TZ_ROADMAP.md`;
+5. `docs/TECH_SPEC.md` и `docs/DATA_CONTRACTS.md`;
+6. `docs/ACCEPTANCE.md`;
+7. `AGENTS.md`.
 
 Backend только Java 11 / Spring Boot 2.6.3 в `apps/api`. Не возвращай Python, FastAPI, Celery,
 Alembic или Redis. Не считай старые M0–M7 evidence текущей готовностью. Первый R4 vertical slice

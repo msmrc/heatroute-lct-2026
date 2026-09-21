@@ -51,6 +51,21 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
+    void inMemoryEnvironmentKeepsWindowConstraintsLocalAndUnique() throws Exception {
+        ImportedOfficialFeature obstacle = restriction(
+                "park", "single-park", "POLYGON ((40 -10, 60 -10, 60 10, 40 10, 40 -10))");
+        ImportedOfficialFeature farObstacle = restriction(
+                "park", "far-park", "POLYGON ((2000 -10, 2020 -10, 2020 10, 2000 10, 2000 -10))");
+        OfficialRoutingEnvironment environment = router.prepare(List.of(obstacle, farObstacle));
+
+        List<OfficialRouteGeometryRules.Constraint> constraints = environment.constraints(
+                100, Set.of(), new Coordinate(0, 0), new Coordinate(100, 0));
+
+        assertThat(constraints).extracting(OfficialRouteGeometryRules.Constraint::id)
+                .containsExactly("single-park");
+    }
+
+    @Test
     void appliesDynamicFiveSevenNineMetreOksClearance() throws Exception {
         ImportedOfficialFeature building = restriction(
                 "oks", "building", "POLYGON ((40 -2, 60 -2, 60 2, 40 2, 40 -2))");

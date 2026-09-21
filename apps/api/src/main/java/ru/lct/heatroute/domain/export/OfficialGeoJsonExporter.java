@@ -11,9 +11,11 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.function.Consumer;
 import org.locationtech.proj4j.CRSFactory;
@@ -33,7 +35,6 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 @Component
 public class OfficialGeoJsonExporter {
     private static final BigDecimal TWO_DIMENSIONAL_DEPTH_M = new BigDecimal("3.0");
-    private static final BigDecimal NON_STANDARD_BEND_MULTIPLIER = new BigDecimal("1.5");
 
     private final ObjectMapper objectMapper;
     private final OfficialPipeCatalog pipeCatalog;
@@ -167,20 +168,13 @@ public class OfficialGeoJsonExporter {
             if (node.path("chamber").asBoolean() && nodeType.startsWith("new_")) {
                 appendNewChamber(output, variantId, node, maxDiameterByNode);
             }
-            if (!node.path("chamber").asBoolean()) {
+            if (!node.path("chamber").asBoolean()
+                    || node.path("root").asBoolean() && !nodeType.startsWith("new_")) {
                 appendTechnicalNode(output, variantId, node.path("id").asText(), coordinate(node.path("coordinate")));
             }
         }
-        appendTieIns(
-                output,
-                variantId,
-                variant.path("nodes"),
-                variant.path("edges"),
-                inputById,
-                allowMissingTieInDiameter);
         generatedTechnicalNodes.forEach((id, coordinate) ->
                 appendTechnicalNode(output, variantId, id, coordinate));
-        appendReconstruction(output, variantId, variant.path("reconstruction"));
         appendSummary(output, variantId, variant);
     }
 
@@ -237,8 +231,7 @@ public class OfficialGeoJsonExporter {
                                 .multiply(BigDecimal.valueOf(consumed / geometryLength)));
                 BigDecimal segmentLength = section.path("length_m").decimalValue()
                         .multiply(BigDecimal.valueOf(geometrySegmentLength / geometryLength));
-                BigDecimal bendMultiplier = previousDirection == null || economicsCalculator.isStandardBend(previousDirection, dx, dy)
-                        ? BigDecimal.ONE : NON_STANDARD_BEND_MULTIPLIER;
+                BigDecimal bendMultiplier = BigDecimal.ONE;
                 List<BigDecimal> cuts = profileCuts(depthProfile, segmentStart, segmentEnd);
                 for (int piece = 1; piece < cuts.size(); piece++) {
                     BigDecimal pieceStart = cuts.get(piece - 1);
@@ -303,8 +296,9 @@ public class OfficialGeoJsonExporter {
             String variantId, JsonNode edge, Map<String, JsonNode> nodes, boolean upstream) {
         String nodeId = edge.path(upstream ? "upstream_node_id" : "downstream_node_id").asText();
         JsonNode node = nodes.get(nodeId);
-        if (upstream && node != null && node.path("root").asBoolean()) {
-            return tieInId(variantId, nodeId, edge.path("id").asText());
+        if (upstream && node != null && node.path("root").asBoolean()
+                && node.path("node_type").asText().startsWith("new_")) {
+            return outputId(variantId, "chamber:" + nodeId);
         }
         return outputId(variantId, nodeId);
     }
@@ -415,11 +409,12 @@ public class OfficialGeoJsonExporter {
         ObjectNode properties = properties("summary:" + variantId, "variant_summary", variantId);
         properties.set("rank", variant.path("rank"));
         for (String field : List.of(
-                "construction_cost", "chamber_construction_cost", "tie_in_cost",
-                "reconstruction_cost", "chamber_reconstruction_cost", "unconnected_penalty",
-                "calculated_cost", "new_network_length", "reconstruction_length", "length", "score")) {
+                "construction_cost", "chamber_construction_cost", "unconnected_penalty",
+                "calculated_cost", "new_network_length", "score")) {
             properties.set(field, economicsNode.path(field));
         }
+        properties.put("existing_chamber_tie_in_count", existingChamberTieInCount(variant));
+        properties.set("existing_chamber_tie_in_cost", economicsNode.path("tie_in_cost"));
         ArrayNode unconnected = properties.putArray("unconnected_oks_ids");
         variant.path("connections").forEach(connection -> {
             if ("no_route".equals(connection.path("status").asText())) {
@@ -427,6 +422,21 @@ public class OfficialGeoJsonExporter {
             }
         });
         output.accept(feature(null, properties));
+    }
+
+    private long existingChamberTieInCount(JsonNode variant) {
+        Set<String> existingRoots = new HashSet<>();
+        variant.path("nodes").forEach(node -> {
+            if (node.path("root").asBoolean()
+                    && "existing_chamber_tie_in".equals(node.path("node_type").asText())) {
+                existingRoots.add(node.path("id").asText());
+            }
+        });
+        long count = 0;
+        for (JsonNode edge : variant.path("edges")) {
+            if (existingRoots.contains(edge.path("upstream_node_id").asText())) count++;
+        }
+        return count;
     }
 
     private Map<String, Integer> maximumDiameterByNode(JsonNode edges) {
@@ -710,8 +720,8 @@ public class OfficialGeoJsonExporter {
     private SpecialCrossingType singleCrossingType(String restrictionType) {
         switch (restrictionType) {
             case "road": return SpecialCrossingType.ROAD;
-            case "tram_tracks":
-            case "railway": return SpecialCrossingType.TRAM_TRACKS;
+            case "tram_tracks": return SpecialCrossingType.TRAM_TRACKS;
+            case "railway": throw new IllegalStateException("Railway is a forbidden restriction");
             case "gas_pipeline": return SpecialCrossingType.GAS_PIPELINE;
             case "power_cable": return SpecialCrossingType.POWER_CABLE;
             case "heat_network": return SpecialCrossingType.HEAT_NETWORK;

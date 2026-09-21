@@ -206,9 +206,9 @@ Do not mix MVT or extra formats into the remaining external acceptance gate.
 5. Любую новую контрольную точку: локальные тесты -> commit -> push -> дождаться всех GitHub Actions.
    На VPS не выкладывать, пока владелец явно не скажет это сделать.
 
-Текущее честное ограничение результата: 77 записей в интерфейсе — это 76 содержательных входных
-предупреждений и 1 итоговое предупреждение реконструкции. `railway` трактуется как алиас
-`tram_tracks`. Вертикальных ошибок после этого checkpoint нет.
+Исторический checkpoint показывал 77 предупреждений и трактовал `railway` как алиас
+`tram_tracks`. Обновлённые документы организатора отменили эту трактовку: `railway` теперь
+запретная зона с отступом 1 м, а реконструкция существующих активов исключена из контракта.
 
 ## PM: tasks tomorrow
 
@@ -240,3 +240,17 @@ Do not mix MVT or extra formats into the remaining external acceptance gate.
 - On the current Windows workstation Docker Desktop is blocked after reboot by a stale internal
   socket. CI and VPS are healthy. Do not factory-reset Docker or move its `E:` data; repair the
   local daemon separately before using the local `up` command.
+# Checkpoint 2026-09-21 — amended documents
+
+The `global-tree-7` adaptation was rebased onto the main developer's documentation commits before
+publication. It restores forbidden `railway`, removes the non-standard-bend surcharge, disables
+reconstruction, switches export to the four-type contract and installs the corrected dataset.
+
+# Routing performance result 2026-09-21
+
+`OfficialDatasetRoutingTest#officialDatasetProducesValidatedObstacleAwareVariants` now succeeds in
+57.417 s: 263 visibility searches, 1,902,450 evaluated pairs, 17/17 connected, 2,098.903 m and score
+14.937905995. The previous CI regression exceeded 20 minutes and roughly 78.8 million pair checks.
+Only this focused method was executed; the complete suite was not run. The next algorithmic target
+is quality, not another wider brute-force search: reduce the current approximately 308.6 million
+cost and 2.099 km length toward the observed 286.2 million / 1.83 km reference.

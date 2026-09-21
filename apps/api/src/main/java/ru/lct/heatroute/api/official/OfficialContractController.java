@@ -19,7 +19,7 @@ public class OfficialContractController {
             .cachePublic();
 
     @GetMapping(value = "/input.schema.json", produces = "application/schema+json")
-    @Operation(summary = "Download the extended seven-type input JSON Schema")
+    @Operation(summary = "Download the extended input JSON Schema")
     public ResponseEntity<Resource> strictInputSchema() {
         return schema("lct-2026-input.schema.json");
     }
@@ -31,7 +31,7 @@ public class OfficialContractController {
     }
 
     @GetMapping(value = "/output.schema.json", produces = "application/schema+json")
-    @Operation(summary = "Download the strict seven-type result JSON Schema")
+    @Operation(summary = "Download the strict four-type result JSON Schema")
     public ResponseEntity<Resource> outputSchema() {
         return schema("lct-2026-output.schema.json");
     }

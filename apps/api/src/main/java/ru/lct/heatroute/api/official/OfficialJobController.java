@@ -100,7 +100,7 @@ public class OfficialJobController {
     }
 
     @GetMapping(value = "/runs/{runId}/export", produces = "application/geo+json")
-    @Operation(operationId = "downloadOfficialRun", summary = "Stream the strict seven-type official GeoJSON")
+    @Operation(operationId = "downloadOfficialRun", summary = "Stream the strict four-type official GeoJSON")
     public ResponseEntity<StreamingResponseBody> export(
             @PathVariable UUID runId,
             @RequestParam(name = "variant_id", required = false) String variantId) {

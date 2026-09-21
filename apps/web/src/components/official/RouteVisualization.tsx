@@ -121,9 +121,10 @@ function groupInputWarnings(warnings: OfficialInputWarning[]): InputWarningGroup
 }
 
 function variantName(variant: OfficialRouteVariant): string {
-  if (variant.strategy === "shared_trunk") return "Общая сеть";
-  if (variant.strategy === "alternative_tie_ins") return "Альтернативные врезки";
-  return "Раздельные трассы";
+  if (variant.strategy === "balanced") return "Оптимальный баланс";
+  if (variant.strategy === "cheapest") return "Минимальная стоимость";
+  if (variant.strategy === "shortest") return "Минимальная длина";
+  return "Вариант сети";
 }
 
 function nodeName(node: OfficialRouteNode): string {
@@ -371,10 +372,8 @@ export function RouteVisualization({
   })));
   const calculationValid = variant.valid && calculationIssues.length === 0;
   const totalWarningCount = warnings.length + depthWarnings.length + (reconstructionWarnings.length > 0 ? 1 : 0);
-  const reconstructionLength = variant.reconstruction?.network_sections
-    .reduce((total, section) => total + section.length_m, 0) ?? 0;
-  const independent = result.variants.find((item) => item.strategy === "independent");
-  const shared = result.variants.find((item) => item.strategy === "shared_trunk");
+  const independent = result.variants.find((item) => item.strategy === "shortest");
+  const shared = result.variants.find((item) => item.strategy === "balanced");
   const depthEdges = variant.edges
     .filter((edge) => edge.depth_profile)
     .sort((left, right) => (right.depth_profile?.crossings.length ?? 0) - (left.depth_profile?.crossings.length ?? 0));
@@ -523,18 +522,17 @@ export function RouteVisualization({
             <>
               {variant.id === result.preferred_variant_id && <Badge tone="success">Рекомендуемый вариант</Badge>}
               <p className="route-inspector-summary">{
-                variant.strategy === "shared_trunk"
-                  ? "Общий ствол сокращает суммарную длину сети и подключает все доступные ОКС."
-                  : variant.strategy === "alternative_tie_ins"
-                    ? "Альтернативные точки врезки дают независимый сценарий подключения."
-                    : "Каждый объект подключается отдельной трассой к подходящей точке врезки."
+                variant.strategy === "balanced"
+                  ? "Баланс 70% стоимости и 30% длины среди допустимых вариантов общей сети."
+                  : variant.strategy === "cheapest"
+                    ? "Вариант с приоритетом минимальной итоговой стоимости."
+                    : "Вариант с приоритетом минимальной суммарной длины новой сети."
               }</p>
               <dl className="route-inspector-list">
                 <div><dt>Длина</dt><dd>{formatLength(variant.total_length_m)}</dd></div>
                 <div><dt>Подключено</dt><dd>{variant.connected_demand_count} из {result.demand_count} ОКС</dd></div>
                 <div><dt>Участков</dt><dd>{variant.edges.length}</dd></div>
                 <div><dt>Камер и врезок</dt><dd>{variant.nodes.filter((node) => node.chamber).length}</dd></div>
-                <div><dt>Реконструкция</dt><dd>{variant.reconstruction?.available === false ? "Нет исходных данных" : formatLength(reconstructionLength)}</dd></div>
                 <div><dt>{variant.economics?.complete ? "Стоимость" : "Известная стоимость"}</dt><dd>{variant.economics ? formatMoney(variant.economics.calculated_cost) : "—"}</dd></div>
                 <div><dt>Итоговый показатель</dt><dd>{variant.economics?.score != null ? variant.economics.score.toLocaleString("ru-RU", { maximumFractionDigits: 3 }) : "Нужны данные реконструкции"}</dd></div>
               </dl>
@@ -550,8 +548,8 @@ export function RouteVisualization({
         <footer className="route-results-drawer">
           <header><strong>Результаты расчёта</strong><span>{variantName(variant)}</span></header>
           <div className="route-result-metrics">
-            <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
-            <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
+            <article><span>Минимальная длина</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
+            <article><span>Оптимальный баланс</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
             <article><span>{variant.economics?.complete ? "Стоимость" : "Известная стоимость"}</span><strong>{variant.economics ? formatMoney(variant.economics.calculated_cost) : "—"}</strong><small>{variant.economics?.score != null ? `показатель ${variant.economics.score.toLocaleString("ru-RU", { maximumFractionDigits: 3 })}` : "без реконструкции"}</small></article>
             <button
               type="button"

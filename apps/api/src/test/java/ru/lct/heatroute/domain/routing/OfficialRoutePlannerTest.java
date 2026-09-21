@@ -73,7 +73,7 @@ class OfficialRoutePlannerTest {
         assertThat(shared.getNodes()).filteredOn(RouteNode::isChamber).hasSize(2);
         assertThat(shared.isValid()).isTrue();
         assertThat(result.getPreferredVariantId()).isEqualTo("shared");
-        assertThat(result.getAlgorithmVersion()).isEqualTo("cost-tree-5");
+        assertThat(result.getAlgorithmVersion()).isEqualTo("cost-tree-6");
     }
 
     @Test

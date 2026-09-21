@@ -17,14 +17,15 @@ final class OfficialRoutingEnvironment {
     private final RoutingFeatureSource source;
     private final OfficialRouteGeometryRules rules;
     private final Map<Integer, List<Constraint>> baseByDiameter = new HashMap<>();
+    private final Map<String, java.util.Optional<RoutePath>> routeCache = new HashMap<>();
     private long visibilitySearches;
     private long visibilityNodes;
-    private long visibilityPairs;
+    private long visibilityPairChecks;
 
     OfficialRoutingEnvironment(
             List<ImportedOfficialFeature> features,
             OfficialRouteGeometryRules rules) {
-        this(features, new InMemoryRoutingFeatureSource(features), rules);
+        this(features, new InMemoryRoutingFeatureSource(java.util.Collections.emptyList()), rules);
     }
 
     OfficialRoutingEnvironment(
@@ -73,28 +74,37 @@ final class OfficialRoutingEnvironment {
         return result;
     }
 
-    void recordVisibilitySearch(int nodeCount, double corridorExpansionM) {
+    void recordVisibilitySearch(int nodeCount, double corridorExpansionM, long evaluatedPairCount) {
         visibilitySearches++;
         visibilityNodes += nodeCount;
-        visibilityPairs += (long) nodeCount * (nodeCount - 1) / 2;
+        visibilityPairChecks += evaluatedPairCount;
         if (visibilitySearches == 1 || visibilitySearches % 25 == 0) {
             LOGGER.info(
-                    "Routing visibility profile searches={} total_nodes={} total_pairs={} last_nodes={} corridor_m={}",
+                    "Routing visibility profile searches={} total_nodes={} evaluated_pairs={} last_nodes={} last_evaluated_pairs={} corridor_m={}",
                     visibilitySearches,
                     visibilityNodes,
-                    visibilityPairs,
+                    visibilityPairChecks,
                     nodeCount,
+                    evaluatedPairCount,
                     corridorExpansionM);
         }
     }
 
     void logVisibilitySummary(String phase) {
         LOGGER.info(
-                "Routing phase profile phase={} searches={} total_nodes={} total_pairs={}",
+                "Routing phase profile phase={} searches={} total_nodes={} evaluated_pairs={}",
                 phase,
                 visibilitySearches,
                 visibilityNodes,
-                visibilityPairs);
+                visibilityPairChecks);
+    }
+
+    RoutePath cachedRoute(String key, java.util.function.Supplier<RoutePath> calculation) {
+        java.util.Optional<RoutePath> cached = routeCache.get(key);
+        if (cached != null) return cached.orElse(null);
+        RoutePath route = calculation.get();
+        routeCache.put(key, java.util.Optional.ofNullable(route));
+        return route;
     }
 
     private org.locationtech.jts.geom.Envelope window(Coordinate start, Coordinate end) {

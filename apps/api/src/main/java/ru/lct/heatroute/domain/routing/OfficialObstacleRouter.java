@@ -20,6 +20,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 @Component
 public class OfficialObstacleRouter {
     private static final double NAVIGATION_MARGIN_M = 0.25;
+    private static final double MINIMUM_PREFERENCE_FACTOR = 0.985;
     private static final int MAX_VERTICES_PER_OBSTACLE = 12;
     private static final double[] CORRIDOR_EXPANSIONS = {75.0, 200.0, 600.0};
     static final double MAXIMUM_SEARCH_CORRIDOR_M = 600.0;
@@ -31,11 +32,25 @@ public class OfficialObstacleRouter {
     }
 
     OfficialRoutingEnvironment prepare(List<ImportedOfficialFeature> features) {
-        return new OfficialRoutingEnvironment(features, rules);
+        List<ImportedOfficialFeature> core = features.stream()
+                .filter(feature -> !isWindowedRoutingFeature(feature))
+                .collect(java.util.stream.Collectors.toList());
+        List<ImportedOfficialFeature> windowed = features.stream()
+                .filter(this::isWindowedRoutingFeature)
+                .collect(java.util.stream.Collectors.toList());
+        return new OfficialRoutingEnvironment(
+                core,
+                new InMemoryRoutingFeatureSource(windowed),
+                rules);
     }
 
     OfficialRoutingEnvironment prepare(List<ImportedOfficialFeature> features, RoutingFeatureSource source) {
         return new OfficialRoutingEnvironment(features, source, rules);
+    }
+
+    private boolean isWindowedRoutingFeature(ImportedOfficialFeature feature) {
+        return "restriction".equals(feature.getObjectType())
+                || "oks_existing".equals(feature.getObjectType());
     }
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgress(
@@ -168,6 +183,26 @@ public class OfficialObstacleRouter {
             RoutePreference preference,
             List<LineString> acceptedRoutes,
             List<Constraint> additionalConstraints) {
+        if (acceptedRoutes.isEmpty() && additionalConstraints.isEmpty()) {
+            String key = routeCacheKey(start, end, diameter, exemptFeatureIds, preference);
+            return environment.cachedRoute(key, () -> findUncached(
+                    start, end, diameter, environment, exemptFeatureIds, preference,
+                    acceptedRoutes, additionalConstraints));
+        }
+        return findUncached(
+                start, end, diameter, environment, exemptFeatureIds, preference,
+                acceptedRoutes, additionalConstraints);
+    }
+
+    private RoutePath findUncached(
+            Coordinate start,
+            Coordinate end,
+            int diameter,
+            OfficialRoutingEnvironment environment,
+            Set<String> exemptFeatureIds,
+            RoutePreference preference,
+            List<LineString> acceptedRoutes,
+            List<Constraint> additionalConstraints) {
         List<Constraint> constraints = new ArrayList<>(environment.constraints(
                 diameter, exemptFeatureIds, start, end));
         constraints.addAll(rules.applicableConstraints(
@@ -190,10 +225,10 @@ public class OfficialObstacleRouter {
         }
         for (double expansion : CORRIDOR_EXPANSIONS) {
             List<Coordinate> nodes = navigationNodes(start, end, constraintIndex, expansion);
-            environment.recordVisibilitySearch(nodes.size(), expansion);
-            List<Coordinate> candidate = shortestPath(nodes, constraintIndex, preference, start, end);
-            if (!candidate.isEmpty()) {
-                List<Coordinate> normalized = normalize(candidate, constraintIndex);
+            SearchResult search = shortestPath(nodes, constraintIndex, preference, start, end);
+            environment.recordVisibilitySearch(nodes.size(), expansion, search.evaluatedPairCount);
+            if (!search.coordinates.isEmpty()) {
+                List<Coordinate> normalized = normalize(search.coordinates, constraintIndex);
                 LineString line = rules.line(normalized);
                 if (rules.lineAllowed(line, constraintIndex)) {
                     return path(normalized, constraints);
@@ -201,6 +236,19 @@ public class OfficialObstacleRouter {
             }
         }
         return null;
+    }
+
+    private String routeCacheKey(
+            Coordinate start,
+            Coordinate end,
+            int diameter,
+            Set<String> exemptFeatureIds,
+            RoutePreference preference) {
+        String exemptions = exemptFeatureIds.stream().sorted()
+                .collect(java.util.stream.Collectors.joining(","));
+        return Math.round(start.x * 1000.0) + ":" + Math.round(start.y * 1000.0)
+                + ">" + Math.round(end.x * 1000.0) + ":" + Math.round(end.y * 1000.0)
+                + "|" + diameter + "|" + preference + "|" + exemptions;
     }
 
     private RoutePath path(List<Coordinate> coordinates, List<Constraint> constraints) {
@@ -280,24 +328,25 @@ public class OfficialObstacleRouter {
         return result;
     }
 
-    private List<Coordinate> shortestPath(
+    private SearchResult shortestPath(
             List<Coordinate> nodes,
             ConstraintIndex constraints,
             RoutePreference preference,
             Coordinate start,
             Coordinate end) {
         int size = nodes.size();
-        List<List<Integer>> adjacency = visibilityGraph(nodes, constraints);
+        VisibilityCache visibility = new VisibilityCache(size);
         java.util.Map<Long, Double> distance = new java.util.HashMap<>();
         java.util.Map<Long, Long> predecessor = new java.util.HashMap<>();
         Set<Long> visited = new HashSet<>();
         long startState = stateKey(-1, 0);
         distance.put(startState, 0.0);
         PriorityQueue<State> queue = new PriorityQueue<>(Comparator
-                .comparingDouble((State state) -> state.cost)
+                .comparingDouble((State state) -> state.priority)
+                .thenComparingDouble(state -> state.cost)
                 .thenComparingInt(state -> state.node)
                 .thenComparingInt(state -> state.previous));
-        queue.add(new State(-1, 0, 0.0));
+        queue.add(new State(-1, 0, 0.0, heuristic(nodes.get(0), end)));
         State targetState = null;
         while (!queue.isEmpty()) {
             ensureNotCancelled();
@@ -311,8 +360,9 @@ public class OfficialObstacleRouter {
                 break;
             }
             Coordinate current = nodes.get(state.node);
-            for (int next : adjacency.get(state.node)) {
-                if (next == state.previous) {
+            for (int next = 0; next < size; next++) {
+                if (next == state.node || next == state.previous
+                        || !visibility.isVisible(state.node, next, nodes, constraints)) {
                     continue;
                 }
                 Coordinate target = nodes.get(next);
@@ -328,12 +378,16 @@ public class OfficialObstacleRouter {
                                 && (priorState == null || currentState < priorState))) {
                     distance.put(nextState, candidate);
                     predecessor.put(nextState, currentState);
-                    queue.add(new State(state.node, next, candidate));
+                    queue.add(new State(
+                            state.node,
+                            next,
+                            candidate,
+                            candidate + heuristic(target, end)));
                 }
             }
         }
         if (targetState == null) {
-            return Collections.emptyList();
+            return new SearchResult(Collections.emptyList(), visibility.evaluatedPairCount);
         }
         List<Coordinate> result = new ArrayList<>();
         long cursor = stateKey(targetState.previous, targetState.node);
@@ -346,25 +400,11 @@ public class OfficialObstacleRouter {
             cursor = predecessor.get(cursor);
         }
         Collections.reverse(result);
-        return result;
+        return new SearchResult(result, visibility.evaluatedPairCount);
     }
 
-    private List<List<Integer>> visibilityGraph(List<Coordinate> nodes, ConstraintIndex constraints) {
-        int size = nodes.size();
-        List<List<Integer>> adjacency = new ArrayList<>(size);
-        for (int index = 0; index < size; index++) {
-            adjacency.add(new ArrayList<>());
-        }
-        for (int left = 0; left < size; left++) {
-            ensureNotCancelled();
-            for (int right = left + 1; right < size; right++) {
-                if (rules.segmentAllowed(nodes.get(left), nodes.get(right), constraints)) {
-                    adjacency.get(left).add(right);
-                    adjacency.get(right).add(left);
-                }
-            }
-        }
-        return adjacency;
+    private double heuristic(Coordinate coordinate, Coordinate end) {
+        return MINIMUM_PREFERENCE_FACTOR * coordinate.distance(end);
     }
 
     private void ensureNotCancelled() {
@@ -381,38 +421,10 @@ public class OfficialObstacleRouter {
         return (int) state;
     }
 
-    /**
-     * A non-standard elbow makes the following construction section more expensive. Applying the
-     * same factor here keeps the path search deterministic and favours 45/90 degree geometry
-     * before the economics layer performs the monetary calculation.
-     */
     double bendPenalty(List<Coordinate> nodes, int previous, int current, int next) {
-        if (previous < 0) {
-            return 1.0;
-        }
-        Coordinate inStart = nodes.get(previous);
-        Coordinate bend = nodes.get(current);
-        Coordinate outEnd = nodes.get(next);
-        double incomingX = bend.x - inStart.x;
-        double incomingY = bend.y - inStart.y;
-        double outgoingX = outEnd.x - bend.x;
-        double outgoingY = outEnd.y - bend.y;
-        double incomingLength = Math.hypot(incomingX, incomingY);
-        double outgoingLength = Math.hypot(outgoingX, outgoingY);
-        if (incomingLength <= OfficialRouteGeometryRules.EPSILON_M
-                || outgoingLength <= OfficialRouteGeometryRules.EPSILON_M) {
-            return 1.0;
-        }
-        double cosine = Math.max(-1.0, Math.min(1.0,
-                (incomingX * outgoingX + incomingY * outgoingY) / (incomingLength * outgoingLength)));
-        double turnDegrees = Math.toDegrees(Math.acos(cosine));
-        return isPreferredBend(turnDegrees) ? 1.0 : 1.5;
-    }
-
-    private boolean isPreferredBend(double degrees) {
-        return degrees <= 1e-6
-                || Math.abs(degrees - 45.0) <= 1e-6
-                || Math.abs(degrees - 90.0) <= 1e-6;
+        // The amended specification permits every turn from 0 to 90 degrees and defines no
+        // extra construction tariff for intermediate angles.
+        return 1.0;
     }
 
     private double preferenceFactor(
@@ -465,11 +477,54 @@ public class OfficialObstacleRouter {
         private final int previous;
         private final int node;
         private final double cost;
+        private final double priority;
 
-        private State(int previous, int node, double cost) {
+        private State(int previous, int node, double cost, double priority) {
             this.previous = previous;
             this.node = node;
             this.cost = cost;
+            this.priority = priority;
+        }
+    }
+
+    private static final class SearchResult {
+        private final List<Coordinate> coordinates;
+        private final long evaluatedPairCount;
+
+        private SearchResult(List<Coordinate> coordinates, long evaluatedPairCount) {
+            this.coordinates = coordinates;
+            this.evaluatedPairCount = evaluatedPairCount;
+        }
+    }
+
+    private final class VisibilityCache {
+        private final int nodeCount;
+        private final byte[] values;
+        private long evaluatedPairCount;
+
+        private VisibilityCache(int nodeCount) {
+            this.nodeCount = nodeCount;
+            this.values = new byte[nodeCount * (nodeCount - 1) / 2];
+        }
+
+        private boolean isVisible(
+                int first,
+                int second,
+                List<Coordinate> nodes,
+                ConstraintIndex constraints) {
+            int left = Math.min(first, second);
+            int right = Math.max(first, second);
+            int index = left * (2 * nodeCount - left - 1) / 2 + right - left - 1;
+            byte cached = values[index];
+            if (cached == 0) {
+                ensureNotCancelled();
+                cached = rules.segmentAllowed(nodes.get(left), nodes.get(right), constraints)
+                        ? (byte) 1
+                        : (byte) 2;
+                values[index] = cached;
+                evaluatedPairCount++;
+            }
+            return cached == 1;
         }
     }
 }

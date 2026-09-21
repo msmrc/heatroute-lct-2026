@@ -26,7 +26,6 @@ import ru.lct.heatroute.domain.depth.DepthProfileResult;
 @Component
 public class OfficialVariantEconomicsCalculator {
     private static final BigDecimal TWO_DIMENSIONAL_DEPTH_M = new BigDecimal("3.0");
-    private static final BigDecimal NON_STANDARD_BEND_MULTIPLIER = new BigDecimal("1.5");
     // Coordinates are stored at millimetre precision; this accepts numerical noise only, not a
     // near-45-degree design choice.
     private static final double STANDARD_BEND_TOLERANCE_DEGREES = 0.001;
@@ -66,47 +65,33 @@ public class OfficialVariantEconomicsCalculator {
         BigDecimal chamberConstruction = newChamberCost(nodes, edges);
         long tieInCount = tieInCount(nodes, edges);
         BigDecimal tieIns = economics.tieInCost().multiply(BigDecimal.valueOf(tieInCount));
-        BigDecimal reconstructionCost = reconstruction.getNetworkSections().stream()
-                .map(this::reconstructionCost)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal chamberReconstruction = reconstruction.getChambers().stream()
-                .map(this::chamberReconstructionCost)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal penalty = connections.stream()
                 .filter(connection -> "no_route".equals(connection.getStatus()))
                 .map(connection -> economics.unconnectedPenalty(connection.getFlowTph()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal calculated = construction
-                .add(chamberConstruction)
-                .add(tieIns)
-                .add(reconstructionCost)
-                .add(chamberReconstruction)
+        BigDecimal totalConstruction = construction.add(chamberConstruction).add(tieIns);
+        BigDecimal calculated = totalConstruction
                 .add(penalty)
                 .setScale(2, RoundingMode.HALF_UP);
         BigDecimal newLength = edges.stream().map(RouteEdge::getLengthM)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(3, RoundingMode.HALF_UP);
-        BigDecimal reconstructionLength = reconstruction.getNetworkSections().stream()
-                .map(NetworkReconstructionSection::getLengthM)
-                .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(3, RoundingMode.HALF_UP);
-        BigDecimal totalLength = newLength.add(reconstructionLength).setScale(3, RoundingMode.HALF_UP);
-        List<String> incompleteReasons = new ArrayList<>();
-        if (!reconstruction.isAvailable()) {
-            incompleteReasons.add("RECONSTRUCTION_INPUT_UNAVAILABLE");
-        }
-        boolean complete = !reconstructionRequired || reconstruction.isAvailable();
+        BigDecimal reconstructionLength = BigDecimal.ZERO.setScale(3, RoundingMode.HALF_UP);
+        BigDecimal totalLength = newLength;
+        List<String> incompleteReasons = List.of();
+        boolean complete = true;
         return new VariantEconomics(
                 complete,
-                money(construction),
+                money(totalConstruction),
                 money(chamberConstruction),
                 money(tieIns),
-                money(reconstructionCost),
-                money(chamberReconstruction),
+                money(BigDecimal.ZERO),
+                money(BigDecimal.ZERO),
                 money(penalty),
                 calculated,
                 newLength,
                 reconstructionLength,
                 totalLength,
-                complete ? economics.score(calculated, totalLength) : null,
+                economics.score(calculated, newLength),
                 incompleteReasons);
     }
 
@@ -215,10 +200,9 @@ public class OfficialVariantEconomicsCalculator {
                 }
                 BigDecimal segmentLength = section.getLengthM()
                         .multiply(BigDecimal.valueOf(geometrySegmentLength / geometryLength));
-                boolean standard = previousDirection == null || isStandardBend(previousDirection, dx, dy);
                 result = result.add(segmentCost(
                         pipe, profile, crossingType(section), segmentLength, segmentStart, segmentEnd,
-                        standard ? BigDecimal.ONE : NON_STANDARD_BEND_MULTIPLIER));
+                        BigDecimal.ONE));
                 previousDirection = new double[]{dx, dy};
             }
         }
@@ -330,8 +314,8 @@ public class OfficialVariantEconomicsCalculator {
     private SpecialCrossingType singleCrossingType(String restrictionType) {
         switch (restrictionType) {
             case "road": return SpecialCrossingType.ROAD;
-            case "tram_tracks":
-            case "railway": return SpecialCrossingType.TRAM_TRACKS;
+            case "tram_tracks": return SpecialCrossingType.TRAM_TRACKS;
+            case "railway": throw new IllegalArgumentException("Railway is a forbidden restriction");
             case "gas_pipeline": return SpecialCrossingType.GAS_PIPELINE;
             case "power_cable": return SpecialCrossingType.POWER_CABLE;
             case "heat_network": return SpecialCrossingType.HEAT_NETWORK;

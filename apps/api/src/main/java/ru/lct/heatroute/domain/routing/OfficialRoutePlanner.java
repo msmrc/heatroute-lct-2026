@@ -44,17 +44,18 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 @Component
 public class OfficialRoutePlanner {
     private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutePlanner.class);
-    public static final String ALGORITHM_VERSION = "cost-tree-5";
+    public static final String ALGORITHM_VERSION = "global-tree-7";
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double LENGTH_EPSILON_M = 1e-9;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
-    private static final long MAX_SHARED_TARGETS_PER_PAIR = 2;
-    private static final int MAX_COSTED_ASSIGNMENT_CANDIDATES = 4;
-    private static final int SHARED_NEIGHBOUR_FACTOR = 4;
-    private static final int SHARED_SELECTION_BEAM_WIDTH = 96;
-    private static final int MAX_GRAFT_EDGES_PER_DEMAND = 8;
-    private static final int MAX_GRAFT_JUNCTIONS_PER_DEMAND = 8;
-    private static final int MAX_WHOLE_TREE_ACCEPTED_MOVES = 2;
+    private static final int MAX_SHARED_PAIR_CANDIDATES = 4;
+    private static final long MAX_SHARED_TARGETS_PER_PAIR = 1;
+    private static final int MAX_COSTED_ASSIGNMENT_CANDIDATES = 2;
+    private static final int SHARED_NEIGHBOUR_FACTOR = 2;
+    private static final int SHARED_SELECTION_BEAM_WIDTH = 24;
+    private static final int MAX_GRAFT_EDGES_PER_DEMAND = 3;
+    private static final int MAX_GRAFT_JUNCTIONS_PER_DEMAND = 0;
+    private static final int MAX_WHOLE_TREE_ACCEPTED_MOVES = 3;
 
     private final OfficialRouteValidator validator;
     private final OfficialObstacleRouter obstacleRouter;
@@ -140,11 +141,15 @@ public class OfficialRoutePlanner {
                 RoutePreference.SHORTEST,
                 "independent");
         routingEnvironment.logVisibilitySummary("independent");
-        RouteVariant independent = finish(
-                "independent", "independent", independentDraft, features, validatedParameters, reconstructionRequired, routingEnvironment);
-        logVariantSummary(independent);
         List<RouteVariant> variants = new ArrayList<>();
-        variants.add(independent);
+        RouteVariant independent = null;
+        if (connectedCount(independentDraft) == demands.size()) {
+            independent = finish(
+                    "shortest", "shortest", independentDraft, features, validatedParameters,
+                    reconstructionRequired, routingEnvironment);
+            logVariantSummary(independent);
+            variants.add(independent);
+        }
 
         VariantDraft sharedDraft = coverageFirstShared(
                 demands,
@@ -156,33 +161,36 @@ public class OfficialRoutePlanner {
                 routingEnvironment);
         routingEnvironment.logVisibilitySummary("shared");
         RouteVariant shared = finish(
-                "shared", "shared_trunk", sharedDraft, features, validatedParameters, reconstructionRequired, routingEnvironment);
+                "balanced", "balanced", sharedDraft, features, validatedParameters, reconstructionRequired, routingEnvironment);
         logVariantSummary(shared);
         if (sharedDraft.sharedPairCount > 0
-                && !edgeSignature(independent).equals(edgeSignature(shared))) {
+                && (independent == null || !edgeSignature(independent).equals(edgeSignature(shared)))) {
             variants.add(shared);
         }
 
-        VariantDraft diverseDraft = independent(
-                demands,
-                candidatesByConnection,
-                featuresById,
-                chamberIncidentCounts,
-                routingEnvironment,
-                independentDraft.targetByDemand,
-                RoutePreference.RIGHT,
-                "diverse");
-        routingEnvironment.logVisibilitySummary("diverse");
-        RouteVariant diverse = finish(
-                "diverse", "alternative_tie_ins", diverseDraft, features, validatedParameters, reconstructionRequired, routingEnvironment);
-        logVariantSummary(diverse);
-        Set<String> existingSignatures = variants.stream()
-                .map(this::edgeSignature)
-                .collect(Collectors.toSet());
-        if (diverse.getConnectedDemandCount() > 0
-                && diverse.isValid()
-                && existingSignatures.add(edgeSignature(diverse))) {
-            variants.add(diverse);
+        if (connectedCount(independentDraft) == demands.size()) {
+            VariantDraft diverseDraft = independent(
+                    demands,
+                    candidatesByConnection,
+                    featuresById,
+                    chamberIncidentCounts,
+                    routingEnvironment,
+                    independentDraft.targetByDemand,
+                    RoutePreference.RIGHT,
+                    "diverse");
+            routingEnvironment.logVisibilitySummary("diverse");
+            RouteVariant diverse = finish(
+                    "cheapest", "cheapest", diverseDraft, features, validatedParameters,
+                    reconstructionRequired, routingEnvironment);
+            logVariantSummary(diverse);
+            Set<String> existingSignatures = variants.stream()
+                    .map(this::edgeSignature)
+                    .collect(Collectors.toSet());
+            if (diverse.getConnectedDemandCount() == demands.size()
+                    && diverse.isValid()
+                    && existingSignatures.add(edgeSignature(diverse))) {
+                variants.add(diverse);
+            }
         }
 
         Map<String, Integer> rankById = new HashMap<>();
@@ -346,7 +354,11 @@ public class OfficialRoutePlanner {
                 .thenComparing(pair -> pair.right.id));
         List<PairPlan> plans = new ArrayList<>();
         Map<String, Integer> neighboursByDemand = new HashMap<>();
+        int evaluatedPairCandidates = 0;
         for (DemandPair pair : demandPairs) {
+            if (evaluatedPairCandidates >= MAX_SHARED_PAIR_CANDIDATES) {
+                break;
+            }
             int leftNeighbours = neighboursByDemand.getOrDefault(pair.left.id, 0);
             int rightNeighbours = neighboursByDemand.getOrDefault(pair.right.id, 0);
             if (leftNeighbours >= SHARED_NEIGHBOUR_FACTOR
@@ -355,6 +367,7 @@ public class OfficialRoutePlanner {
             }
             neighboursByDemand.merge(pair.left.id, 1, Integer::sum);
             neighboursByDemand.merge(pair.right.id, 1, Integer::sum);
+            evaluatedPairCandidates++;
             PairPlan plan = bestPairPlan(
                     pair.left,
                     pair.right,
@@ -596,7 +609,7 @@ public class OfficialRoutePlanner {
         List<Coordinate> raw = new ArrayList<>();
         raw.add(geometricMedian(start, end, target));
         raw.add(new Coordinate((start.x + end.x + target.x) / 3.0, (start.y + end.y + target.y) / 3.0));
-        double[] fractions = {0.5, 0.25, 0.75, 0.125, 0.875, 0.375, 0.625};
+        double[] fractions = {0.5, 0.25, 0.75};
         for (double fraction : fractions) {
             raw.add(new Coordinate(
                     start.x + (end.x - start.x) * fraction,
@@ -758,7 +771,7 @@ public class OfficialRoutePlanner {
                         .comparingDouble((RouteNode node) -> node.getCoordinate().toCoordinate()
                                 .distance(demand.routingStart()))
                         .thenComparing(RouteNode::getId))
-                .limit(boundedWholeTreeSearch ? 4 : MAX_GRAFT_JUNCTIONS_PER_DEMAND)
+                .limit(boundedWholeTreeSearch ? 0 : MAX_GRAFT_JUNCTIONS_PER_DEMAND)
                 .collect(Collectors.toList());
         for (RouteNode junction : existingJunctions) {
             List<LineString> acceptedRoutes = draft.edges.stream()
@@ -793,7 +806,7 @@ public class OfficialRoutePlanner {
                         .comparingDouble((RouteEdge edge) -> routeLine(edge)
                                 .distance(geometryFactory.createPoint(demand.routingStart())))
                         .thenComparing(RouteEdge::getId))
-                .limit(boundedWholeTreeSearch ? 3 : MAX_GRAFT_EDGES_PER_DEMAND)
+                .limit(boundedWholeTreeSearch ? 2 : MAX_GRAFT_EDGES_PER_DEMAND)
                 .collect(Collectors.toList());
         for (RouteEdge targetEdge : nearestEdges) {
             LineString targetLine = routeLine(targetEdge);
@@ -801,11 +814,7 @@ public class OfficialRoutePlanner {
             double length = targetLine.getLength();
             List<Double> indexes = boundedWholeTreeSearch
                     ? List.of(indexed.project(demand.routingStart()))
-                    : List.of(
-                            indexed.project(demand.routingStart()),
-                            length * 0.25,
-                            length * 0.50,
-                            length * 0.75);
+                    : List.of(indexed.project(demand.routingStart()), length * 0.50);
             List<Coordinate> tried = new ArrayList<>();
             for (double index : indexes) {
                 if (index <= MIN_EDGE_LENGTH_M || length - index <= MIN_EDGE_LENGTH_M) {
@@ -1096,8 +1105,7 @@ public class OfficialRoutePlanner {
                 junction.getId() + "|" + (targetEdge == null ? "node" : targetEdge.getId()));
         VariantDraft simulation = draft.copy();
         addTreeAttachment(simulation, demand, candidate);
-        if (!isStructurallyValid(simulation)
-                || !isFinalGeometryValid(simulation, routingEnvironment)) {
+        if (!isStructurallyValid(simulation)) {
             return null;
         }
         BigDecimal cost = totalNetworkConstructionCost(simulation);
@@ -1497,9 +1505,8 @@ public class OfficialRoutePlanner {
                 : finalSizedEdges;
         List<RouteValidationIssue> issues = validator.validate(nodes, profiledEdges,
                 featuresForEdges(features, profiledEdges, routingEnvironment));
-        ExistingNetworkReconstructionResult reconstruction = reconstructor.reconstruct(
-                features,
-                tieInLoads(nodes, profiledEdges));
+        // The amended official contract explicitly excludes reconstruction of existing assets.
+        ExistingNetworkReconstructionResult reconstruction = ExistingNetworkReconstructionResult.empty();
         VariantEconomics economics = economicsCalculator.calculate(
                 nodes, profiledEdges, draft.connections, reconstruction, reconstructionRequired);
         BigDecimal totalLength = profiledEdges.stream()

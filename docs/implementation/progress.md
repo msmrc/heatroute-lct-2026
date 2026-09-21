@@ -549,3 +549,31 @@ The current cross-check against all three organizer artifacts is in `OFFICIAL_AL
 Docker Desktop and the local Compose stack are operational. The default ports 5173 and 8000 were
 occupied by unrelated local processes, so the verified instance uses `WEB_HOST_PORT=5174` and
 `API_HOST_PORT=8080` without stopping those processes.
+# 2026-09-21 — amended organizer documents and global-tree-7 (local)
+
+- The corrected organizer GeoJSON replaced the tracked sample without normalizing IDs or geometry.
+- `railway` is again a forbidden restriction with a 1 m clearance; only `tram_tracks` uses the
+  special crossing rule.
+- Arbitrary turns from 0 to 90 degrees no longer receive an invented 1.5 cost multiplier.
+- Existing-network and existing-chamber reconstruction is excluded from calculation and export.
+- Official export is reduced to `heat_network`, `heat_chamber`, `technical_node` and
+  `variant_summary`; the summary now reports the existing-chamber tie-in count and cost.
+- The shared-tree search is bounded before obstacle routing and publishes up to three meaningful
+  balance, cost and length oriented variants.
+- This contract checkpoint was subsequently covered by the focused performance result below;
+  full test, lint, typecheck and smoke suites were not run.
+# 2026-09-21 — routing performance recovery (local)
+
+- Repeated empty-context route searches, including failed searches, are cached per calculation.
+- Shared-pair exploration is bounded to the four closest candidates; assignment, beam and graft
+  candidate counts are capped before obstacle routing rather than after it.
+- Grafts are evaluated at the nearest projection and midpoint of the closest tree edges. The full
+  geometry validator runs on the selected final variant instead of every simulated attachment.
+- Incomplete independent/alternative drafts are no longer depth-profiled and published; the
+  contract permits one to three meaningful variants.
+- The focused official-dataset method completed successfully in 57.417 s with 263 visibility
+  searches and 1,902,450 evaluated pairs. Before the recovery, CI exceeded 20 minutes with 1,475
+  searches and about 78.8 million pairs.
+- The resulting balanced variant connected 17/17 objects, measured 2,098.903 m and scored
+  14.937905995. This restores the CI time budget, but route quality still needs improvement against
+  the external 1.83 km / 286.2 million reference.

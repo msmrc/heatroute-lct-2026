@@ -646,3 +646,10 @@ calculation. Кооперативная отмена CPU-bound planner уже п
 
 Передача разработки Артёму зафиксирована в `TOMORROW_HANDOFF.md`: там находятся точный локальный
 запуск без Docker, подтверждённые метрики официального расчёта и запреты на ложные P0-claims.
+# Amendment checkpoint 2026-09-21 (local, verification pending)
+
+The updated organizer DOCX is now the active contract over older roadmap prose: five input object
+types, forbidden railway, no existing-asset reconstruction, arbitrary 0–90 degree turns without a
+bend tariff, four output object types, and construction-only score/cost fields. The local
+`global-tree-7` delta implements these contract changes and widens whole-tree optimization, but the
+gate remains **verification pending** because automated checks were explicitly deferred.

@@ -14,10 +14,7 @@
       "items": {
         "oneOf": [
           { "$ref": "#/$defs/heatNetwork" },
-          { "$ref": "#/$defs/tieIn" },
-          { "$ref": "#/$defs/networkReconstruction" },
           { "$ref": "#/$defs/heatChamber" },
-          { "$ref": "#/$defs/chamberReconstruction" },
           { "$ref": "#/$defs/technicalNode" },
           { "$ref": "#/$defs/variantSummary" }
         ]
@@ -247,7 +244,7 @@
             "geometry": { "type": "null" },
             "properties": {
               "type": "object",
-              "required": ["id", "object_type", "variant_id", "rank", "construction_cost", "chamber_construction_cost", "tie_in_cost", "reconstruction_cost", "chamber_reconstruction_cost", "unconnected_penalty", "calculated_cost", "new_network_length", "reconstruction_length", "length", "score", "unconnected_oks_ids"],
+              "required": ["id", "object_type", "variant_id", "rank", "construction_cost", "chamber_construction_cost", "existing_chamber_tie_in_count", "existing_chamber_tie_in_cost", "unconnected_penalty", "calculated_cost", "new_network_length", "score", "unconnected_oks_ids"],
               "additionalProperties": false,
               "properties": {
                 "id": { "$ref": "#/$defs/id" },
@@ -256,14 +253,11 @@
                 "rank": { "type": "integer", "minimum": 1, "maximum": 3 },
                 "construction_cost": { "$ref": "#/$defs/money" },
                 "chamber_construction_cost": { "$ref": "#/$defs/money" },
-                "tie_in_cost": { "$ref": "#/$defs/money" },
-                "reconstruction_cost": { "$ref": "#/$defs/money" },
-                "chamber_reconstruction_cost": { "$ref": "#/$defs/money" },
+                "existing_chamber_tie_in_count": { "type": "integer", "minimum": 0 },
+                "existing_chamber_tie_in_cost": { "$ref": "#/$defs/money" },
                 "unconnected_penalty": { "$ref": "#/$defs/money" },
                 "calculated_cost": { "$ref": "#/$defs/money" },
                 "new_network_length": { "$ref": "#/$defs/length" },
-                "reconstruction_length": { "$ref": "#/$defs/length" },
-                "length": { "$ref": "#/$defs/length" },
                 "score": { "type": "number", "minimum": 0 },
                 "unconnected_oks_ids": {
                   "type": "array",

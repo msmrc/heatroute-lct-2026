@@ -140,13 +140,15 @@ public class OfficialOutputContractValidator {
     }
 
     private void validatePropertyTypes(int index, JsonNode properties, List<String> issues) {
-        Set<String> integerFields = Set.of("diameter", "existing_diameter", "required_diameter", "rank");
+        Set<String> integerFields = Set.of(
+                "diameter", "existing_diameter", "required_diameter", "rank",
+                "existing_chamber_tie_in_count");
         Set<String> numericFields = Set.of(
                 "flow_tph", "existing_flow_tph", "added_flow_tph", "calculated_flow_tph",
                 "length", "cost", "depth_start", "depth_end", "construction_cost",
-                "chamber_construction_cost", "tie_in_cost", "reconstruction_cost",
-                "chamber_reconstruction_cost", "unconnected_penalty", "calculated_cost",
-                "new_network_length", "reconstruction_length", "score");
+                "chamber_construction_cost", "existing_chamber_tie_in_count",
+                "existing_chamber_tie_in_cost", "unconnected_penalty", "calculated_cost",
+                "new_network_length", "score");
         properties.fields().forEachRemaining(field -> {
             String name = field.getKey();
             JsonNode value = field.getValue();
@@ -213,19 +215,12 @@ public class OfficialOutputContractValidator {
         Map<String, Set<String>> result = new HashMap<>();
         result.put("heat_network", Set.of("id", "object_type", "variant_id", "start_node_id",
                 "end_node_id", "flow_tph", "diameter", "length", "laying_method", "cost"));
-        result.put("tie_in", Set.of("id", "object_type", "variant_id", "existing_object_id",
-                "existing_object_type", "existing_diameter", "required_diameter", "cost"));
-        result.put("heat_network_reconstruction", Set.of("id", "object_type", "variant_id",
-                "existing_object_id", "existing_flow_tph", "added_flow_tph", "calculated_flow_tph",
-                "existing_diameter", "required_diameter", "length", "cost"));
         result.put("heat_chamber", Set.of("id", "object_type", "variant_id", "diameter", "cost"));
-        result.put("heat_chamber_reconstruction", Set.of("id", "object_type", "variant_id",
-                "existing_object_id", "existing_diameter", "required_diameter", "cost"));
         result.put("technical_node", Set.of("id", "object_type", "variant_id"));
         result.put("variant_summary", Set.of("id", "object_type", "variant_id", "rank",
-                "construction_cost", "chamber_construction_cost", "tie_in_cost",
-                "reconstruction_cost", "chamber_reconstruction_cost", "unconnected_penalty",
-                "calculated_cost", "new_network_length", "reconstruction_length", "length", "score",
+                "construction_cost", "chamber_construction_cost", "existing_chamber_tie_in_count",
+                "existing_chamber_tie_in_cost", "unconnected_penalty",
+                "calculated_cost", "new_network_length", "score",
                 "unconnected_oks_ids"));
         return result;
     }
@@ -239,10 +234,7 @@ public class OfficialOutputContractValidator {
     private static Map<String, String> geometryTypes() {
         Map<String, String> result = new HashMap<>();
         result.put("heat_network", "LineString");
-        result.put("tie_in", "Point");
-        result.put("heat_network_reconstruction", "LineString");
         result.put("heat_chamber", "Point");
-        result.put("heat_chamber_reconstruction", "Point");
         result.put("technical_node", "Point");
         result.put("variant_summary", null);
         return result;

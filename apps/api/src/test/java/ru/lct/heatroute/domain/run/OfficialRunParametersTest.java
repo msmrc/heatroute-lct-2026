@@ -3,6 +3,8 @@ package ru.lct.heatroute.domain.run;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +16,7 @@ class OfficialRunParametersTest {
         assertThat(parameters.getMinimumDepthM()).isEqualByComparingTo("0.7");
         assertThat(parameters.getMaximumDepthM()).isEqualByComparingTo("10.0");
         assertThat(parameters.isDepthEnabled()).isFalse();
+        assertThat(parameters.getAlgorithmProfile()).isEqualTo(RoutingAlgorithmProfile.STABLE);
     }
 
     @Test
@@ -22,6 +25,36 @@ class OfficialRunParametersTest {
                 new BigDecimal("0.7"), new BigDecimal("10.0"), true).validated();
 
         assertThat(parameters.isDepthEnabled()).isTrue();
+    }
+
+    @Test
+    void keepsTheExperimentalProfileInsideImmutableParameters() {
+        OfficialRunParameters parameters = new OfficialRunParameters(
+                null,
+                null,
+                false,
+                RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL).validated();
+
+        assertThat(parameters.getAlgorithmProfile())
+                .isEqualTo(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
+    }
+
+    @Test
+    void roundTripsTheExperimentalProfileForDurableJobReplay() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper()
+                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+        OfficialRunParameters original = new OfficialRunParameters(
+                null,
+                null,
+                false,
+                RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
+
+        String json = objectMapper.writeValueAsString(original);
+        OfficialRunParameters restored = objectMapper.readValue(json, OfficialRunParameters.class);
+
+        assertThat(json).contains("\"algorithm_profile\":\"expert_experimental\"");
+        assertThat(restored.getAlgorithmProfile())
+                .isEqualTo(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
     }
 
     @Test

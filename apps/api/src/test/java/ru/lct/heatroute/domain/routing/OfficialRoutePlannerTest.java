@@ -31,14 +31,19 @@ class OfficialRoutePlannerTest {
     private final OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
     private final OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
-    private final OfficialRoutePlanner planner = new OfficialRoutePlanner(
-            new OfficialRouteValidator(geometryRules),
-            new OfficialObstacleRouter(geometryRules),
-            pipeCatalog,
-            new OfficialNetworkSizer(pipeCatalog),
-            new OfficialExistingNetworkReconstructor(pipeCatalog),
-            new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()),
-            depthPlanner());
+    private final OfficialRoutePlanner planner = planner(RoutePlannerTuning.stable());
+
+    private OfficialRoutePlanner planner(RoutePlannerTuning tuning) {
+        return new OfficialRoutePlanner(
+                new OfficialRouteValidator(geometryRules),
+                new OfficialObstacleRouter(geometryRules),
+                pipeCatalog,
+                new OfficialNetworkSizer(pipeCatalog),
+                new OfficialExistingNetworkReconstructor(pipeCatalog),
+                new OfficialVariantEconomicsCalculator(pipeCatalog, new OfficialEconomics()),
+                depthPlanner(),
+                tuning);
+    }
 
     private OfficialDepthPlanner depthPlanner() {
         return new OfficialDepthPlanner(
@@ -82,6 +87,26 @@ class OfficialRoutePlannerTest {
         assertThat(result.getAlgorithmVersion()).isEqualTo("global-tree-46");
         assertThat(shared.getEngineeringIssues()).isEmpty();
         assertThat(independent.getEngineeringIssues()).isEmpty();
+    }
+
+    @Test
+    void experimentalPlannerPublishesItsOwnVersionWithoutChangingStableVersion() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
+                feature("restriction", "shared-oks",
+                        "POLYGON ((95 -20, 110 -20, 110 30, 95 30, 95 -20))",
+                        "{\"restriction_type\":\"oks\"}"),
+                feature("oks_connection_point", "cp-a", "POINT (100 0)", "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "cp-b", "POINT (100 10)", "{\"flow_tph\":7}"));
+        TopologyAnalysis topology = topology(List.of(
+                candidate("cp-a", "network", 100),
+                candidate("cp-b", "network", 100)));
+
+        OfficialCalculationResult result = planner(RoutePlannerTuning.expertExperimental())
+                .plan(features, topology);
+
+        assertThat(result.getAlgorithmVersion()).isEqualTo("expert-tree-1");
+        assertThat(planner.plan(features, topology).getAlgorithmVersion()).isEqualTo("global-tree-46");
     }
 
     @Test

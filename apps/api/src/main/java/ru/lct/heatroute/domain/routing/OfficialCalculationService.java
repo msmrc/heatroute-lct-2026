@@ -18,17 +18,17 @@ public class OfficialCalculationService {
     private final OfficialImportRepository importRepository;
     private final OfficialFeatureRepository featureRepository;
     private final ExistingNetworkTopologyAnalyzer topologyAnalyzer;
-    private final OfficialRoutePlanner routePlanner;
+    private final RoutingAlgorithmRegistry algorithmRegistry;
 
     public OfficialCalculationService(
             OfficialImportRepository importRepository,
             OfficialFeatureRepository featureRepository,
             ExistingNetworkTopologyAnalyzer topologyAnalyzer,
-            OfficialRoutePlanner routePlanner) {
+            RoutingAlgorithmRegistry algorithmRegistry) {
         this.importRepository = importRepository;
         this.featureRepository = featureRepository;
         this.topologyAnalyzer = topologyAnalyzer;
-        this.routePlanner = routePlanner;
+        this.algorithmRegistry = algorithmRegistry;
     }
 
     @Transactional(readOnly = true)
@@ -48,7 +48,8 @@ public class OfficialCalculationService {
         featureRepository.forEachCalculationCoreByImport(
                 importId, OfficialFeatureRepository.DEFAULT_PAGE_SIZE, features::add);
         TopologyAnalysis topology = topologyAnalyzer.analyze(features);
-        return routePlanner.plan(
+        RoutingAlgorithm algorithm = algorithmRegistry.require(parameters.getAlgorithmProfile());
+        return algorithm.plan(
                 features,
                 topology,
                 parameters,

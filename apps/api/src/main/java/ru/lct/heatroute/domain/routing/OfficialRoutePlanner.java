@@ -22,6 +22,7 @@ import org.locationtech.jts.linearref.LengthIndexedLine;
 import org.locationtech.jts.operation.distance.DistanceOp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.depth.DepthProfileResult;
 import ru.lct.heatroute.domain.depth.OfficialDepthPlanner;
@@ -45,7 +46,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 @Component
 public class OfficialRoutePlanner {
     private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutePlanner.class);
-    public static final String ALGORITHM_VERSION = "global-tree-46";
+    public static final String ALGORITHM_VERSION = RoutePlannerTuning.STABLE_ALGORITHM_VERSION;
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double LENGTH_EPSILON_M = 1e-9;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
@@ -70,12 +71,6 @@ public class OfficialRoutePlanner {
     private static final double ENGINEERING_PRIMARY_DEVIATION_RATIO = 0.05;
     private static final double ENGINEERING_RELAXED_DEVIATION_RATIO = 0.10;
     private static final double DEFAULT_EGRESS_EXTRA_M = 10.0;
-    private static final double ENGINEERING_EGRESS_EXTRA_M = 60.0;
-    private static final int MAX_GLOBAL_ENGINEERING_REPAIRS = 8;
-    private static final int MAX_ENGINEERING_EGRESS_CANDIDATES = 5;
-    private static final int MAX_ENGINEERING_ZONE_DEMANDS = 4;
-    private static final int MAX_ENGINEERING_ZONE_REBUILDS = 2;
-    private static final double ENGINEERING_ZONE_RADIUS_M = 120.0;
 
     private final OfficialRouteValidator validator;
     private final OfficialObstacleRouter obstacleRouter;
@@ -84,9 +79,11 @@ public class OfficialRoutePlanner {
     private final OfficialExistingNetworkReconstructor reconstructor;
     private final OfficialVariantEconomicsCalculator economicsCalculator;
     private final OfficialDepthPlanner depthPlanner;
+    private final RoutePlannerTuning tuning;
     private final EngineeringRouteEvaluator engineeringEvaluator = new EngineeringRouteEvaluator();
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
+    @Autowired
     public OfficialRoutePlanner(
             OfficialRouteValidator validator,
             OfficialObstacleRouter obstacleRouter,
@@ -95,6 +92,26 @@ public class OfficialRoutePlanner {
             OfficialExistingNetworkReconstructor reconstructor,
             OfficialVariantEconomicsCalculator economicsCalculator,
             OfficialDepthPlanner depthPlanner) {
+        this(
+                validator,
+                obstacleRouter,
+                pipeCatalog,
+                networkSizer,
+                reconstructor,
+                economicsCalculator,
+                depthPlanner,
+                RoutePlannerTuning.stable());
+    }
+
+    OfficialRoutePlanner(
+            OfficialRouteValidator validator,
+            OfficialObstacleRouter obstacleRouter,
+            OfficialPipeCatalog pipeCatalog,
+            OfficialNetworkSizer networkSizer,
+            OfficialExistingNetworkReconstructor reconstructor,
+            OfficialVariantEconomicsCalculator economicsCalculator,
+            OfficialDepthPlanner depthPlanner,
+            RoutePlannerTuning tuning) {
         this.validator = validator;
         this.obstacleRouter = obstacleRouter;
         this.pipeCatalog = pipeCatalog;
@@ -102,6 +119,7 @@ public class OfficialRoutePlanner {
         this.reconstructor = reconstructor;
         this.economicsCalculator = economicsCalculator;
         this.depthPlanner = depthPlanner;
+        this.tuning = tuning;
     }
 
     public OfficialCalculationResult plan(
@@ -275,7 +293,8 @@ public class OfficialRoutePlanner {
                         .findFirst()
                         .orElse(null);
         }
-        return new OfficialCalculationResult(ALGORITHM_VERSION, inputProfile, demands.size(), variants, preferred);
+        return new OfficialCalculationResult(
+                tuning.getAlgorithmVersion(), inputProfile, demands.size(), variants, preferred);
     }
 
     private RouteVariant withEngineeringAssessment(RouteVariant variant) {
@@ -2419,7 +2438,7 @@ public class OfficialRoutePlanner {
                 .thenComparing(edgeId -> edgeId));
         int globalRepairs = 0;
         for (String edgeId : edgeIds) {
-            if (globalRepairs >= MAX_GLOBAL_ENGINEERING_REPAIRS) {
+            if (globalRepairs >= tuning.getMaximumGlobalEngineeringRepairs()) {
                 break;
             }
             RouteEdge edge = current.edges.stream()
@@ -2486,18 +2505,19 @@ public class OfficialRoutePlanner {
                 .sorted(Comparator.comparing(RouteEdge::getId))
                 .collect(Collectors.toList());
         for (RouteEdge seed : seeds) {
-            if (rebuiltZones >= MAX_ENGINEERING_ZONE_REBUILDS) {
+            if (rebuiltZones >= tuning.getMaximumEngineeringZoneRebuilds()) {
                 break;
             }
             Coordinate seedCoordinate = midpoint(
                     seed.getCoordinates().get(0).toCoordinate(),
                     seed.getCoordinates().get(seed.getCoordinates().size() - 1).toCoordinate());
             List<Demand> zone = demands.stream()
-                    .filter(demand -> demand.coordinate.distance(seedCoordinate) <= ENGINEERING_ZONE_RADIUS_M)
+                    .filter(demand -> demand.coordinate.distance(seedCoordinate)
+                            <= tuning.getEngineeringZoneRadiusM())
                     .sorted(Comparator
                             .comparingDouble((Demand demand) -> demand.coordinate.distance(seedCoordinate))
                             .thenComparing(demand -> demand.id))
-                    .limit(MAX_ENGINEERING_ZONE_DEMANDS)
+                    .limit(tuning.getMaximumEngineeringZoneDemands())
                     .collect(Collectors.toList());
             if (zone.size() < 2) {
                 continue;
@@ -2671,7 +2691,7 @@ public class OfficialRoutePlanner {
                             branchDiameter,
                             entry.getValue().coordinate,
                             axisEnd,
-                            ENGINEERING_EGRESS_EXTRA_M).stream()
+                            tuning.getEngineeringEgressExtraM()).stream()
                     .limit(3)
                     .collect(Collectors.toList());
             for (OfficialRouteGeometryRules.NormalEgress exit : exits) {
@@ -2985,8 +3005,8 @@ public class OfficialRoutePlanner {
                         diameter,
                         demand.coordinate,
                         target,
-                        ENGINEERING_EGRESS_EXTRA_M).stream()
-                        .limit(MAX_ENGINEERING_EGRESS_CANDIDATES)
+                        tuning.getEngineeringEgressExtraM()).stream()
+                        .limit(tuning.getMaximumEngineeringEgressCandidates())
                         .collect(Collectors.toList());
         if (egressCandidates.isEmpty()) {
             RoutePath fallback = routeDemandTowards(
@@ -3083,7 +3103,7 @@ public class OfficialRoutePlanner {
             List<LineString> acceptedRoutes,
             RoutePreference preference) {
         double maximumEgressExtraM = preference == RoutePreference.ENGINEERING
-                ? ENGINEERING_EGRESS_EXTRA_M
+                ? tuning.getEngineeringEgressExtraM()
                 : DEFAULT_EGRESS_EXTRA_M;
         OfficialRouteGeometryRules.NormalEgress selected = demand.egressTowards(
                 routingEnvironment, diameter, target, maximumEgressExtraM);

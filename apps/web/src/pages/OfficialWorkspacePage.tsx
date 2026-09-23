@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Download, Eye, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
-import { type ChangeEvent, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, Download, Eye, FileJson2, FlaskConical, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Card, ProgressBar, StateView, StatusBadge } from "../components/ui/primitives";
@@ -18,11 +18,23 @@ import {
   getOfficialRun,
   humanFileSize,
   officialExportUrl,
+  type OfficialRun,
+  type RoutingAlgorithmProfile,
 } from "../shared/api";
 
 const IMPORT_KEY = "heatroute.officialImportId";
 const JOB_KEY = "heatroute.officialJobId";
 const RUN_KEY = "heatroute.officialRunId";
+const STABLE_RUN_KEY = "heatroute.officialStableRunId";
+const EXPERIMENTAL_RUN_KEY = "heatroute.officialExperimentalRunId";
+
+function runProfile(run: OfficialRun): RoutingAlgorithmProfile {
+  return run.parameters?.algorithm_profile ?? "stable";
+}
+
+function profileName(profile: RoutingAlgorithmProfile): string {
+  return profile === "expert_experimental" ? "Экспериментальный" : "Основной";
+}
 
 function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : error instanceof Error ? error.message : "Неизвестная ошибка";
@@ -35,6 +47,25 @@ export function OfficialWorkspacePage() {
   const [jobId, setJobId] = useState(() => localStorage.getItem(JOB_KEY) ?? "");
   const [runId, setRunId] = useState(() => localStorage.getItem(RUN_KEY) ?? "");
   const [processingFilename, setProcessingFilename] = useState("");
+  const stableRunId = localStorage.getItem(STABLE_RUN_KEY) ?? "";
+  const experimentalRunId = localStorage.getItem(EXPERIMENTAL_RUN_KEY) ?? "";
+
+  function rememberRun(value: OfficialRun, profile: RoutingAlgorithmProfile) {
+    localStorage.setItem(RUN_KEY, value.id);
+    setRunId(value.id);
+    if (profile === "expert_experimental") {
+      localStorage.setItem(EXPERIMENTAL_RUN_KEY, value.id);
+    } else {
+      localStorage.setItem(STABLE_RUN_KEY, value.id);
+    }
+  }
+
+  function openRun(id: string) {
+    localStorage.setItem(RUN_KEY, id);
+    localStorage.removeItem(JOB_KEY);
+    setRunId(id);
+    setJobId("");
+  }
 
   const imported = useQuery({
     queryKey: ["official-import", importId],
@@ -78,14 +109,15 @@ export function OfficialWorkspacePage() {
       localStorage.setItem(IMPORT_KEY, importedValue.id);
       localStorage.removeItem(JOB_KEY);
       localStorage.removeItem(RUN_KEY);
+      localStorage.removeItem(STABLE_RUN_KEY);
+      localStorage.removeItem(EXPERIMENTAL_RUN_KEY);
       setImportId(importedValue.id);
       setJobId("");
       setRunId("");
       queryClient.setQueryData(["official-import", importedValue.id], importedValue);
 
       if (runValue) {
-        localStorage.setItem(RUN_KEY, runValue.id);
-        setRunId(runValue.id);
+        rememberRun(runValue, "stable");
         queryClient.setQueryData(["official-run", runValue.id], runValue);
         if (runValue.job_id) {
           localStorage.setItem(JOB_KEY, runValue.job_id);
@@ -103,10 +135,13 @@ export function OfficialWorkspacePage() {
   const loadDemo = useMutation({
     mutationFn: () => getLatestOfficialRun(),
     onSuccess: (value) => {
+      if (localStorage.getItem(IMPORT_KEY) !== value.import_id) {
+        localStorage.removeItem(STABLE_RUN_KEY);
+        localStorage.removeItem(EXPERIMENTAL_RUN_KEY);
+      }
       localStorage.setItem(IMPORT_KEY, value.import_id);
-      localStorage.setItem(RUN_KEY, value.id);
       setImportId(value.import_id);
-      setRunId(value.id);
+      rememberRun(value, runProfile(value));
       queryClient.setQueryData(["official-run", value.id], value);
       if (value.job_id) {
         localStorage.setItem(JOB_KEY, value.job_id);
@@ -132,16 +167,17 @@ export function OfficialWorkspacePage() {
     onError: (error) => toast.error(errorText(error)),
   });
   const startRun = useMutation({
-    mutationFn: () => createOfficialRun(importId),
-    onSuccess: (value) => {
-      localStorage.setItem(RUN_KEY, value.id);
-      setRunId(value.id);
+    mutationFn: (profile: RoutingAlgorithmProfile) => createOfficialRun(importId, {
+      algorithm_profile: profile,
+    }),
+    onSuccess: (value, profile) => {
+      rememberRun(value, profile);
       queryClient.setQueryData(["official-run", value.id], value);
       if (value.job_id) {
         localStorage.setItem(JOB_KEY, value.job_id);
         setJobId(value.job_id);
       }
-      toast.success("Расчёт всех ОКС поставлен в очередь");
+      toast.success(`${profileName(profile)} расчёт всех ОКС поставлен в очередь`);
     },
     onError: (error) => toast.error(errorText(error)),
   });
@@ -158,7 +194,17 @@ export function OfficialWorkspacePage() {
   const currentImport = imported.data;
   const currentJob = job.data;
   const currentRun = run.data;
+  useEffect(() => {
+    if (!currentRun) return;
+    const profile = runProfile(currentRun);
+    if (profile === "expert_experimental") {
+      localStorage.setItem(EXPERIMENTAL_RUN_KEY, currentRun.id);
+    } else {
+      localStorage.setItem(STABLE_RUN_KEY, currentRun.id);
+    }
+  }, [currentRun]);
   const activeRun = currentRun && currentJob?.run_id === currentRun.id ? currentRun : undefined;
+  const currentRunProfile = currentRun ? runProfile(currentRun) : "stable";
   const isJobActive = currentJob?.state === "queued" || currentJob?.state === "running" || currentJob?.state === "cancel_requested";
   const isRunActive = currentRun?.state === "queued" || currentRun?.state === "running";
   const isRunLoading = Boolean(runId) && run.isPending && !run.isError;
@@ -200,6 +246,9 @@ export function OfficialWorkspacePage() {
   if (currentImport && currentRun?.state === "completed" && currentRun.result) {
     const exportReady = currentRun.result.variants.some((variant) =>
       variant.valid && variant.rank != null && variant.economics?.complete === true);
+    const nextProfile: RoutingAlgorithmProfile = currentRunProfile === "stable"
+      ? "expert_experimental"
+      : "stable";
     return (
       <div className="official-map-workspace">
         <header className="map-workspace-toolbar">
@@ -210,8 +259,33 @@ export function OfficialWorkspacePage() {
               <small>{currentImport.report.feature_count.toLocaleString("ru-RU")} объектов · {humanFileSize(currentImport.input_size_bytes)}</small>
             </div>
           </div>
-          <div className="map-workspace-status"><CheckCircle2 size={16} /> Данные проверены <span>·</span> Расчёт завершён</div>
+          <div className="map-workspace-status">
+            <CheckCircle2 size={16} /> Данные проверены <span>·</span> {profileName(currentRunProfile)} расчёт <span>·</span> {currentRun.algorithm_version}
+          </div>
           <div className="map-workspace-actions">
+            {currentRunProfile !== "stable" && stableRunId && stableRunId !== currentRun.id && (
+              <Button variant="outline" onClick={() => openRun(stableRunId)} title="Открыть последний основной расчёт">
+                <Eye size={16} /> Основной
+              </Button>
+            )}
+            {currentRunProfile !== "expert_experimental" && experimentalRunId && experimentalRunId !== currentRun.id && (
+              <Button variant="outline" onClick={() => openRun(experimentalRunId)} title="Открыть последний эксперимент">
+                <FlaskConical size={16} /> Эксперимент
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              disabled={startRun.isPending}
+              title={nextProfile === "expert_experimental"
+                ? "Запустить изолированный профиль с расширенным групповым поиском"
+                : "Запустить основной алгоритм с неизменными настройками"}
+              onClick={() => startRun.mutate(nextProfile)}
+            >
+              {startRun.isPending
+                ? <LoaderCircle className="is-spinning" size={16} />
+                : nextProfile === "expert_experimental" ? <FlaskConical size={16} /> : <Play size={16} />}
+              {nextProfile === "expert_experimental" ? "Новый эксперимент" : "Новый основной"}
+            </Button>
             <Button variant="outline" onClick={() => loadDemo.mutate()} disabled={loadDemo.isPending}>
               {loadDemo.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Eye size={16} />}
               {loadDemo.isPending ? "Открываем…" : "Последний расчёт"}
@@ -341,8 +415,17 @@ export function OfficialWorkspacePage() {
               <>
                 <p>Обработает все точки спроса, сравнит раздельные подключения и общие стволы, сохранит частичный результат для no-route.</p>
                 <div className="card-actions">
-                  <Button disabled={!currentImport.report.valid || startRun.isPending} onClick={() => startRun.mutate()}>
+                  <Button disabled={!currentImport.report.valid || startRun.isPending} onClick={() => startRun.mutate("stable")}>
                     {startRun.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Play size={16} />} Рассчитать варианты
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={!currentImport.report.valid || startRun.isPending}
+                    title="Отдельный алгоритм с расширенным групповым поиском"
+                    onClick={() => startRun.mutate("expert_experimental")}
+                  >
+                    {startRun.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <FlaskConical size={16} />}
+                    Экспериментальный алгоритм
                   </Button>
                   <Button variant="outline" disabled={!currentImport.report.valid || startJob.isPending} onClick={() => startJob.mutate()}>
                     Только топология
@@ -370,9 +453,24 @@ export function OfficialWorkspacePage() {
                   <Button variant="outline" onClick={() => void job.refetch()}><RotateCcw size={15} /> Обновить</Button>
                   {isJobActive && <Button variant="outline" disabled={cancelJob.isPending} onClick={() => cancelJob.mutate()}>Отменить</Button>}
                   {!isJobActive && currentJob.job_type === "topology_analysis" && (
-                    <Button disabled={startRun.isPending} onClick={() => startRun.mutate()}>
-                      {startRun.isPending ? <LoaderCircle className="is-spinning" size={15} /> : <Play size={15} />} Рассчитать варианты
-                    </Button>
+                    <>
+                      <Button disabled={startRun.isPending} onClick={() => startRun.mutate("stable")}>
+                        {startRun.isPending ? <LoaderCircle className="is-spinning" size={15} /> : <Play size={15} />} Рассчитать варианты
+                      </Button>
+                      <Button variant="outline" disabled={startRun.isPending} onClick={() => startRun.mutate("expert_experimental")}>
+                        <FlaskConical size={15} /> Экспериментальный алгоритм
+                      </Button>
+                    </>
+                  )}
+                  {!isJobActive && currentJob.job_type !== "topology_analysis" && (
+                    <>
+                      <Button variant="outline" disabled={startRun.isPending} onClick={() => startRun.mutate("stable")}>
+                        <Play size={15} /> Новый основной
+                      </Button>
+                      <Button variant="outline" disabled={startRun.isPending} onClick={() => startRun.mutate("expert_experimental")}>
+                        <FlaskConical size={15} /> Новый эксперимент
+                      </Button>
+                    </>
                   )}
                 </div>
               </>

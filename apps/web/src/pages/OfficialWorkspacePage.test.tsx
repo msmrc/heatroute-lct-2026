@@ -126,6 +126,33 @@ describe("OfficialWorkspacePage", () => {
     await waitFor(() => expect(localStorage.getItem("heatroute.officialRunId")).toBe("run-2"));
     expect(api.getLatestOfficialRun).toHaveBeenCalledOnce();
   });
+
+  it("starts the isolated experimental profile from a completed stable result", async () => {
+    localStorage.setItem("heatroute.officialImportId", "import-1");
+    localStorage.setItem("heatroute.officialRunId", "run-1");
+    api.getOfficialImport.mockResolvedValue(completedImport());
+    api.getOfficialRun.mockResolvedValue(completedRun(true));
+    api.createOfficialRun.mockResolvedValue({
+      ...completedRun(false),
+      id: "run-experiment",
+      state: "queued",
+      job_id: "job-experiment",
+      algorithm_version: "expert-tree-1",
+      parameters: { algorithm_profile: "expert_experimental" },
+      result: undefined,
+    });
+    api.getOfficialJob.mockReturnValue(new Promise(() => undefined));
+
+    renderWorkspace();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Новый эксперимент" }));
+
+    await waitFor(() => expect(api.createOfficialRun).toHaveBeenCalledWith("import-1", {
+      algorithm_profile: "expert_experimental",
+    }));
+    expect(localStorage.getItem("heatroute.officialExperimentalRunId")).toBe("run-experiment");
+    expect(localStorage.getItem("heatroute.officialStableRunId")).toBe("run-1");
+  });
 });
 
 function renderWorkspace() {

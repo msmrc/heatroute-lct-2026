@@ -844,3 +844,17 @@ splits, degree limits and downstream branch flows against the corrected organize
 Reference proximity is diagnostic only: it does not override official validity, score, economics
 or the active organizer contract, and it does not close any R-stage. Future topology work may use
 the general engineering patterns, but production code must not contain fixture coordinates or IDs.
+
+### Isolated horizontal algorithm experiments — 23 September
+
+Run creation now persists an explicit routing profile. `stable` remains the default and retains
+`global-tree-46`; `expert_experimental` selects the separately versioned `expert-tree-1` component
+with its own bounded engineering-search tuning. Dispatch is performed through a registry that
+requires one implementation per declared profile. The UI has separate launch actions and preserves
+the latest main and experimental run independently for side-by-side inspection.
+
+The two profiles intentionally share the official validator, sizing, economics, depth and export
+gates. The experimental profile cannot relax acceptance rules and contains no fixture coordinates
+or IDs. Promotion rules and the comparison log are maintained in `EXPERIMENTAL_ROUTING.md`. This
+closes only the experiment-isolation implementation slice; an official-dataset comparison and live
+Compose smoke are still required, and no R-stage or quality improvement is claimed.

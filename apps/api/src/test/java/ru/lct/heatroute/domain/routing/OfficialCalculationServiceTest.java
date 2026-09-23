@@ -27,9 +27,10 @@ class OfficialCalculationServiceTest {
     private final OfficialImportRepository importRepository = mock(OfficialImportRepository.class);
     private final OfficialFeatureRepository featureRepository = mock(OfficialFeatureRepository.class);
     private final ExistingNetworkTopologyAnalyzer topologyAnalyzer = mock(ExistingNetworkTopologyAnalyzer.class);
-    private final OfficialRoutePlanner routePlanner = mock(OfficialRoutePlanner.class);
+    private final RoutingAlgorithmRegistry algorithmRegistry = mock(RoutingAlgorithmRegistry.class);
+    private final RoutingAlgorithm routingAlgorithm = mock(RoutingAlgorithm.class);
     private final OfficialCalculationService service = new OfficialCalculationService(
-            importRepository, featureRepository, topologyAnalyzer, routePlanner);
+            importRepository, featureRepository, topologyAnalyzer, algorithmRegistry);
 
     @Test
     void loadsCalculationModelThroughBoundedRepositoryConsumer() {
@@ -53,7 +54,8 @@ class OfficialCalculationServiceTest {
                 .when(featureRepository)
                 .forEachCalculationCoreByImport(eq(importId), eq(OfficialFeatureRepository.DEFAULT_PAGE_SIZE), any());
         when(topologyAnalyzer.analyze(any())).thenReturn(topology);
-        when(routePlanner.plan(any(), eq(topology), any(), eq("baseline_input"), any()))
+        when(algorithmRegistry.require(any())).thenReturn(routingAlgorithm);
+        when(routingAlgorithm.plan(any(), eq(topology), any(), eq("baseline_input"), any()))
                 .thenReturn(expected);
 
         OfficialCalculationResult actual = service.calculate(importId);
@@ -63,6 +65,7 @@ class OfficialCalculationServiceTest {
         assertThat(features.getValue()).containsExactly(first, second);
         verify(featureRepository).forEachCalculationCoreByImport(
                 eq(importId), eq(OfficialFeatureRepository.DEFAULT_PAGE_SIZE), any());
+        verify(algorithmRegistry).require(ru.lct.heatroute.domain.run.RoutingAlgorithmProfile.STABLE);
         assertThat(actual).isSameAs(expected);
     }
 
@@ -75,6 +78,6 @@ class OfficialCalculationServiceTest {
 
         assertThat(service.calculate(importId)).isNull();
 
-        verifyNoInteractions(featureRepository, topologyAnalyzer, routePlanner);
+        verifyNoInteractions(featureRepository, topologyAnalyzer, algorithmRegistry, routingAlgorithm);
     }
 }

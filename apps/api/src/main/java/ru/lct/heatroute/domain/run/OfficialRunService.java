@@ -6,18 +6,22 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.lct.heatroute.domain.input.OfficialImportView;
 import ru.lct.heatroute.domain.job.OfficialJobRepository;
 import ru.lct.heatroute.domain.job.OfficialJobView;
-import ru.lct.heatroute.domain.routing.OfficialRoutePlanner;
+import ru.lct.heatroute.domain.routing.RoutingAlgorithm;
+import ru.lct.heatroute.domain.routing.RoutingAlgorithmRegistry;
 
 @Service
 public class OfficialRunService {
     private final OfficialRunRepository runRepository;
     private final OfficialJobRepository jobRepository;
+    private final RoutingAlgorithmRegistry algorithmRegistry;
 
     public OfficialRunService(
             OfficialRunRepository runRepository,
-            OfficialJobRepository jobRepository) {
+            OfficialJobRepository jobRepository,
+            RoutingAlgorithmRegistry algorithmRegistry) {
         this.runRepository = runRepository;
         this.jobRepository = jobRepository;
+        this.algorithmRegistry = algorithmRegistry;
     }
 
     @Transactional
@@ -30,10 +34,11 @@ public class OfficialRunService {
         OfficialRunParameters validated = parameters == null
                 ? OfficialRunParameters.defaults()
                 : parameters.validated();
+        RoutingAlgorithm algorithm = algorithmRegistry.require(validated.getAlgorithmProfile());
         OfficialRunView run = runRepository.create(
                 imported.getId(),
                 imported.getReport().getSha256(),
-                OfficialRoutePlanner.ALGORITHM_VERSION,
+                algorithm.version(),
                 validated);
         OfficialJobView job = jobRepository.createCalculationJob(imported.getId(), run.getId());
         runRepository.attachJob(run.getId(), job.getId());

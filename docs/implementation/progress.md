@@ -1,5 +1,25 @@
 # Current implementation progress
 
+## Isolated routing profiles — 2026-09-23
+
+Routing experiments now have an end-to-end profile boundary. Existing and body-less run requests
+remain on `stable` / `global-tree-46`; the separate `expert_experimental` / `expert-tree-1` Spring
+component uses its own bounded search tuning. The immutable run parameters select the algorithm
+through a registry, so job replay after a worker restart cannot silently fall back to another
+profile. Validators, sizing, economics and export remain shared and mandatory.
+
+The workspace exposes separate main and experimental actions, labels completed results with their
+profile and algorithm version, and keeps a separate pointer to the latest run of each profile for
+the current import. The development and promotion process is recorded in
+[EXPERIMENTAL_ROUTING.md](EXPERIMENTAL_ROUTING.md).
+
+The 36 focused Java 11 profile/planner tests and all 19 web tests, lint, typecheck, production builds
+and the reference benchmark pass. The wider Java suite still contains two baseline failures in
+`OfficialObstacleRouterTest` and `OfficialGeoJsonExporterTest`; both reproduce at clean `10dc91c`
+without this change. A full official-dataset comparison and live Compose import → both profiles →
+export smoke remain pending; this infrastructure change does not close an R-stage or promote the
+experimental result.
+
 ## Advisory routing reference corpus — 2026-09-23
 
 The expert overlay supplied as `1.geojson` is now preserved separately from organizer input as

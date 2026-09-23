@@ -26,6 +26,7 @@ import ru.lct.heatroute.domain.job.OfficialJobService;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.run.OfficialRunService;
 import ru.lct.heatroute.domain.run.OfficialRunView;
+import ru.lct.heatroute.domain.run.RoutingAlgorithmProfile;
 
 @WebMvcTest(OfficialJobController.class)
 class OfficialJobControllerTest {
@@ -73,6 +74,25 @@ class OfficialJobControllerTest {
                         .content("{\"maximum_depth_m\":50.5}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_RUN_PARAMETERS"));
+    }
+
+    @Test
+    void queuesTheExplicitExperimentalAlgorithmProfile() throws Exception {
+        UUID importId = UUID.randomUUID();
+        OfficialImportView imported = validImport();
+        when(importService.find(importId)).thenReturn(imported);
+        when(runService.create(eq(imported), any(OfficialRunParameters.class))).thenAnswer(invocation ->
+                queuedRun(importId, invocation.getArgument(1)));
+
+        mockMvc.perform(post("/api/v1/official/imports/{importId}/runs", importId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"algorithm_profile\":\"expert_experimental\"}"))
+                .andExpect(status().isAccepted());
+
+        ArgumentCaptor<OfficialRunParameters> parameters = ArgumentCaptor.forClass(OfficialRunParameters.class);
+        verify(runService).create(eq(imported), parameters.capture());
+        assertThat(parameters.getValue().getAlgorithmProfile())
+                .isEqualTo(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
     }
 
     private OfficialImportView validImport() {

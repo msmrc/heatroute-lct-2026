@@ -186,15 +186,17 @@ public class OfficialObstacleRouter {
             RoutePreference preference,
             List<LineString> acceptedRoutes,
             List<Constraint> additionalConstraints) {
-        if (acceptedRoutes.isEmpty() && additionalConstraints.isEmpty()) {
-            String key = routeCacheKey(start, end, diameter, exemptFeatureIds, preference);
-            return environment.cachedRoute(key, () -> findUncached(
-                    start, end, diameter, environment, exemptFeatureIds, preference,
-                    acceptedRoutes, additionalConstraints));
-        }
-        return findUncached(
+        String key = routeCacheKey(
+                start,
+                end,
+                diameter,
+                exemptFeatureIds,
+                preference,
+                acceptedRoutes,
+                additionalConstraints);
+        return environment.cachedRoute(key, () -> findUncached(
                 start, end, diameter, environment, exemptFeatureIds, preference,
-                acceptedRoutes, additionalConstraints);
+                acceptedRoutes, additionalConstraints));
     }
 
     private RoutePath findUncached(
@@ -305,12 +307,53 @@ public class OfficialObstacleRouter {
             Coordinate end,
             int diameter,
             Set<String> exemptFeatureIds,
-            RoutePreference preference) {
+            RoutePreference preference,
+            List<LineString> acceptedRoutes,
+            List<Constraint> additionalConstraints) {
         String exemptions = exemptFeatureIds.stream().sorted()
                 .collect(java.util.stream.Collectors.joining(","));
         return Math.round(start.x * 1000.0) + ":" + Math.round(start.y * 1000.0)
                 + ">" + Math.round(end.x * 1000.0) + ":" + Math.round(end.y * 1000.0)
-                + "|" + diameter + "|" + preference + "|" + exemptions;
+                + "|" + diameter + "|" + preference + "|" + exemptions
+                + "|routes=" + geometrySetSignature(acceptedRoutes)
+                + "|constraints=" + constraintSetSignature(additionalConstraints);
+    }
+
+    /**
+     * Includes dynamic tree geometry in the cache identity. Repeated portfolio and engineering
+     * probes often ask the same constrained routing question; caching it is safe only when the
+     * complete avoidance context participates in the key.
+     */
+    private String geometrySetSignature(List<? extends Geometry> geometries) {
+        return geometries.stream()
+                .map(this::geometrySignature)
+                .sorted()
+                .collect(java.util.stream.Collectors.joining(";"));
+    }
+
+    private String constraintSetSignature(List<Constraint> constraints) {
+        return constraints.stream()
+                .map(constraint -> constraint.id() + ":" + constraint.type()
+                        + ":" + geometrySignature(constraint.source())
+                        + ":" + geometrySignature(constraint.blocked()))
+                .sorted()
+                .collect(java.util.stream.Collectors.joining(";"));
+    }
+
+    private String geometrySignature(Geometry geometry) {
+        if (geometry == null || geometry.isEmpty()) {
+            return "-";
+        }
+        StringBuilder result = new StringBuilder();
+        for (Coordinate coordinate : geometry.getCoordinates()) {
+            if (result.length() > 0) {
+                result.append(',');
+            }
+            result.append(Math.round(coordinate.x * 1000.0))
+                    .append(':')
+                    .append(Math.round(coordinate.y * 1000.0));
+        }
+        return result.toString();
     }
 
     RoutePath regularize(

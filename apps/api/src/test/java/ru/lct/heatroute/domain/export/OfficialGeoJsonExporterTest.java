@@ -234,8 +234,9 @@ class OfficialGeoJsonExporterTest {
                 .map(feature -> feature.path("properties").path("id").asText())
                 .filter(id -> id.contains(":technical:" + edge.path("id").asText() + ":"))
                 .collect(Collectors.toList());
-        assertThat(generatedNodeIds).singleElement()
-                .satisfies(id -> assertThat(id).contains(":geometry:"));
+        assertThat(generatedNodeIds)
+                .hasSize(calculation.path("variants").size())
+                .allSatisfy(id -> assertThat(id).contains(":geometry:"));
         assertThat(generatedNodeIds).noneMatch(id -> id.contains(":depth:"));
         assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
                 .filter(feature -> "heat_network".equals(

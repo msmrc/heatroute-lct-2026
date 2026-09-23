@@ -998,6 +998,30 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
 - Docker packaging compiled main and test sources with Java 11 and skipped test execution. Three
   live corrected-dataset calculations were performed; full tests, lint and typecheck were not run.
 
+# 2026-09-23 — CI runtime allowance and stale expectation alignment
+
+- The first post-push workflow was cancelled by the configured higher-priority `master` run; it
+  did not represent missing source files or a failed push. In the final run, `web` passed, while
+  `integration` exhausted its 360-second polling window with the official job still running and
+  `backend` later exposed two stale assertions.
+- The official-dataset backend test completed its calculation in about 841 seconds. Bounded search
+  reductions did not materially lower the visibility workload and degraded the published route
+  geometry, length and expert-angle diagnostics, so those algorithm changes were rejected and the
+  previous planner behavior was restored.
+- Dynamic obstacle-route results are now cached only under a key containing the complete accepted
+  route and additional-constraint geometry. This retains repeated constrained-search reuse without
+  sharing a result between different avoidance contexts or relaxing any official/expert rule.
+- The integration workflow now waits up to 900 seconds for the official calculation, while still
+  failing immediately if the job reaches a terminal error. This is a CI-harness allowance, not a
+  performance acceptance claim; reducing official-dataset runtime remains open.
+- Export expectations now account for the variant-scoped generated technical node in each
+  published route. The road-crossing test now accepts the shorter legal 45-degree portal because
+  the official rule requires a minimum crossing angle of 45 degrees rather than a mandatory
+  perpendicular crossing.
+- Focused Java verification ran `OfficialGeoJsonExporterTest` and `OfficialObstacleRouterTest`:
+  26 tests passed, with zero failures or errors. The full official-dataset suite, frontend checks
+  and live Compose smoke were not repeated on this final state.
+
 # 2026-09-21 — global-tree-12 alternative tie-in and chamber approach pass (local verified)
 
 - A segment whose nearest tie-in is within 10 m of an existing chamber now contributes a bounded

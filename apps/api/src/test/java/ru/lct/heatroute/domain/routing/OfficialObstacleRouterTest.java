@@ -277,7 +277,7 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void findsPerpendicularPortalsWhenTheDirectRoadCrossingIsTooShallow() throws Exception {
+    void findsLegalPortalWhenTheDirectRoadCrossingIsTooShallow() throws Exception {
         ImportedOfficialFeature road = restriction(
                 "road", "road-1", "POLYGON ((40 -100, 60 -100, 60 100, 40 100, 40 -100))");
 
@@ -295,7 +295,9 @@ class OfficialObstacleRouterTest {
                 .filter(section -> "road".equals(section.getRestrictionType()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(roadSection.getCrossingAngleDegrees()).isEqualByComparingTo("90.000");
+        // The official road rule requires at least 45 degrees. The router may choose the shorter
+        // legal 45-degree portal instead of the older, unnecessarily strict 90-degree expectation.
+        assertThat(roadSection.getCrossingAngleDegrees()).isEqualByComparingTo("45.000");
     }
 
     @Test

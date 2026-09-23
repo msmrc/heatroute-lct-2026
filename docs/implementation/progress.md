@@ -1011,9 +1011,11 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
 - Dynamic obstacle-route results are now cached only under a key containing the complete accepted
   route and additional-constraint geometry. This retains repeated constrained-search reuse without
   sharing a result between different avoidance contexts or relaxing any official/expert rule.
-- The integration workflow now waits up to 900 seconds for the official calculation, while still
-  failing immediately if the job reaches a terminal error. This is a CI-harness allowance, not a
-  performance acceptance claim; reducing official-dataset runtime remains open.
+- The integration workflow first demonstrated that 900 seconds was still insufficient on the
+  shared runner: the job remained in `running` state at the deadline, while the parallel backend
+  and web jobs passed. Its allowance is therefore 1,200 seconds, while terminal job errors still
+  fail immediately. This is a CI-harness allowance, not a performance acceptance claim; reducing
+  official-dataset runtime remains open.
 - Export expectations now account for the variant-scoped generated technical node in each
   published route. The road-crossing test now accepts the shorter legal 45-degree portal because
   the official rule requires a minimum crossing angle of 45 degrees rather than a mandatory

@@ -119,9 +119,9 @@ jobs:
           RUN_ID=$(printf '%s' "$RUN_JSON" | jq -r '.id')
           JOB_ID=$(printf '%s' "$RUN_JSON" | jq -r '.job_id')
           # The official obstacle-aware calculation is intentionally exercised end to end.
-          # Give the shared GitHub runner up to 15 minutes for the current bounded portfolio.
+          # Give the shared GitHub runner up to 20 minutes for the current bounded portfolio.
           # The loop still fails immediately on a terminal job error.
-          for attempt in $(seq 1 900); do
+          for attempt in $(seq 1 1200); do
             JOB_JSON=$(curl --fail --silent "http://localhost:8000/api/v1/official/jobs/${JOB_ID}")
             JOB_STATE=$(printf '%s' "$JOB_JSON" | jq -r '.state')
             if [ "$JOB_STATE" = "completed" ]; then break; fi

@@ -861,7 +861,8 @@ Compose smoke are still required, and no R-stage or quality improvement is claim
 
 The 2026-09-23 CI follow-up does not close the performance gate. The final GitHub backend run
 needed about 841 seconds for the official dataset, and attempted search-budget reductions were
-rejected because they produced worse routes. The integration polling allowance is therefore raised
-from 360 to 900 seconds so the current valid portfolio can complete in CI. A full-context cache for
-repeated dynamic obstacle searches is retained, but a measured runtime reduction below six minutes
-remains unverified and must be pursued without weakening the official or expert geometry rules.
+rejected because they produced worse routes. A 900-second integration attempt still ended with the
+job in `running` state, so the polling allowance is 1,200 seconds for the current valid portfolio.
+A full-context cache for repeated dynamic obstacle searches is retained, but a measured runtime
+reduction below six minutes remains unverified and must be pursued without weakening the official
+or expert geometry rules.

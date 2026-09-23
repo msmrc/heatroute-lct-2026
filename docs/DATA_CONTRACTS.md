@@ -13,6 +13,10 @@ implementation must not fabricate missing reconstruction fields.
 IDs, invalid geometry/property combinations and broken typed references. Contract v2 reports an
 `input_profile` and separates blocking `errors` from non-blocking `warnings`.
 
+`POST /api/v1/official/imports/demo` opens the repository's exact
+`datasets/official/lct-2026.geojson` through the same inspection and PostGIS persistence path. It
+is an idempotent bootstrap for a fresh local database, not a precomputed or fabricated result.
+
 | `object_type` | Geometry | Role |
 |---|---|---|
 | `source` | Point | Heat source |
@@ -42,6 +46,7 @@ the streaming Java validators additionally enforce uniqueness, references, topol
 - `GET /api/v1/health/live`
 - `GET /api/v1/health/ready`
 - `POST /api/v1/official/imports`
+- `POST /api/v1/official/imports/demo`
 - `GET /api/v1/official/imports/{id}`
 - `GET /api/v1/official/imports/{id}/topology`
 - `GET /api/v1/official/imports/{id}/map`

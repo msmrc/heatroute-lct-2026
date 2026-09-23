@@ -448,6 +448,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .official-errors p, .official-errors small { color: var(--muted-foreground); font-size: 12px; line-height: 1.45; }
 .official-warnings article { color: var(--warning); }
 .official-job-card .progress-block { margin-top: 2px; }
+.official-job-card .card-actions { flex-wrap: wrap; justify-content: flex-start; }
 .official-result { max-height: 360px; overflow: auto; margin: 0; padding: 13px; border-radius: 9px; background: var(--surface-soft); font-size: 12px; line-height: 1.5; }
 .official-upload-actions { display: flex; align-items: center; gap: 8px; }
 .official-result-details { border: 1px solid var(--border-soft); border-radius: 9px; }

@@ -2,7 +2,7 @@
 
 **Статус документа:** рабочая база для ПМа и разработчиков
 **Дата аудита:** 15 сентября 2026 года
-**Последнее обновление:** 18 сентября 2026 года
+**Последнее обновление:** 23 сентября 2026 года
 **Главный вывод:** видеовстреча организаторов сузила активный supplied-dataset scope. Java-контур,
 2D routing и эксплуатационная база сохраняются. Q&A-правила normal egress, connect-vs-penalty,
 bend cost, overlapping special coefficients, per-ray tie-in и profile-aware rank/export реализованы
@@ -866,3 +866,12 @@ job in `running` state, so the polling allowance is 1,200 seconds for the curren
 A full-context cache for repeated dynamic obstacle searches is retained, but a measured runtime
 reduction below six minutes remains unverified and must be pursued without weakening the official
 or expert geometry rules.
+
+### Fresh local demo bootstrap — 23 September
+
+The exact tracked official GeoJSON is packaged in the Java artifact and exposed through an
+idempotent demo-import endpoint. On a fresh database the workspace opens that validated import and
+lets the user explicitly choose the stable or experimental profile; if a completed run already
+exists, the same action opens it immediately. No result fixture is presented as an algorithm run,
+and opening the demo does not silently enqueue the expensive official calculation. This closes the
+empty-database demo UX defect only; route quality and runtime gates remain unchanged.

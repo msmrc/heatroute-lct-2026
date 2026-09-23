@@ -9,6 +9,7 @@ import { RouteVisualization } from "../components/official/RouteVisualization";
 import {
   ApiError,
   cancelOfficialJob,
+  createOfficialDemoImport,
   createOfficialImport,
   createOfficialRun,
   createTopologyJob,
@@ -133,8 +134,29 @@ export function OfficialWorkspacePage() {
     onError: (error) => toast.error(errorText(error)),
   });
   const loadDemo = useMutation({
-    mutationFn: () => getLatestOfficialRun(),
-    onSuccess: (value) => {
+    mutationFn: async () => {
+      try {
+        return { run: await getLatestOfficialRun() };
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        return { imported: await createOfficialDemoImport() };
+      }
+    },
+    onSuccess: ({ run: value, imported: demoImport }) => {
+      if (demoImport) {
+        localStorage.setItem(IMPORT_KEY, demoImport.id);
+        localStorage.removeItem(JOB_KEY);
+        localStorage.removeItem(RUN_KEY);
+        localStorage.removeItem(STABLE_RUN_KEY);
+        localStorage.removeItem(EXPERIMENTAL_RUN_KEY);
+        setImportId(demoImport.id);
+        setJobId("");
+        setRunId("");
+        queryClient.setQueryData(["official-import", demoImport.id], demoImport);
+        toast.success("Демо-набор открыт — выберите основной или экспериментальный алгоритм");
+        return;
+      }
+      if (!value) return;
       if (localStorage.getItem(IMPORT_KEY) !== value.import_id) {
         localStorage.removeItem(STABLE_RUN_KEY);
         localStorage.removeItem(EXPERIMENTAL_RUN_KEY);

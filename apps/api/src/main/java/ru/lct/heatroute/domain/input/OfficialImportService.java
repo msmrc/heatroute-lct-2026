@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.UUID;
+import org.springframework.core.io.InputStreamSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,6 +27,12 @@ public class OfficialImportService {
     }
 
     public OfficialImportView create(MultipartFile file, String safeFilename) throws IOException {
+        return create(file, safeFilename, file.getSize());
+    }
+
+    /** Импортирует повторно читаемый upload или встроенный набор без отдельного пути загрузки. */
+    public OfficialImportView create(InputStreamSource file, String safeFilename, long inputSizeBytes)
+            throws IOException {
         OfficialInputReport report;
         try (InputStream input = file.getInputStream()) {
             report = inspector.inspect(input);
@@ -40,7 +47,7 @@ public class OfficialImportService {
 
         UUID importId = UUID.randomUUID();
         String state = report.isValid() ? "validating" : "invalid";
-        if (!repository.insert(importId, state, safeFilename, file.getSize(), report)) {
+        if (!repository.insert(importId, state, safeFilename, inputSizeBytes, report)) {
             return awaitConcurrentImport(report, null);
         }
         if (report.isValid()) {

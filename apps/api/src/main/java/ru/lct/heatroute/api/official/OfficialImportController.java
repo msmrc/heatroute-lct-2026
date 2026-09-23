@@ -6,9 +6,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.UUID;
-import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +32,8 @@ import ru.lct.heatroute.domain.topology.OfficialMapService;
 @RequestMapping("/api/v1/official/imports")
 @Tag(name = "official-import")
 public class OfficialImportController {
+    private static final String DEMO_RESOURCE = "official/lct-2026.geojson";
+    private static final String DEMO_FILENAME = "lct-2026.geojson";
     private final OfficialGeoJsonInspector inspector;
     private final OfficialImportService importService;
     private final TopologyAnalysisService topologyAnalysisService;
@@ -61,6 +64,29 @@ public class OfficialImportController {
         } catch (IOException exception) {
             throw new ApiException(
                     HttpStatus.INTERNAL_SERVER_ERROR, "UPLOAD_READ_FAILED", "Cannot read uploaded GeoJSON");
+        }
+    }
+
+    @PostMapping("/demo")
+    @Operation(
+            operationId = "openOfficialDemoImport",
+            summary = "Open the bundled official LCT dataset without fabricating a calculation result")
+    public ResponseEntity<OfficialImportView> demo() {
+        ClassPathResource resource = new ClassPathResource(DEMO_RESOURCE);
+        try {
+            OfficialImportView imported = importService.create(
+                    resource, DEMO_FILENAME, resource.contentLength());
+            return ResponseEntity.status(HttpStatus.CREATED).body(imported);
+        } catch (OfficialInputFormatException exception) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BUNDLED_DEMO_INVALID",
+                    "Bundled demo GeoJSON does not satisfy the active input contract");
+        } catch (IOException exception) {
+            throw new ApiException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "BUNDLED_DEMO_UNAVAILABLE",
+                    "Bundled demo GeoJSON cannot be read");
         }
     }
 

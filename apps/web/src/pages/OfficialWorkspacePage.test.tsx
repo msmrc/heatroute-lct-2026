@@ -3,9 +3,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { OfficialWorkspacePage } from "./OfficialWorkspacePage";
+import { ApiError } from "../shared/api";
 
 const api = vi.hoisted(() => ({
   cancelOfficialJob: vi.fn(),
+  createOfficialDemoImport: vi.fn(),
   createOfficialImport: vi.fn(),
   createOfficialRun: vi.fn(),
   createTopologyJob: vi.fn(),
@@ -17,7 +19,11 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("../shared/api", () => ({
-  ApiError: class ApiError extends Error {},
+  ApiError: class ApiError extends Error {
+    constructor(message: string, readonly status?: number) {
+      super(message);
+    }
+  },
   ...api,
   humanFileSize: () => "228 КБ",
 }));
@@ -125,6 +131,22 @@ describe("OfficialWorkspacePage", () => {
 
     await waitFor(() => expect(localStorage.getItem("heatroute.officialRunId")).toBe("run-2"));
     expect(api.getLatestOfficialRun).toHaveBeenCalledOnce();
+  });
+
+  it("opens the bundled dataset when no completed demo run exists", async () => {
+    api.getLatestOfficialRun.mockRejectedValue(new ApiError("Расчёт не найден", 404));
+    api.createOfficialDemoImport.mockResolvedValue(completedImport());
+
+    renderWorkspace();
+
+    fireEvent.click(screen.getByRole("button", { name: "Открыть демо" }));
+
+    expect(await screen.findByText("Данные готовы к расчёту")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Рассчитать варианты" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Экспериментальный алгоритм" })).toBeTruthy();
+    expect(api.createOfficialDemoImport).toHaveBeenCalledOnce();
+    expect(api.createOfficialRun).not.toHaveBeenCalled();
+    expect(localStorage.getItem("heatroute.officialImportId")).toBe("import-1");
   });
 
   it("starts the isolated experimental profile from a completed stable result", async () => {

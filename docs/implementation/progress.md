@@ -1,5 +1,22 @@
 # Current implementation progress
 
+## Bundled local demo bootstrap — 2026-09-23
+
+The web workspace now handles an empty local database correctly. `Открыть демо` still opens the
+latest completed run when one exists; otherwise it imports the exact tracked
+`datasets/official/lct-2026.geojson` from the Java application classpath and presents the validated
+144-feature report with separate stable and experimental launch actions. It does not fabricate a
+route result or start a long calculation without the user's choice. Repeated requests reuse the
+content-addressed official import.
+
+The focused controller/service tests cover resource packaging and the six workspace cases cover
+the empty-database fallback and profile selection. The Java 11 suite excluding the dedicated
+full-dataset routing integration test passes 157 tests with three opt-in scale tests skipped. All
+20 web tests, lint, typecheck, production build, the reference benchmark and a live PostGIS/API/UI
+smoke pass. Docker is unavailable on this workstation, so the repository's full Compose gate and
+the long official-dataset calculation remain CI gates. This UX fix does not close a routing
+performance or official acceptance stage.
+
 ## Isolated routing profiles — 2026-09-23
 
 Routing experiments now have an end-to-end profile boundary. Existing and body-less run requests
@@ -13,12 +30,12 @@ profile and algorithm version, and keeps a separate pointer to the latest run of
 the current import. The development and promotion process is recorded in
 [EXPERIMENTAL_ROUTING.md](EXPERIMENTAL_ROUTING.md).
 
-The 36 focused Java 11 profile/planner tests and all 19 web tests, lint, typecheck, production builds
-and the reference benchmark pass. The wider Java suite still contains two baseline failures in
-`OfficialObstacleRouterTest` and `OfficialGeoJsonExporterTest`; both reproduce at clean `10dc91c`
-without this change. A full official-dataset comparison and live Compose import → both profiles →
-export smoke remain pending; this infrastructure change does not close an R-stage or promote the
-experimental result.
+The 36 focused Java 11 profile/planner tests and all 20 web tests, lint, typecheck, production
+builds and the reference benchmark pass. The 2026-09-23 CI follow-up fixed the two former baseline
+failures in `OfficialObstacleRouterTest` and `OfficialGeoJsonExporterTest`; the wider local Java
+suite now passes 157 tests with only three explicitly opt-in scale tests skipped. A full
+official-dataset comparison and live Compose import → both profiles → export smoke remain pending;
+this infrastructure change does not close an R-stage or promote the experimental result.
 
 ## Advisory routing reference corpus — 2026-09-23
 

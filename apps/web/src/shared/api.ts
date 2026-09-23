@@ -304,6 +304,10 @@ export function createOfficialImport(file: File): Promise<OfficialImport> {
   return request("/official/imports", { method: "POST", body });
 }
 
+export function createOfficialDemoImport(): Promise<OfficialImport> {
+  return request("/official/imports/demo", { method: "POST" });
+}
+
 export function getOfficialImport(importId: string, signal?: AbortSignal): Promise<OfficialImport> {
   return request(`/official/imports/${encodeURIComponent(importId)}`, { signal });
 }

@@ -131,6 +131,26 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
+    void engineeringEgressCandidatesCoverSeveralNormalBuildingSides() throws Exception {
+        ImportedOfficialFeature building = restriction(
+                "oks", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))");
+
+        List<OfficialRouteGeometryRules.NormalEgress> candidates = rules.normalEgressCandidates(
+                List.of(building),
+                100,
+                new Coordinate(100, 0),
+                new Coordinate(0, 0),
+                60.0);
+
+        assertThat(candidates).hasSizeGreaterThanOrEqualTo(3);
+        assertThat(candidates).anySatisfy(candidate ->
+                assertThat(candidate.exit().x).isCloseTo(89.75, org.assertj.core.data.Offset.offset(0.02)));
+        assertThat(candidates).anySatisfy(candidate ->
+                assertThat(Math.abs(candidate.exit().y)).isCloseTo(
+                        10.25, org.assertj.core.data.Offset.offset(0.02)));
+    }
+
+    @Test
     void createsReproducibleRoadAndUtilitySpecialSections() throws Exception {
         ImportedOfficialFeature road = restriction(
                 "road", "road-1", "POLYGON ((40 -30, 60 -30, 60 30, 40 30, 40 -30))");
@@ -189,12 +209,22 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void arbitraryBendsDoNotReceiveAnInventedTariffMultiplier() {
+    void routeSearchPrefersStraightFortyFiveAndOrthogonalGeometryWithoutChangingOfficialTariffs() {
         List<Coordinate> nodes = List.of(
                 new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(20, 10), new Coordinate(30, 15));
 
-        assertThat(router.bendPenalty(nodes, 0, 1, 2)).isEqualTo(1.0);
-        assertThat(router.bendPenalty(nodes, 1, 2, 3)).isEqualTo(1.0);
+        double diagonalTurn = router.bendPenalty(nodes, 0, 1, 2);
+        double shallowTurn = router.bendPenalty(nodes, 1, 2, 3);
+
+        assertThat(diagonalTurn).isEqualTo(1.003);
+        assertThat(shallowTurn).isGreaterThan(1.0);
+        assertThat(shallowTurn).isGreaterThan(diagonalTurn);
+        assertThat(router.bendPenalty(
+                List.of(new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(20, 0)),
+                0, 1, 2)).isEqualTo(1.0);
+        assertThat(router.bendPenalty(
+                List.of(new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(10, 10)),
+                0, 1, 2)).isEqualTo(diagonalTurn);
     }
 
     @Test
@@ -244,6 +274,28 @@ class OfficialObstacleRouterTest {
 
         assertThat(rules.segmentAllowed(start, exact, exactConstraints)).isTrue();
         assertThat(rules.segmentAllowed(start, below, belowConstraints)).isFalse();
+    }
+
+    @Test
+    void findsPerpendicularPortalsWhenTheDirectRoadCrossingIsTooShallow() throws Exception {
+        ImportedOfficialFeature road = restriction(
+                "road", "road-1", "POLYGON ((40 -100, 60 -100, 60 100, 40 100, 40 -100))");
+
+        RoutePath route = router.find(
+                new Coordinate(0, -50),
+                new Coordinate(100, 80),
+                100,
+                List.of(road),
+                Collections.emptySet(),
+                RoutePreference.SHORTEST);
+
+        assertThat(route).isNotNull();
+        assertThat(route.coordinates()).hasSizeGreaterThan(2);
+        RouteSection roadSection = route.sections().stream()
+                .filter(section -> "road".equals(section.getRestrictionType()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(roadSection.getCrossingAngleDegrees()).isEqualByComparingTo("90.000");
     }
 
     @Test

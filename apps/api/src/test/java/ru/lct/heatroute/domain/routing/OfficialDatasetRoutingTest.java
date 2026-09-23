@@ -66,8 +66,10 @@ class OfficialDatasetRoutingTest {
         assertThat(result.getVariants())
                 .extracting(RouteVariant::getId)
                 .contains("balanced");
-        assertThat(result.getVariants()).hasSizeBetween(1, 3);
+        assertThat(result.getVariants()).hasSize(3);
         assertThat(result.getVariants()).allMatch(RouteVariant::isValid);
+        assertThat(result.getVariants()).allSatisfy(variant ->
+                assertThat(variant.getConnectedDemandCount()).isEqualTo(result.getDemandCount()));
         RouteVariant preferred = result.getVariants().stream()
                 .filter(variant -> variant.getId().equals(result.getPreferredVariantId()))
                 .findFirst()

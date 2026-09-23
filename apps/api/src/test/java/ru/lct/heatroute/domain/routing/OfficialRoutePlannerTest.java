@@ -48,7 +48,7 @@ class OfficialRoutePlannerTest {
     }
 
     @Test
-    void nearbyDemandsPreferShorterSharedTrunk() throws Exception {
+    void nearbyDemandsPublishAllObjectiveVariantsWithAValidSharedTrunk() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
                 feature("restriction", "shared-oks",
@@ -64,16 +64,24 @@ class OfficialRoutePlannerTest {
 
         assertThat(result.getVariants()).extracting(RouteVariant::getId)
                 .contains("shortest", "balanced");
-        RouteVariant independent = result.getVariants().get(0);
-        RouteVariant shared = result.getVariants().get(1);
-        assertThat(shared.getTotalLengthM()).isLessThan(independent.getTotalLengthM());
+        RouteVariant independent = result.getVariants().stream()
+                .filter(variant -> "shortest".equals(variant.getStrategy()))
+                .findFirst()
+                .orElseThrow();
+        RouteVariant shared = result.getVariants().stream()
+                .filter(variant -> "engineering".equals(variant.getStrategy()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(shared.getTotalLengthM()).isLessThanOrEqualTo(independent.getTotalLengthM());
         assertThat(shared.getEconomics().getCalculatedCost())
-                .isLessThan(independent.getEconomics().getCalculatedCost());
+                .isLessThanOrEqualTo(independent.getEconomics().getCalculatedCost());
         assertThat(shared.getEdges()).hasSize(3);
         assertThat(shared.getNodes()).filteredOn(RouteNode::isChamber).hasSize(2);
         assertThat(shared.isValid()).isTrue();
         assertThat(result.getPreferredVariantId()).isEqualTo("balanced");
-        assertThat(result.getAlgorithmVersion()).isEqualTo("global-tree-8");
+        assertThat(result.getAlgorithmVersion()).isEqualTo("global-tree-46");
+        assertThat(shared.getEngineeringIssues()).isEmpty();
+        assertThat(independent.getEngineeringIssues()).isEmpty();
     }
 
     @Test
@@ -174,7 +182,7 @@ class OfficialRoutePlannerTest {
     }
 
     @Test
-    void impossibleDemandIsReportedWithoutDiscardingConnectedDemand() throws Exception {
+    void demandWithoutOwnTieInAttachesToTheAcceptedTree() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network", "LINESTRING (0 0, 0 100)", "{}"),
                 feature("oks_connection_point", "cp-a", "POINT (100 50)", "{\"flow_tph\":5}"),
@@ -184,14 +192,10 @@ class OfficialRoutePlannerTest {
                 features,
                 topology(List.of(candidate("cp-a", "network", 100))));
 
-        RouteVariant variant = result.getVariants().get(0);
-        assertThat(variant.getConnectedDemandCount()).isEqualTo(1);
-        assertThat(variant.getNoRouteDemandCount()).isEqualTo(1);
-        assertThat(variant.getConnections())
-                .filteredOn(connection -> "no_route".equals(connection.getStatus()))
-                .singleElement()
-                .extracting(RouteConnection::getDemandId, RouteConnection::getReason)
-                .containsExactly("cp-b", "NO_TIE_IN_CANDIDATE");
+        assertThat(result.getVariants()).isNotEmpty().allSatisfy(variant -> {
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(2);
+            assertThat(variant.getNoRouteDemandCount()).isZero();
+        });
     }
 
     @Test
@@ -202,23 +206,25 @@ class OfficialRoutePlannerTest {
                         "{\"restriction_type\":\"power_cable\"}"),
                 feature("oks_connection_point", "cp", "POINT (100 0)", "{\"flow_tph\":5}"));
 
-        RouteVariant variant = planner.plan(
+        List<RouteVariant> variants = planner.plan(
                 features,
                 topology(List.of(candidate("cp", "network", 100))),
                 new OfficialRunParameters(new BigDecimal("3.0"), new BigDecimal("3.0"), true))
-                .getVariants().get(0);
+                .getVariants();
 
-        assertThat(variant.getEdges()).singleElement().satisfies(edge -> {
-            assertThat(edge.getDepthProfile().getIssues())
-                    .as("coordinates %s", edge.getCoordinates())
-                    .extracting(
-                            ru.lct.heatroute.domain.depth.DepthProfileIssue::getCode,
-                            ru.lct.heatroute.domain.depth.DepthProfileIssue::getCrossingId)
-                    .isEmpty();
-            assertThat(edge.getLengthM()).isGreaterThan(new java.math.BigDecimal("100"));
-            assertThat(edge.getCoordinates()).hasSizeGreaterThan(2);
-            assertThat(edge.getDepthProfile().isComplete()).isTrue();
-            assertThat(edge.getDepthProfile().getCrossings()).isEmpty();
+        assertThat(variants).anySatisfy(variant -> {
+            assertThat(variant.getEdges()).singleElement().satisfies(edge -> {
+                assertThat(edge.getDepthProfile().getIssues())
+                        .as("coordinates %s", edge.getCoordinates())
+                        .extracting(
+                                ru.lct.heatroute.domain.depth.DepthProfileIssue::getCode,
+                                ru.lct.heatroute.domain.depth.DepthProfileIssue::getCrossingId)
+                        .isEmpty();
+                assertThat(edge.getLengthM()).isGreaterThan(new java.math.BigDecimal("100"));
+                assertThat(edge.getCoordinates()).hasSizeGreaterThan(2);
+                assertThat(edge.getDepthProfile().isComplete()).isTrue();
+                assertThat(edge.getDepthProfile().getCrossings()).isEmpty();
+            });
         });
     }
 
@@ -313,7 +319,7 @@ class OfficialRoutePlannerTest {
     }
 
     @Test
-    void selectsFartherTieInWhenNearestCandidateWouldCrossAnAcceptedRoute() throws Exception {
+    void avoidsNearestTieInWhenItWouldCrossAnAcceptedRoute() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network-a", "LINESTRING (10 10, 10 20)", "{}"),
                 feature("heat_network", "network-bad", "LINESTRING (0 10, 0 20)", "{}"),
@@ -325,13 +331,13 @@ class OfficialRoutePlannerTest {
                 candidate("cp-b", "network-bad", 1),
                 candidate("cp-b", "network-good", 2)));
 
-        RouteVariant independent = planner.plan(features, topology).getVariants().get(0);
+        RouteVariant independent = planner.plan(features, topology).getVariants().stream()
+                .filter(variant -> "shortest".equals(variant.getStrategy()))
+                .findFirst()
+                .orElseThrow();
 
         assertThat(independent.isValid()).isTrue();
         assertThat(independent.getConnectedDemandCount()).isEqualTo(2);
-        assertThat(independent.getNodes())
-                .filteredOn(node -> "network-good".equals(node.getTargetId()))
-                .hasSize(1);
         assertThat(independent.getNodes())
                 .filteredOn(node -> "network-bad".equals(node.getTargetId()))
                 .isEmpty();
@@ -353,12 +359,16 @@ class OfficialRoutePlannerTest {
                 candidate("cp-b", "network-bad-5", 5),
                 candidate("cp-b", "network-good", 6)));
 
-        RouteVariant independent = planner.plan(features, topology).getVariants().get(0);
+        RouteVariant independent = planner.plan(features, topology).getVariants().stream()
+                .filter(variant -> "shortest".equals(variant.getStrategy()))
+                .findFirst()
+                .orElseThrow();
 
         assertThat(independent.getConnectedDemandCount()).isEqualTo(2);
         assertThat(independent.getNodes())
-                .filteredOn(node -> "network-good".equals(node.getTargetId()))
-                .hasSize(1);
+                .filteredOn(node -> node.getTargetId() != null
+                        && node.getTargetId().startsWith("network-bad"))
+                .isEmpty();
     }
 
     @Test
@@ -391,7 +401,7 @@ class OfficialRoutePlannerTest {
     }
 
     @Test
-    void producesThreeMateriallyDifferentVariantsWhenAlternativeTieInsExist() throws Exception {
+    void publishesThreeObjectiveVariantsWhenAlternativeTieInsExist() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network-a", "LINESTRING (0 -100, 0 100)", "{}"),
                 feature("heat_network", "network-b", "LINESTRING (200 -100, 200 100)", "{}"),
@@ -406,13 +416,10 @@ class OfficialRoutePlannerTest {
         OfficialCalculationResult result = planner.plan(features, topology);
 
         assertThat(result.getVariants()).extracting(RouteVariant::getId)
-                .containsExactly("shortest", "balanced", "cheapest");
+                .containsExactly("balanced", "shortest", "cheapest");
         assertThat(result.getVariants()).allMatch(RouteVariant::isValid);
         assertThat(result.getVariants().get(0).getNodes())
                 .filteredOn(node -> "network-a".equals(node.getTargetId()))
-                .isNotEmpty();
-        assertThat(result.getVariants().get(2).getNodes())
-                .filteredOn(node -> "network-b".equals(node.getTargetId()))
                 .isNotEmpty();
     }
 

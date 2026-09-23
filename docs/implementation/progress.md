@@ -613,3 +613,378 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
 - Final Java 11 `mvn verify`: 143 tests, 0 failures, 0 errors, 3 opt-in scale tests skipped;
   `OfficialDatasetRoutingTest` completed in 152.707 s. Final web Vitest: 8 files and 18 tests
   passed. No lint, typecheck, Compose smoke or deployment was run in this checkpoint.
+
+# 2026-09-21 — global-tree-9 coverage and constructability pass (local calculation verified)
+
+- Every OKS keeps its nearest short boundary exit first. If that route is physically blocked even
+  without already accepted branches, the planner retries with a nearby target-facing side for the
+  concrete tie-in or tree junction. This restored OKS 2 and 5 without restoring a route through the
+  full building footprint; already-good terminal routes retain their original short exit.
+- Equal-coverage drafts are compared by the complete official score, including `no_route`
+  penalties. Construction cost alone can no longer select a partial tree with a worse official
+  result merely because its connected objects happen to be cheaper to build.
+- A selected tree attachment is checked after bottom-up diameter sizing before it is accepted, so
+  a shared trunk cannot become invalid only after the added flow increases its required clearance.
+- Visibility search uses a small bounded constructability preference: straight and right-angle
+  paths are preferred to chains of arbitrary oblique bends when their lengths are close. This is
+  a route-search preference only and does not alter any official construction tariff.
+- An expensive third full search is skipped when two distinct candidates have already been built;
+  after final validation only meaningful valid variants remain publishable.
+- The final local Compose calculation `6e0b759c-24ed-42a0-a2ac-04d0021b6c16` completed in 239.861 s.
+  Its valid preferred `balanced` tree connects 17/17 OKS, is 2,061.412 m long, costs
+  305,521,285.79 RUB, scores 14.738832002, contains 14 chambers and 27 edges, and has zero geometry
+  validation issues. This improves the previous valid 17/17 checkpoint by 37.491 m, about
+  3.09 million RUB and 0.199073993 score, but runtime remains above the desired target.
+- The Compose build compiled main and test sources with Java 11 and skipped test execution. The
+  full automated suite, lint and typecheck were not run by explicit request.
+
+# 2026-09-21 — global-tree-10 angle and detour pass (local calculation verified)
+
+- Visibility search now treats straight, 45-degree and 90-degree turns as the preferred
+  constructible set. A conservative post-pass replaces an arbitrary elbow only when both
+  replacement segments remain legal and the local length grows by no more than five percent;
+  this preference does not change the official tariff.
+- Whole-tree optimization expands its graft search only for a terminal branch whose routed/direct
+  length ratio exceeds 1.35. The ordinary candidate limits remain unchanged, avoiding a global
+  expansion for every demand.
+- The existing-network tie-in rule was rechecked and fixed in regression expectations: an existing
+  `heat_chamber` is reused when it is at most 10 m from the selected point on the existing network
+  and will retain at most four incident linear sections; beyond 10 m the tie-in requires a new
+  chamber on the existing network.
+- Final local run `b969b8ed-6892-47a1-a3c6-639ef09df780` completed in 373.076 s. Its only
+  meaningful `balanced` variant is valid, connects 17/17 OKS, is 2,072.949 m long, costs
+  283,934,192.11 RUB, scores 14.169004379, contains 12 chambers and 26 edges, and has zero
+  validation issues.
+- All 42 internal route bends are within three degrees of the straight/45/90 set (zero mean
+  deviation after snapping). Compared with `global-tree-9`, this removes two chambers and reduces
+  cost by 21,587,093.68 RUB, but adds 11.537 m and 133.215 s.
+- Two excessive detours remain (ratios 2.30 and 1.77). They are explicitly not accepted as solved:
+  a future pass must optimize the selected trunk/tie-in topology rather than widen visibility
+  search again. The local UI was refreshed to this run.
+- Compose packaging compiled main and test sources with Java 11 and skipped test execution. The
+  full automated suite, lint and typecheck were not run by explicit request.
+
+# 2026-09-23 — global-tree-40 geometry-first selection without roads (local diagnostic)
+
+- Engineering portfolio selection now orders candidates by expert-rule compliance before bend
+  count: out-of-range 90–135-degree bends, sub-2 m bend spacing and total range deviation are
+  considered before canonical 90/135-degree preference, chamber count, final construction cost
+  and length. Cost and length remain bounded by the existing 5% corridor with one relaxation to
+  10%, so constructability cannot select an unbounded detour.
+- The evaluator now includes angles where separate route edges meet at the same topology node.
+  Degree-two nodes use the expert bend rule; branch chambers receive a separate soft diagnostic
+  for deviation from 45/90/135/180-degree ray relationships. This closes the previous blind spot
+  where visually irregular chamber stars did not affect portfolio ranking.
+- Focused Java tests were added for canonical-angle preference and multi-edge junction evaluation,
+  but were not executed by explicit request. Compose packaging compiled main and test sources with
+  Java 11 and skipped test execution.
+- The ordinary corrected dataset was calculated without road polygons in run
+  `d944ea70-aeb3-4503-bf07-36f663c61298`. All three official-valid variants connect 17/17 OKS:
+  engineering 1,791.020 m / 269,936,197.31 RUB, shortest 1,785.250 m / 274,070,570.37 RUB, and
+  cheapest 1,762.700 m / 266,995,620.48 RUB. Engineering and shortest still expose five
+  out-of-range bends; the result is numerically unchanged from the preceding no-road checkpoint.
+- This proves ranking alone is insufficient because the bounded portfolio does not yet contain a
+  better legal geometry for the four affected branches. The 1,361-second runtime also misses the
+  ten-minute iteration target: 1,640 visibility searches and about 12.33 million evaluated pairs
+  complete before final engineering repair. The next gate is bounded branch/egress candidate
+  generation for those four edges plus early termination of non-improving global repairs.
+
+# 2026-09-23 — road-corridor experiment restored on current planner (`global-tree-39`, local)
+
+- The unchanged `global-tree-38` planner was rerun against the opt-in corrected dataset enriched
+  with 94 OSM road polygons. Run `14b07065-698d-44aa-8ac5-e1d7874ebf8a` spent 1,471 seconds in
+  3,454 visibility searches / roughly 58.1 million evaluated pairs and published zero variants.
+- The failure was structural: a shallow road crossing is rejected by the official 45-degree rule,
+  while the current visibility graph only supplied navigation vertices for forbidden polygons.
+  Therefore it had no nodes from which to construct a legal alternative road crossing.
+- `global-tree-39` restores two bounded navigation portals immediately outside an intersected
+  polygonal road/tram object, aligned with the normal of its minimum rectangle. Roads remain an
+  opt-in experiment and retain the official crossing validation and special-section economics.
+- A focused regression case was added for a shallow direct road crossing that must be replaced by
+  a perpendicular crossing. Road-enriched run `d9cd8766-1ce8-4ad7-a973-931fcb1cbca8` then
+  published three valid 17/17 variants after 1,441 seconds. Engineering/shortest are identical at
+  2,099.278 m / 316,418,078.53 RUB with eleven expert-angle findings; cheapest is 2,008.104 m /
+  307,270,096.16 RUB. All variants contain 12 road special sections and one fewer chamber than the
+  no-road control, but are materially longer, costlier and less constructible. The polygon-road
+  visibility experiment is therefore diagnostic only and does not replace the corrected-dataset
+  default. Automated tests were not run by request; Docker packaging compiled main and test
+  sources with test execution skipped.
+
+# 2026-09-23 — global-tree-38 bounded engineering repair and honest diagnostics
+
+- Engineering regularization is now applied to the selected engineering and shortest drafts in
+  the normal portfolio path, rather than only when objective selection returns no draft. On the
+  corrected dataset this reduced the expert-angle findings from eight to five while preserving
+  three official-valid 17/17 alternatives.
+- Directional OKS egress is capped relative to the nearest legal wall exit. A target on the
+  opposite side can no longer make a connection traverse the full building merely because the
+  globally configured alternate-egress allowance is large.
+- A broader rotated-dogleg experiment reduced five angle findings to four but took 1,348.5 s in
+  the focused official-dataset scenario and still failed the zero-warning criterion. It was
+  removed from the active algorithm instead of shipping a slower incomplete repair.
+- Focused verification passes 35/35 tests across `EngineeringRouteEvaluatorTest`,
+  `OfficialObstacleRouterTest` and `OfficialRoutePlannerTest`. The official-dataset regression
+  now requires exactly three variants and 17/17 connections; the attempted zero-warning assertion
+  correctly failed and remains an open topology-rebuild gate rather than being hidden.
+- The last published comparison run before removing the rejected dogleg is
+  `3ece314a-651c-4e8b-9231-dead14021fca` (`global-tree-36`): all three variants are official-valid
+  and connect 17/17, but engineering/shortest still report five out-of-range bends. Runtime was
+  960.410 s, so both expert-angle completion and the approximate ten-minute iteration target
+  remain open. Full tests, lint and typecheck were not run by explicit request.
+
+# 2026-09-23 — global-tree-34 variant publication and calculation-summary correction
+
+- All official-valid `engineering`, `shortest` and `cheapest` representatives are published and
+  ranked. Expert 90–135-degree and 2 m bend findings remain attached to engineering/shortest as
+  `engineering_issues` warnings instead of deleting those alternatives from the response.
+- The web workspace localizes and exposes those warnings in the inspector and validation dialog.
+  The bottom result cards now describe the selected variant itself: actual network length,
+  connected OKS count and cost; they no longer substitute absent sibling strategies with zeros.
+- Focused web verification passed: `RouteVisualization.test.tsx`, 3/3 tests. Focused Java
+  verification passed 18/18 tests in `EngineeringRouteEvaluatorTest` and
+  `OfficialRoutePlannerTest`; stale index-based expectations were aligned with the three-strategy
+  contract. Full tests, lint and typecheck were not run by the user's explicit scope limitation.
+- This restores comparison visibility but does not declare the expert geometry gate complete.
+  Corrected-dataset engineering/shortest warnings still identify the subtrees that need topology-
+  level rebuilding; the official validator remains the blocking publication boundary.
+- Live run `dcfcfe45-3c2a-4ad1-a8a7-b58b5dffba4d` completed in 781.996 s on the corrected import.
+  All three variants are official-valid and connect 17/17 OKS. Engineering: 1,704.185 m,
+  260,010,070.50 RUB, score 12.392836974, eight expert-angle findings. Shortest after the required
+  engineering normalization: 1,698.415 m, 264,144,443.56 RUB, score 12.491289420, the same eight
+  expert-angle findings. Cheapest under the official-TZ-only geometry rules: 1,689.315 m,
+  258,272,510.65 RUB, score 12.299575298, and no engineering-warning contract applies to it.
+- The rebuilt local Compose stack is healthy on `http://127.0.0.1:5174/`; the latest calculation
+  action visibly loads all three tabs and the selected-variant drawer reports 1.69 km / 17 of 17
+  instead of `0 m / 0 OKS`.
+
+# 2026-09-22 — global-tree-33 expert geometry and bounded objective portfolio
+
+- The calculation keeps independent, shared-tree and cheapest-with-existing-chamber-reuse drafts
+  as a bounded portfolio instead of deriving all three UI choices from one winner. The shortest
+  representative is selected by total routed length, the cheapest by the official construction
+  economics, and the engineering representative inside a five-percent cost/length corridor that
+  is relaxed once to ten percent when necessary.
+- The domain expert's additional constructability rule is enforced on the finished geometry for
+  the engineering and shortest strategies: internal bend angles must be 90–135 degrees and two
+  consecutive bends must be at least 2 m apart. The cheapest strategy deliberately retains only
+  the official-TZ geometry rules. A final bounded normalization pass removes safe shallow kinks or
+  replaces them with legal 90/135-degree elbows after tree grafting, chamber contraction, sizing
+  and mandatory OKS egress have finished.
+- Building polygons remain mandatory obstacles with the official 5 m clearance. A 1.5 m roadway
+  offset is enforced when roadway geometry is supplied in the official input. The corrected
+  dataset contains no roadway features, so the algorithm does not infer legal engineering
+  corridors from the visual basemap.
+- UI strategy names are now `Инженерная трасса`, `Самый короткий` and `Самый дешёвый`; the
+  explanatory copy states the different optimization priorities.
+- Docker packaging compiled Java main and test sources with test execution skipped. The focused
+  evaluator tests were added but were not run, and the full automated suite, lint, typecheck and
+  browser smoke remain deferred by explicit request.
+- Final corrected-dataset run `d6a8b187-a14f-4638-a39f-5212a6473166` completed in 725.214 s.
+  The cheapest official-TZ representative is valid at 17/17 OKS, 1,689.315 m,
+  258,272,510.65 RUB, score 12.299575298, 29 edges and 33 nodes. The two strict representatives
+  were intentionally withheld: final local normalization reduced their non-compliant bends from
+  14 to 8, with zero sub-2 m bend pairs, but could not remove the remaining bends without entering
+  an official clearance zone. Their next gate is bounded subtree rebuilding rather than another
+  point-level corner adjustment.
+
+# 2026-09-22 — objective-specific variants and optional existing-chamber reuse (`global-tree-29`, local)
+
+- The expensive valid merged-chamber candidates are now routed once and used to select separate
+  length and construction-cost winners. The shortest draft is compared against the independent
+  topology, while the cheapest draft is compared against the balanced topology by fully sized
+  construction cost; a longer draft is therefore allowed to win the cheapest objective.
+- The cheapest-only post-pass can replace a single-ray new tie-in chamber with a connected
+  existing chamber up to 60 m away. It considers the bounded incident network directions at a
+  junction chamber, preserves the maximum four sections, and accepts a replacement only after
+  full geometry validation and a strict reduction of the final construction cost.
+- Corrected-dataset run `0e3853ec-8af9-41e5-8a5a-e9adfe323e09` completed in 710.374 seconds.
+  All three variants are valid and connect 17/17 OKS: balanced is 1,761.086 m / 271,453,650.54
+  RUB, shortest is 1,759.014 m / 268,589,256.36 RUB, and cheapest is 1,765.990 m /
+  264,238,637.23 RUB. The cheapest route is 6.976 m longer than the shortest but 4,350,619.13
+  RUB cheaper.
+- The cheapest route reuses existing chamber `106` instead of constructing a new chamber on
+  segment `126`, reducing generated chamber cost from 53 million RUB in the shortest variant to
+  48 million RUB. Chamber `107` was evaluated through each incident network direction but no
+  fully valid cheaper route was found, so the upper-left building remains on its segment tie-in.
+- Docker packaging compiled main and test sources with Java 11 and skipped test execution. Full
+  automated tests, lint and typecheck were not run; two corrected-dataset calculations verified
+  the intermediate and final local states. The remaining runtime target is approximately ten
+  minutes, with the base shared-tree visibility phase now the dominant optimization target.
+
+# 2026-09-22 — final-tree tie-in relocation (`global-tree-28`, local)
+
+- A new tie-in selected for the initial shared pair is no longer frozen after the rest of the
+  tree is grafted. For every single-ray `new_tie_in_chamber`, the planner projects the completed
+  adjacent trunk back onto the same existing-network feature and evaluates that nearer point.
+- The replacement keeps the mandatory 10 m existing-chamber reuse zone, a perpendicular four-
+  metre entry relative to the existing-network tangent, and a 45/90/135/180-degree final ray at
+  the generated tree chamber. It is accepted only after complete geometry validation and when
+  final construction cost, or equal-cost length, improves.
+- On corrected-dataset run `6a9fe026-ca3b-4cbf-8c74-bbcf6834604d`, target segment `126` moved
+  from `(414445.482, 6173320.717)` to `(414430.807, 6173282.893)`. Its root edge fell from
+  48.886 m to 18.090 m and retained three base legs: 4.000 m perpendicular entry, 10.090 m
+  connecting leg and 4.000 m constructible chamber approach.
+- All three published variants remain valid and connect 17/17 OKS. Balance is 1,761.086 m /
+  271,453,650.54 RUB / score 12.883960215; shortest is 1,759.014 m / 268,589,256.36 RUB /
+  score 12.797541178; cheapest is 1,759.191 m / 268,218,637.65 RUB / score 12.787694854.
+  Against `global-tree-26`, each variant is 30.796 m shorter and 4,620,077.51 RUB cheaper.
+- The full run took about 830.963 seconds. Docker packaging compiled main and test sources with
+  Java 11 and skipped test execution; automated tests, lint and typecheck were not run.
+
+# 2026-09-22 — adjacent-chamber group merge experiment (local, no preferred-route change)
+
+- `global-tree-20`–`global-tree-23` add a generic whole-tree operator that finds two short-linked
+  degree-three generated chambers, proposes one degree-four chamber at their endpoints, midpoint
+  or outer-branch line intersections, and reroutes all four external branches as one group.
+- Demand branches select the side of their OKS facing the proposed street junction. A non-demand
+  trunk may leave an existing topology node without treating the other old edges incident to that
+  same node as obstacles; the final crossing, clearance, tree and economics checks still run on
+  the complete rebuilt draft.
+- The corrected-dataset run `f7b5dc2b-b582-44dc-9e3a-377535585988` completed valid at 17/17 OKS,
+  1,864.356 m, 288,191,073.55 RUB, score 13.662418059, 13 generated chambers and 30 edges. No merge
+  candidate improved the complete official score, so the preferred route is geometrically and
+  economically unchanged from `global-tree-19`.
+- The requested vertical common trunk cannot be obtained reliably by contracting two chambers
+  after the surrounding branches have already been routed. The next gate must generate this
+  intersection-centred trunk topology before terminal grafting, keep it as a competing complete
+  draft, and compare it with the accepted economical control after sizing and final validation.
+- Docker packaging compiled main and test sources with tests skipped. Three live calculations were
+  used to isolate the rejection stage and measure the final variant; full tests, lint and typecheck
+  were not run by explicit request.
+
+# 2026-09-22 — competing early topology seeds (`global-tree-24`, local experiment)
+
+- The shared-tree constructor now keeps up to four different pair-based common-trunk seeds,
+  completes every seed to a full 17-demand tree, compares complete official economics, and runs
+  the expensive whole-tree improvement only for the winning completed draft.
+- Corrected-dataset run `a94db9b1-bf67-453e-beba-ac7bcf57303f` remained valid at 17/17 but
+  selected exactly the previous geometry: 1,864.356 m, 288,191,073.55 RUB, score 13.662418059,
+  13 generated chambers, 30 edges and zero validation issues.
+- Runtime increased to 1,315.076 seconds without a quality gain. Pair-seed diversity alone cannot
+  produce the requested intersection-centred vertical trunk; that topology needs an explicit
+  multi-terminal trunk seed rather than another ordering of the same pair-and-graft operations.
+- Docker packaging compiled main and test sources with tests skipped. One live corrected-dataset
+  calculation and the junction diagnostic were run; full tests, lint and typecheck were not run.
+
+# 2026-09-22 — three valid objectives and merged chambers (`global-tree-26`, local)
+
+- The planner again publishes up to three distinct valid variants: 70/30 balance, shortest, and
+  cheapest. A valid chamber-group replacement is retained for the latter objectives even when it
+  would not replace the current control during a local score-improvement pass.
+- Replacement branches that terminate at the same proposed chamber no longer treat one another
+  as obstacles at that common endpoint. The completed draft is still rejected for any overlap,
+  crossing, forbidden clearance, degree, tree, sizing or economics violation elsewhere.
+- Corrected-dataset run `7cba3213-4d79-44f2-b6e5-995fc7fb5806` produced three valid 17/17 trees:
+  balance at 1,791.882 m / 276,073,728.05 RUB / score 13.105710385 / 12 generated chambers;
+  shortest at 1,789.810 m / 273,209,333.87 RUB / score 13.019291348 / 11 chambers; and cheapest
+  at 1,789.987 m / 272,838,715.16 RUB / score 13.009445024 / 11 chambers. The latter two contain
+  two merged chamber nodes each; every variant has zero validation issues.
+- Runtime fell from 1,315.076 to 1,143.256 seconds after removing four full early-tree builds, but
+  remains unacceptable. Shortest and cheapest currently rerun the same local merge candidates;
+  caching one evaluated candidate set for both objectives is the next bounded performance step.
+- Direct Docker builds compiled Java main/test sources and the TypeScript production bundle;
+  backend tests were skipped and full tests, lint and standalone typecheck were not run.
+
+# 2026-09-21 — experimental OSM road-corridor routing (local verified)
+
+- OpenStreetMap road centrelines in the active network/OKS window are converted to official
+  `restriction_type=road` polygons in an ignored local experiment dataset. Service drives and
+  roads outside the routing window are excluded; the current experiment adds 94 road polygons.
+- The unchanged router completed the road-enriched run but produced no complete variant (12/17
+  connected). It could validate a crossing angle but had no navigation vertices from which to
+  construct a legal alternative crossing.
+- The visibility graph now adds two points immediately outside an intersected road polygon on a
+  line normal to the polygon's main axis. This supplies an explicit 90-degree crossing candidate
+  while retaining the published 45-degree minimum as the hard rule.
+- The repeated run `26bfc22b-40fb-42db-86ff-951c36288ac0` is valid and connects 17/17 at
+  2,071.836 m, 305,170,558.59 RUB and score 14.760283641, with 11 chambers, 25 edges and zero
+  validation issues. Runtime was 691 s. This is 131.216 m and 37,788,333.24 RUB worse than the
+  no-road `global-tree-12` checkpoint, so the road layer remains an opt-in experiment rather than
+  the default official calculation.
+- Compose packaging compiled main and test sources with Java 11 and skipped test execution.
+  Automated tests, lint and typecheck remain deferred by explicit request.
+
+# 2026-09-21 — global-tree-13 perpendicular graft approach (locally verified, ineffective)
+
+- The OSM road enrichment was rejected as the default: although it produced a valid 17/17 tree,
+  it was 131.216 m longer, 37,788,333.24 RUB costlier and slower than the corrected-dataset
+  checkpoint. Road polygons and crossing portals are not used by the default calculation.
+- A branch grafted into the generated tree now tries a four-metre perpendicular final approach to
+  the supporting trunk. The constructible branch replaces the shortest branch only when the full
+  path remains legal and its local length grows by no more than five percent.
+- This stage targets acute and arbitrary junction entries without hard-coding coordinates or
+  changing the official cost model. Compose compilation succeeded with tests skipped. Corrected-
+  dataset run `26294ae1-ad99-4aa9-aa31-92a4a12d47ca` completed valid at 17/17 OKS,
+  1,940.620 m, 267,382,225.35 RUB, score 13.30856231, 11 chambers and 25 edges in about
+  509.896 seconds.
+- Exact comparison with the preceding no-road run found 0 changed geometries out of 25 edges and
+  identical metrics. The four-metre local suffix therefore does not improve this dataset: the next
+  optimization gate must relocate junctions or reconnect whole subtrees instead of adding a bend
+  immediately before a fixed junction. Automated tests, lint and typecheck remain deferred by
+  explicit request.
+
+# 2026-09-21 — bounded junction relocation experiment (rejected)
+
+- Experimental `global-tree-14` through `global-tree-16` moved terminal graft chambers by bounded
+  offsets along their supporting trunk and evaluated candidate drafts with the official score.
+- The approach remained valid at 17/17 OKS but regressed the corrected dataset. The two material
+  results were 1,951.141 m / 272,437,673.30 RUB / score 13.481677852 and 1,952.772 m /
+  273,803,205.00 RUB / score 13.524805740, versus the accepted `global-tree-13` checkpoint at
+  1,940.620 m / 267,382,225.35 RUB / score 13.308562310.
+- The exact final-economics guard exposed that comparing against the raw pre-optimization tree is
+  insufficient: the correct control is the completed legacy whole-tree pass. The guarded run also
+  took about 659.931 seconds. The experiment was removed from the default algorithm rather than
+  shipping a slower and worse route.
+- The next topology gate must compare a jointly rebuilt branch group against the completed control
+  tree, not relocate one terminal attachment at a time. No automated tests, lint or typecheck were
+  run; Compose compilation and live corrected-dataset calculations were used for this experiment.
+
+# 2026-09-22 — fourth-ray constructability experiment (local, rejected as preferred route)
+
+- The highlighted `junction:6:8` had four incident routes. One late tree attachment entered at
+  non-constructible directions (about 35/124/159 degrees relative to the existing rays), while one
+  of its incident branches had a routed/direct ratio of 1.53.
+- `global-tree-17` first preferred a perpendicular three-terminal seed and rejected a later fourth
+  ray unless all new incident angles were within 7.5 degrees of 45/90/135/180. It reduced the
+  diagnostic count of non-preferred chamber-angle pairs from 26 to 8, but produced 1,943.662 m,
+  291,830,984.20 RUB, score 14.002253558 and 12 generated chambers. The cost regression is not
+  acceptable for the preferred 70/30 objective.
+- `global-tree-18` removed the forced seed preference; `global-tree-19` further limited the rule to
+  the fourth ray only. Both final calculations were identical: valid 17/17 at 1,864.356 m,
+  288,191,073.55 RUB, score 13.662418059, 13 generated chambers and 30 edges. They are 76.264 m
+  shorter than the accepted `global-tree-13` checkpoint but 20,808,848.20 RUB more expensive and
+  therefore worse by the official score.
+- The local UI was refreshed to `global-tree-19` for visual comparison. This experiment is not an
+  accepted replacement for `global-tree-13` and must not be pushed as the preferred algorithm.
+  The next implementation must preserve both complete candidates and expose the shorter,
+  constructible tree separately, or rebuild the complete four-terminal branch group and accept it
+  only after final economics rather than forcing a local attachment decision.
+- Docker packaging compiled main and test sources with Java 11 and skipped test execution. Three
+  live corrected-dataset calculations were performed; full tests, lint and typecheck were not run.
+
+# 2026-09-21 — global-tree-12 alternative tie-in and chamber approach pass (local verified)
+
+- A segment whose nearest tie-in is within 10 m of an existing chamber now contributes a bounded
+  alternative point outside that 10 m reuse zone. This permits a new chamber farther along the
+  same existing-network segment when the mandatory existing chamber would force a long obstacle
+  detour; the point is selected by the optimizer and is not dataset-specific.
+- A route into an existing or new tie-in chamber first attempts a four-metre final leg
+  perpendicular to the local existing-network tangent. This is a constructability preference:
+  the reviewed public rules require a safe sealed wall penetration but do not establish a general
+  statutory 90-degree angle for the point-only chamber model. The ordinary legal approach remains
+  a fallback when a perpendicular leg is blocked.
+- A terminal route with routed/direct ratio above 1.35 may retry the nearby target-facing side of
+  its own OKS. The alternate egress is accepted only when it is legal and strictly shorter; this
+  removed the 60.230 m hairpin whose endpoints were only 14.744 m apart.
+- Final local run `0c84f5b4-1e40-4493-bc66-7e43e76d957c` completed in 486.077 s. Its valid
+  `balanced` variant connects 17/17 OKS, is 1,940.620 m long, costs 267,382,225.35 RUB, scores
+  13.308562310, contains 11 chambers and 25 edges, and has zero validation issues.
+- Compared with `global-tree-10`, the network is 132.329 m shorter, 16,551,966.76 RUB cheaper,
+  and uses one fewer chamber and edge. Every generated chamber has only straight/right-angle
+  incident directions in the point topology check.
+- The previously highlighted round-building branch is shorter, but still has a 1.89 detour ratio;
+  it is improved, not closed. Runtime also regressed to 486.077 s. The next gate is a strict-budget
+  reuse/cache of alternative tie-in searches followed by a topology-level repair of this remaining
+  branch.
+- Compose packaging compiled main and test sources with Java 11 and skipped test execution. The
+  full automated suite, lint and typecheck were not run by explicit request.

@@ -17,6 +17,7 @@ public class RouteVariant {
     private final List<RouteConnection> connections;
     private final BigDecimal totalLengthM;
     private final List<RouteValidationIssue> validationIssues;
+    private final List<RouteValidationIssue> engineeringIssues;
     private final List<NetworkSizingIssue> sizingIssues;
     private final ExistingNetworkReconstructionResult reconstruction;
     private final VariantEconomics economics;
@@ -35,6 +36,25 @@ public class RouteVariant {
             ExistingNetworkReconstructionResult reconstruction,
             VariantEconomics economics,
             Integer rank) {
+        this(
+                id, strategy, nodes, edges, connections, totalLengthM,
+                validationIssues, Collections.emptyList(), sizingIssues,
+                reconstruction, economics, rank);
+    }
+
+    public RouteVariant(
+            String id,
+            String strategy,
+            List<RouteNode> nodes,
+            List<RouteEdge> edges,
+            List<RouteConnection> connections,
+            BigDecimal totalLengthM,
+            List<RouteValidationIssue> validationIssues,
+            List<RouteValidationIssue> engineeringIssues,
+            List<NetworkSizingIssue> sizingIssues,
+            ExistingNetworkReconstructionResult reconstruction,
+            VariantEconomics economics,
+            Integer rank) {
         this.id = id;
         this.strategy = strategy;
         this.nodes = immutable(nodes);
@@ -42,6 +62,7 @@ public class RouteVariant {
         this.connections = immutable(connections);
         this.totalLengthM = totalLengthM;
         this.validationIssues = immutable(validationIssues);
+        this.engineeringIssues = immutable(engineeringIssues);
         this.sizingIssues = immutable(sizingIssues);
         this.reconstruction = reconstruction;
         this.economics = economics;
@@ -55,6 +76,7 @@ public class RouteVariant {
     public List<RouteConnection> getConnections() { return connections; }
     public BigDecimal getTotalLengthM() { return totalLengthM; }
     public List<RouteValidationIssue> getValidationIssues() { return validationIssues; }
+    public List<RouteValidationIssue> getEngineeringIssues() { return engineeringIssues; }
     public List<NetworkSizingIssue> getSizingIssues() { return sizingIssues; }
     public ExistingNetworkReconstructionResult getReconstruction() { return reconstruction; }
     public VariantEconomics getEconomics() { return economics; }
@@ -70,7 +92,14 @@ public class RouteVariant {
     public RouteVariant withRank(int assignedRank) {
         return new RouteVariant(
                 id, strategy, nodes, edges, connections, totalLengthM,
-                validationIssues, sizingIssues, reconstruction, economics, assignedRank);
+                validationIssues, engineeringIssues, sizingIssues,
+                reconstruction, economics, assignedRank);
+    }
+
+    public RouteVariant withEngineeringIssues(List<RouteValidationIssue> issues) {
+        return new RouteVariant(
+                id, strategy, nodes, edges, connections, totalLengthM,
+                validationIssues, issues, sizingIssues, reconstruction, economics, rank);
     }
 
     private static <T> List<T> immutable(List<T> source) {

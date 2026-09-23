@@ -16,12 +16,14 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.index.strtree.STRtree;
+import org.locationtech.jts.linearref.LengthIndexedLine;
 import org.locationtech.jts.operation.distance.DistanceOp;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ExistingNetworkTopologyAnalyzer {
     private static final double CHAMBER_SNAP_DISTANCE_M = 10.0;
+    private static final double ALTERNATIVE_CHAMBER_OFFSET_M = 12.0;
     private static final double COORDINATE_TOLERANCE_M = 0.01;
     private static final double GEOMETRIC_SNAP_DISTANCE_M = 1.0;
     private static final int MAX_CANDIDATES_PER_CONNECTION = 12;
@@ -241,13 +243,18 @@ public class ExistingNetworkTopologyAnalyzer {
                             "heat_chamber",
                             connectionPoint.getMetricGeometry().distance(chamber.getMetricGeometry()),
                             false));
+                    addAlternativeSegmentTieIns(
+                            perPoint, connectionPoint, segment, nearest[1],
+                            chambers, chamberIncidentCounts);
                 } else {
                     perPoint.add(new TieInCandidate(
                             connectionPoint.getFeatureId(),
                             segment.getFeatureId(),
                             "heat_network",
                             connectionPoint.getMetricGeometry().distance(segment.getMetricGeometry()),
-                            true));
+                            true,
+                            nearest[1].x,
+                            nearest[1].y));
                 }
             }
             perPoint.sort(Comparator
@@ -256,11 +263,55 @@ public class ExistingNetworkTopologyAnalyzer {
                     .thenComparing(TieInCandidate::getTargetId));
             Set<String> seen = new HashSet<>();
             perPoint.stream()
-                    .filter(candidate -> seen.add(candidate.getTargetType() + "|" + candidate.getTargetId()))
+                    .filter(candidate -> seen.add(candidateKey(candidate)))
                     .limit(MAX_CANDIDATES_PER_CONNECTION)
                     .forEach(result::add);
         }
         return result;
+    }
+
+    private void addAlternativeSegmentTieIns(
+            List<TieInCandidate> result,
+            ImportedOfficialFeature connectionPoint,
+            ImportedOfficialFeature segment,
+            Coordinate nearest,
+            List<ImportedOfficialFeature> chambers,
+            Map<String, Integer> chamberIncidentCounts) {
+        if (!(segment.getMetricGeometry() instanceof LineString)) {
+            return;
+        }
+        LineString line = (LineString) segment.getMetricGeometry();
+        LengthIndexedLine indexed = new LengthIndexedLine(line);
+        double nearestIndex = indexed.project(nearest);
+        for (double direction : new double[] {-1.0, 1.0}) {
+            double index = nearestIndex + direction * ALTERNATIVE_CHAMBER_OFFSET_M;
+            if (index <= COORDINATE_TOLERANCE_M
+                    || index >= line.getLength() - COORDINATE_TOLERANCE_M) {
+                continue;
+            }
+            Coordinate coordinate = indexed.extractPoint(index);
+            if (nearestEligibleChamber(coordinate, chambers, chamberIncidentCounts) != null) {
+                continue;
+            }
+            double distance = connectionPoint.getMetricGeometry()
+                    .distance(line.getFactory().createPoint(coordinate));
+            result.add(new TieInCandidate(
+                    connectionPoint.getFeatureId(),
+                    segment.getFeatureId(),
+                    "heat_network",
+                    distance,
+                    true,
+                    coordinate.x,
+                    coordinate.y));
+        }
+    }
+
+    private String candidateKey(TieInCandidate candidate) {
+        String coordinate = candidate.hasFixedTieIn()
+                ? "|" + Math.round(candidate.getTieInXm() * 1000.0)
+                        + ":" + Math.round(candidate.getTieInYm() * 1000.0)
+                : "";
+        return candidate.getTargetType() + "|" + candidate.getTargetId() + coordinate;
     }
 
     private ImportedOfficialFeature nearestEligibleChamber(

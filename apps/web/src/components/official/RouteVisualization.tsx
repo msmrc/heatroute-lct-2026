@@ -121,9 +121,9 @@ function groupInputWarnings(warnings: OfficialInputWarning[]): InputWarningGroup
 }
 
 function variantName(variant: OfficialRouteVariant): string {
-  if (variant.strategy === "balanced") return "Общая сеть";
-  if (variant.strategy === "cheapest") return "Альтернативные врезки";
-  if (variant.strategy === "shortest") return "Раздельные трассы";
+  if (variant.strategy === "engineering") return "Инженерная трасса";
+  if (variant.strategy === "cheapest") return "Самый дешёвый";
+  if (variant.strategy === "shortest") return "Самый короткий";
   return "Вариант сети";
 }
 
@@ -163,12 +163,22 @@ function calculationIssueTitle(issue: OfficialCalculationIssue): string {
   if (issue.code === "FLOW_EXCEEDS_CATALOG") return "Расход выше диапазона диаметров";
   if (issue.code === "RECONSTRUCTION_INPUT_UNAVAILABLE") return "Недостаточно данных для реконструкции";
   if (issue.code === "RECONSTRUCTION_FLOW_EXCEEDS_CATALOG") return "Расход реконструкции выше диапазона диаметров";
+  if (issue.code === "EXPERT_BEND_ANGLE_OUT_OF_RANGE") return "Углы требуют инженерной доработки";
+  if (issue.code === "EXPERT_BEND_SPACING_TOO_SHORT") return "Повороты расположены слишком близко";
   return issue.code.replaceAll("_", " ").toLocaleLowerCase("ru-RU");
 }
 
 function calculationIssueMessage(issue: OfficialCalculationIssue): string {
   if (issue.code === "RECONSTRUCTION_INPUT_UNAVAILABLE") {
     return "В исходном наборе нет расхода существующей сети или направления к источнику. Результат реконструкции не рассчитывался.";
+  }
+  const invalidAngles = issue.message.match(/^(\d+) bend angles are outside/);
+  if (invalidAngles) {
+    return `В трассе осталось ${invalidAngles[1]} поворотов вне экспертного диапазона 90–135°. Вариант сохранён для сравнения и требует дальнейшей перестройки.`;
+  }
+  const closeBends = issue.message.match(/^(\d+) consecutive bend pairs are less than 2 m apart$/);
+  if (closeBends) {
+    return `В трассе осталось ${closeBends[1]} пар соседних поворотов с расстоянием менее 2 м.`;
   }
   const continuousLength = issue.message.match(/^Continuous DU (\d+) length ([\d.]+) m exceeds ([\d.]+) m$/);
   if (continuousLength) {
@@ -366,14 +376,13 @@ export function RouteVisualization({
     ...(variant.sizing_issues ?? []),
     ...reconstructionIssues.filter((issue) => issue.code !== "RECONSTRUCTION_INPUT_UNAVAILABLE"),
   ];
+  const engineeringWarnings = variant.engineering_issues ?? [];
   const depthWarnings = variant.edges.flatMap((edge) => (edge.depth_profile?.issues ?? []).map((issue) => ({
     ...issue,
     edgeId: edge.id,
   })));
   const calculationValid = variant.valid && calculationIssues.length === 0;
-  const totalWarningCount = warnings.length + depthWarnings.length + (reconstructionWarnings.length > 0 ? 1 : 0);
-  const independent = result.variants.find((item) => item.strategy === "shortest");
-  const shared = result.variants.find((item) => item.strategy === "balanced");
+  const totalWarningCount = warnings.length + engineeringWarnings.length + depthWarnings.length + (reconstructionWarnings.length > 0 ? 1 : 0);
   const depthEdges = variant.edges
     .filter((edge) => edge.depth_profile)
     .sort((left, right) => (right.depth_profile?.crossings.length ?? 0) - (left.depth_profile?.crossings.length ?? 0));
@@ -522,8 +531,8 @@ export function RouteVisualization({
             <>
               {variant.id === result.preferred_variant_id && <Badge tone="success">Рекомендуемый вариант</Badge>}
               <p className="route-inspector-summary">{
-                variant.strategy === "balanced"
-                  ? "Баланс 70% стоимости и 30% длины среди допустимых вариантов общей сети."
+                variant.strategy === "engineering"
+                  ? "Инженерно регулярная трасса: углы 90–135°, между поворотами не менее 2 м; допуск по длине и стоимости до 10%."
                   : variant.strategy === "cheapest"
                     ? "Вариант с приоритетом минимальной итоговой стоимости."
                     : "Вариант с приоритетом минимальной суммарной длины новой сети."
@@ -542,14 +551,17 @@ export function RouteVisualization({
           {noRoute.length > 0 && (
             <div className="route-inspector-warning"><AlertTriangle size={18} /><div><strong>Есть неподключённые объекты</strong><p>{noRoute.map((connection) => `ОКС ${connection.demand_id}: ${noRouteReason(connection.reason)}${noRouteDiagnostics(connection)}`).join(" · ")}</p></div></div>
           )}
+          {engineeringWarnings.length > 0 && (
+            <div className="route-inspector-warning"><AlertTriangle size={18} /><div><strong>Есть инженерные замечания</strong><p>{engineeringWarnings.map(calculationIssueMessage).join(" ")}</p></div></div>
+          )}
           <div className="route-inspector-hint">Нажмите на трассу или объект на карте, чтобы увидеть его данные.</div>
         </aside>
 
         <footer className="route-results-drawer">
           <header><strong>Результаты расчёта</strong><span>{variantName(variant)}</span></header>
           <div className="route-result-metrics">
-            <article><span>Раздельные трассы</span><strong>{formatLength(independent?.total_length_m ?? 0)}</strong><small>{independent?.connected_demand_count ?? 0} ОКС</small></article>
-            <article><span>Общая сеть</span><strong>{formatLength(shared?.total_length_m ?? 0)}</strong><small>{shared?.connected_demand_count ?? 0} ОКС</small></article>
+            <article><span>Длина сети</span><strong>{formatLength(variant.total_length_m)}</strong><small>{variant.edges.length} участков</small></article>
+            <article><span>Подключено</span><strong>{variant.connected_demand_count} из {result.demand_count}</strong><small>ОКС</small></article>
             <article><span>{variant.economics?.complete ? "Стоимость" : "Известная стоимость"}</span><strong>{variant.economics ? formatMoney(variant.economics.calculated_cost) : "—"}</strong><small>{variant.economics?.score != null ? `показатель ${variant.economics.score.toLocaleString("ru-RU", { maximumFractionDigits: 3 })}` : "без реконструкции"}</small></article>
             <button
               type="button"
@@ -589,6 +601,23 @@ export function RouteVisualization({
               </div>
             </section>
           )}
+          {engineeringWarnings.length > 0 && (
+            <section className="validation-dialog-section">
+              <header><strong>Инженерная геометрия</strong><span>{warningCount(engineeringWarnings.length)}</span></header>
+              <div className="validation-warning-list">
+                {engineeringWarnings.map((issue, index) => (
+                  <article key={`${issue.code}-${issue.subject_id ?? index}`}>
+                    <AlertTriangle size={17} />
+                    <div>
+                      <strong>{calculationIssueTitle(issue)}</strong>
+                      <p>{calculationIssueMessage(issue)}</p>
+                      {issue.subject_id && <small>Участки: {issue.subject_id}</small>}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
           {inputWarningGroups.length > 0 ? (
             <section className="validation-dialog-section">
               <header><strong>Исходные данные</strong><span>{warningCount(warnings.length)}</span></header>
@@ -609,7 +638,7 @@ export function RouteVisualization({
                 ))}
               </div>
             </section>
-          ) : reconstructionWarnings.length === 0 && depthWarnings.length === 0 ? (
+          ) : engineeringWarnings.length === 0 && reconstructionWarnings.length === 0 && depthWarnings.length === 0 ? (
             <div className="validation-dialog-empty">
               <CheckCircle2 size={22} />
               <div><strong>Предупреждений нет</strong><p>Входные данные прошли проверку без замечаний.</p></div>

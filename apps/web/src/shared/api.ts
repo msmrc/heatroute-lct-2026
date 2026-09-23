@@ -223,6 +223,7 @@ export interface OfficialRouteVariant {
   connections: OfficialRouteConnection[];
   total_length_m: number;
   validation_issues: OfficialCalculationIssue[];
+  engineering_issues?: OfficialCalculationIssue[];
   sizing_issues?: OfficialCalculationIssue[];
   reconstruction?: OfficialReconstructionResult;
   economics?: OfficialVariantEconomics;

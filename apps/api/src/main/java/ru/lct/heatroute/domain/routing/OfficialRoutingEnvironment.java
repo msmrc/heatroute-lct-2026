@@ -65,6 +65,32 @@ final class OfficialRoutingEnvironment {
         return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target);
     }
 
+    java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
+            int diameter,
+            Coordinate point,
+            Coordinate target,
+            double maximumAlternativeEgressExtraM) {
+        return rules.normalEgressTowards(
+                featuresInWindow(point, target),
+                diameter,
+                point,
+                target,
+                maximumAlternativeEgressExtraM);
+    }
+
+    List<OfficialRouteGeometryRules.NormalEgress> normalEgressCandidates(
+            int diameter,
+            Coordinate point,
+            Coordinate target,
+            double maximumAlternativeEgressExtraM) {
+        return rules.normalEgressCandidates(
+                featuresInWindow(point, target),
+                diameter,
+                point,
+                target,
+                maximumAlternativeEgressExtraM);
+    }
+
     boolean pointInsideForbiddenClearance(int diameter, Coordinate point) {
         List<Constraint> all = new java.util.ArrayList<>(baseByDiameter.computeIfAbsent(
                 diameter,

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { OfficialCalculationResult } from "../../shared/api";
@@ -33,7 +33,7 @@ const result: OfficialCalculationResult = {
     },
     {
       id: "balanced",
-      strategy: "balanced",
+      strategy: "engineering",
       valid: true,
       total_length_m: 900,
       connected_demand_count: 2,
@@ -86,9 +86,20 @@ const result: OfficialCalculationResult = {
 
 describe("RouteVisualization", () => {
   it("opens on the preferred variant and exposes no-route diagnostics when switched", async () => {
+    const resultWithEngineeringWarning: OfficialCalculationResult = {
+      ...result,
+      variants: result.variants.map((variant) => variant.id !== "balanced" ? variant : {
+        ...variant,
+        engineering_issues: [{
+          code: "EXPERT_BEND_ANGLE_OUT_OF_RANGE",
+          subject_id: "balanced:trunk:1",
+          message: "2 bend angles are outside the expert 90-135 degree range",
+        }],
+      }),
+    };
     const { container } = render(
       <RouteVisualization
-        result={result}
+        result={resultWithEngineeringWarning}
         runId="run-1"
         importId="import-1"
         warnings={[{
@@ -101,10 +112,15 @@ describe("RouteVisualization", () => {
       />,
     );
 
-    expect(screen.getByRole("tab", { name: /Общая сеть/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: /Инженерная трасса/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText(/2 из 2 ОКС/)).toBeTruthy();
     expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
-    expect(container.querySelector(".route-results-drawer")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
+    const resultsDrawer = container.querySelector(".route-results-drawer");
+    expect(resultsDrawer?.parentElement?.classList.contains("route-map-stage")).toBe(true);
+    expect(within(resultsDrawer as HTMLElement).getByText("Длина сети")).toBeTruthy();
+    expect(within(resultsDrawer as HTMLElement).getByText("900 м")).toBeTruthy();
+    expect(within(resultsDrawer as HTMLElement).getByText("2 из 2")).toBeTruthy();
+    expect(within(resultsDrawer as HTMLElement).queryByText("0 м")).toBeNull();
     expect(container.querySelector(".route-workspace-inspector")?.parentElement?.classList.contains("route-map-stage")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: /Профиль/ }));
@@ -114,14 +130,16 @@ describe("RouteVisualization", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Карта/ }));
     expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Раздельные трассы/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Самый короткий/ }));
     expect(await screen.findByText("Интерактивная карта shortest")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Общая сеть/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Инженерная трасса/ }));
 
     const validationTrigger = screen.getByRole("button", { name: /Открыть результаты проверки/ });
     validationTrigger.focus();
     fireEvent.click(validationTrigger);
     expect(screen.getByRole("dialog", { name: "Результаты проверки" })).toBeTruthy();
+    expect(screen.getByText("Инженерная геометрия")).toBeTruthy();
+    expect(screen.getAllByText(/2 поворотов вне экспертного диапазона/)).toHaveLength(2);
     expect(screen.getByText("Значение высоты восстановлено по умолчанию")).toBeTruthy();
     expect(screen.getByText(/1 объект · примеры ID: oks-7 · поле height/)).toBeTruthy();
     const closeButtons = screen.getAllByRole("button", { name: "Закрыть" });
@@ -134,11 +152,11 @@ describe("RouteVisualization", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(validationTrigger);
 
-    const selectedVariantTab = screen.getByRole("tab", { name: /Общая сеть/ });
+    const selectedVariantTab = screen.getByRole("tab", { name: /Инженерная трасса/ });
     selectedVariantTab.focus();
     fireEvent.keyDown(selectedVariantTab, { key: "ArrowRight" });
-    expect(screen.getByRole("tab", { name: /Раздельные трассы/ }).getAttribute("aria-selected")).toBe("true");
-    expect(document.activeElement).toBe(screen.getByRole("tab", { name: /Раздельные трассы/ }));
+    expect(screen.getByRole("tab", { name: /Самый короткий/ }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: /Самый короткий/ }));
     expect(screen.getByText(/ОКС 2: Маршрут не найден/)).toBeTruthy();
   });
 

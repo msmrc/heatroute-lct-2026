@@ -8,9 +8,11 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import org.locationtech.jts.algorithm.MinimumDiameter;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.LineSegment;
 import org.locationtech.jts.geom.LineString;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
@@ -20,6 +22,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 @Component
 public class OfficialObstacleRouter {
     private static final double NAVIGATION_MARGIN_M = 0.25;
+    private static final double SPECIAL_CROSSING_PORTAL_MARGIN_M = 0.25;
     private static final double MINIMUM_PREFERENCE_FACTOR = 0.985;
     private static final int MAX_VERTICES_PER_OBSTACLE = 12;
     private static final double[] CORRIDOR_EXPANSIONS = {75.0, 200.0, 600.0};
@@ -223,19 +226,78 @@ public class OfficialObstacleRouter {
         if (rules.segmentAllowed(start, end, constraintIndex)) {
             return path(List.of(start, end), constraints);
         }
+        if (preference == RoutePreference.ENGINEERING) {
+            RoutePath dogleg = directEngineeringDogleg(start, end, constraintIndex, constraints);
+            if (dogleg != null) {
+                return dogleg;
+            }
+        }
         for (double expansion : CORRIDOR_EXPANSIONS) {
             List<Coordinate> nodes = navigationNodes(start, end, constraintIndex, expansion);
             SearchResult search = shortestPath(nodes, constraintIndex, preference, start, end);
             environment.recordVisibilitySearch(nodes.size(), expansion, search.evaluatedPairCount);
             if (!search.coordinates.isEmpty()) {
                 List<Coordinate> normalized = normalize(search.coordinates, constraintIndex);
-                LineString line = rules.line(normalized);
+                List<Coordinate> constructible = snapConstructibleCorners(
+                        normalized, constraintIndex, preference);
+                LineString line = rules.line(constructible);
                 if (rules.lineAllowed(line, constraintIndex)) {
-                    return path(normalized, constraints);
+                    return path(constructible, constraints);
                 }
             }
         }
         return null;
+    }
+
+    /**
+     * Tries a single constructible elbow before entering the visibility graph. A legal 90..135
+     * degree dogleg is preferable to an obstacle-hugging path that overshoots the destination and
+     * returns through a near-zero-degree hairpin.
+     */
+    private RoutePath directEngineeringDogleg(
+            Coordinate start,
+            Coordinate end,
+            ConstraintIndex constraints,
+            List<Constraint> sourceConstraints) {
+        double directLength = start.distance(end);
+        Coordinate best = null;
+        double bestLength = Double.POSITIVE_INFINITY;
+        for (Coordinate candidate : constructibleCornerCandidates(
+                start, end, RoutePreference.ENGINEERING)) {
+            if (candidate.distance(start) <= OfficialRouteGeometryRules.EPSILON_M
+                    || candidate.distance(end) <= OfficialRouteGeometryRules.EPSILON_M
+                    || !rules.segmentAllowed(start, candidate, constraints)
+                    || !rules.segmentAllowed(candidate, end, constraints)) {
+                continue;
+            }
+            double internalAngle = internalAngleDegrees(start, candidate, end);
+            double candidateLength = start.distance(candidate) + candidate.distance(end);
+            if (internalAngle + 0.5 < EngineeringRouteEvaluator.MIN_INTERNAL_ANGLE_DEGREES
+                    || internalAngle > EngineeringRouteEvaluator.MAX_INTERNAL_ANGLE_DEGREES + 0.5
+                    || candidateLength > directLength * 1.42
+                    || candidateLength >= bestLength) {
+                continue;
+            }
+            best = candidate;
+            bestLength = candidateLength;
+        }
+        return best == null ? null : path(List.of(start, best, end), sourceConstraints);
+    }
+
+    private double internalAngleDegrees(
+            Coordinate before,
+            Coordinate at,
+            Coordinate after) {
+        double ax = before.x - at.x;
+        double ay = before.y - at.y;
+        double bx = after.x - at.x;
+        double by = after.y - at.y;
+        double denominator = Math.hypot(ax, ay) * Math.hypot(bx, by);
+        if (denominator <= 1e-9) {
+            return 180.0;
+        }
+        double cosine = Math.max(-1.0, Math.min(1.0, (ax * bx + ay * by) / denominator));
+        return Math.toDegrees(Math.acos(cosine));
     }
 
     private String routeCacheKey(
@@ -249,6 +311,32 @@ public class OfficialObstacleRouter {
         return Math.round(start.x * 1000.0) + ":" + Math.round(start.y * 1000.0)
                 + ">" + Math.round(end.x * 1000.0) + ":" + Math.round(end.y * 1000.0)
                 + "|" + diameter + "|" + preference + "|" + exemptions;
+    }
+
+    RoutePath regularize(
+            List<Coordinate> coordinates,
+            int diameter,
+            OfficialRoutingEnvironment environment,
+            Set<String> exemptFeatureIds,
+            List<LineString> acceptedRoutes) {
+        if (coordinates.size() < 2) {
+            return null;
+        }
+        Coordinate start = coordinates.get(0);
+        Coordinate end = coordinates.get(coordinates.size() - 1);
+        List<Constraint> constraints = new ArrayList<>(environment.constraints(
+                diameter, exemptFeatureIds, start, end));
+        constraints.addAll(rules.applicableConstraints(
+                rules.routeAvoidanceConstraints(acceptedRoutes),
+                Collections.emptySet(),
+                start,
+                end));
+        ConstraintIndex constraintIndex = rules.index(constraints);
+        List<Coordinate> normalized = normalize(coordinates, constraintIndex);
+        List<Coordinate> constructible = snapConstructibleCorners(
+                normalized, constraintIndex, RoutePreference.ENGINEERING);
+        LineString line = rules.line(constructible);
+        return rules.lineAllowed(line, constraintIndex) ? path(constructible, constraints) : null;
     }
 
     private RoutePath path(List<Coordinate> coordinates, List<Constraint> constraints) {
@@ -271,8 +359,11 @@ public class OfficialObstacleRouter {
         corridor.expandBy(expansionM);
         LineString directLine = rules.line(List.of(start, end));
         for (Constraint constraint : constraints.query(corridor)) {
-            if (!constraint.rule().isForbidden()
-                    || !constraint.blocked().getEnvelopeInternal().intersects(corridor)
+            if (!constraint.rule().isForbidden()) {
+                addSpecialCrossingPortals(result, constraint, directLine, corridor);
+                continue;
+            }
+            if (!constraint.blocked().getEnvelopeInternal().intersects(corridor)
                     || !constraint.blocked().isWithinDistance(directLine, expansionM)) {
                 continue;
             }
@@ -286,6 +377,54 @@ public class OfficialObstacleRouter {
             }
         }
         return deduplicate(result);
+    }
+
+    /**
+     * Adds a bounded perpendicular crossing through a polygonal road or tram restriction. Without
+     * these two nodes a shallow direct crossing is rejected, but the visibility graph has no legal
+     * place from which to enter and leave the carriageway at the required angle.
+     */
+    private void addSpecialCrossingPortals(
+            List<Coordinate> result,
+            Constraint constraint,
+            LineString directLine,
+            Envelope corridor) {
+        if (constraint.rule().getMinimumCrossingAngleDegrees() == null
+                || constraint.source().getDimension() != 2
+                || !constraint.source().getEnvelopeInternal().intersects(corridor)
+                || !constraint.source().intersects(directLine)) {
+            return;
+        }
+        Geometry rectangle = new MinimumDiameter(constraint.source()).getMinimumRectangle();
+        Coordinate[] rectangleCoordinates = rectangle.getCoordinates();
+        LineSegment axis = null;
+        for (int index = 0; index + 1 < rectangleCoordinates.length; index++) {
+            LineSegment candidate = new LineSegment(rectangleCoordinates[index], rectangleCoordinates[index + 1]);
+            if (axis == null || candidate.getLength() > axis.getLength()) {
+                axis = candidate;
+            }
+        }
+        if (axis == null || axis.getLength() <= OfficialRouteGeometryRules.EPSILON_M) {
+            return;
+        }
+        Geometry intersection = constraint.source().intersection(directLine);
+        Coordinate anchor = intersection.isEmpty()
+                ? constraint.source().getCentroid().getCoordinate()
+                : intersection.getCentroid().getCoordinate();
+        double normalX = -(axis.p1.y - axis.p0.y) / axis.getLength();
+        double normalY = (axis.p1.x - axis.p0.x) / axis.getLength();
+        double anchorProjection = anchor.x * normalX + anchor.y * normalY;
+        double minimumProjection = Double.POSITIVE_INFINITY;
+        double maximumProjection = Double.NEGATIVE_INFINITY;
+        for (Coordinate coordinate : constraint.source().getCoordinates()) {
+            double projection = coordinate.x * normalX + coordinate.y * normalY;
+            minimumProjection = Math.min(minimumProjection, projection);
+            maximumProjection = Math.max(maximumProjection, projection);
+        }
+        double before = minimumProjection - anchorProjection - SPECIAL_CROSSING_PORTAL_MARGIN_M;
+        double after = maximumProjection - anchorProjection + SPECIAL_CROSSING_PORTAL_MARGIN_M;
+        result.add(new Coordinate(anchor.x + normalX * before, anchor.y + normalY * before));
+        result.add(new Coordinate(anchor.x + normalX * after, anchor.y + normalY * after));
     }
 
     /**
@@ -368,7 +507,7 @@ public class OfficialObstacleRouter {
                 Coordinate target = nodes.get(next);
                 double edgeCost = current.distance(target)
                         * preferenceFactor(current, target, start, end, preference)
-                        * bendPenalty(nodes, state.previous, state.node, next);
+                        * bendPenalty(nodes, state.previous, state.node, next, preference);
                 double candidate = state.cost + edgeCost;
                 long nextState = stateKey(state.node, next);
                 double currentBest = distance.getOrDefault(nextState, Double.POSITIVE_INFINITY);
@@ -422,9 +561,55 @@ public class OfficialObstacleRouter {
     }
 
     double bendPenalty(List<Coordinate> nodes, int previous, int current, int next) {
-        // The amended specification permits every turn from 0 to 90 degrees and defines no
-        // extra construction tariff for intermediate angles.
-        return 1.0;
+        return bendPenalty(nodes, previous, current, next, RoutePreference.SHORTEST);
+    }
+
+    private double bendPenalty(
+            List<Coordinate> nodes,
+            int previous,
+            int current,
+            int next,
+            RoutePreference preference) {
+        if (previous < 0) {
+            return 1.0;
+        }
+        Coordinate before = nodes.get(previous);
+        Coordinate at = nodes.get(current);
+        Coordinate after = nodes.get(next);
+        double ax = before.x - at.x;
+        double ay = before.y - at.y;
+        double bx = after.x - at.x;
+        double by = after.y - at.y;
+        double denominator = Math.hypot(ax, ay) * Math.hypot(bx, by);
+        if (denominator <= 1e-9) {
+            return 1.0;
+        }
+        double angle = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0,
+                (ax * bx + ay * by) / denominator))));
+        double deflection = Math.abs(180.0 - angle);
+        if (deflection <= 1.0) {
+            return 1.0;
+        }
+        if (preference == RoutePreference.ENGINEERING) {
+            // Expert constructability rule: an internal bend angle must be 90..135 degrees,
+            // equivalently a 45..90 degree deflection. This remains a search preference here;
+            // the portfolio evaluator applies it as a hard admission rule to two variants.
+            if (angle >= EngineeringRouteEvaluator.MIN_INTERNAL_ANGLE_DEGREES
+                    && angle <= EngineeringRouteEvaluator.MAX_INTERNAL_ANGLE_DEGREES) {
+                return 1.001;
+            }
+            double rangeDeviation = angle < EngineeringRouteEvaluator.MIN_INTERNAL_ANGLE_DEGREES
+                    ? EngineeringRouteEvaluator.MIN_INTERNAL_ANGLE_DEGREES - angle
+                    : angle - EngineeringRouteEvaluator.MAX_INTERNAL_ANGLE_DEGREES;
+            return 1.15 + Math.min(0.35, rangeDeviation / 90.0 * 0.35);
+        }
+        double deviation = Math.min(
+                Math.abs(deflection - 45.0),
+                Math.min(Math.abs(deflection), Math.abs(deflection - 90.0)));
+        // This is a bounded route-search preference, not a construction tariff. Straight, 45° and
+        // 90° turns are construction-friendly; another angle must be materially shorter to win.
+        double normalizedDeviation = Math.min(1.0, deviation / 22.5);
+        return 1.003 + 0.037 * normalizedDeviation * normalizedDeviation;
     }
 
     private double preferenceFactor(
@@ -433,7 +618,7 @@ public class OfficialObstacleRouter {
             Coordinate routeStart,
             Coordinate routeEnd,
             RoutePreference preference) {
-        if (preference == RoutePreference.SHORTEST) {
+        if (preference == RoutePreference.SHORTEST || preference == RoutePreference.ENGINEERING) {
             return 1.0;
         }
         double dx = routeEnd.x - routeStart.x;
@@ -459,6 +644,128 @@ public class OfficialObstacleRouter {
             current = next;
         }
         return normalized;
+    }
+
+    /**
+     * Replaces an arbitrary visibility-graph corner with an equivalent orthogonal or 45-degree
+     * elbow when both new segments are legal and the local length grows by no more than five
+     * percent. This is intentionally conservative: obstacle-hugging vertices remain unchanged
+     * whenever a constructible elbow would enter a clearance zone.
+     */
+    private List<Coordinate> snapConstructibleCorners(
+            List<Coordinate> coordinates,
+            ConstraintIndex constraints,
+            RoutePreference preference) {
+        if (coordinates.size() < 3) {
+            return coordinates;
+        }
+        List<Coordinate> result = coordinates.stream()
+                .map(Coordinate::new)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        for (int index = 1; index + 1 < result.size(); index++) {
+            Coordinate before = result.get(index - 1);
+            Coordinate current = result.get(index);
+            Coordinate after = result.get(index + 1);
+            double currentLength = before.distance(current) + current.distance(after);
+            double bestPenalty = constructibleAngleDeviation(before, current, after);
+            Coordinate best = current;
+            for (Coordinate candidate : constructibleCornerCandidates(before, after, preference)) {
+                if (candidate.distance(before) <= OfficialRouteGeometryRules.EPSILON_M
+                        || candidate.distance(after) <= OfficialRouteGeometryRules.EPSILON_M) {
+                    continue;
+                }
+                double candidateLength = before.distance(candidate) + candidate.distance(after);
+                double maximumLengthFactor = preference == RoutePreference.ENGINEERING ? 1.42 : 1.05;
+                if (candidateLength > currentLength * maximumLengthFactor
+                        || !rules.segmentAllowed(before, candidate, constraints)
+                        || !rules.segmentAllowed(candidate, after, constraints)) {
+                    continue;
+                }
+                double candidatePenalty = constructibleAngleDeviation(before, candidate, after);
+                if (candidatePenalty + 1e-9 < bestPenalty
+                        || (Math.abs(candidatePenalty - bestPenalty) <= 1e-9
+                                && candidateLength + 1e-9
+                                        < before.distance(best) + best.distance(after))) {
+                    best = candidate;
+                    bestPenalty = candidatePenalty;
+                }
+            }
+            result.set(index, new Coordinate(best));
+        }
+        return deduplicate(result);
+    }
+
+    private List<Coordinate> constructibleCornerCandidates(
+            Coordinate start,
+            Coordinate end,
+            RoutePreference preference) {
+        List<Coordinate> result = new ArrayList<>();
+        result.add(new Coordinate(start.x, end.y));
+        result.add(new Coordinate(end.x, start.y));
+        // These orientation-independent elbows are deliberately restricted to the final expert
+        // pass. Adding them to every visibility search multiplies an already dominant hot path.
+        if (preference == RoutePreference.ENGINEERING) {
+            addExactInternalAngleCandidates(result, start, end, 90.0);
+            addExactInternalAngleCandidates(result, start, end, 105.0);
+            addExactInternalAngleCandidates(result, start, end, 120.0);
+            addExactInternalAngleCandidates(result, start, end, 135.0);
+        }
+        double dx = end.x - start.x;
+        double dy = end.y - start.y;
+        double signX = Math.copySign(1.0, dx == 0.0 ? 1.0 : dx);
+        double signY = Math.copySign(1.0, dy == 0.0 ? 1.0 : dy);
+        double absX = Math.abs(dx);
+        double absY = Math.abs(dy);
+        if (absX >= absY) {
+            result.add(new Coordinate(start.x + signX * absY, end.y));
+            result.add(new Coordinate(end.x - signX * absY, start.y));
+        }
+        if (absY >= absX) {
+            result.add(new Coordinate(end.x, start.y + signY * absX));
+            result.add(new Coordinate(start.x, end.y - signY * absX));
+        }
+        return deduplicate(result);
+    }
+
+    /** Adds both isosceles elbows for the requested internal angle around the endpoint chord. */
+    private void addExactInternalAngleCandidates(
+            List<Coordinate> result,
+            Coordinate start,
+            Coordinate end,
+            double internalAngleDegrees) {
+        double dx = end.x - start.x;
+        double dy = end.y - start.y;
+        double chord = Math.hypot(dx, dy);
+        if (chord <= OfficialRouteGeometryRules.EPSILON_M) {
+            return;
+        }
+        double offset = chord / (2.0 * Math.tan(Math.toRadians(internalAngleDegrees / 2.0)));
+        double middleX = (start.x + end.x) / 2.0;
+        double middleY = (start.y + end.y) / 2.0;
+        double normalX = -dy / chord;
+        double normalY = dx / chord;
+        result.add(new Coordinate(middleX + normalX * offset, middleY + normalY * offset));
+        result.add(new Coordinate(middleX - normalX * offset, middleY - normalY * offset));
+    }
+
+    private double constructibleAngleDeviation(
+            Coordinate before,
+            Coordinate at,
+            Coordinate after) {
+        double ax = before.x - at.x;
+        double ay = before.y - at.y;
+        double bx = after.x - at.x;
+        double by = after.y - at.y;
+        double denominator = Math.hypot(ax, ay) * Math.hypot(bx, by);
+        if (denominator <= 1e-9) {
+            return 0.0;
+        }
+        double angle = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0,
+                (ax * bx + ay * by) / denominator))));
+        double deflection = Math.abs(180.0 - angle);
+        return Math.min(
+                Math.abs(deflection - 45.0),
+                Math.min(Math.abs(deflection), Math.abs(deflection - 90.0)));
     }
 
     private List<Coordinate> deduplicate(List<Coordinate> coordinates) {

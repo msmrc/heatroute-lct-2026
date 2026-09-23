@@ -29,7 +29,8 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 public class OfficialRouteGeometryRules {
     static final double EPSILON_M = 0.01;
     static final double NORMAL_EGRESS_MARGIN_M = 0.25;
-    private static final double MAX_ALTERNATIVE_EGRESS_EXTRA_M = 10.0;
+    private static final double MAX_ALTERNATIVE_EGRESS_EXTRA_M = 60.0;
+    private static final double MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR = 3.0;
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
     private static final Comparator<Constraint> CONSTRAINT_ORDER = Comparator
             .comparing((Constraint item) -> item.type)
@@ -175,13 +176,25 @@ public class OfficialRouteGeometryRules {
             int diameter,
             Coordinate connectionPoint,
             Coordinate target) {
+        return normalEgressTowards(
+                features, diameter, connectionPoint, target, MAX_ALTERNATIVE_EGRESS_EXTRA_M);
+    }
+
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features,
+            int diameter,
+            Coordinate connectionPoint,
+            Coordinate target,
+            double maximumAlternativeEgressExtraM) {
         double targetDistance = connectionPoint.distance(target);
         Optional<NormalEgress> nearest = normalEgress(features, diameter, connectionPoint);
         if (targetDistance <= EPSILON_M || nearest.isEmpty()) {
             return nearest;
         }
-        double maximumApproachDistance = connectionPoint.distance(nearest.get().exit())
-                + MAX_ALTERNATIVE_EGRESS_EXTRA_M;
+        double nearestApproachDistance = connectionPoint.distance(nearest.get().exit());
+        double maximumApproachDistance = Math.min(
+                nearestApproachDistance + maximumAlternativeEgressExtraM,
+                nearestApproachDistance * MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR);
         Geometry point = geometryFactory.createPoint(connectionPoint);
         double directionX = (target.x - connectionPoint.x) / targetDistance;
         double directionY = (target.y - connectionPoint.y) / targetDistance;
@@ -221,6 +234,108 @@ public class OfficialRouteGeometryRules {
             }
         }
         return best == null ? nearest : Optional.of(best);
+    }
+
+    /**
+     * Returns a bounded set of constructible exits from the OKS. Besides the nearest and
+     * target-facing exits, the set contains exits normal to the dominant rectangle sides of the
+     * building. This lets the engineering portfolio rebuild a complete terminal branch instead of
+     * preserving a locally short exit that forces a long or irregular obstacle detour.
+     */
+    List<NormalEgress> normalEgressCandidates(
+            List<ImportedOfficialFeature> features,
+            int diameter,
+            Coordinate connectionPoint,
+            Coordinate target,
+            double maximumAlternativeEgressExtraM) {
+        Optional<NormalEgress> nearest = normalEgress(features, diameter, connectionPoint);
+        if (nearest.isEmpty()) {
+            return List.of();
+        }
+        double nearestApproachDistance = connectionPoint.distance(nearest.get().exit());
+        double maximumApproachDistance = Math.min(
+                nearestApproachDistance + maximumAlternativeEgressExtraM,
+                nearestApproachDistance * MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR);
+        List<NormalEgress> result = new ArrayList<>();
+        addDistinctEgress(result, nearest.get());
+        normalEgressTowards(
+                features, diameter, connectionPoint, target, maximumAlternativeEgressExtraM)
+                .ifPresent(candidate -> addDistinctEgress(result, candidate));
+
+        Geometry point = geometryFactory.createPoint(connectionPoint);
+        for (Constraint constraint : baseConstraints(features, diameter)) {
+            if (!"oks".equals(constraint.type) || !constraint.source.covers(point)) {
+                continue;
+            }
+            Geometry rectangle = new MinimumDiameter(constraint.source).getMinimumRectangle();
+            Coordinate[] rectangleCoordinates = rectangle.getCoordinates();
+            for (int index = 0; index + 1 < rectangleCoordinates.length; index++) {
+                double edgeX = rectangleCoordinates[index + 1].x - rectangleCoordinates[index].x;
+                double edgeY = rectangleCoordinates[index + 1].y - rectangleCoordinates[index].y;
+                double edgeLength = Math.hypot(edgeX, edgeY);
+                if (edgeLength <= EPSILON_M) {
+                    continue;
+                }
+                double normalX = -edgeY / edgeLength;
+                double normalY = edgeX / edgeLength;
+                normalEgressAlongDirection(
+                        constraint, connectionPoint, normalX, normalY, maximumApproachDistance)
+                        .ifPresent(candidate -> addDistinctEgress(result, candidate));
+                normalEgressAlongDirection(
+                        constraint, connectionPoint, -normalX, -normalY, maximumApproachDistance)
+                        .ifPresent(candidate -> addDistinctEgress(result, candidate));
+            }
+        }
+        result.sort(Comparator
+                .comparingDouble((NormalEgress candidate) ->
+                        connectionPoint.distance(candidate.exit()) + candidate.exit().distance(target))
+                .thenComparingDouble(candidate -> candidate.exit().x)
+                .thenComparingDouble(candidate -> candidate.exit().y));
+        return result;
+    }
+
+    private Optional<NormalEgress> normalEgressAlongDirection(
+            Constraint constraint,
+            Coordinate connectionPoint,
+            double directionX,
+            double directionY,
+            double maximumApproachDistance) {
+        double rayLength = Math.max(
+                maximumApproachDistance + NORMAL_EGRESS_MARGIN_M,
+                Math.hypot(
+                        constraint.source.getEnvelopeInternal().getWidth(),
+                        constraint.source.getEnvelopeInternal().getHeight()) * 2.0);
+        Coordinate rayEnd = new Coordinate(
+                connectionPoint.x + directionX * rayLength,
+                connectionPoint.y + directionY * rayLength);
+        Geometry intersections = geometryFactory
+                .createLineString(new Coordinate[] {connectionPoint, rayEnd})
+                .intersection(constraint.source.getBoundary());
+        double bestProjection = Double.POSITIVE_INFINITY;
+        for (Coordinate intersection : intersections.getCoordinates()) {
+            double projection = (intersection.x - connectionPoint.x) * directionX
+                    + (intersection.y - connectionPoint.y) * directionY;
+            if (projection > EPSILON_M && projection < bestProjection) {
+                bestProjection = projection;
+            }
+        }
+        if (!Double.isFinite(bestProjection)
+                || bestProjection + NORMAL_EGRESS_MARGIN_M > maximumApproachDistance) {
+            return Optional.empty();
+        }
+        Coordinate exit = new Coordinate(
+                connectionPoint.x + directionX * (bestProjection + NORMAL_EGRESS_MARGIN_M),
+                connectionPoint.y + directionY * (bestProjection + NORMAL_EGRESS_MARGIN_M));
+        if (constraint.source.covers(geometryFactory.createPoint(exit))) {
+            return Optional.empty();
+        }
+        return Optional.of(new NormalEgress(constraint.id, connectionPoint, exit));
+    }
+
+    private void addDistinctEgress(List<NormalEgress> result, NormalEgress candidate) {
+        if (result.stream().noneMatch(existing -> existing.exit().distance(candidate.exit()) <= 0.1)) {
+            result.add(candidate);
+        }
     }
 
     List<RouteValidationIssue> validateMandatoryEgress(

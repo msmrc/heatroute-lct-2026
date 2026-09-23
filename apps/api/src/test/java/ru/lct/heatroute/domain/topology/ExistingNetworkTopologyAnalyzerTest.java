@@ -57,7 +57,13 @@ class ExistingNetworkTopologyAnalyzerTest {
                 feature("oks_connection_point", "1", "POINT (120 50)", "{\"flow_tph\":24.87}")));
 
         assertThat(result.isValid()).isTrue();
-        assertThat(result.getTieInCandidates()).hasSize(2);
+        assertThat(result.getTieInCandidates()).isNotEmpty();
+        assertThat(result.getTieInCandidates())
+                .anySatisfy(candidate -> assertThat(candidate.getTargetType())
+                        .isEqualTo("heat_chamber"));
+        assertThat(result.getTieInCandidates())
+                .anySatisfy(candidate -> assertThat(candidate.getTargetType())
+                        .isEqualTo("heat_network"));
         assertThat(result.getIssues()).isEmpty();
     }
 
@@ -80,7 +86,9 @@ class ExistingNetworkTopologyAnalyzerTest {
                 feature("heat_chamber", "ch", "POINT (50 0)", upstream("net")),
                 feature("oks_connection_point", "cp", "POINT (50 20)", "{\"oks_id\":\"oks\"}")));
 
-        assertThat(reusable.getTieInCandidates()).singleElement().satisfies(candidate -> {
+        assertThat(reusable.getTieInCandidates())
+                .filteredOn(candidate -> "ch".equals(candidate.getTargetId()))
+                .singleElement().satisfies(candidate -> {
             assertThat(candidate.getTargetId()).isEqualTo("ch");
             assertThat(candidate.isNewChamberRequired()).isFalse();
         });
@@ -97,6 +105,41 @@ class ExistingNetworkTopologyAnalyzerTest {
         assertThat(full.getTieInCandidates()).isNotEmpty();
         assertThat(full.getTieInCandidates()).allSatisfy(candidate ->
                 assertThat(candidate.isNewChamberRequired()).isTrue());
+    }
+
+    @Test
+    void reusesExistingChamberAtTenMetresButCreatesOneBeyondTheBoundary() throws Exception {
+        TopologyAnalysis exactlyTenMetres = analyzer.analyze(List.of(
+                feature("source", "src", "POINT (0 0)", "{}"),
+                feature("heat_network", "net", "LINESTRING (0 0, 100 0)", upstream("src")),
+                feature("heat_chamber", "ch", "POINT (40 0)", upstream("net")),
+                feature("oks_connection_point", "cp", "POINT (50 20)", "{\"oks_id\":\"oks\"}")));
+
+        assertThat(exactlyTenMetres.getTieInCandidates())
+                .filteredOn(candidate -> "ch".equals(candidate.getTargetId()))
+                .singleElement().satisfies(candidate -> {
+            assertThat(candidate.getTargetId()).isEqualTo("ch");
+            assertThat(candidate.getTargetType()).isEqualTo("heat_chamber");
+            assertThat(candidate.isNewChamberRequired()).isFalse();
+        });
+        assertThat(exactlyTenMetres.getTieInCandidates())
+                .anySatisfy(candidate -> {
+                    assertThat(candidate.getTargetId()).isEqualTo("net");
+                    assertThat(candidate.isNewChamberRequired()).isTrue();
+                    assertThat(candidate.hasFixedTieIn()).isTrue();
+                });
+
+        TopologyAnalysis beyondTenMetres = analyzer.analyze(List.of(
+                feature("source", "src", "POINT (0 0)", "{}"),
+                feature("heat_network", "net", "LINESTRING (0 0, 100 0)", upstream("src")),
+                feature("heat_chamber", "ch", "POINT (39.9 0)", upstream("net")),
+                feature("oks_connection_point", "cp", "POINT (50 20)", "{\"oks_id\":\"oks\"}")));
+
+        assertThat(beyondTenMetres.getTieInCandidates()).singleElement().satisfies(candidate -> {
+            assertThat(candidate.getTargetId()).isEqualTo("net");
+            assertThat(candidate.getTargetType()).isEqualTo("heat_network");
+            assertThat(candidate.isNewChamberRequired()).isTrue();
+        });
     }
 
     @Test

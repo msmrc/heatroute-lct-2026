@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +45,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 @Component
 public class OfficialRoutePlanner {
     private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutePlanner.class);
-    public static final String ALGORITHM_VERSION = "global-tree-8";
+    public static final String ALGORITHM_VERSION = "global-tree-46";
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double LENGTH_EPSILON_M = 1e-9;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
@@ -54,8 +55,27 @@ public class OfficialRoutePlanner {
     private static final int SHARED_NEIGHBOUR_FACTOR = 2;
     private static final int SHARED_SELECTION_BEAM_WIDTH = 24;
     private static final int MAX_GRAFT_EDGES_PER_DEMAND = 3;
+    private static final int MAX_GRAFT_EDGES_FOR_DETOUR_REPAIR = 6;
     private static final int MAX_GRAFT_JUNCTIONS_PER_DEMAND = 1;
+    private static final int MAX_GRAFT_JUNCTIONS_FOR_DETOUR_REPAIR = 3;
     private static final int MAX_WHOLE_TREE_ACCEPTED_MOVES = 3;
+    private static final double EXCESSIVE_DETOUR_RATIO = 1.35;
+    private static final double CHAMBER_APPROACH_LENGTH_M = 4.0;
+    private static final double JUNCTION_ANGLE_TOLERANCE_DEGREES = 7.5;
+    private static final double MAX_CHAMBER_MERGE_LINK_M = 20.0;
+    private static final double MAX_CHAMBER_MERGE_RELOCATION_M = 40.0;
+    private static final double EXISTING_CHAMBER_REUSE_DISTANCE_M = 10.0;
+    private static final double MAX_OPTIONAL_EXISTING_CHAMBER_DISTANCE_M = 60.0;
+    private static final int MAX_EXISTING_CHAMBER_ALTERNATIVES_PER_ROOT = 2;
+    private static final double ENGINEERING_PRIMARY_DEVIATION_RATIO = 0.05;
+    private static final double ENGINEERING_RELAXED_DEVIATION_RATIO = 0.10;
+    private static final double DEFAULT_EGRESS_EXTRA_M = 10.0;
+    private static final double ENGINEERING_EGRESS_EXTRA_M = 60.0;
+    private static final int MAX_GLOBAL_ENGINEERING_REPAIRS = 8;
+    private static final int MAX_ENGINEERING_EGRESS_CANDIDATES = 5;
+    private static final int MAX_ENGINEERING_ZONE_DEMANDS = 4;
+    private static final int MAX_ENGINEERING_ZONE_REBUILDS = 2;
+    private static final double ENGINEERING_ZONE_RADIUS_M = 120.0;
 
     private final OfficialRouteValidator validator;
     private final OfficialObstacleRouter obstacleRouter;
@@ -64,6 +84,7 @@ public class OfficialRoutePlanner {
     private final OfficialExistingNetworkReconstructor reconstructor;
     private final OfficialVariantEconomicsCalculator economicsCalculator;
     private final OfficialDepthPlanner depthPlanner;
+    private final EngineeringRouteEvaluator engineeringEvaluator = new EngineeringRouteEvaluator();
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     public OfficialRoutePlanner(
@@ -131,7 +152,6 @@ public class OfficialRoutePlanner {
                         Collectors.toList()));
         List<Demand> demands = demands(
                 features, featuresById, candidatesByConnection, routingEnvironment);
-
         VariantDraft independentDraft = coverageFirstIndependent(
                 demands,
                 candidatesByConnection,
@@ -144,12 +164,6 @@ public class OfficialRoutePlanner {
         VariantDraft shortestDraft = completeWithTreeAttachments(
                 independentDraft, demands, routingEnvironment);
         routingEnvironment.logVisibilitySummary("independent");
-        List<RouteVariant> variants = new ArrayList<>();
-        RouteVariant independent = finish(
-                "shortest", "shortest", shortestDraft, features, validatedParameters,
-                reconstructionRequired, routingEnvironment);
-        logVariantSummary(independent);
-        variants.add(independent);
 
         VariantDraft sharedDraft = coverageFirstShared(
                 demands,
@@ -160,43 +174,71 @@ public class OfficialRoutePlanner {
                 independentDraft.connectionCostByDemand,
                 routingEnvironment);
         routingEnvironment.logVisibilitySummary("shared");
-        RouteVariant shared = finish(
-                "balanced", "balanced", sharedDraft, features, validatedParameters, reconstructionRequired, routingEnvironment);
-        logVariantSummary(shared);
-        if (!edgeSignature(independent).equals(edgeSignature(shared))) {
-            variants.add(shared);
+
+        List<VariantDraft> portfolio = new ArrayList<>();
+        addDistinctDraft(portfolio, shortestDraft);
+        addDistinctDraft(portfolio, sharedDraft);
+
+        VariantDraft cheapestDraft = selectCheapestDraft(portfolio);
+        cheapestDraft = reuseExistingChambersForCheapest(
+                cheapestDraft, featuresById, chamberIncidentCounts, routingEnvironment);
+        addDistinctDraft(portfolio, cheapestDraft);
+
+        List<VariantDraft> engineeringPortfolio = new ArrayList<>();
+        // Keep genuinely different topology representatives. Mandatory final OKS egress and
+        // sizing can change their geometry, so the expert bend rules are enforced after finish().
+        addDistinctDraft(engineeringPortfolio, shortestDraft);
+        addDistinctDraft(engineeringPortfolio, sharedDraft);
+        addDistinctDraft(engineeringPortfolio, cheapestDraft);
+
+        VariantDraft shortestAlternative = selectShortestDraft(engineeringPortfolio);
+        if (shortestAlternative == null) {
+            shortestAlternative = regularizeEngineeringDraft(
+                    shortestDraft, demands, routingEnvironment, false);
+        }
+        VariantDraft engineeringDraft = selectEngineeringDraft(
+                engineeringPortfolio, cheapestDraft, shortestAlternative);
+        if (engineeringDraft == null) {
+            engineeringDraft = shortestAlternative;
+        }
+        boolean sharedEngineeringDraft = draftGeometrySignature(engineeringDraft)
+                .equals(draftGeometrySignature(shortestAlternative));
+        shortestAlternative = regularizeEngineeringDraft(
+                shortestAlternative, demands, routingEnvironment, false);
+        if (sharedEngineeringDraft) {
+            engineeringDraft = regularizeEngineeringDraft(
+                    shortestAlternative, demands, routingEnvironment, true);
+        } else {
+            engineeringDraft = regularizeEngineeringDraft(
+                    engineeringDraft, demands, routingEnvironment, true);
         }
 
-        if (connectedCount(shortestDraft) == demands.size()) {
-            VariantDraft diverseDraft = coverageFirstIndependent(
-                    demands,
-                    candidatesByConnection,
-                    featuresById,
-                    chamberIncidentCounts,
-                    routingEnvironment,
-                    shortestDraft.targetByDemand,
-                    RoutePreference.SHORTEST,
-                    "diverse");
-            diverseDraft = completeWithTreeAttachments(diverseDraft, demands, routingEnvironment);
-            routingEnvironment.logVisibilitySummary("diverse");
-            RouteVariant diverse = finish(
-                    "cheapest", "cheapest", diverseDraft, features, validatedParameters,
-                    reconstructionRequired, routingEnvironment);
-            logVariantSummary(diverse);
-            Set<String> existingSignatures = variants.stream()
-                    .map(this::edgeSignature)
-                    .collect(Collectors.toSet());
-            if (diverse.getConnectedDemandCount() == demands.size()
-                    && diverse.isValid()
-                    && existingSignatures.add(edgeSignature(diverse))) {
-                variants.add(diverse);
-            }
+        RouteVariant engineering = finish(
+                "balanced", "engineering", engineeringDraft, features, validatedParameters,
+                reconstructionRequired, routingEnvironment);
+        RouteVariant shortest = finish(
+                "shortest", "shortest", shortestAlternative, features, validatedParameters,
+                reconstructionRequired, routingEnvironment);
+        RouteVariant cheapest = finish(
+                "cheapest", "cheapest", cheapestDraft, features, validatedParameters,
+                reconstructionRequired, routingEnvironment);
+        List<RouteVariant> variants = new ArrayList<>(List.of(
+                withEngineeringAssessment(engineering),
+                withEngineeringAssessment(shortest),
+                cheapest));
+        for (RouteVariant variant : variants) {
+            logVariantSummary(variant);
+            EngineeringRouteEvaluator.Evaluation evaluation =
+                    engineeringEvaluator.evaluate(variant.getEdges());
+            LOGGER.info(
+                    "Engineering geometry id={} bends={} invalid_angles={} close_bend_pairs={}",
+                    variant.getId(), evaluation.bendCount(), evaluation.invalidAngleCount(),
+                    evaluation.insufficientSpacingCount());
         }
 
-        // Invalid drafts are diagnostic implementation details, not official route variants.
-        // In particular, a high-coverage draft may still contain a forbidden crossing that the
-        // independently built balanced tree avoids. Publishing that draft made the result break
-        // the official invariant even though a valid partial result was available.
+        // Official-invalid drafts remain diagnostic implementation details. Additional expert
+        // geometry rules are published separately as warnings so the three objective-specific
+        // official-valid alternatives remain available for comparison and further correction.
         variants = variants.stream()
                 .filter(RouteVariant::isValid)
                 .collect(Collectors.toList());
@@ -234,6 +276,29 @@ public class OfficialRoutePlanner {
                         .orElse(null);
         }
         return new OfficialCalculationResult(ALGORITHM_VERSION, inputProfile, demands.size(), variants, preferred);
+    }
+
+    private RouteVariant withEngineeringAssessment(RouteVariant variant) {
+        EngineeringRouteEvaluator.Evaluation evaluation = engineeringEvaluator.evaluate(variant.getEdges());
+        List<RouteValidationIssue> issues = new ArrayList<>();
+        String affectedEdges = evaluation.nonCompliantEdgeIds().isEmpty()
+                ? null
+                : String.join(",", evaluation.nonCompliantEdgeIds());
+        if (evaluation.invalidAngleCount() > 0) {
+            issues.add(new RouteValidationIssue(
+                    "EXPERT_BEND_ANGLE_OUT_OF_RANGE",
+                    affectedEdges,
+                    evaluation.invalidAngleCount()
+                            + " bend angles are outside the expert 90-135 degree range"));
+        }
+        if (evaluation.insufficientSpacingCount() > 0) {
+            issues.add(new RouteValidationIssue(
+                    "EXPERT_BEND_SPACING_TOO_SHORT",
+                    affectedEdges,
+                    evaluation.insufficientSpacingCount()
+                            + " consecutive bend pairs are less than 2 m apart"));
+        }
+        return variant.withEngineeringIssues(issues);
     }
 
     /**
@@ -345,24 +410,117 @@ public class OfficialRoutePlanner {
         List<Demand> retryOrder = new ArrayList<>(demands);
         retryOrder.sort(Comparator
                 .comparing((Demand demand) -> !failedDemandIds.contains(demand.id))
+                .thenComparingInt(demand -> candidatesByConnection
+                        .getOrDefault(demand.connectionPointId, List.of()).size())
+                .thenComparing(Comparator.comparingDouble(
+                        (Demand demand) -> nearestTieInDistance(
+                                demand, candidatesByConnection)).reversed())
                 .thenComparing(this::compareDemandIds));
         VariantDraft retry = independent(
                 retryOrder, candidatesByConnection, featuresById, chamberIncidentCounts,
                 routingEnvironment, avoidedTargetByDemand, preference, strategyPrefix);
-        long firstConnected = connectedCount(first);
-        long retryConnected = connectedCount(retry);
-        if (retryConnected != firstConnected) {
-            return retryConnected > firstConnected ? retry : first;
-        }
-        double firstLength = first.lengthByDemand.values().stream().mapToDouble(Double::doubleValue).sum();
-        double retryLength = retry.lengthByDemand.values().stream().mapToDouble(Double::doubleValue).sum();
-        return retryLength + LENGTH_EPSILON_M < firstLength ? retry : first;
+        return betterDraft(first, retry);
     }
 
     private long connectedCount(VariantDraft draft) {
         return draft.connections.stream()
                 .filter(connection -> "connected".equals(connection.getStatus()))
                 .count();
+    }
+
+    private double nearestTieInDistance(
+            Demand demand,
+            Map<String, List<TieInCandidate>> candidatesByConnection) {
+        return candidatesByConnection.getOrDefault(demand.connectionPointId, List.of()).stream()
+                .map(TieInCandidate::getDistanceM)
+                .mapToDouble(BigDecimal::doubleValue)
+                .min()
+                .orElse(Double.POSITIVE_INFINITY);
+    }
+
+    /**
+     * Compares complete draft economics, including the official unconnected penalty. The previous
+     * comparison used construction cost only and could therefore prefer a cheap partial tree over
+     * another tree with the same connection count but materially smaller official penalty.
+     */
+    private VariantDraft betterDraft(VariantDraft left, VariantDraft right) {
+        long leftConnected = connectedCount(left);
+        long rightConnected = connectedCount(right);
+        if (leftConnected != rightConnected) {
+            return rightConnected > leftConnected ? right : left;
+        }
+        BigDecimal leftScore = draftScore(left);
+        BigDecimal rightScore = draftScore(right);
+        if (leftScore != null && rightScore != null && leftScore.compareTo(rightScore) != 0) {
+            return rightScore.compareTo(leftScore) < 0 ? right : left;
+        }
+        double leftLength = totalRouteLength(left);
+        double rightLength = totalRouteLength(right);
+        if (Math.abs(leftLength - rightLength) > LENGTH_EPSILON_M) {
+            return rightLength < leftLength ? right : left;
+        }
+        int leftChambers = newBranchChamberCount(left);
+        int rightChambers = newBranchChamberCount(right);
+        if (leftChambers != rightChambers) {
+            return rightChambers < leftChambers ? right : left;
+        }
+        double leftGeometry = constructabilityPenalty(left);
+        double rightGeometry = constructabilityPenalty(right);
+        return rightGeometry + LENGTH_EPSILON_M < leftGeometry ? right : left;
+    }
+
+    private BigDecimal draftScore(VariantDraft draft) {
+        Map<String, BigDecimal> demandFlowByNode = draft.connections.stream()
+                .filter(connection -> "connected".equals(connection.getStatus()))
+                .collect(Collectors.toMap(
+                        connection -> "demand:" + connection.getDemandId(),
+                        RouteConnection::getFlowTph,
+                        BigDecimal::add,
+                        LinkedHashMap::new));
+        NetworkSizingResult sizing = sizeRoutes(draft.edges, demandFlowByNode);
+        if (!sizing.isValid()) {
+            return null;
+        }
+        return economicsCalculator.calculate(
+                        new ArrayList<>(draft.nodes.values()),
+                        applySizing(draft.edges, sizing),
+                        draft.connections,
+                        ExistingNetworkReconstructionResult.empty(),
+                        false)
+                .getScore();
+    }
+
+    /** Secondary deterministic tie-breaker; it is deliberately not an official cost tariff. */
+    private double constructabilityPenalty(VariantDraft draft) {
+        double result = 0.0;
+        for (RouteEdge edge : draft.edges) {
+            List<RouteCoordinate> coordinates = edge.getCoordinates();
+            for (int index = 1; index + 1 < coordinates.size(); index++) {
+                Coordinate before = coordinates.get(index - 1).toCoordinate();
+                Coordinate at = coordinates.get(index).toCoordinate();
+                Coordinate after = coordinates.get(index + 1).toCoordinate();
+                result += turnPenalty(before, at, after);
+            }
+        }
+        return result;
+    }
+
+    private double turnPenalty(Coordinate before, Coordinate at, Coordinate after) {
+        double ax = before.x - at.x;
+        double ay = before.y - at.y;
+        double bx = after.x - at.x;
+        double by = after.y - at.y;
+        double denominator = Math.hypot(ax, ay) * Math.hypot(bx, by);
+        if (denominator <= LENGTH_EPSILON_M) {
+            return 0.0;
+        }
+        double angle = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0,
+                (ax * bx + ay * by) / denominator))));
+        double deflection = Math.abs(180.0 - angle);
+        if (deflection <= 1.0) {
+            return 0.0;
+        }
+        return 1.0 + Math.pow(Math.sin(Math.toRadians(2.0 * deflection)), 2.0);
     }
 
     private VariantDraft shared(
@@ -454,7 +612,6 @@ public class OfficialRoutePlanner {
         draft = selection.draft;
         paired = selection.pairedDemandIds;
         usedChamberSlots = selection.usedChamberSlots;
-
         for (Demand demand : demands) {
             if (paired.contains(demand.id)) {
                 continue;
@@ -493,7 +650,7 @@ public class OfficialRoutePlanner {
             }
             addDirect(draft, demand, direct, "shared");
         }
-        return improveWholeTree(draft, demands, routingEnvironment);
+        return improveWholeTree(draft, demands, featuresById, routingEnvironment);
     }
 
     private VariantDraft coverageFirstShared(
@@ -519,19 +676,7 @@ public class OfficialRoutePlanner {
                 demands, candidatesByConnection, featuresById, chamberIncidentCounts,
                 independentLengthByDemand, independentCostByDemand,
                 routingEnvironment, failedDemandIds);
-        long firstConnected = connectedCount(first);
-        long retryConnected = connectedCount(retry);
-        if (retryConnected != firstConnected) {
-            return retryConnected > firstConnected ? retry : first;
-        }
-        BigDecimal firstCost = totalNetworkConstructionCost(first);
-        BigDecimal retryCost = totalNetworkConstructionCost(retry);
-        if (firstCost != null && retryCost != null && firstCost.compareTo(retryCost) != 0) {
-            return retryCost.compareTo(firstCost) < 0 ? retry : first;
-        }
-        double firstLength = first.edges.stream().mapToDouble(edge -> edge.getLengthM().doubleValue()).sum();
-        double retryLength = retry.edges.stream().mapToDouble(edge -> edge.getLengthM().doubleValue()).sum();
-        return retryLength + LENGTH_EPSILON_M < firstLength ? retry : first;
+        return betterDraft(first, retry);
     }
 
     private PairPlan bestPairPlan(
@@ -582,24 +727,25 @@ public class OfficialRoutePlanner {
             BigDecimal trunkFlow = left.flowTph.add(right.flowTph);
             int trunkDiameter = diameterFor(trunkFlow);
             Coordinate targetCoordinateForCandidates = targetCoordinate(
-                    midpoint(left.routingStart(), right.routingStart()), target.getMetricGeometry());
+                    midpoint(left.routingStart(), right.routingStart()),
+                    leftCandidate,
+                    target.getMetricGeometry());
             for (Coordinate junction : sharedJunctionCandidates(
                     left, right, targetCoordinateForCandidates, trunkDiameter, routingEnvironment)) {
-                Coordinate targetCoordinate = targetCoordinate(junction, target.getMetricGeometry());
-                RoutePath leftPath = obstacleRouter.find(
-                        left.routingStart(), junction, leftDiameter, routingEnvironment,
-                        Collections.emptySet(), RoutePreference.LEFT);
-                RoutePath rightPath = obstacleRouter.find(
-                        right.routingStart(), junction, rightDiameter, routingEnvironment,
-                        Collections.emptySet(), RoutePreference.RIGHT);
+                Coordinate targetCoordinate = targetCoordinate(
+                        junction, leftCandidate, target.getMetricGeometry());
+                RoutePath leftPath = routeDemand(
+                        left, junction, leftDiameter, routingEnvironment,
+                        Collections.emptySet(), RoutePreference.LEFT, Collections.emptyList());
+                RoutePath rightPath = routeDemand(
+                        right, junction, rightDiameter, routingEnvironment,
+                        Collections.emptySet(), RoutePreference.RIGHT, Collections.emptyList());
                 RoutePath trunkPath = obstacleRouter.find(
                         junction, targetCoordinate, trunkDiameter, routingEnvironment,
                         Set.of(leftCandidate.getTargetId()), RoutePreference.SHORTEST);
                 if (leftPath == null || rightPath == null || trunkPath == null) {
                     continue;
                 }
-                leftPath = left.withMandatoryEgress(leftPath);
-                rightPath = right.withMandatoryEgress(rightPath);
                 double totalLength = leftPath.lengthM() + rightPath.lengthM() + trunkPath.lengthM();
                 double saving = independentLeft + independentRight - totalLength;
                 Assignment assignment = new Assignment(
@@ -618,19 +764,23 @@ public class OfficialRoutePlanner {
                 PairPlan candidate = new PairPlan(
                         left, right, junction, assignment, leftPath, rightPath,
                         leftDiameter, rightDiameter, totalLength, saving, savingCost);
-                if (best == null
-                        || candidate.savingCost.compareTo(best.savingCost) > 0
-                        || (candidate.savingCost.compareTo(best.savingCost) == 0
-                                && candidate.savingM > best.savingM)
-                        || (candidate.savingCost.compareTo(best.savingCost) == 0
-                                && candidate.savingM == best.savingM
-                                && targetKey(candidate.assignment.candidate)
-                                        .compareTo(targetKey(best.assignment.candidate)) < 0)) {
+                if (betterPairPlan(candidate, best)) {
                     best = candidate;
                 }
             }
         }
         return best;
+    }
+
+    private boolean betterPairPlan(PairPlan candidate, PairPlan current) {
+        return current == null
+                || candidate.savingCost.compareTo(current.savingCost) > 0
+                || (candidate.savingCost.compareTo(current.savingCost) == 0
+                        && candidate.savingM > current.savingM)
+                || (candidate.savingCost.compareTo(current.savingCost) == 0
+                        && candidate.savingM == current.savingM
+                        && targetKey(candidate.assignment.candidate)
+                                .compareTo(targetKey(current.assignment.candidate)) < 0);
     }
 
     /** Candidate branch points outside every containing OKS, ordered from most balanced. */
@@ -693,7 +843,8 @@ public class OfficialRoutePlanner {
                 continue;
             }
             attemptedTargetIds.add(candidate.getTargetId());
-            Coordinate coordinate = targetCoordinate(demand.coordinate, target.getMetricGeometry());
+            Coordinate coordinate = targetCoordinate(
+                    demand.coordinate, candidate, target.getMetricGeometry());
             RouteNode candidateRoot = rootNode(candidate, coordinate, chamberIncidentCounts, rootSuffix);
             RoutePath optimisticStraightPath = new RoutePath(
                     List.of(demand.coordinate, coordinate),
@@ -714,21 +865,20 @@ public class OfficialRoutePlanner {
                 break;
             }
             routedCandidateCount++;
-            RoutePath path = obstacleRouter.find(
-                    demand.routingStart(),
-                    coordinate,
-                    diameter,
-                    routingEnvironment,
-                    Set.of(candidate.getTargetId()),
-                    preference,
-                    acceptedRoutes);
+            RoutePath path = routeToTieIn(
+                    demand, candidate, target, coordinate, diameter, routingEnvironment,
+                    Set.of(candidate.getTargetId()), preference, acceptedRoutes, featuresById);
             if (path == null) {
                 directBlockers.addAll(obstacleRouter.directBlockingConstraintIds(
                         demand.routingStart(), coordinate, diameter, routingEnvironment,
                         Set.of(candidate.getTargetId()), acceptedRoutes));
+                OfficialRouteGeometryRules.NormalEgress alternate = demand.egressTowards(
+                        routingEnvironment, diameter, coordinate);
+                directBlockers.addAll(obstacleRouter.directBlockingConstraintIds(
+                        demand.routingStart(alternate), coordinate, diameter, routingEnvironment,
+                        Set.of(candidate.getTargetId()), acceptedRoutes));
                 continue;
             }
-            path = demand.withMandatoryEgress(path);
             Assignment assignment = new Assignment(
                     candidate,
                     coordinate,
@@ -762,6 +912,160 @@ public class OfficialRoutePlanner {
         return best;
     }
 
+    /**
+     * Prefers a short perpendicular final leg into a chamber or chamber tie-in. The point model
+     * has no wall geometry, therefore this is a constructability preference relative to the local
+     * existing-network tangent, not a claimed official tariff or unconditional validity rule.
+     */
+    private RoutePath routeToTieIn(
+            Demand demand,
+            TieInCandidate candidate,
+            ImportedOfficialFeature target,
+            Coordinate coordinate,
+            int diameter,
+            OfficialRoutingEnvironment routingEnvironment,
+            Set<String> exemptFeatureIds,
+            RoutePreference preference,
+            List<LineString> acceptedRoutes,
+            Map<String, ImportedOfficialFeature> featuresById) {
+        LineString supportingNetwork = supportingNetwork(candidate, target, coordinate, featuresById);
+        if (supportingNetwork != null) {
+            Coordinate waypoint = perpendicularApproachWaypoint(
+                    supportingNetwork, coordinate, demand.routingStart());
+            if (waypoint != null) {
+                RoutePath approach = routeDemand(
+                        demand, waypoint, diameter, routingEnvironment,
+                        exemptFeatureIds, preference, acceptedRoutes);
+                if (approach != null) {
+                    RoutePath perpendicular = approach.withMandatorySuffix(coordinate);
+                    if (obstacleRouter.lineAllowed(
+                            perpendicular.coordinates(), diameter, routingEnvironment,
+                            exemptFeatureIds, acceptedRoutes)) {
+                        return perpendicular;
+                    }
+                }
+            }
+        }
+        return routeDemand(
+                demand, coordinate, diameter, routingEnvironment,
+                exemptFeatureIds, preference, acceptedRoutes);
+    }
+
+    private LineString supportingNetwork(
+            TieInCandidate candidate,
+            ImportedOfficialFeature target,
+            Coordinate coordinate,
+            Map<String, ImportedOfficialFeature> featuresById) {
+        if (target.getMetricGeometry() instanceof LineString) {
+            return (LineString) target.getMetricGeometry();
+        }
+        if (!"heat_chamber".equals(candidate.getTargetType())) {
+            return null;
+        }
+        return featuresById.values().stream()
+                .filter(feature -> "heat_network".equals(feature.getObjectType()))
+                .filter(feature -> feature.getMetricGeometry() instanceof LineString)
+                .map(feature -> (LineString) feature.getMetricGeometry())
+                .filter(line -> line.distance(geometryFactory.createPoint(coordinate))
+                        <= OfficialRouteGeometryRules.EPSILON_M)
+                .min(Comparator.comparing(line -> line.toText()))
+                .orElse(null);
+    }
+
+    private Coordinate perpendicularApproachWaypoint(
+            LineString supportingNetwork,
+            Coordinate tieIn,
+            Coordinate origin) {
+        LengthIndexedLine indexed = new LengthIndexedLine(supportingNetwork);
+        double index = indexed.project(tieIn);
+        double beforeIndex = Math.max(0.0, index - 1.0);
+        double afterIndex = Math.min(supportingNetwork.getLength(), index + 1.0);
+        if (afterIndex - beforeIndex <= LENGTH_EPSILON_M) {
+            return null;
+        }
+        Coordinate before = indexed.extractPoint(beforeIndex);
+        Coordinate after = indexed.extractPoint(afterIndex);
+        double dx = after.x - before.x;
+        double dy = after.y - before.y;
+        double length = Math.hypot(dx, dy);
+        if (length <= LENGTH_EPSILON_M) {
+            return null;
+        }
+        Coordinate left = new Coordinate(
+                tieIn.x - dy / length * CHAMBER_APPROACH_LENGTH_M,
+                tieIn.y + dx / length * CHAMBER_APPROACH_LENGTH_M);
+        Coordinate right = new Coordinate(
+                tieIn.x + dy / length * CHAMBER_APPROACH_LENGTH_M,
+                tieIn.y - dx / length * CHAMBER_APPROACH_LENGTH_M);
+        return origin.distance(left) <= origin.distance(right) ? left : right;
+    }
+
+    /**
+     * Keeps the nearest short own-OKS exit as the default. A target-facing side is attempted only
+     * when that established route is unavailable, preventing the fallback that restores difficult
+     * terminals from lengthening every already-good connection.
+     */
+    private RoutePath routeDemand(
+            Demand demand,
+            Coordinate target,
+            int diameter,
+            OfficialRoutingEnvironment routingEnvironment,
+            Set<String> exemptFeatureIds,
+            RoutePreference preference,
+            List<LineString> acceptedRoutes) {
+        RoutePath nearest = obstacleRouter.find(
+                demand.routingStart(), target, diameter, routingEnvironment,
+                exemptFeatureIds, preference, acceptedRoutes);
+        if (nearest != null) {
+            RoutePath nearestWithEgress = demand.withMandatoryEgress(nearest, demand.egress);
+            double direct = demand.coordinate.distance(target);
+            if (direct <= MIN_EDGE_LENGTH_M
+                    || nearestWithEgress.lengthM() / direct <= EXCESSIVE_DETOUR_RATIO) {
+                return nearestWithEgress;
+            }
+            OfficialRouteGeometryRules.NormalEgress alternate = demand.egressTowards(
+                    routingEnvironment, diameter, target);
+            if (!sameEgress(demand.egress, alternate)) {
+                RoutePath targetFacing = obstacleRouter.find(
+                        demand.routingStart(alternate), target, diameter, routingEnvironment,
+                        exemptFeatureIds, preference, acceptedRoutes);
+                if (targetFacing != null) {
+                    targetFacing = demand.withMandatoryEgress(targetFacing, alternate);
+                    if (targetFacing.lengthM() + LENGTH_EPSILON_M < nearestWithEgress.lengthM()) {
+                        return targetFacing;
+                    }
+                }
+            }
+            return nearestWithEgress;
+        }
+        if (!acceptedRoutes.isEmpty()) {
+            RoutePath unobstructedByTree = obstacleRouter.find(
+                    demand.routingStart(), target, diameter, routingEnvironment,
+                    exemptFeatureIds, preference, Collections.emptyList());
+            if (unobstructedByTree != null) {
+                return null;
+            }
+        }
+        OfficialRouteGeometryRules.NormalEgress alternate = demand.egressTowards(
+                routingEnvironment, diameter, target);
+        if (sameEgress(demand.egress, alternate)) {
+            return null;
+        }
+        RoutePath fallback = obstacleRouter.find(
+                demand.routingStart(alternate), target, diameter, routingEnvironment,
+                exemptFeatureIds, preference, acceptedRoutes);
+        return fallback == null ? null : demand.withMandatoryEgress(fallback, alternate);
+    }
+
+    private boolean sameEgress(
+            OfficialRouteGeometryRules.NormalEgress left,
+            OfficialRouteGeometryRules.NormalEgress right) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        return left.exit().distance(right.exit()) <= OfficialRouteGeometryRules.EPSILON_M;
+    }
+
     private BigDecimal marginalConnectionCost(Demand demand, Assignment assignment) {
         RouteNode demandNode = demandNode(demand);
         RouteEdge edge = routeEdge(
@@ -788,47 +1092,93 @@ public class OfficialRoutePlanner {
             Demand demand,
             VariantDraft draft,
             OfficialRoutingEnvironment routingEnvironment) {
-        return chooseTreeAttachment(demand, draft, routingEnvironment, false);
+        return chooseTreeAttachment(demand, draft, routingEnvironment, false, false);
     }
 
     private TreeAttachment chooseTreeAttachment(
             Demand demand,
             VariantDraft draft,
             OfficialRoutingEnvironment routingEnvironment,
-            boolean boundedWholeTreeSearch) {
+            boolean boundedWholeTreeSearch,
+            boolean detourRepair) {
+        return chooseTreeAttachment(
+                demand,
+                draft,
+                routingEnvironment,
+                boundedWholeTreeSearch,
+                detourRepair,
+                RoutePreference.SHORTEST);
+    }
+
+    private TreeAttachment chooseTreeAttachment(
+            Demand demand,
+            VariantDraft draft,
+            OfficialRoutingEnvironment routingEnvironment,
+            boolean boundedWholeTreeSearch,
+            boolean detourRepair,
+            RoutePreference preference) {
+        return chooseTreeAttachment(
+                demand,
+                draft,
+                routingEnvironment,
+                boundedWholeTreeSearch,
+                detourRepair,
+                preference,
+                null);
+    }
+
+    private TreeAttachment chooseTreeAttachment(
+            Demand demand,
+            VariantDraft draft,
+            OfficialRoutingEnvironment routingEnvironment,
+            boolean boundedWholeTreeSearch,
+            boolean detourRepair,
+            RoutePreference preference,
+            Set<String> allowedEdgeIds) {
         if (draft.edges.isEmpty()) {
             return null;
         }
+        boolean restrictedToGroupSpine = allowedEdgeIds != null && !allowedEdgeIds.isEmpty();
         TreeAttachment best = null;
         List<RouteNode> existingJunctions = draft.nodes.values().stream()
                 .filter(RouteNode::isChamber)
                 .filter(node -> !node.isRoot())
+                .filter(node -> !restrictedToGroupSpine || draft.edges.stream()
+                        .filter(edge -> allowedEdgeIds.contains(edge.getId()))
+                        .anyMatch(edge -> edge.getUpstreamNodeId().equals(node.getId())
+                                || edge.getDownstreamNodeId().equals(node.getId())))
                 .sorted(Comparator
                         .comparingDouble((RouteNode node) -> node.getCoordinate().toCoordinate()
-                                .distance(demand.routingStart()))
+                                .distance(demand.coordinate))
                         .thenComparing(RouteNode::getId))
-                .limit(1)
+                .limit(boundedWholeTreeSearch
+                        ? (detourRepair ? MAX_GRAFT_JUNCTIONS_FOR_DETOUR_REPAIR : 2)
+                        : MAX_GRAFT_JUNCTIONS_PER_DEMAND)
                 .collect(Collectors.toList());
         for (RouteNode junction : existingJunctions) {
+            Coordinate junctionCoordinate = junction.getCoordinate().toCoordinate();
+            int diameter = diameterFor(demand.flowTph);
+            List<RouteEdge> incidentEdges = draft.edges.stream()
+                    .filter(edge -> edge.getUpstreamNodeId().equals(junction.getId())
+                            || edge.getDownstreamNodeId().equals(junction.getId()))
+                    .collect(Collectors.toList());
             List<LineString> acceptedRoutes = draft.edges.stream()
                     .filter(edge -> !edge.getUpstreamNodeId().equals(junction.getId()))
                     .filter(edge -> !edge.getDownstreamNodeId().equals(junction.getId()))
                     .filter(edge -> edge.getCoordinates().size() >= 2)
                     .map(this::routeLine)
                     .collect(Collectors.toList());
-            RoutePath branch = obstacleRouter.find(
-                    demand.routingStart(),
-                    junction.getCoordinate().toCoordinate(),
-                    diameterFor(demand.flowTph),
-                    routingEnvironment,
-                    Collections.emptySet(),
-                    RoutePreference.SHORTEST,
-                    acceptedRoutes);
+            RoutePath branch = routeDemand(
+                    demand, junctionCoordinate, diameter, routingEnvironment,
+                    Collections.emptySet(), preference, acceptedRoutes);
             if (branch == null) {
                 continue;
             }
-            branch = demand.withMandatoryEgress(branch);
             if (branch.lengthM() <= MIN_EDGE_LENGTH_M) {
+                continue;
+            }
+            if (incidentEdges.size() >= 3
+                    && !constructibleAdditionalRay(junctionCoordinate, branch, incidentEdges)) {
                 continue;
             }
             TreeAttachment candidate = costTreeAttachment(
@@ -838,19 +1188,22 @@ public class OfficialRoutePlanner {
 
         List<RouteEdge> nearestEdges = draft.edges.stream()
                 .filter(edge -> edge.getCoordinates().size() >= 2)
+                .filter(edge -> !restrictedToGroupSpine || allowedEdgeIds.contains(edge.getId()))
                 .sorted(Comparator
                         .comparingDouble((RouteEdge edge) -> routeLine(edge)
-                                .distance(geometryFactory.createPoint(demand.routingStart())))
+                                .distance(geometryFactory.createPoint(demand.coordinate)))
                         .thenComparing(RouteEdge::getId))
-                .limit(boundedWholeTreeSearch ? 2 : MAX_GRAFT_EDGES_PER_DEMAND)
+                .limit(boundedWholeTreeSearch
+                        ? (detourRepair ? MAX_GRAFT_EDGES_FOR_DETOUR_REPAIR : 2)
+                        : MAX_GRAFT_EDGES_PER_DEMAND)
                 .collect(Collectors.toList());
         for (RouteEdge targetEdge : nearestEdges) {
             LineString targetLine = routeLine(targetEdge);
             LengthIndexedLine indexed = new LengthIndexedLine(targetLine);
             double length = targetLine.getLength();
             List<Double> indexes = boundedWholeTreeSearch
-                    ? List.of(indexed.project(demand.routingStart()))
-                    : List.of(indexed.project(demand.routingStart()), length * 0.50);
+                    ? List.of(indexed.project(demand.coordinate))
+                    : List.of(indexed.project(demand.coordinate), length * 0.50);
             List<Coordinate> tried = new ArrayList<>();
             for (double index : indexes) {
                 if (index <= MIN_EDGE_LENGTH_M || length - index <= MIN_EDGE_LENGTH_M) {
@@ -879,18 +1232,21 @@ public class OfficialRoutePlanner {
                         .filter(edge -> edge.getCoordinates().size() >= 2)
                         .map(this::routeLine)
                         .collect(Collectors.toList());
-                RoutePath branch = obstacleRouter.find(
-                        demand.routingStart(),
-                        split.coordinate(),
-                        diameterFor(demand.flowTph),
-                        routingEnvironment,
-                        Collections.emptySet(),
-                        RoutePreference.SHORTEST,
-                        acceptedRoutes);
+                int diameter = diameterFor(demand.flowTph);
+                RoutePath branch = routeDemand(
+                        demand, split.coordinate(), diameter, routingEnvironment,
+                        Collections.emptySet(), preference, acceptedRoutes);
                 if (branch == null) {
                     continue;
                 }
-                branch = demand.withMandatoryEgress(branch);
+                branch = preferPerpendicularBranchApproach(
+                        demand,
+                        targetLine,
+                        split.coordinate(),
+                        diameter,
+                        routingEnvironment,
+                        acceptedRoutes,
+                        branch);
                 if (branch.lengthM() <= MIN_EDGE_LENGTH_M) {
                     continue;
                 }
@@ -907,7 +1263,125 @@ public class OfficialRoutePlanner {
                 best = betterTreeAttachment(best, candidate);
             }
         }
-        return best;
+        if (best == null) {
+            return null;
+        }
+        VariantDraft simulation = draft.copy();
+        addTreeAttachment(simulation, demand, best);
+        return isFinalGeometryValid(simulation, routingEnvironment) ? best : null;
+    }
+
+    /**
+     * Prevents a cheap but unbuildable star: every new ray entering an existing chamber must make
+     * a straight, 45-degree or 90-degree construction direction with all rays already present.
+     * A rejected attachment may still be connected through a separate chamber on an adjacent edge.
+     */
+    private boolean constructibleAdditionalRay(
+            Coordinate junction,
+            RoutePath branch,
+            List<RouteEdge> incidentEdges) {
+        Coordinate newRay = rayAtPathEnd(branch, junction);
+        if (newRay == null) {
+            return false;
+        }
+        for (RouteEdge edge : incidentEdges) {
+            Coordinate existingRay = rayAtNode(edge, junction);
+            if (existingRay == null || !isConstructibleRayPair(newRay, existingRay)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private Coordinate rayAtPathEnd(RoutePath path, Coordinate junction) {
+        List<Coordinate> coordinates = path.coordinates();
+        if (coordinates.size() < 2) {
+            return null;
+        }
+        Coordinate adjacent = coordinates.get(coordinates.size() - 2);
+        return ray(junction, adjacent);
+    }
+
+    private Coordinate rayAtNode(RouteEdge edge, Coordinate junction) {
+        List<RouteCoordinate> coordinates = edge.getCoordinates();
+        if (coordinates.size() < 2) {
+            return null;
+        }
+        Coordinate first = coordinates.get(0).toCoordinate();
+        Coordinate last = coordinates.get(coordinates.size() - 1).toCoordinate();
+        Coordinate adjacent = first.distance(junction) <= last.distance(junction)
+                ? coordinates.get(1).toCoordinate()
+                : coordinates.get(coordinates.size() - 2).toCoordinate();
+        return ray(junction, adjacent);
+    }
+
+    private Coordinate ray(Coordinate origin, Coordinate destination) {
+        double dx = destination.x - origin.x;
+        double dy = destination.y - origin.y;
+        return Math.hypot(dx, dy) <= LENGTH_EPSILON_M ? null : new Coordinate(dx, dy);
+    }
+
+    private boolean isConstructibleRayPair(Coordinate first, Coordinate second) {
+        return isConstructibleRayPair(first, second, JUNCTION_ANGLE_TOLERANCE_DEGREES);
+    }
+
+    private boolean isConstructibleRayPair(
+            Coordinate first,
+            Coordinate second,
+            double toleranceDegrees) {
+        double denominator = Math.hypot(first.x, first.y) * Math.hypot(second.x, second.y);
+        if (denominator <= LENGTH_EPSILON_M) {
+            return false;
+        }
+        double angle = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0,
+                (first.x * second.x + first.y * second.y) / denominator))));
+        double deviation = Math.min(
+                Math.abs(angle - 45.0),
+                Math.min(Math.abs(angle - 90.0),
+                        Math.min(Math.abs(angle - 135.0), Math.abs(angle - 180.0))));
+        return deviation <= toleranceDegrees;
+    }
+
+    /**
+     * A graft chamber is easier to build when the new branch reaches the supporting trunk at a
+     * right angle. Keep the ordinary shortest branch as the baseline and accept a four-metre
+     * perpendicular final leg only when it is legal and adds at most five percent locally.
+     */
+    private RoutePath preferPerpendicularBranchApproach(
+            Demand demand,
+            LineString supportingEdge,
+            Coordinate junction,
+            int diameter,
+            OfficialRoutingEnvironment routingEnvironment,
+            List<LineString> acceptedRoutes,
+            RoutePath shortest) {
+        Coordinate waypoint = perpendicularApproachWaypoint(
+                supportingEdge, junction, demand.routingStart());
+        if (waypoint == null) {
+            return shortest;
+        }
+        RoutePath approach = routeDemand(
+                demand,
+                waypoint,
+                diameter,
+                routingEnvironment,
+                Collections.emptySet(),
+                RoutePreference.SHORTEST,
+                acceptedRoutes);
+        if (approach == null) {
+            return shortest;
+        }
+        RoutePath perpendicular = approach.withMandatorySuffix(junction);
+        if (perpendicular.lengthM() > shortest.lengthM() * 1.05
+                || !obstacleRouter.lineAllowed(
+                        perpendicular.coordinates(),
+                        diameter,
+                        routingEnvironment,
+                        Collections.emptySet(),
+                        acceptedRoutes)) {
+            return shortest;
+        }
+        return perpendicular;
     }
 
     private boolean liesOnTerminalMandatoryEgress(
@@ -944,6 +1418,7 @@ public class OfficialRoutePlanner {
     private VariantDraft improveWholeTree(
             VariantDraft initial,
             List<Demand> demands,
+            Map<String, ImportedOfficialFeature> featuresById,
             OfficialRoutingEnvironment routingEnvironment) {
         VariantDraft current = initial;
         boolean improved;
@@ -958,12 +1433,15 @@ public class OfficialRoutePlanner {
             double currentLength = totalRouteLength(current);
             int currentNewChambers = newBranchChamberCount(current);
             for (Demand demand : demands) {
+                boolean detourRepair = current.edges.stream()
+                        .filter(edge -> edge.getDownstreamNodeId().equals("demand:" + demand.id))
+                        .anyMatch(edge -> edgeDetourRatio(edge) > EXCESSIVE_DETOUR_RATIO);
                 VariantDraft withoutDemand = detachDemandAndNormalize(current, demand);
                 if (withoutDemand == null || withoutDemand.edges.isEmpty()) {
                     continue;
                 }
                 TreeAttachment attachment = chooseTreeAttachment(
-                        demand, withoutDemand, routingEnvironment, true);
+                        demand, withoutDemand, routingEnvironment, true, detourRepair);
                 if (attachment == null) {
                     continue;
                 }
@@ -995,7 +1473,1639 @@ public class OfficialRoutePlanner {
                 }
             }
         } while (improved && acceptedMoves < MAX_WHOLE_TREE_ACCEPTED_MOVES);
+        current = relocateNewTieInChambers(current, featuresById, routingEnvironment);
+        return mergeAdjacentBranchChambers(current, demands, routingEnvironment);
+    }
+
+    /**
+     * Reprojects a new tie-in chamber after the shared tree has been assembled. The initial point
+     * is selected for one or two terminals; retaining it after grafting can leave the final trunk
+     * behind an OKS and introduce an avoidable obstacle detour.
+     */
+    private VariantDraft relocateNewTieInChambers(
+            VariantDraft source,
+            Map<String, ImportedOfficialFeature> featuresById,
+            OfficialRoutingEnvironment routingEnvironment) {
+        VariantDraft current = source;
+        List<String> rootIds = source.nodes.values().stream()
+                .filter(RouteNode::isRoot)
+                .filter(node -> "new_tie_in_chamber".equals(node.getNodeType()))
+                .filter(node -> node.getTargetId() != null)
+                .map(RouteNode::getId)
+                .sorted()
+                .collect(Collectors.toList());
+        for (String rootId : rootIds) {
+            RouteNode root = current.nodes.get(rootId);
+            ImportedOfficialFeature supportingFeature = root == null
+                    ? null
+                    : featuresById.get(root.getTargetId());
+            if (supportingFeature == null
+                    || !"heat_network".equals(supportingFeature.getObjectType())) {
+                continue;
+            }
+            List<RouteEdge> incident = incidentEdges(current, rootId);
+            if (incident.size() != 1) {
+                continue;
+            }
+            RouteEdge rootEdge = incident.get(0);
+            String treeNodeId = rootEdge.getUpstreamNodeId().equals(rootId)
+                    ? rootEdge.getDownstreamNodeId()
+                    : rootEdge.getUpstreamNodeId();
+            RouteNode treeNode = current.nodes.get(treeNodeId);
+            if (treeNode == null) {
+                continue;
+            }
+            Coordinate projected = closestPointOnLinework(
+                    supportingFeature.getMetricGeometry(),
+                    treeNode.getCoordinate().toCoordinate());
+            if (projected == null
+                    || projected.distance(root.getCoordinate().toCoordinate()) <= 0.10
+                    || projected.distance(treeNode.getCoordinate().toCoordinate())
+                            + CHAMBER_APPROACH_LENGTH_M >= rootEdge.getLengthM().doubleValue()
+                    || tooCloseToExistingChamber(projected, featuresById)) {
+                continue;
+            }
+            VariantDraft candidate = relocatedTieInDraft(
+                    current, root, treeNode, rootEdge, supportingFeature, projected,
+                    routingEnvironment);
+            if (candidate == null || !isFinalGeometryValid(candidate, routingEnvironment)) {
+                continue;
+            }
+            BigDecimal currentCost = totalNetworkConstructionCost(current);
+            BigDecimal candidateCost = totalNetworkConstructionCost(candidate);
+            if (currentCost == null || candidateCost == null) {
+                continue;
+            }
+            double currentLength = totalRouteLength(current);
+            double candidateLength = totalRouteLength(candidate);
+            if (candidateCost.compareTo(currentCost) < 0
+                    || candidateCost.compareTo(currentCost) == 0
+                            && candidateLength + LENGTH_EPSILON_M < currentLength) {
+                LOGGER.info(
+                        "Tie-in chamber relocated target={} old_x={} old_y={} new_x={} new_y={} length_before={} length_after={}",
+                        root.getTargetId(),
+                        root.getCoordinate().getXM(), root.getCoordinate().getYM(),
+                        projected.x, projected.y, currentLength, candidateLength);
+                current = candidate;
+            }
+        }
         return current;
+    }
+
+    /**
+     * Cost-only topology pass. A new chamber on an existing segment may be replaced by a connected
+     * existing chamber even beyond the mandatory 10 m reuse radius, but only when the fully sized
+     * and validated network becomes cheaper.
+     */
+    private VariantDraft reuseExistingChambersForCheapest(
+            VariantDraft source,
+            Map<String, ImportedOfficialFeature> featuresById,
+            Map<String, Integer> chamberIncidentCounts,
+            OfficialRoutingEnvironment routingEnvironment) {
+        VariantDraft current = source;
+        BigDecimal currentCost = totalNetworkConstructionCost(current);
+        if (currentCost == null) {
+            return current;
+        }
+        List<String> rootIds = source.nodes.values().stream()
+                .filter(RouteNode::isRoot)
+                .filter(node -> "new_tie_in_chamber".equals(node.getNodeType()))
+                .map(RouteNode::getId)
+                .sorted()
+                .collect(Collectors.toList());
+        for (String rootId : rootIds) {
+            RouteNode root = current.nodes.get(rootId);
+            ImportedOfficialFeature supportingFeature = root == null
+                    ? null
+                    : featuresById.get(root.getTargetId());
+            if (root == null
+                    || !"new_tie_in_chamber".equals(root.getNodeType())
+                    || supportingFeature == null
+                    || !"heat_network".equals(supportingFeature.getObjectType())) {
+                continue;
+            }
+            List<RouteEdge> incident = incidentEdges(current, rootId);
+            if (incident.size() != 1) {
+                continue;
+            }
+            RouteEdge rootEdge = incident.get(0);
+            String treeNodeId = rootEdge.getUpstreamNodeId().equals(rootId)
+                    ? rootEdge.getDownstreamNodeId()
+                    : rootEdge.getUpstreamNodeId();
+            RouteNode treeNode = current.nodes.get(treeNodeId);
+            if (treeNode == null) {
+                continue;
+            }
+            VariantDraft currentSnapshot = current;
+            List<ImportedOfficialFeature> chamberAlternatives = featuresById.values().stream()
+                    .filter(feature -> "heat_chamber".equals(feature.getObjectType()))
+                    .filter(feature -> chamberIncidentCounts.getOrDefault(feature.getFeatureId(), 0) < 4)
+                    .filter(feature -> supportingFeature.getMetricGeometry()
+                            .distance(feature.getMetricGeometry()) <= OfficialRouteGeometryRules.EPSILON_M)
+                    .filter(feature -> root.getCoordinate().toCoordinate()
+                            .distance(feature.getMetricGeometry().getCoordinate())
+                            <= MAX_OPTIONAL_EXISTING_CHAMBER_DISTANCE_M)
+                    .filter(feature -> currentSnapshot.nodes.values().stream()
+                            .filter(RouteNode::isRoot)
+                            .noneMatch(node -> feature.getFeatureId().equals(node.getTargetId())))
+                    .sorted(Comparator.comparingDouble(feature -> root.getCoordinate().toCoordinate()
+                            .distance(feature.getMetricGeometry().getCoordinate())))
+                    .limit(MAX_EXISTING_CHAMBER_ALTERNATIVES_PER_ROOT)
+                    .collect(Collectors.toList());
+            VariantDraft best = current;
+            BigDecimal bestCost = currentCost;
+            double bestLength = totalRouteLength(current);
+            ImportedOfficialFeature selectedChamber = null;
+            for (ImportedOfficialFeature chamber : chamberAlternatives) {
+                Coordinate chamberCoordinate = chamber.getMetricGeometry().getCoordinate();
+                List<ImportedOfficialFeature> chamberNetworks = featuresById.values().stream()
+                        .filter(feature -> "heat_network".equals(feature.getObjectType()))
+                        .filter(feature -> feature.getMetricGeometry()
+                                .distance(chamber.getMetricGeometry()) <= OfficialRouteGeometryRules.EPSILON_M)
+                        .sorted(Comparator
+                                .comparing((ImportedOfficialFeature feature) ->
+                                        !feature.getFeatureId().equals(supportingFeature.getFeatureId()))
+                                .thenComparing(ImportedOfficialFeature::getFeatureId))
+                        .limit(4)
+                        .collect(Collectors.toList());
+                for (ImportedOfficialFeature approachNetwork : chamberNetworks) {
+                    VariantDraft candidate = rewiredTieInDraft(
+                            current,
+                            root,
+                            treeNode,
+                            rootEdge,
+                            approachNetwork,
+                            chamberCoordinate,
+                            "existing_chamber_tie_in",
+                            chamber.getFeatureId(),
+                            chamberIncidentCounts.getOrDefault(chamber.getFeatureId(), 0),
+                            "optimized:tie-existing:",
+                            routingEnvironment);
+                    if (candidate == null || !isFinalGeometryValid(candidate, routingEnvironment)) {
+                        continue;
+                    }
+                    BigDecimal candidateCost = totalNetworkConstructionCost(candidate);
+                    double candidateLength = totalRouteLength(candidate);
+                    if (candidateCost != null
+                            && (candidateCost.compareTo(bestCost) < 0
+                                    || candidateCost.compareTo(bestCost) == 0
+                                            && candidateLength + LENGTH_EPSILON_M < bestLength)) {
+                        best = candidate;
+                        bestCost = candidateCost;
+                        bestLength = candidateLength;
+                        selectedChamber = chamber;
+                    }
+                }
+            }
+            if (best != current) {
+                LOGGER.info(
+                        "Cheapest variant reused chamber={} instead_of_segment={} cost_before={} cost_after={} length_after={}",
+                        selectedChamber == null ? null : selectedChamber.getFeatureId(),
+                        root.getTargetId(), currentCost, bestCost, bestLength);
+                current = best;
+                currentCost = bestCost;
+            }
+        }
+        return current;
+    }
+
+    private VariantDraft relocatedTieInDraft(
+            VariantDraft source,
+            RouteNode root,
+            RouteNode treeNode,
+            RouteEdge rootEdge,
+            ImportedOfficialFeature supportingFeature,
+            Coordinate projected,
+            OfficialRoutingEnvironment routingEnvironment) {
+        return rewiredTieInDraft(
+                source,
+                root,
+                treeNode,
+                rootEdge,
+                supportingFeature,
+                projected,
+                root.getNodeType(),
+                root.getTargetId(),
+                root.getBaseIncidentSections(),
+                "optimized:tie-relocate:",
+                routingEnvironment);
+    }
+
+    private VariantDraft rewiredTieInDraft(
+            VariantDraft source,
+            RouteNode root,
+            RouteNode treeNode,
+            RouteEdge rootEdge,
+            ImportedOfficialFeature supportingFeature,
+            Coordinate projected,
+            String replacementNodeType,
+            String replacementTargetId,
+            int replacementBaseIncidentSections,
+            String edgeIdPrefix,
+            OfficialRoutingEnvironment routingEnvironment) {
+        LineString supportingLine = closestLineString(
+                supportingFeature.getMetricGeometry(), projected);
+        if (supportingLine == null) {
+            return null;
+        }
+        Coordinate treeCoordinate = treeNode.getCoordinate().toCoordinate();
+        Coordinate waypoint = perpendicularApproachWaypoint(
+                supportingLine, projected, treeCoordinate);
+        if (waypoint == null) {
+            return null;
+        }
+        List<LineString> acceptedRoutes = source.edges.stream()
+                .filter(edge -> !edge.getId().equals(rootEdge.getId()))
+                .filter(edge -> !edge.getUpstreamNodeId().equals(treeNode.getId()))
+                .filter(edge -> !edge.getDownstreamNodeId().equals(treeNode.getId()))
+                .filter(edge -> edge.getCoordinates().size() >= 2)
+                .map(this::routeLine)
+                .collect(Collectors.toList());
+        RoutePath treeToWaypoint = obstacleRouter.find(
+                treeCoordinate,
+                waypoint,
+                rootEdge.getDiameter(),
+                routingEnvironment,
+                Set.of(supportingFeature.getFeatureId()),
+                RoutePreference.SHORTEST,
+                acceptedRoutes);
+        if (treeToWaypoint == null) {
+            return null;
+        }
+        RoutePath treeToTieIn = treeToWaypoint.withMandatorySuffix(projected);
+        List<RouteEdge> remainingAtTreeNode = incidentEdges(source, treeNode.getId()).stream()
+                .filter(edge -> !edge.getId().equals(rootEdge.getId()))
+                .collect(Collectors.toList());
+        if (!constructibleAdditionalRay(
+                treeCoordinate, treeToTieIn.reversed(), remainingAtTreeNode)) {
+            treeToTieIn = constructibleTieInPath(
+                    projected,
+                    waypoint,
+                    treeNode,
+                    remainingAtTreeNode,
+                    rootEdge.getDiameter(),
+                    routingEnvironment,
+                    supportingFeature.getFeatureId(),
+                    acceptedRoutes);
+        }
+        if (treeToTieIn == null) {
+            return null;
+        }
+        if (!obstacleRouter.lineAllowed(
+                treeToTieIn.coordinates(),
+                rootEdge.getDiameter(),
+                routingEnvironment,
+                Set.of(supportingFeature.getFeatureId()),
+                acceptedRoutes)) {
+            return null;
+        }
+        if (!constructibleAdditionalRay(
+                treeCoordinate, treeToTieIn.reversed(), remainingAtTreeNode)) {
+            return null;
+        }
+        VariantDraft result = source.copy();
+        result.nodes.put(root.getId(), new RouteNode(
+                root.getId(),
+                replacementNodeType,
+                new RouteCoordinate(projected.x, projected.y),
+                root.isChamber(),
+                true,
+                replacementBaseIncidentSections,
+                replacementTargetId));
+        result.edges.removeIf(edge -> edge.getId().equals(rootEdge.getId()));
+        boolean rootIsUpstream = rootEdge.getUpstreamNodeId().equals(root.getId());
+        RoutePath oriented = rootIsUpstream ? treeToTieIn.reversed() : treeToTieIn;
+        result.addEdge(routeEdge(
+                edgeIdPrefix + rootEdge.getId(),
+                rootEdge.getUpstreamNodeId(),
+                rootEdge.getDownstreamNodeId(),
+                oriented,
+                rootEdge.getFlowTph(),
+                rootEdge.getDiameter()));
+        return isStructurallyValid(result) ? result : null;
+    }
+
+    private RoutePath constructibleTieInPath(
+            Coordinate tieIn,
+            Coordinate tieInApproach,
+            RouteNode treeNode,
+            List<RouteEdge> existingTreeRays,
+            int diameter,
+            OfficialRoutingEnvironment routingEnvironment,
+            String supportingFeatureId,
+            List<LineString> acceptedRoutes) {
+        Coordinate treeCoordinate = treeNode.getCoordinate().toCoordinate();
+        for (Coordinate treeApproach : constructibleApproachWaypoints(
+                treeCoordinate, tieInApproach, existingTreeRays)) {
+            RoutePath betweenApproaches = obstacleRouter.find(
+                    tieInApproach,
+                    treeApproach,
+                    diameter,
+                    routingEnvironment,
+                    Set.of(supportingFeatureId),
+                    RoutePreference.SHORTEST,
+                    acceptedRoutes);
+            if (betweenApproaches == null) {
+                continue;
+            }
+            RoutePath candidate = betweenApproaches
+                    .withMandatoryPrefix(tieIn)
+                    .withMandatorySuffix(treeCoordinate);
+            if (constructibleAdditionalRay(
+                    treeCoordinate, candidate, existingTreeRays)
+                    && obstacleRouter.lineAllowed(
+                            candidate.coordinates(),
+                            diameter,
+                            routingEnvironment,
+                            Set.of(supportingFeatureId),
+                            acceptedRoutes)) {
+                return candidate.reversed();
+            }
+        }
+        return null;
+    }
+
+    private List<Coordinate> constructibleApproachWaypoints(
+            Coordinate junction,
+            Coordinate origin,
+            List<RouteEdge> existingEdges) {
+        List<Coordinate> candidates = new ArrayList<>();
+        for (RouteEdge edge : existingEdges) {
+            Coordinate existingRay = rayAtNode(edge, junction);
+            if (existingRay == null) {
+                continue;
+            }
+            double baseAngle = Math.atan2(existingRay.y, existingRay.x);
+            for (int eighthTurn = 1; eighthTurn < 8; eighthTurn++) {
+                double angle = baseAngle + eighthTurn * Math.PI / 4.0;
+                Coordinate candidate = new Coordinate(
+                        junction.x + Math.cos(angle) * CHAMBER_APPROACH_LENGTH_M,
+                        junction.y + Math.sin(angle) * CHAMBER_APPROACH_LENGTH_M);
+                Coordinate candidateRay = ray(junction, candidate);
+                boolean constructible = candidateRay != null && existingEdges.stream()
+                        .map(existing -> rayAtNode(existing, junction))
+                        .filter(java.util.Objects::nonNull)
+                        .allMatch(ray -> isConstructibleRayPair(candidateRay, ray));
+                if (constructible
+                        && candidates.stream().noneMatch(existing -> existing.distance(candidate) < 0.10)) {
+                    candidates.add(candidate);
+                }
+            }
+        }
+        candidates.sort(Comparator
+                .comparingDouble((Coordinate candidate) -> candidate.distance(origin))
+                .thenComparingDouble(candidate -> candidate.x)
+                .thenComparingDouble(candidate -> candidate.y));
+        return candidates.stream().limit(2).collect(Collectors.toList());
+    }
+
+    private Coordinate closestPointOnLinework(Geometry geometry, Coordinate origin) {
+        LineString line = closestLineString(geometry, origin);
+        if (line == null) {
+            return null;
+        }
+        LengthIndexedLine indexed = new LengthIndexedLine(line);
+        return indexed.extractPoint(indexed.project(origin));
+    }
+
+    private LineString closestLineString(Geometry geometry, Coordinate origin) {
+        LineString closest = null;
+        double bestDistance = Double.POSITIVE_INFINITY;
+        for (int index = 0; index < geometry.getNumGeometries(); index++) {
+            Geometry part = geometry.getGeometryN(index);
+            if (!(part instanceof LineString)) {
+                continue;
+            }
+            LineString line = (LineString) part;
+            double distance = line.distance(geometryFactory.createPoint(origin));
+            if (distance < bestDistance) {
+                closest = line;
+                bestDistance = distance;
+            }
+        }
+        return closest;
+    }
+
+    private boolean tooCloseToExistingChamber(
+            Coordinate coordinate,
+            Map<String, ImportedOfficialFeature> featuresById) {
+        return featuresById.values().stream()
+                .filter(feature -> "heat_chamber".equals(feature.getObjectType()))
+                .anyMatch(feature -> feature.getMetricGeometry()
+                        .distance(geometryFactory.createPoint(coordinate))
+                        <= EXISTING_CHAMBER_REUSE_DISTANCE_M + LENGTH_EPSILON_M);
+    }
+
+    /**
+     * Replaces two short-linked degree-three chambers with one degree-four chamber. All four outer
+     * branches are routed again as a group, so the operation can move the junction to the actual
+     * intersection instead of merely deleting one node and overlapping two pipes on the old link.
+     */
+    private VariantDraft mergeAdjacentBranchChambers(
+            VariantDraft source,
+            List<Demand> demands,
+            OfficialRoutingEnvironment routingEnvironment) {
+        VariantDraft merged = bestMergedBranchChamberVariant(
+                source, demands, routingEnvironment, true);
+        return merged == null ? source : merged;
+    }
+
+    /**
+     * Evaluates each expensive chamber-merge topology once and keeps separate winners for length
+     * and construction cost. Previously the same obstacle-routing search ran twice.
+     */
+    private MergedBranchAlternatives mergedBranchChamberAlternatives(
+            VariantDraft source,
+            List<Demand> demands,
+            OfficialRoutingEnvironment routingEnvironment) {
+        List<VariantDraft> candidates = mergedBranchChamberCandidates(
+                source, demands, routingEnvironment);
+        VariantDraft shortest = null;
+        VariantDraft cheapest = null;
+        for (VariantDraft candidate : candidates) {
+            shortest = shorterDraft(shortest, candidate);
+            cheapest = cheaperDraft(cheapest, candidate);
+        }
+        return new MergedBranchAlternatives(shortest, cheapest, candidates);
+    }
+
+    private VariantDraft bestMergedBranchChamberVariant(
+            VariantDraft source,
+            List<Demand> demands,
+            OfficialRoutingEnvironment routingEnvironment,
+            boolean requireScoreImprovement) {
+        VariantDraft best = requireScoreImprovement ? source : null;
+        BigDecimal bestScore = requireScoreImprovement ? draftScore(source) : null;
+        for (VariantDraft merged : mergedBranchChamberCandidates(source, demands, routingEnvironment)) {
+            BigDecimal score = draftScore(merged);
+            LOGGER.info("Chamber merge candidate score={} control_score={}", score, bestScore);
+            if (score != null && (bestScore == null || score.compareTo(bestScore) < 0)) {
+                best = merged;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private List<VariantDraft> mergedBranchChamberCandidates(
+            VariantDraft source,
+            List<Demand> demands,
+            OfficialRoutingEnvironment routingEnvironment) {
+        Map<String, Demand> demandsByNode = demands.stream().collect(Collectors.toMap(
+                demand -> "demand:" + demand.id,
+                demand -> demand,
+                (left, right) -> left,
+                LinkedHashMap::new));
+        List<VariantDraft> candidates = new ArrayList<>();
+        List<RouteEdge> links = source.edges.stream()
+                .filter(edge -> edge.getLengthM().doubleValue() <= MAX_CHAMBER_MERGE_LINK_M)
+                .sorted(Comparator.comparing(RouteEdge::getId))
+                .collect(Collectors.toList());
+        for (RouteEdge link : links) {
+            RouteNode left = source.nodes.get(link.getUpstreamNodeId());
+            RouteNode right = source.nodes.get(link.getDownstreamNodeId());
+            if (!mergeableBranchChamber(left) || !mergeableBranchChamber(right)) {
+                continue;
+            }
+            List<RouteEdge> leftIncident = incidentEdges(source, left.getId());
+            List<RouteEdge> rightIncident = incidentEdges(source, right.getId());
+            if (leftIncident.size() != 3 || rightIncident.size() != 3) {
+                continue;
+            }
+            List<RouteEdge> outerEdges = java.util.stream.Stream
+                    .concat(leftIncident.stream(), rightIncident.stream())
+                    .filter(edge -> !edge.getId().equals(link.getId()))
+                    .distinct()
+                    .sorted(Comparator.comparing(RouteEdge::getId))
+                    .collect(Collectors.toList());
+            if (outerEdges.size() != 4) {
+                continue;
+            }
+            List<Coordinate> outerCoordinates = outerEdges.stream()
+                    .map(edge -> outerNode(source, edge, left.getId(), right.getId()))
+                    .filter(java.util.Objects::nonNull)
+                    .map(node -> node.getCoordinate().toCoordinate())
+                    .collect(Collectors.toList());
+            if (outerCoordinates.size() != 4) {
+                continue;
+            }
+            for (Coordinate candidate : mergedChamberCandidates(left, right, outerCoordinates)) {
+                VariantDraft merged = buildMergedChamberDraft(
+                        source, left, right, link, outerEdges, candidate,
+                        demandsByNode, routingEnvironment);
+                if (merged == null) {
+                    LOGGER.debug("Chamber merge candidate rejected during routing link={} x={} y={}",
+                            link.getId(), candidate.x, candidate.y);
+                    continue;
+                }
+                if (!isFinalGeometryValid(merged, routingEnvironment)) {
+                    LOGGER.debug("Chamber merge candidate rejected by final geometry link={} x={} y={}",
+                            link.getId(), candidate.x, candidate.y);
+                    continue;
+                }
+                if (draftScore(merged) != null) {
+                    LOGGER.info("Valid chamber merge candidate link={} x={} y={}",
+                            link.getId(), candidate.x, candidate.y);
+                    candidates.add(merged);
+                }
+            }
+        }
+        return candidates;
+    }
+
+    private VariantDraft shorterDraft(VariantDraft left, VariantDraft right) {
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        double leftLength = totalRouteLength(left);
+        double rightLength = totalRouteLength(right);
+        if (rightLength + LENGTH_EPSILON_M < leftLength) {
+            return right;
+        }
+        if (Math.abs(rightLength - leftLength) <= LENGTH_EPSILON_M) {
+            return cheaperDraft(left, right);
+        }
+        return left;
+    }
+
+    private VariantDraft cheaperDraft(VariantDraft left, VariantDraft right) {
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        BigDecimal leftCost = totalNetworkConstructionCost(left);
+        BigDecimal rightCost = totalNetworkConstructionCost(right);
+        if (leftCost == null) {
+            return rightCost == null ? shorterDraftWithoutCost(left, right) : right;
+        }
+        if (rightCost == null) {
+            return left;
+        }
+        int comparison = rightCost.compareTo(leftCost);
+        return comparison < 0
+                ? right
+                : comparison > 0 ? left : shorterDraftWithoutCost(left, right);
+    }
+
+    private VariantDraft shorterDraftWithoutCost(VariantDraft left, VariantDraft right) {
+        return totalRouteLength(right) + LENGTH_EPSILON_M < totalRouteLength(left) ? right : left;
+    }
+
+    private void addDistinctDraft(List<VariantDraft> portfolio, VariantDraft candidate) {
+        if (candidate == null) {
+            return;
+        }
+        String signature = draftGeometrySignature(candidate);
+        boolean duplicate = portfolio.stream()
+                .anyMatch(existing -> draftGeometrySignature(existing).equals(signature));
+        if (!duplicate) {
+            portfolio.add(candidate);
+        }
+    }
+
+    private String draftGeometrySignature(VariantDraft draft) {
+        return draft.edges.stream()
+                .map(edge -> edge.getUpstreamNodeId()
+                        + "<-" + edge.getDownstreamNodeId()
+                        + ":" + edge.getCoordinates().stream()
+                                .map(coordinate -> Math.round(coordinate.getXM().doubleValue() * 1000.0)
+                                        + "," + Math.round(coordinate.getYM().doubleValue() * 1000.0))
+                                .collect(Collectors.joining(";")))
+                .sorted()
+                .collect(Collectors.joining("|"));
+    }
+
+    private VariantDraft selectCheapestDraft(List<VariantDraft> candidates) {
+        long maximumCoverage = candidates.stream()
+                .mapToLong(this::connectedCount)
+                .max()
+                .orElse(0L);
+        VariantDraft best = null;
+        for (VariantDraft candidate : candidates) {
+            if (connectedCount(candidate) != maximumCoverage
+                    || totalNetworkConstructionCost(candidate) == null) {
+                continue;
+            }
+            best = cheaperDraft(best, candidate);
+        }
+        return best == null ? candidates.get(0) : best;
+    }
+
+    private VariantDraft selectShortestDraft(List<VariantDraft> candidates) {
+        long maximumCoverage = candidates.stream()
+                .mapToLong(this::connectedCount)
+                .max()
+                .orElse(0L);
+        VariantDraft best = null;
+        for (VariantDraft candidate : candidates) {
+            if (connectedCount(candidate) == maximumCoverage) {
+                best = shorterDraft(best, candidate);
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Chooses the most constructible complete tree inside a bounded economic/length corridor.
+     * The initial five-percent corridor is relaxed once to ten percent when it is empty.
+     */
+    private VariantDraft selectEngineeringDraft(
+            List<VariantDraft> candidates,
+            VariantDraft cheapest,
+            VariantDraft shortest) {
+        if (candidates.isEmpty() || cheapest == null || shortest == null) {
+            return null;
+        }
+        List<VariantDraft> eligible = engineeringCandidatesWithin(
+                candidates, cheapest, shortest, ENGINEERING_PRIMARY_DEVIATION_RATIO);
+        if (eligible.isEmpty()) {
+            eligible = engineeringCandidatesWithin(
+                    candidates, cheapest, shortest, ENGINEERING_RELAXED_DEVIATION_RATIO);
+        }
+        if (eligible.isEmpty()) {
+            return null;
+        }
+        return eligible.stream()
+                .min(engineeringDraftComparator())
+                .orElse(null);
+    }
+
+    private Comparator<VariantDraft> engineeringDraftComparator() {
+        return Comparator
+                .comparingInt((VariantDraft draft) ->
+                        engineeringEvaluator.evaluate(draft.edges).invalidAngleCount())
+                .thenComparingInt(draft ->
+                        engineeringEvaluator.evaluate(draft.edges).insufficientSpacingCount())
+                .thenComparingDouble(draft ->
+                        engineeringEvaluator.evaluate(draft.edges).totalAngleDeviation())
+                .thenComparingInt(draft ->
+                        engineeringEvaluator.evaluate(draft.edges).irregularJunctionAngleCount())
+                .thenComparingDouble(draft -> {
+                    EngineeringRouteEvaluator.Evaluation evaluation =
+                            engineeringEvaluator.evaluate(draft.edges);
+                    return evaluation.preferredAngleDeviation()
+                            + evaluation.totalJunctionAngleDeviation();
+                })
+                .thenComparingInt(draft ->
+                        engineeringEvaluator.evaluate(draft.edges).bendCount())
+                .thenComparingInt(this::newBranchChamberCount)
+                .thenComparing(this::totalNetworkConstructionCost)
+                .thenComparingDouble(this::totalRouteLength)
+                .thenComparing(this::draftGeometrySignature);
+    }
+
+    private List<VariantDraft> engineeringCandidatesWithin(
+            List<VariantDraft> candidates,
+            VariantDraft cheapest,
+            VariantDraft shortest,
+            double deviationRatio) {
+        BigDecimal minimumCost = totalNetworkConstructionCost(cheapest);
+        if (minimumCost == null) {
+            return Collections.emptyList();
+        }
+        BigDecimal maximumCost = minimumCost.multiply(BigDecimal.valueOf(1.0 + deviationRatio));
+        double maximumLength = totalRouteLength(shortest) * (1.0 + deviationRatio);
+        long maximumCoverage = candidates.stream()
+                .mapToLong(this::connectedCount)
+                .max()
+                .orElse(0L);
+        return candidates.stream()
+                .filter(candidate -> connectedCount(candidate) == maximumCoverage)
+                .filter(candidate -> {
+                    BigDecimal cost = totalNetworkConstructionCost(candidate);
+                    return cost != null && cost.compareTo(maximumCost) <= 0;
+                })
+                .filter(candidate -> totalRouteLength(candidate) <= maximumLength + LENGTH_EPSILON_M)
+                .collect(Collectors.toList());
+    }
+
+    private boolean mergeableBranchChamber(RouteNode node) {
+        return node != null
+                && !node.isRoot()
+                && "new_branch_chamber".equals(node.getNodeType())
+                && node.getTargetId() == null;
+    }
+
+    private List<RouteEdge> incidentEdges(VariantDraft draft, String nodeId) {
+        return draft.edges.stream()
+                .filter(edge -> edge.getUpstreamNodeId().equals(nodeId)
+                        || edge.getDownstreamNodeId().equals(nodeId))
+                .collect(Collectors.toList());
+    }
+
+    private RouteNode outerNode(
+            VariantDraft draft,
+            RouteEdge edge,
+            String leftId,
+            String rightId) {
+        String outerId = edge.getUpstreamNodeId().equals(leftId)
+                        || edge.getUpstreamNodeId().equals(rightId)
+                ? edge.getDownstreamNodeId()
+                : edge.getUpstreamNodeId();
+        return draft.nodes.get(outerId);
+    }
+
+    private List<Coordinate> mergedChamberCandidates(
+            RouteNode left,
+            RouteNode right,
+            List<Coordinate> outer) {
+        Coordinate leftCoordinate = left.getCoordinate().toCoordinate();
+        Coordinate rightCoordinate = right.getCoordinate().toCoordinate();
+        Coordinate center = midpoint(leftCoordinate, rightCoordinate);
+        List<Coordinate> raw = new ArrayList<>(List.of(
+                leftCoordinate,
+                rightCoordinate,
+                center));
+        int[][] pairings = {{0, 1, 2, 3}, {0, 2, 1, 3}, {0, 3, 1, 2}};
+        for (int[] pairing : pairings) {
+            Coordinate intersection = lineIntersection(
+                    outer.get(pairing[0]), outer.get(pairing[1]),
+                    outer.get(pairing[2]), outer.get(pairing[3]));
+            if (intersection != null
+                    && intersection.distance(center) <= MAX_CHAMBER_MERGE_RELOCATION_M) {
+                raw.add(intersection);
+            }
+        }
+        List<Coordinate> result = new ArrayList<>();
+        for (Coordinate candidate : raw) {
+            if (result.stream().noneMatch(existing -> existing.distance(candidate) < 0.1)) {
+                result.add(new Coordinate(candidate));
+            }
+        }
+        return result;
+    }
+
+    private Coordinate lineIntersection(
+            Coordinate firstStart,
+            Coordinate firstEnd,
+            Coordinate secondStart,
+            Coordinate secondEnd) {
+        double firstDx = firstEnd.x - firstStart.x;
+        double firstDy = firstEnd.y - firstStart.y;
+        double secondDx = secondEnd.x - secondStart.x;
+        double secondDy = secondEnd.y - secondStart.y;
+        double denominator = firstDx * secondDy - firstDy * secondDx;
+        if (Math.abs(denominator) <= LENGTH_EPSILON_M) {
+            return null;
+        }
+        double offsetX = secondStart.x - firstStart.x;
+        double offsetY = secondStart.y - firstStart.y;
+        double fraction = (offsetX * secondDy - offsetY * secondDx) / denominator;
+        return new Coordinate(
+                firstStart.x + fraction * firstDx,
+                firstStart.y + fraction * firstDy);
+    }
+
+    private VariantDraft buildMergedChamberDraft(
+            VariantDraft source,
+            RouteNode left,
+            RouteNode right,
+            RouteEdge link,
+            List<RouteEdge> outerEdges,
+            Coordinate coordinate,
+            Map<String, Demand> demandsByNode,
+            OfficialRoutingEnvironment routingEnvironment) {
+        int maximumDiameter = outerEdges.stream()
+                .mapToInt(RouteEdge::getDiameter)
+                .max()
+                .orElse(0);
+        if (routingEnvironment.pointInsideForbiddenClearance(maximumDiameter, coordinate)) {
+            return null;
+        }
+        VariantDraft result = source.copy();
+        Set<String> replacedEdgeIds = new HashSet<>();
+        replacedEdgeIds.add(link.getId());
+        outerEdges.forEach(edge -> replacedEdgeIds.add(edge.getId()));
+        result.edges.removeIf(edge -> replacedEdgeIds.contains(edge.getId()));
+        result.nodes.remove(left.getId());
+        result.nodes.remove(right.getId());
+        String mergedId = "junction:merge:" + left.getId() + ":" + right.getId();
+        RouteNode mergedNode = new RouteNode(
+                mergedId,
+                "new_branch_chamber",
+                new RouteCoordinate(coordinate.x, coordinate.y),
+                true,
+                false,
+                0,
+                null);
+        result.addNode(mergedNode);
+        List<LineString> acceptedRoutes = result.edges.stream()
+                .filter(edge -> edge.getCoordinates().size() >= 2)
+                .map(this::routeLine)
+                .collect(Collectors.toCollection(ArrayList::new));
+        List<RouteEdge> mergedEdges = new ArrayList<>();
+        for (RouteEdge edge : outerEdges) {
+            String outerNodeId = edge.getUpstreamNodeId().equals(left.getId())
+                            || edge.getUpstreamNodeId().equals(right.getId())
+                    ? edge.getDownstreamNodeId()
+                    : edge.getUpstreamNodeId();
+            RouteNode outer = result.nodes.get(outerNodeId);
+            if (outer == null) {
+                return null;
+            }
+            RoutePath outerToMerged;
+            Demand demand = demandsByNode.get(outerNodeId);
+            if (demand != null) {
+                outerToMerged = routeDemandTowards(
+                        demand, coordinate, edge.getDiameter(), routingEnvironment, acceptedRoutes);
+            } else {
+                List<LineString> routeAvoidance = result.edges.stream()
+                        .filter(existing -> !existing.getUpstreamNodeId().equals(outerNodeId)
+                                && !existing.getDownstreamNodeId().equals(outerNodeId))
+                        .filter(existing -> existing.getCoordinates().size() >= 2)
+                        .map(this::routeLine)
+                        .collect(Collectors.toCollection(ArrayList::new));
+                outerToMerged = obstacleRouter.find(
+                        outer.getCoordinate().toCoordinate(),
+                        coordinate,
+                        edge.getDiameter(),
+                        routingEnvironment,
+                        Collections.emptySet(),
+                        RoutePreference.SHORTEST,
+                        routeAvoidance);
+            }
+            if (outerToMerged == null) {
+                return null;
+            }
+            boolean mergedIsUpstream = edge.getUpstreamNodeId().equals(left.getId())
+                    || edge.getUpstreamNodeId().equals(right.getId());
+            RoutePath oriented = mergedIsUpstream ? outerToMerged.reversed() : outerToMerged;
+            RouteEdge mergedEdge = routeEdge(
+                    "optimized:merge:" + edge.getId(),
+                    mergedIsUpstream ? mergedId : outerNodeId,
+                    mergedIsUpstream ? outerNodeId : mergedId,
+                    oriented,
+                    edge.getFlowTph(),
+                    edge.getDiameter());
+            mergedEdges.add(mergedEdge);
+        }
+        result.edges.addAll(mergedEdges);
+        if (!isStructurallyValid(result)) {
+            return null;
+        }
+        return result;
+    }
+
+    /**
+     * Re-routes only edges that violate the expert bend rules. This bounded repair reuses the
+     * already-built tree and therefore avoids a second global search for the engineering variants.
+     */
+    private VariantDraft regularizeEngineeringDraft(
+            VariantDraft source,
+            List<Demand> demands,
+            OfficialRoutingEnvironment routingEnvironment,
+            boolean rebuildZones) {
+        VariantDraft current = source;
+        Map<String, Demand> demandsByNode = demands.stream().collect(Collectors.toMap(
+                demand -> "demand:" + demand.id,
+                demand -> demand,
+                (left, right) -> left,
+                LinkedHashMap::new));
+        EngineeringRouteEvaluator.Evaluation currentEvaluation =
+                engineeringEvaluator.evaluate(current.edges);
+        VariantDraft rebuiltZone = rebuildZones
+                ? rebuildEngineeringZones(
+                        current, demands, routingEnvironment, currentEvaluation)
+                : null;
+        if (rebuiltZone != null && isStructurallyValid(rebuiltZone)
+                && isFinalGeometryValid(rebuiltZone, routingEnvironment)
+                && withinEngineeringRepairCorridor(current, rebuiltZone)) {
+            EngineeringRouteEvaluator.Evaluation rebuiltEvaluation =
+                    engineeringEvaluator.evaluate(rebuiltZone.edges);
+            if (engineeringPenalty(rebuiltEvaluation) + LENGTH_EPSILON_M
+                    < engineeringPenalty(currentEvaluation)) {
+                current = rebuiltZone;
+                currentEvaluation = rebuiltEvaluation;
+            }
+        }
+        List<String> edgeIds = new ArrayList<>(currentEvaluation.nonCompliantEdgeIds());
+        Collections.sort(edgeIds);
+        for (String edgeId : edgeIds) {
+            RouteEdge edge = current.edges.stream()
+                    .filter(candidate -> candidate.getId().equals(edgeId))
+                    .findFirst()
+                    .orElse(null);
+            if (edge == null) {
+                continue;
+            }
+            VariantDraft candidate = regularizeEngineeringEdgeLocally(
+                    current, edge, routingEnvironment);
+            if (candidate == null || !isStructurallyValid(candidate)
+                    || !isFinalGeometryValid(candidate, routingEnvironment)) {
+                continue;
+            }
+            EngineeringRouteEvaluator.Evaluation candidateEvaluation =
+                    engineeringEvaluator.evaluate(candidate.edges);
+            if (candidateEvaluation.invalidAngleCount() < currentEvaluation.invalidAngleCount()
+                    && engineeringPenalty(candidateEvaluation) + LENGTH_EPSILON_M
+                            < engineeringPenalty(currentEvaluation)) {
+                current = candidate;
+                currentEvaluation = candidateEvaluation;
+            }
+        }
+        edgeIds = new ArrayList<>(currentEvaluation.nonCompliantEdgeIds());
+        edgeIds.sort(Comparator
+                .comparingDouble((String edgeId) -> source.edges.stream()
+                        .filter(edge -> edge.getId().equals(edgeId))
+                        .findFirst()
+                        .map(edge -> engineeringPenalty(engineeringEvaluator.evaluate(List.of(edge))))
+                        .orElse(0.0))
+                .reversed()
+                .thenComparing(edgeId -> edgeId));
+        int globalRepairs = 0;
+        for (String edgeId : edgeIds) {
+            if (globalRepairs >= MAX_GLOBAL_ENGINEERING_REPAIRS) {
+                break;
+            }
+            RouteEdge edge = current.edges.stream()
+                    .filter(candidate -> candidate.getId().equals(edgeId))
+                    .findFirst()
+                    .orElse(null);
+            if (edge == null) {
+                continue;
+            }
+            VariantDraft relocated = relocateEngineeringTerminalJunction(
+                    current, edge, demandsByNode, routingEnvironment);
+            if (relocated != null && isStructurallyValid(relocated)
+                    && isFinalGeometryValid(relocated, routingEnvironment)
+                    && withinEngineeringRepairCorridor(current, relocated)) {
+                EngineeringRouteEvaluator.Evaluation relocatedEvaluation =
+                        engineeringEvaluator.evaluate(relocated.edges);
+                if (relocatedEvaluation.invalidAngleCount() < currentEvaluation.invalidAngleCount()) {
+                    current = relocated;
+                    currentEvaluation = relocatedEvaluation;
+                    edge = current.edges.stream()
+                            .filter(candidate -> candidate.getId().equals(edgeId))
+                            .findFirst()
+                            .orElse(null);
+                    if (edge == null || !currentEvaluation.nonCompliantEdgeIds().contains(edgeId)) {
+                        continue;
+                    }
+                }
+            }
+            VariantDraft candidate = rerouteEngineeringEdge(
+                    current, edge, demandsByNode, routingEnvironment);
+            globalRepairs++;
+            if (candidate == null || !isStructurallyValid(candidate)
+                    || !isFinalGeometryValid(candidate, routingEnvironment)) {
+                continue;
+            }
+            EngineeringRouteEvaluator.Evaluation candidateEvaluation =
+                    engineeringEvaluator.evaluate(candidate.edges);
+            if (engineeringPenalty(candidateEvaluation) + LENGTH_EPSILON_M
+                    < engineeringPenalty(currentEvaluation)) {
+                current = candidate;
+                currentEvaluation = candidateEvaluation;
+            }
+        }
+        return current;
+    }
+
+    /**
+     * Rebuilds a bounded neighbourhood as one decision instead of freezing each terminal branch
+     * independently. Up to four nearby demands are detached together and reattached in several
+     * deterministic orders; the caller admits only a whole-zone geometry improvement.
+     */
+    private VariantDraft rebuildEngineeringZones(
+            VariantDraft source,
+            List<Demand> demands,
+            OfficialRoutingEnvironment routingEnvironment,
+            EngineeringRouteEvaluator.Evaluation sourceEvaluation) {
+        VariantDraft current = source;
+        EngineeringRouteEvaluator.Evaluation currentEvaluation = sourceEvaluation;
+        boolean changed = false;
+        Set<String> triedZones = new HashSet<>();
+        int rebuiltZones = 0;
+        List<RouteEdge> seeds = source.edges.stream()
+                .filter(edge -> sourceEvaluation.nonCompliantEdgeIds().contains(edge.getId()))
+                .sorted(Comparator.comparing(RouteEdge::getId))
+                .collect(Collectors.toList());
+        for (RouteEdge seed : seeds) {
+            if (rebuiltZones >= MAX_ENGINEERING_ZONE_REBUILDS) {
+                break;
+            }
+            Coordinate seedCoordinate = midpoint(
+                    seed.getCoordinates().get(0).toCoordinate(),
+                    seed.getCoordinates().get(seed.getCoordinates().size() - 1).toCoordinate());
+            List<Demand> zone = demands.stream()
+                    .filter(demand -> demand.coordinate.distance(seedCoordinate) <= ENGINEERING_ZONE_RADIUS_M)
+                    .sorted(Comparator
+                            .comparingDouble((Demand demand) -> demand.coordinate.distance(seedCoordinate))
+                            .thenComparing(demand -> demand.id))
+                    .limit(MAX_ENGINEERING_ZONE_DEMANDS)
+                    .collect(Collectors.toList());
+            if (zone.size() < 2) {
+                continue;
+            }
+            String zoneSignature = zone.stream()
+                    .map(demand -> demand.id)
+                    .sorted()
+                    .collect(Collectors.joining(","));
+            if (!triedZones.add(zoneSignature)) {
+                continue;
+            }
+            VariantDraft base = current;
+            boolean detachable = true;
+            for (Demand demand : zone) {
+                base = detachDemandAndNormalize(base, demand);
+                if (base == null || base.edges.isEmpty()) {
+                    detachable = false;
+                    break;
+                }
+            }
+            if (!detachable) {
+                continue;
+            }
+            List<List<Demand>> orders = new ArrayList<>();
+            List<Demand> farthestFirst = new ArrayList<>(zone);
+            Collections.reverse(farthestFirst);
+            orders.add(farthestFirst);
+            orders.add(new ArrayList<>(zone));
+            List<Demand> flowFirst = new ArrayList<>(zone);
+            flowFirst.sort(Comparator
+                    .comparingDouble((Demand demand) -> demand.flowTph.doubleValue())
+                    .reversed()
+                    .thenComparing(demand -> demand.id));
+            orders.add(flowFirst);
+            VariantDraft bestForZone = null;
+            for (List<Demand> order : orders) {
+                VariantDraft candidate = base.copy();
+                boolean complete = true;
+                Set<String> groupSpineEdgeIds = new LinkedHashSet<>();
+                for (Demand demand : order) {
+                    TreeAttachment attachment = chooseTreeAttachment(
+                            demand,
+                            candidate,
+                            routingEnvironment,
+                            true,
+                            true,
+                            RoutePreference.ENGINEERING,
+                            groupSpineEdgeIds);
+                    if (attachment == null) {
+                        complete = false;
+                        break;
+                    }
+                    Set<String> previousSpineEdgeIds = new LinkedHashSet<>(groupSpineEdgeIds);
+                    addTreeAttachment(candidate, demand, attachment);
+                    String newBranchId = "shared:graft:branch:" + demand.id;
+                    groupSpineEdgeIds = candidate.edges.stream()
+                            .map(RouteEdge::getId)
+                            .filter(edgeId -> edgeId.equals(newBranchId)
+                                    || previousSpineEdgeIds.stream()
+                                            .anyMatch(edgeId::startsWith))
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+                }
+                if (!complete || !isStructurallyValid(candidate)
+                        || !isFinalGeometryValid(candidate, routingEnvironment)
+                        || !withinEngineeringRepairCorridor(current, candidate)) {
+                    continue;
+                }
+                EngineeringRouteEvaluator.Evaluation candidateEvaluation =
+                        engineeringEvaluator.evaluate(candidate.edges);
+                LOGGER.info(
+                        "Engineering zone candidate demands={} invalid_before={} invalid_after={} bends_before={} bends_after={}",
+                        zoneSignature,
+                        currentEvaluation.invalidAngleCount(),
+                        candidateEvaluation.invalidAngleCount(),
+                        currentEvaluation.bendCount(),
+                        candidateEvaluation.bendCount());
+                if (engineeringPenalty(candidateEvaluation) + LENGTH_EPSILON_M
+                        >= engineeringPenalty(currentEvaluation)) {
+                    continue;
+                }
+                bestForZone = bestForZone == null
+                                || engineeringRepairComparator().compare(candidate, bestForZone) < 0
+                        ? candidate
+                        : bestForZone;
+            }
+            if (bestForZone != null) {
+                current = bestForZone;
+                currentEvaluation = engineeringEvaluator.evaluate(current.edges);
+                changed = true;
+                rebuiltZones++;
+            }
+        }
+        return changed ? current : null;
+    }
+
+    /**
+     * Moves a degree-three terminal branch chamber onto the projection of the OKS exit over the
+     * neighbouring trunk axis, then rebuilds all three incident rays. This produces the practical
+     * pattern "straight trunk - one branch - short normal building entry" instead of preserving an
+     * unfortunate graft point selected by the initial global tree search.
+     */
+    private VariantDraft relocateEngineeringTerminalJunction(
+            VariantDraft source,
+            RouteEdge terminalEdge,
+            Map<String, Demand> demandsByNode,
+            OfficialRoutingEnvironment routingEnvironment) {
+        String demandNodeId = demandsByNode.containsKey(terminalEdge.getDownstreamNodeId())
+                ? terminalEdge.getDownstreamNodeId()
+                : demandsByNode.containsKey(terminalEdge.getUpstreamNodeId())
+                        ? terminalEdge.getUpstreamNodeId()
+                        : null;
+        if (demandNodeId == null) {
+            return null;
+        }
+        String junctionNodeId = terminalEdge.getUpstreamNodeId().equals(demandNodeId)
+                ? terminalEdge.getDownstreamNodeId()
+                : terminalEdge.getUpstreamNodeId();
+        RouteNode junction = source.nodes.get(junctionNodeId);
+        if (junction == null || !junction.isChamber() || junction.isRoot()) {
+            return null;
+        }
+        List<RouteEdge> incident = incidentEdges(source, junctionNodeId);
+        if (incident.size() != 3) {
+            return null;
+        }
+        Map<RouteEdge, Demand> terminalDemands = new LinkedHashMap<>();
+        for (RouteEdge edge : incident) {
+            String outerNodeId = edge.getUpstreamNodeId().equals(junctionNodeId)
+                    ? edge.getDownstreamNodeId()
+                    : edge.getUpstreamNodeId();
+            Demand outerDemand = demandsByNode.get(outerNodeId);
+            if (outerDemand != null) {
+                terminalDemands.put(edge, outerDemand);
+            }
+        }
+        List<RouteEdge> trunkEdges = incident.stream()
+                .filter(edge -> !terminalDemands.containsKey(edge))
+                .collect(Collectors.toList());
+        // The current repair targets the common real-world pattern seen in the dataset: one
+        // incoming trunk reaches a chamber and is split into exactly two terminal OKS branches.
+        if (terminalDemands.size() != 2 || trunkEdges.size() != 1) {
+            return null;
+        }
+        RouteNode trunkOuter = outerNode(source, trunkEdges.get(0), junctionNodeId, junctionNodeId);
+        if (trunkOuter == null) {
+            return null;
+        }
+        Coordinate axisStart = trunkOuter.getCoordinate().toCoordinate();
+        Coordinate axisEnd = junction.getCoordinate().toCoordinate();
+        double axisLengthSquared = Math.pow(axisEnd.x - axisStart.x, 2)
+                + Math.pow(axisEnd.y - axisStart.y, 2);
+        if (axisLengthSquared <= LENGTH_EPSILON_M) {
+            return null;
+        }
+        int maximumDiameter = incident.stream()
+                .map(RouteEdge::getDiameter)
+                .filter(java.util.Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .max()
+                .orElse(50);
+        VariantDraft best = null;
+        Set<String> signatures = new HashSet<>();
+        EngineeringRouteEvaluator.Evaluation sourceEvaluation =
+                engineeringEvaluator.evaluate(source.edges);
+        for (Map.Entry<RouteEdge, Demand> entry : terminalDemands.entrySet()) {
+            int branchDiameter = entry.getKey().getDiameter() == null
+                    ? 50
+                    : entry.getKey().getDiameter();
+            List<OfficialRouteGeometryRules.NormalEgress> exits = routingEnvironment
+                    .normalEgressCandidates(
+                            branchDiameter,
+                            entry.getValue().coordinate,
+                            axisEnd,
+                            ENGINEERING_EGRESS_EXTRA_M).stream()
+                    .limit(3)
+                    .collect(Collectors.toList());
+            for (OfficialRouteGeometryRules.NormalEgress exit : exits) {
+                Coordinate projected = closestPointOnLine(axisStart, axisEnd, exit.exit());
+                if (projected.distance(axisStart) < EngineeringRouteEvaluator.MIN_BEND_SPACING_M
+                        || projected.distance(axisEnd) < 0.10
+                        || projected.distance(axisEnd) > MAX_CHAMBER_MERGE_RELOCATION_M) {
+                    continue;
+                }
+                for (Coordinate relocation : legalRelocationCandidates(
+                        projected,
+                        axisStart,
+                        axisEnd,
+                        maximumDiameter,
+                        routingEnvironment)) {
+                    String signature = Math.round(relocation.x * 1000.0) + ":"
+                            + Math.round(relocation.y * 1000.0);
+                    if (!signatures.add(signature)) {
+                        continue;
+                    }
+                    VariantDraft candidate = rebuildTerminalJunction(
+                            source,
+                            junction,
+                            incident,
+                            demandsByNode,
+                            relocation,
+                            routingEnvironment);
+                    if (candidate == null || !withinEngineeringRepairCorridor(source, candidate)) {
+                        LOGGER.info(
+                                "Engineering junction relocation rejected during routing junction={} x={} y={}",
+                                junctionNodeId, relocation.x, relocation.y);
+                        continue;
+                    }
+                    EngineeringRouteEvaluator.Evaluation candidateEvaluation =
+                            engineeringEvaluator.evaluate(candidate.edges);
+                    LOGGER.info(
+                            "Engineering junction relocation evaluated junction={} x={} y={} invalid_before={} invalid_after={}",
+                            junctionNodeId,
+                            relocation.x,
+                            relocation.y,
+                            sourceEvaluation.invalidAngleCount(),
+                            candidateEvaluation.invalidAngleCount());
+                    if (candidateEvaluation.invalidAngleCount() >= sourceEvaluation.invalidAngleCount()) {
+                        continue;
+                    }
+                    best = best == null || engineeringRepairComparator().compare(candidate, best) < 0
+                            ? candidate
+                            : best;
+                }
+            }
+        }
+        return best;
+    }
+
+    private List<Coordinate> legalRelocationCandidates(
+            Coordinate projected,
+            Coordinate axisStart,
+            Coordinate axisEnd,
+            int diameter,
+            OfficialRoutingEnvironment routingEnvironment) {
+        if (!routingEnvironment.pointInsideForbiddenClearance(diameter, projected)) {
+            return List.of(projected);
+        }
+        double axisLength = axisStart.distance(axisEnd);
+        if (axisLength <= LENGTH_EPSILON_M) {
+            return List.of();
+        }
+        double unitX = (axisEnd.x - axisStart.x) / axisLength;
+        double unitY = (axisEnd.y - axisStart.y) / axisLength;
+        List<Coordinate> result = new ArrayList<>();
+        for (double offset : new double[] {2.5, -2.5, 5.0, -5.0, 10.0, -10.0}) {
+            Coordinate candidate = new Coordinate(
+                    projected.x + unitX * offset,
+                    projected.y + unitY * offset);
+            if (candidate.distance(axisStart) < EngineeringRouteEvaluator.MIN_BEND_SPACING_M
+                    || candidate.distance(axisEnd) > MAX_CHAMBER_MERGE_RELOCATION_M
+                    || routingEnvironment.pointInsideForbiddenClearance(diameter, candidate)) {
+                continue;
+            }
+            result.add(candidate);
+            if (result.size() >= 2) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private Coordinate closestPointOnLine(
+            Coordinate start,
+            Coordinate end,
+            Coordinate point) {
+        double dx = end.x - start.x;
+        double dy = end.y - start.y;
+        double lengthSquared = dx * dx + dy * dy;
+        double fraction = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
+        return new Coordinate(start.x + fraction * dx, start.y + fraction * dy);
+    }
+
+    private VariantDraft rebuildTerminalJunction(
+            VariantDraft source,
+            RouteNode junction,
+            List<RouteEdge> incident,
+            Map<String, Demand> demandsByNode,
+            Coordinate coordinate,
+            OfficialRoutingEnvironment routingEnvironment) {
+        VariantDraft result = source.copy();
+        Set<String> incidentIds = incident.stream()
+                .map(RouteEdge::getId)
+                .collect(Collectors.toSet());
+        result.edges.removeIf(edge -> incidentIds.contains(edge.getId()));
+        result.nodes.put(junction.getId(), new RouteNode(
+                junction.getId(),
+                junction.getNodeType(),
+                new RouteCoordinate(coordinate.x, coordinate.y),
+                junction.isChamber(),
+                junction.isRoot(),
+                junction.getBaseIncidentSections(),
+                junction.getTargetId()));
+        List<LineString> fixedRoutes = result.edges.stream()
+                .filter(edge -> edge.getCoordinates().size() >= 2)
+                .map(this::routeLine)
+                .collect(Collectors.toCollection(ArrayList::new));
+        for (RouteEdge edge : incident) {
+            String outerNodeId = edge.getUpstreamNodeId().equals(junction.getId())
+                    ? edge.getDownstreamNodeId()
+                    : edge.getUpstreamNodeId();
+            RouteNode outer = result.nodes.get(outerNodeId);
+            if (outer == null) {
+                return null;
+            }
+            RoutePath outerToJunction;
+            Demand outerDemand = demandsByNode.get(outerNodeId);
+            if (outerDemand != null) {
+                outerToJunction = routeDemandTowards(
+                        outerDemand,
+                        coordinate,
+                        edge.getDiameter() == null ? 50 : edge.getDiameter(),
+                        routingEnvironment,
+                        fixedRoutes,
+                        RoutePreference.ENGINEERING);
+            } else {
+                List<LineString> routeAvoidance = result.edges.stream()
+                        .filter(existing -> !existing.getUpstreamNodeId().equals(outerNodeId)
+                                && !existing.getDownstreamNodeId().equals(outerNodeId))
+                        .filter(existing -> existing.getCoordinates().size() >= 2)
+                        .map(this::routeLine)
+                        .collect(Collectors.toCollection(ArrayList::new));
+                outerToJunction = obstacleRouter.find(
+                        outer.getCoordinate().toCoordinate(),
+                        coordinate,
+                        edge.getDiameter() == null ? 50 : edge.getDiameter(),
+                        routingEnvironment,
+                        endpointFeatureIds(edge, source.nodes),
+                        RoutePreference.ENGINEERING,
+                        routeAvoidance);
+            }
+            if (outerToJunction == null) {
+                return null;
+            }
+            boolean junctionIsUpstream = edge.getUpstreamNodeId().equals(junction.getId());
+            RoutePath oriented = junctionIsUpstream ? outerToJunction.reversed() : outerToJunction;
+            result.edges.add(routeEdge(
+                    edge.getId(),
+                    edge.getUpstreamNodeId(),
+                    edge.getDownstreamNodeId(),
+                    oriented,
+                    edge.getFlowTph(),
+                    edge.getDiameter() == null ? 50 : edge.getDiameter()));
+        }
+        return isStructurallyValid(result) ? result : null;
+    }
+
+    private VariantDraft regularizeEngineeringEdgeLocally(
+            VariantDraft source,
+            RouteEdge edge,
+            OfficialRoutingEnvironment routingEnvironment) {
+        RoutePath replacement = obstacleRouter.regularize(
+                edge.getCoordinates().stream()
+                        .map(RouteCoordinate::toCoordinate)
+                        .collect(Collectors.toList()),
+                edge.getDiameter() == null ? 50 : edge.getDiameter(),
+                routingEnvironment,
+                endpointFeatureIds(edge, source.nodes),
+                Collections.emptyList());
+        if (replacement == null) {
+            return null;
+        }
+        VariantDraft result = source.copy();
+        for (int index = 0; index < result.edges.size(); index++) {
+            if (result.edges.get(index).getId().equals(edge.getId())) {
+                result.edges.set(index, routeEdge(
+                        edge.getId(), edge.getUpstreamNodeId(), edge.getDownstreamNodeId(),
+                        replacement, edge.getFlowTph(), edge.getDiameter() == null ? 50 : edge.getDiameter()));
+                return result;
+            }
+        }
+        return null;
+    }
+
+    private VariantDraft rerouteEngineeringEdge(
+            VariantDraft source,
+            RouteEdge edge,
+            Map<String, Demand> demandsByNode,
+            OfficialRoutingEnvironment routingEnvironment) {
+        RouteNode upstream = source.nodes.get(edge.getUpstreamNodeId());
+        RouteNode downstream = source.nodes.get(edge.getDownstreamNodeId());
+        if (upstream == null || downstream == null) {
+            return null;
+        }
+        List<LineString> acceptedRoutes = source.edges.stream()
+                .filter(existing -> !existing.getId().equals(edge.getId()))
+                .filter(existing -> !existing.getUpstreamNodeId().equals(upstream.getId())
+                        && !existing.getDownstreamNodeId().equals(upstream.getId()))
+                .filter(existing -> !existing.getUpstreamNodeId().equals(downstream.getId())
+                        && !existing.getDownstreamNodeId().equals(downstream.getId()))
+                .filter(existing -> existing.getCoordinates().size() >= 2)
+                .map(this::routeLine)
+                .collect(Collectors.toCollection(ArrayList::new));
+        int diameter = edge.getDiameter() == null ? 50 : edge.getDiameter();
+        List<RoutePath> replacements = new ArrayList<>();
+        Demand terminal = demandsByNode.get(downstream.getId());
+        if (terminal != null) {
+            replacements.addAll(routeDemandEngineeringAlternatives(
+                    terminal,
+                    upstream.getCoordinate().toCoordinate(),
+                    diameter,
+                    routingEnvironment,
+                    acceptedRoutes).stream()
+                    .map(RoutePath::reversed)
+                    .collect(Collectors.toList()));
+        } else {
+            RoutePath replacement = obstacleRouter.find(
+                    upstream.getCoordinate().toCoordinate(),
+                    downstream.getCoordinate().toCoordinate(),
+                    diameter,
+                    routingEnvironment,
+                    endpointFeatureIds(edge, source.nodes),
+                    RoutePreference.ENGINEERING,
+                    acceptedRoutes);
+            if (replacement != null) {
+                replacements.add(replacement);
+            }
+        }
+        if (replacements.isEmpty()) {
+            return null;
+        }
+        VariantDraft best = null;
+        EngineeringRouteEvaluator.Evaluation controlEvaluation =
+                engineeringEvaluator.evaluate(source.edges);
+        for (RoutePath replacement : replacements) {
+            VariantDraft candidate = source.copy();
+            for (int index = 0; index < candidate.edges.size(); index++) {
+                if (candidate.edges.get(index).getId().equals(edge.getId())) {
+                    candidate.edges.set(index, routeEdge(
+                            edge.getId(),
+                            edge.getUpstreamNodeId(),
+                            edge.getDownstreamNodeId(),
+                            replacement,
+                            edge.getFlowTph(),
+                            diameter));
+                    break;
+                }
+            }
+            if (!withinEngineeringRepairCorridor(source, candidate)) {
+                continue;
+            }
+            EngineeringRouteEvaluator.Evaluation candidateEvaluation =
+                    engineeringEvaluator.evaluate(candidate.edges);
+            if (candidateEvaluation.invalidAngleCount() >= controlEvaluation.invalidAngleCount()) {
+                continue;
+            }
+            best = best == null
+                    ? candidate
+                    : engineeringRepairComparator().compare(candidate, best) < 0
+                            ? candidate
+                            : best;
+        }
+        return best;
+    }
+
+    /**
+     * Once two branch alternatives remove the same hard expert violations, prefer the simpler and
+     * cheaper one. This prevents a visually smooth but unnecessarily long obstacle detour from
+     * winning merely because its already-valid angles are closer to the centre of the range.
+     */
+    private Comparator<VariantDraft> engineeringRepairComparator() {
+        return Comparator
+                .comparingInt((VariantDraft draft) ->
+                        engineeringEvaluator.evaluate(draft.edges).invalidAngleCount())
+                .thenComparingInt(draft ->
+                        engineeringEvaluator.evaluate(draft.edges).insufficientSpacingCount())
+                .thenComparingInt(draft ->
+                        engineeringEvaluator.evaluate(draft.edges).irregularJunctionAngleCount())
+                .thenComparingInt(draft -> engineeringEvaluator.evaluate(draft.edges).bendCount())
+                .thenComparingInt(this::newBranchChamberCount)
+                .thenComparing(this::totalNetworkConstructionCost)
+                .thenComparingDouble(this::totalRouteLength)
+                .thenComparingDouble(draft ->
+                        engineeringEvaluator.evaluate(draft.edges).totalAngleDeviation())
+                .thenComparing(this::draftGeometrySignature);
+    }
+
+    private List<RoutePath> routeDemandEngineeringAlternatives(
+            Demand demand,
+            Coordinate target,
+            int diameter,
+            OfficialRoutingEnvironment routingEnvironment,
+            List<LineString> acceptedRoutes) {
+        List<OfficialRouteGeometryRules.NormalEgress> egressCandidates =
+                routingEnvironment.normalEgressCandidates(
+                        diameter,
+                        demand.coordinate,
+                        target,
+                        ENGINEERING_EGRESS_EXTRA_M).stream()
+                        .limit(MAX_ENGINEERING_EGRESS_CANDIDATES)
+                        .collect(Collectors.toList());
+        if (egressCandidates.isEmpty()) {
+            RoutePath fallback = routeDemandTowards(
+                    demand,
+                    target,
+                    diameter,
+                    routingEnvironment,
+                    acceptedRoutes,
+                    RoutePreference.ENGINEERING);
+            return fallback == null ? List.of() : List.of(fallback);
+        }
+        List<RoutePath> result = new ArrayList<>();
+        Set<String> signatures = new HashSet<>();
+        for (int egressIndex = 0; egressIndex < egressCandidates.size(); egressIndex++) {
+            OfficialRouteGeometryRules.NormalEgress egress = egressCandidates.get(egressIndex);
+            List<RoutePreference> preferences = egressIndex == 0
+                    ? List.of(RoutePreference.ENGINEERING, RoutePreference.LEFT, RoutePreference.RIGHT)
+                    : List.of(RoutePreference.ENGINEERING);
+            for (RoutePreference preference : preferences) {
+                RoutePath path = obstacleRouter.find(
+                        egress.exit(),
+                        target,
+                        diameter,
+                        routingEnvironment,
+                        Collections.emptySet(),
+                        preference,
+                        acceptedRoutes);
+                if (path == null) {
+                    continue;
+                }
+                RoutePath regularized = obstacleRouter.regularize(
+                        path.coordinates(),
+                        diameter,
+                        routingEnvironment,
+                        Collections.emptySet(),
+                        acceptedRoutes);
+                RoutePath withEgress = (regularized == null ? path : regularized)
+                        .withMandatoryPrefix(egress.start());
+                String signature = withEgress.coordinates().stream()
+                        .map(coordinate -> Math.round(coordinate.x * 1000.0)
+                                + ":" + Math.round(coordinate.y * 1000.0))
+                        .collect(Collectors.joining(";"));
+                if (signatures.add(signature)) {
+                    result.add(withEgress);
+                }
+            }
+        }
+        LOGGER.info(
+                "Engineering terminal alternatives demand={} candidates={} routed={}",
+                demand.id, egressCandidates.size(), result.size());
+        return result;
+    }
+
+    private boolean withinEngineeringRepairCorridor(VariantDraft control, VariantDraft candidate) {
+        if (totalRouteLength(candidate)
+                > totalRouteLength(control) * (1.0 + ENGINEERING_RELAXED_DEVIATION_RATIO)
+                        + LENGTH_EPSILON_M) {
+            return false;
+        }
+        BigDecimal controlCost = totalNetworkConstructionCost(control);
+        BigDecimal candidateCost = totalNetworkConstructionCost(candidate);
+        return controlCost != null
+                && candidateCost != null
+                && candidateCost.compareTo(controlCost.multiply(BigDecimal.valueOf(
+                        1.0 + ENGINEERING_RELAXED_DEVIATION_RATIO))) <= 0;
+    }
+
+    private double engineeringPenalty(EngineeringRouteEvaluator.Evaluation evaluation) {
+        return evaluation.invalidAngleCount() * 1_000_000.0
+                + evaluation.insufficientSpacingCount() * 100_000.0
+                + evaluation.totalAngleDeviation() * 100.0
+                + evaluation.irregularJunctionAngleCount() * 10.0
+                + evaluation.totalJunctionAngleDeviation()
+                + evaluation.preferredAngleDeviation()
+                + evaluation.bendCount();
+    }
+
+    /** Forces the terminal to leave the side of its OKS facing the merged street junction. */
+    private RoutePath routeDemandTowards(
+            Demand demand,
+            Coordinate target,
+            int diameter,
+            OfficialRoutingEnvironment routingEnvironment,
+            List<LineString> acceptedRoutes) {
+        return routeDemandTowards(
+                demand, target, diameter, routingEnvironment, acceptedRoutes, RoutePreference.SHORTEST);
+    }
+
+    private RoutePath routeDemandTowards(
+            Demand demand,
+            Coordinate target,
+            int diameter,
+            OfficialRoutingEnvironment routingEnvironment,
+            List<LineString> acceptedRoutes,
+            RoutePreference preference) {
+        double maximumEgressExtraM = preference == RoutePreference.ENGINEERING
+                ? ENGINEERING_EGRESS_EXTRA_M
+                : DEFAULT_EGRESS_EXTRA_M;
+        OfficialRouteGeometryRules.NormalEgress selected = demand.egressTowards(
+                routingEnvironment, diameter, target, maximumEgressExtraM);
+        RoutePath path = obstacleRouter.find(
+                demand.routingStart(selected),
+                target,
+                diameter,
+                routingEnvironment,
+                Collections.emptySet(),
+                preference,
+                acceptedRoutes);
+        return path == null ? null : demand.withMandatoryEgress(path, selected);
+    }
+
+    private double edgeDetourRatio(RouteEdge edge) {
+        List<RouteCoordinate> coordinates = edge.getCoordinates();
+        if (coordinates.size() < 2) {
+            return 1.0;
+        }
+        double direct = coordinates.get(0).toCoordinate()
+                .distance(coordinates.get(coordinates.size() - 1).toCoordinate());
+        return direct <= MIN_EDGE_LENGTH_M ? 1.0 : edge.getLengthM().doubleValue() / direct;
     }
 
     private VariantDraft detachDemandAndNormalize(VariantDraft source, Demand demand) {
@@ -1540,6 +3650,10 @@ public class OfficialRoutePlanner {
         NetworkSizingResult sizing = sizeRoutes(depthReroutedEdges, demandFlowByNode);
         List<RouteEdge> finalSizedEdges = ensureMandatoryEgress(
                 nodes, applySizing(depthReroutedEdges, sizing), features, routingEnvironment);
+        if (!"cheapest".equals(strategy)) {
+            finalSizedEdges = regularizeFinishedEngineeringEdges(
+                    nodes, finalSizedEdges, features, routingEnvironment);
+        }
         List<RouteEdge> profiledEdges = parameters.isDepthEnabled()
                 ? withDepthProfiles(nodes, finalSizedEdges, routeFeatures, parameters)
                 : finalSizedEdges;
@@ -1565,6 +3679,90 @@ public class OfficialRoutePlanner {
                 reconstruction,
                 economics,
                 null);
+    }
+
+    /**
+     * Applies the expert constructability rules to the actual exported geometry. Tree grafting,
+     * chamber contraction and mandatory OKS egress all happen after the initial path search and
+     * can introduce shallow technical kinks; checking only the search paths therefore misses the
+     * geometry that the user sees. This bounded local pass removes a kink when the direct segment
+     * is legal, otherwise it tries a 90/135-degree elbow. Every accepted replacement must improve
+     * the expert score and keep the complete route valid against the official constraint catalogue.
+     */
+    private List<RouteEdge> regularizeFinishedEngineeringEdges(
+            List<RouteNode> nodes,
+            List<RouteEdge> source,
+            List<ImportedOfficialFeature> features,
+            OfficialRoutingEnvironment routingEnvironment) {
+        List<RouteEdge> current = new ArrayList<>(source);
+        Map<String, RouteNode> nodesById = nodes.stream()
+                .collect(Collectors.toMap(RouteNode::getId, node -> node));
+        for (int pass = 0; pass < 2; pass++) {
+            boolean improved = false;
+            List<String> nonCompliantIds = new ArrayList<>(
+                    engineeringEvaluator.evaluate(current).nonCompliantEdgeIds());
+            for (String edgeId : nonCompliantIds) {
+                int edgeIndex = -1;
+                for (int index = 0; index < current.size(); index++) {
+                    if (current.get(index).getId().equals(edgeId)) {
+                        edgeIndex = index;
+                        break;
+                    }
+                }
+                if (edgeIndex < 0) {
+                    continue;
+                }
+                RouteEdge edge = current.get(edgeIndex);
+                EngineeringRouteEvaluator.Evaluation before =
+                        engineeringEvaluator.evaluate(List.of(edge));
+                List<LineString> acceptedRoutes = current.stream()
+                        .filter(existing -> !existing.getId().equals(edge.getId()))
+                        .filter(existing -> !sharesEndpoint(existing, edge))
+                        .map(this::routeLine)
+                        .collect(Collectors.toList());
+                RoutePath replacement = obstacleRouter.regularize(
+                        edge.getCoordinates().stream()
+                                .map(RouteCoordinate::toCoordinate)
+                                .collect(Collectors.toList()),
+                        edge.getDiameter() == null ? 50 : edge.getDiameter(),
+                        routingEnvironment,
+                        endpointFeatureIds(edge, nodesById),
+                        acceptedRoutes);
+                if (replacement == null) {
+                    continue;
+                }
+                RouteEdge candidateEdge = routeEdge(
+                        edge.getId(), edge.getUpstreamNodeId(), edge.getDownstreamNodeId(),
+                        replacement, edge.getFlowTph(), edge.getDiameter() == null ? 50 : edge.getDiameter());
+                EngineeringRouteEvaluator.Evaluation after =
+                        engineeringEvaluator.evaluate(List.of(candidateEdge));
+                if (engineeringPenalty(after) + LENGTH_EPSILON_M >= engineeringPenalty(before)) {
+                    continue;
+                }
+                List<RouteEdge> candidate = new ArrayList<>(current);
+                candidate.set(edgeIndex, candidateEdge);
+                if (!validator.validate(
+                                nodes,
+                                candidate,
+                                featuresForEdges(features, candidate, routingEnvironment))
+                        .isEmpty()) {
+                    continue;
+                }
+                current = candidate;
+                improved = true;
+            }
+            if (!improved || engineeringEvaluator.evaluate(current).isCompliant()) {
+                break;
+            }
+        }
+        return current;
+    }
+
+    private boolean sharesEndpoint(RouteEdge left, RouteEdge right) {
+        return left.getUpstreamNodeId().equals(right.getUpstreamNodeId())
+                || left.getUpstreamNodeId().equals(right.getDownstreamNodeId())
+                || left.getDownstreamNodeId().equals(right.getUpstreamNodeId())
+                || left.getDownstreamNodeId().equals(right.getDownstreamNodeId());
     }
 
     private NetworkSizingResult sizeRoutes(
@@ -1897,13 +4095,20 @@ public class OfficialRoutePlanner {
                     Coordinate coordinate = connection.getMetricGeometry().getCoordinate();
                     Coordinate approachTarget = candidatesByConnection
                             .getOrDefault(connection.getFeatureId(), List.of()).stream()
-                            .map(candidate -> featuresById.get(candidate.getTargetId()))
+                            .map(candidate -> {
+                                ImportedOfficialFeature target = featuresById.get(candidate.getTargetId());
+                                return target == null
+                                        ? null
+                                        : targetCoordinate(
+                                                coordinate, candidate, target.getMetricGeometry());
+                            })
                             .filter(java.util.Objects::nonNull)
-                            .map(target -> targetCoordinate(coordinate, target.getMetricGeometry()))
                             .min(Comparator.comparingDouble(coordinate::distance))
                             .orElse(coordinate);
                     OfficialRouteGeometryRules.NormalEgress egress = routingEnvironment
-                            .normalEgressTowards(diameterFor(resolvedFlow), coordinate, approachTarget)
+                            .normalEgressTowards(
+                                    diameterFor(resolvedFlow), coordinate, approachTarget,
+                                    DEFAULT_EGRESS_EXTRA_M)
                             .orElse(null);
                     return new Demand(
                             demandId,
@@ -1966,7 +4171,13 @@ public class OfficialRoutePlanner {
         return base.getOrDefault(chamberId, 0) + used.getOrDefault(chamberId, 0) < 4;
     }
 
-    private Coordinate targetCoordinate(Coordinate origin, Geometry target) {
+    private Coordinate targetCoordinate(
+            Coordinate origin,
+            TieInCandidate candidate,
+            Geometry target) {
+        if (candidate.hasFixedTieIn()) {
+            return new Coordinate(candidate.getTieInXm(), candidate.getTieInYm());
+        }
         if (target instanceof LineString) {
             return DistanceOp.nearestPoints(target.getFactory().createPoint(origin), target)[1];
         }
@@ -1985,7 +4196,11 @@ public class OfficialRoutePlanner {
     }
 
     private String targetKey(TieInCandidate candidate) {
-        return candidate.getTargetType() + ":" + candidate.getTargetId();
+        String coordinate = candidate.hasFixedTieIn()
+                ? ":" + Math.round(candidate.getTieInXm() * 1000.0)
+                        + ":" + Math.round(candidate.getTieInYm() * 1000.0)
+                : "";
+        return candidate.getTargetType() + ":" + candidate.getTargetId() + coordinate;
     }
 
     private String edgeSignature(RouteVariant variant) {
@@ -2029,8 +4244,33 @@ public class OfficialRoutePlanner {
             return egress == null ? coordinate : egress.exit();
         }
 
-        private RoutePath withMandatoryEgress(RoutePath path) {
-            return egress == null ? path : path.withMandatoryPrefix(egress.start());
+        private OfficialRouteGeometryRules.NormalEgress egressTowards(
+                OfficialRoutingEnvironment environment,
+                int diameter,
+                Coordinate approachTarget) {
+            return egressTowards(environment, diameter, approachTarget, DEFAULT_EGRESS_EXTRA_M);
+        }
+
+        private OfficialRouteGeometryRules.NormalEgress egressTowards(
+                OfficialRoutingEnvironment environment,
+                int diameter,
+                Coordinate approachTarget,
+                double maximumAlternativeEgressExtraM) {
+            return environment.normalEgressTowards(
+                            diameter, coordinate, approachTarget, maximumAlternativeEgressExtraM)
+                    .orElse(egress);
+        }
+
+        private Coordinate routingStart(OfficialRouteGeometryRules.NormalEgress selectedEgress) {
+            return selectedEgress == null ? coordinate : selectedEgress.exit();
+        }
+
+        private RoutePath withMandatoryEgress(
+                RoutePath path,
+                OfficialRouteGeometryRules.NormalEgress selectedEgress) {
+            return selectedEgress == null
+                    ? path
+                    : path.withMandatoryPrefix(selectedEgress.start());
         }
     }
 
@@ -2159,6 +4399,21 @@ public class OfficialRoutePlanner {
             this.left = left;
             this.right = right;
             this.distanceM = distanceM;
+        }
+    }
+
+    private static class MergedBranchAlternatives {
+        private final VariantDraft shortest;
+        private final VariantDraft cheapest;
+        private final List<VariantDraft> candidates;
+
+        private MergedBranchAlternatives(
+                VariantDraft shortest,
+                VariantDraft cheapest,
+                List<VariantDraft> candidates) {
+            this.shortest = shortest;
+            this.cheapest = cheapest;
+            this.candidates = List.copyOf(candidates);
         }
     }
 

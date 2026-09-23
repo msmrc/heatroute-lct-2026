@@ -835,3 +835,12 @@ This is a diagnostic improvement, not gate completion: a geometry-first rank can
 candidate the current bounded search never generated. Runtime is also 1,361 seconds. The next
 implementation gate must rebuild the four affected branch/egress groups under the same economic
 corridor and stop non-improving global repairs early.
+
+### Advisory routing reference corpus — 23 September
+
+The separately supplied professional overlay is tracked under `datasets/reference/` as an
+advisory quality case. Automated checks recover its connected 17-demand tree, explicit chamber
+splits, degree limits and downstream branch flows against the corrected organizer dataset.
+Reference proximity is diagnostic only: it does not override official validity, score, economics
+or the active organizer contract, and it does not close any R-stage. Future topology work may use
+the general engineering patterns, but production code must not contain fixture coordinates or IDs.

@@ -1,5 +1,21 @@
 # Current implementation progress
 
+## Advisory routing reference corpus — 2026-09-23
+
+The expert overlay supplied as `1.geojson` is now preserved separately from organizer input as
+`datasets/reference/professional-routing-01.geojson`. Its embedded old 144-feature baseline and
+map-editor styles were excluded; source hash and feature indexes remain for provenance.
+
+The focused Node benchmark reconstructs the reference in EPSG:32637 and verifies 17/17 demand
+leaves, 11 junction markers, 28 logical sections, 29 graph nodes, one acyclic component, maximum
+junction degree four and two root flows of 96.90/391.82 t/h at existing chamber 106. Two internal
+marker splits are covered. Exact coordinate similarity remains advisory and cannot override the
+official validator, economics or organizer documents.
+
+This adds a route-quality regression process, not an R-stage completion claim. Production planner
+behavior is unchanged; a complete `global-tree-46` corrected-dataset run and the required Java 11,
+lint, typecheck and live Compose gates remain open.
+
 ## Code-quality rules and refactoring backlog — 2026-09-21
 
 [REFACTORING.md](REFACTORING.md) records the Java-focused audit baseline (`0096da4`), concrete

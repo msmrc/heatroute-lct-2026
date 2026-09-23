@@ -1,0 +1,791 @@
+{
+  "type": "FeatureCollection",
+  "name": "professional-routing-01",
+  "reference": {
+    "id": "professional-routing-01",
+    "kind": "expert_routing_geometry",
+    "source_filename": "1.geojson",
+    "source_sha256": "0a3a371cc00dafbc6c3fe6e176747f5b50a48d8faf39b2dc631df47e1dd86379",
+    "source_feature_count": 181,
+    "excluded_typed_feature_count": 144,
+    "route_centerline_count": 26,
+    "junction_marker_count": 11
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.636988,
+            55.697957
+          ],
+          [
+            37.636478,
+            55.69721
+          ],
+          [
+            37.636089,
+            55.697287
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-01",
+        "reference_role": "route_centerline",
+        "source_feature_index": 144
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.634211,
+            55.697453
+          ],
+          [
+            37.634122,
+            55.697322
+          ],
+          [
+            37.634447,
+            55.697252
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-02",
+        "reference_role": "route_centerline",
+        "source_feature_index": 145
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.640205,
+            55.69727
+          ],
+          [
+            37.640187,
+            55.697245
+          ],
+          [
+            37.639865,
+            55.696768
+          ],
+          [
+            37.639544,
+            55.69685
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-03",
+        "reference_role": "route_centerline",
+        "source_feature_index": 146
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.640205,
+            55.69727
+          ],
+          [
+            37.64096,
+            55.698371
+          ],
+          [
+            37.640765,
+            55.69841
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-04",
+        "reference_role": "route_centerline",
+        "source_feature_index": 147
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.635609,
+            55.699489
+          ],
+          [
+            37.636111,
+            55.700212
+          ],
+          [
+            37.636381,
+            55.700155
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-05",
+        "reference_role": "route_centerline",
+        "source_feature_index": 148
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.635609,
+            55.699489
+          ],
+          [
+            37.634478,
+            55.699713
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-06",
+        "reference_role": "route_centerline",
+        "source_feature_index": 149
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.638462,
+            55.697639
+          ],
+          [
+            37.636988,
+            55.697957
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-07",
+        "reference_role": "route_centerline",
+        "source_feature_index": 150
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.636988,
+            55.697957
+          ],
+          [
+            37.634863,
+            55.698423
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-08",
+        "reference_role": "route_centerline",
+        "source_feature_index": 151
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.632451,
+            55.700145
+          ],
+          [
+            37.632584,
+            55.700327
+          ],
+          [
+            37.632843,
+            55.700274
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-09",
+        "reference_role": "route_centerline",
+        "source_feature_index": 152
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.632452,
+            55.700145
+          ],
+          [
+            37.632346,
+            55.699983
+          ],
+          [
+            37.632013,
+            55.700048
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-10",
+        "reference_role": "route_centerline",
+        "source_feature_index": 153
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.633203,
+            55.699579
+          ],
+          [
+            37.633431,
+            55.699938
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-11",
+        "reference_role": "route_centerline",
+        "source_feature_index": 154
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.634863,
+            55.698423
+          ],
+          [
+            37.633224,
+            55.698787
+          ],
+          [
+            37.633131,
+            55.698653
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-12",
+        "reference_role": "route_centerline",
+        "source_feature_index": 155
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.63458,
+            55.699856
+          ],
+          [
+            37.634478,
+            55.699713
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-13",
+        "reference_role": "route_centerline",
+        "source_feature_index": 156
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.634478,
+            55.699713
+          ],
+          [
+            37.634424,
+            55.699634
+          ],
+          [
+            37.634483,
+            55.699593
+          ],
+          [
+            37.634404,
+            55.699479
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-14",
+        "reference_role": "route_centerline",
+        "source_feature_index": 157
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.632451,
+            55.700145
+          ],
+          [
+            37.632134,
+            55.700209
+          ],
+          [
+            37.632202,
+            55.700315
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-15",
+        "reference_role": "route_centerline",
+        "source_feature_index": 158
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.632035,
+            55.697045
+          ],
+          [
+            37.632247,
+            55.696998
+          ],
+          [
+            37.632754,
+            55.697769
+          ],
+          [
+            37.633807,
+            55.697542
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-16",
+        "reference_role": "route_centerline",
+        "source_feature_index": 159
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.634211,
+            55.697453
+          ],
+          [
+            37.634863,
+            55.698423
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-17",
+        "reference_role": "route_centerline",
+        "source_feature_index": 160
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.634211,
+            55.697453
+          ],
+          [
+            37.633807,
+            55.697542
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-18",
+        "reference_role": "route_centerline",
+        "source_feature_index": 161
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.635609,
+            55.699489
+          ],
+          [
+            37.635051,
+            55.698693
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-19",
+        "reference_role": "route_centerline",
+        "source_feature_index": 162
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.635609,
+          55.699489
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-01",
+        "reference_role": "junction_marker",
+        "source_feature_index": 163
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.634478,
+          55.699713
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-02",
+        "reference_role": "junction_marker",
+        "source_feature_index": 164
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.634471,
+            55.699717
+          ],
+          [
+            37.632451,
+            55.700145
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-20",
+        "reference_role": "route_centerline",
+        "source_feature_index": 165
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.633431,
+          55.699938
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-03",
+        "reference_role": "junction_marker",
+        "source_feature_index": 166
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.632451,
+          55.700145
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-04",
+        "reference_role": "junction_marker",
+        "source_feature_index": 167
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.634863,
+          55.698423
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-05",
+        "reference_role": "junction_marker",
+        "source_feature_index": 168
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.633753,
+            55.697472
+          ],
+          [
+            37.633807,
+            55.697542
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-21",
+        "reference_role": "route_centerline",
+        "source_feature_index": 169
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.633807,
+            55.697542
+          ],
+          [
+            37.633863,
+            55.697619
+          ],
+          [
+            37.633846,
+            55.697641
+          ],
+          [
+            37.633901,
+            55.697722
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-22",
+        "reference_role": "route_centerline",
+        "source_feature_index": 170
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.633807,
+          55.697542
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-06",
+        "reference_role": "junction_marker",
+        "source_feature_index": 171
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.634211,
+          55.697453
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-07",
+        "reference_role": "junction_marker",
+        "source_feature_index": 172
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.636988,
+          55.697957
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-08",
+        "reference_role": "junction_marker",
+        "source_feature_index": 173
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.640205,
+          55.69727
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-09",
+        "reference_role": "junction_marker",
+        "source_feature_index": 174
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.640205,
+            55.69727
+          ],
+          [
+            37.638462,
+            55.697639
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-23",
+        "reference_role": "route_centerline",
+        "source_feature_index": 175
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.635412,
+            55.698616
+          ],
+          [
+            37.635051,
+            55.698693
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-24",
+        "reference_role": "route_centerline",
+        "source_feature_index": 176
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.635051,
+          55.698693
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-10",
+        "reference_role": "junction_marker",
+        "source_feature_index": 177
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.634863,
+            55.698423
+          ],
+          [
+            37.635051,
+            55.698693
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-25",
+        "reference_role": "route_centerline",
+        "source_feature_index": 178
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            37.638281,
+            55.697957
+          ],
+          [
+            37.638108,
+            55.697715
+          ]
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-line-26",
+        "reference_role": "route_centerline",
+        "source_feature_index": 179
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          37.638108,
+          55.697715
+        ]
+      },
+      "properties": {
+        "id": "professional-routing-01-junction-11",
+        "reference_role": "junction_marker",
+        "source_feature_index": 180
+      }
+    }
+  ]
+}

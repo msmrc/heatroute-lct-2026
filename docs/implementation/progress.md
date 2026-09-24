@@ -1,6 +1,6 @@
 # Current implementation progress
 
-## Source61 — improved fresh full plan, native pending, 2026-09-24
+## Source61 — improved fresh plan, native and UI gates passed, 2026-09-24
 
 [PRIMARY_ROUTING_61.md](PRIMARY_ROUTING_61.md): bounded terminal-derived frame at the first
 group root, explicit shared grid/spur orientation, early exact port-turn admission, protected
@@ -9,8 +9,21 @@ Final fast742 executed /3 skipped; datasets/export3/3 PASS =745 executed Java /3
 Web31+scripts35, lint/typecheck PASS. Fresh preferred1857.155m/13 new branch cameras/13 bends,
 RUB273953260.00,17/17;58 was1887.222m/13/16,RUB276460904.63. Cheapest1895.501m/11 branch
 cameras/no new tie-in camera/21 bends. Planner279.503s, not a statistical or native speed claim.
-New JAR/native UI pending; API58 unchanged. No Compose/scale/R-stage/goal closure. User now
-authorizes Git checkpoints/push, not VPS deployment. Independent review61 hit quota error.
+JAR/API61 readinessUP. Fresh UI run1a00e3a5-a818-49f7-abba-a920b9dfdc85,
+job614015d5-ad76-4b83-848f-003dd493c075 completed/attempt1,321.618s (58:312.305s):
+native speed did not improve. Preferred shortest1857.155m/13 cameras/13 bends; cheapest11/21
+without new tie-in; balanced remains1932.357m/15/14. All17/17; independent topology/flow/slots/
+endpoint/length and HTTP export200/974 features/cent arithmetic PASS; both actual61 PNG viewed.
+Cheapest removes one new tie-in but costsRUB769810.36 more than native58 cheapest.
+UI initially selects valid/max-connected preferred with explicitly empty engineering issues,
+otherwise engineering fallback. Manual selection survives same-run refetch. RED2 expected,
+final36 web +35 scripts, lint/typecheck/build and browser/map/console PASS (large MapLibre
+chunk warning remains). Backend unchanged
+after745 Java/3 skipped; no additional fresh job after UI-only edit.
+Independent abstract tree oracle:1024 subsets/7 feasible/minimum11,10 greedy/metric misses.
+Next bounded joint-terminal seed; not geometric evidence or integrated behavior.
+Source9a8b9e0 pushed, remote verified. No Compose/scale/R-stage/goal closure. User authorizes
+Git checkpoints/push, not VPS deployment. Independent review61 hit quota error.
 
 ## Research60 — eleven-camera diagnostic, no production change, 2026-09-24
 

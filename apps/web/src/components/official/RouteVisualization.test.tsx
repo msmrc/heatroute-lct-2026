@@ -85,6 +85,34 @@ const result: OfficialCalculationResult = {
 };
 
 describe("RouteVisualization", () => {
+  it("initially shows the server preference when fully connected and explicitly free of engineering issues", async () => {
+    const ranked = rankedResult();
+    ranked.variants = ranked.variants.map((variant) => ({ ...variant, engineering_issues: [] }));
+    render(<RouteVisualization result={ranked} runId="run-preferred" importId="import-1" />);
+
+    expect(await screen.findByText("Интерактивная карта cheapest")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Приоритет стоимости.*место 1/ }).getAttribute("aria-selected")).toBe("true");
+    expect(ranked.variants.map((variant) => variant.rank)).toEqual([1, 2]);
+  });
+
+  it.each(["invalid", "fewer-connections", "missing-assessment", "missing"])("keeps the engineering fallback when preference is %s", async (scenario) => {
+    const ranked = rankedResult();
+    ranked.variants = ranked.variants.flatMap((variant) => {
+      if (variant.id !== ranked.preferred_variant_id) return [variant];
+      if (scenario === "missing") return [];
+      return [{
+        ...variant,
+        valid: scenario !== "invalid",
+        connected_demand_count: scenario === "fewer-connections" ? 1 : 2,
+        engineering_issues: scenario === "missing-assessment" ? undefined : [],
+      }];
+    });
+    render(<RouteVisualization result={ranked} runId="run-preferred" importId="import-1" />);
+
+    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Инженерная трасса/ }).getAttribute("aria-selected")).toBe("true");
+  });
+
   it("initially shows full engineering geometry without changing the server ranking", async () => {
     const ranked = rankedResult();
     render(<RouteVisualization result={ranked} runId="run-ranked" importId="import-1" />);
@@ -141,20 +169,21 @@ describe("RouteVisualization", () => {
 
   it("preserves a manual choice on same-run refetch and resets it for a new keyed run", async () => {
     const ranked = rankedResult();
+    ranked.variants = ranked.variants.map((variant) => ({ ...variant, engineering_issues: [] }));
     const { rerender } = render(
       <RouteVisualization key="run-1" result={ranked} runId="run-1" importId="import-1" />,
     );
-    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Приоритет стоимости/ }));
+    expect(await screen.findByText("Интерактивная карта cheapest")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Инженерная трасса/ }));
 
     rerender(<RouteVisualization key="run-1" result={structuredClone(ranked)} runId="run-1" importId="import-1" />);
 
-    expect(await screen.findByText("Интерактивная карта cheapest")).toBeTruthy();
-    expect(screen.getByRole("tab", { name: /Приоритет стоимости/ }).getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Инженерная трасса/ }).getAttribute("aria-selected")).toBe("true");
 
     rerender(<RouteVisualization key="run-2" result={structuredClone(ranked)} runId="run-2" importId="import-1" />);
 
-    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
+    expect(await screen.findByText("Интерактивная карта cheapest")).toBeTruthy();
   });
 
   it("distinguishes chambers, connection sites and charged rays without counting technical nodes", () => {

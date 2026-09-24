@@ -14,12 +14,21 @@
 > [ROUTING_STANDARDS_APPLICABILITY.md](ROUTING_STANDARDS_APPLICABILITY.md).
 > Нижеследующий вывод и старые записи gates являются историческими, а не новой приёмкой.
 
-**Текущий source61, fresh dataset PASS/native pending:** основной результат1857,155 м/
+**Текущий source61, fresh dataset/native/UI PASS:** основной fixture результат1857,155 м/
 13 новых камер/13 поворотов/17of17,273953260,00 ₽. Cheapest11 камер/21 поворот, без новой
 камеры врезки. Fast742 +datasets3 =745 выполненных Java /3 skipped; web31+scripts35,
-lint/typecheck PASS. Planner279,503 с, не доказательство нового UI-времени. Локальный API
-пока58; JAR/native61 и Compose/scale не проверены. Пользователь разрешил Git checkpoints,
-VPS не обновлялся. R-этапы/общая цель открыты. [Evidence61](PRIMARY_ROUTING_61.md).
+lint/typecheck PASS. Fixture planner279,503 с; native321,618 с против58:312,305 с — ускорения нет.
+JAR/API61/readinessUP, job completed/attempt1; preferred shortest1857,155/13/13,
+cheapest1895,501/11/21 без новой врезки; native balanced остаётся1932,357/15/14. All17/17,
+independent topology/flows/slots/length и HTTP export200/974 features PASS; actual61 PNG
+с Евгением просмотрены. UI-only доводка выбирает valid/max-connected preferred без
+engineering issues, иначе прежний fallback; ручной выбор сохранён. Итог web36+scripts35,
+lint/typecheck/build и browser/map/console PASS; предупреждение крупного MapLibre chunk остаётся.
+Java/JAR после полного gate не менялись.
+Source9a8b9e0 отправлен в origin/master. Дальше bounded joint-terminal seed; абстрактная
+проба подтверждает неполноту greedy, но не новый результат на геометрии.
+Compose/scale/R-этапы/общая цель открыты; Git checkpoints разрешены, VPS не обновлялся.
+[Evidence61](PRIMARY_ROUTING_61.md).
 
 **Исследование60, без production-изменений:** допустимый диагностический кандидат
 11 камер/20 поворотов/1941,530 м проходит sizing/depth/export и независимый topology checker,

@@ -1,14 +1,28 @@
 # Handoff — Артём / PM / developer
 
-## Source61: fresh dataset PASS, новый native ещё не проверен
+## Source61: fresh dataset, native и первоначальная вкладка UI PASS
 
 [PRIMARY_ROUTING_61.md](PRIMARY_ROUTING_61.md). Источники61;742 fast +3 datasets =745 Java
 выполнено /3 skipped, web31+scripts35, lint/typecheck PASS. Preferred1857,155 м/13 камер/
 13 поворотов/273953260,00 ₽/17of17 вместо58 с1887,222 м/13/16. Cheapest1895,501 м/11 камер/
 21 поворот, без новой врезки. Planner279,503 с — одиночный fixture, не UI-время.
 Защищены сжатие и стыки, добавлена одна ось по вводам для первого корня и refinement
-регуляризованных победителей. Цель11 камер с хорошей формой не достигнута. Сейчас API58;
-дальше независимо проверить61, собрать JAR и пройти настоящий UI→API→БД→map→HTTP export.
+регуляризованных победителей. Цель11 камер с хорошей формой не достигнута. Сейчас API61;
+JAR/readinessUP, job614015d5-ad76-4b83-848f-003dd493c075 completed/attempt1,
+run1a00e3a5-a818-49f7-abba-a920b9dfdc85,321,618 с против58:312,305 с — ускорения нет.
+Native preferred shortest1857,155/13 камер/13 поворотов, cheapest1895,501/11/21 без новой
+камеры врезки, balanced прежний1932,357/15/14. Все17/17, независимый topology/flow/slots/
+length и HTTP export200/974 features PASS; оба actual61 PNG с Евгением просмотрены.
+Native cheapest дороже58 на769810,36 ₽ при удалении одной новой камеры врезки.
+UI выбирает preferred при valid/max-connected/явном отсутствии engineering issues,
+иначе engineering fallback; refetch не отменяет ручной выбор. RED2 ожидаемых, итог36 web+
+35 scripts, lint/typecheck/build, browser/map/console PASS; build предупреждает о крупном
+MapLibre chunk. Java/JAR после полного gate неизменны.
+Дальше — bounded совместный seed пары/тройки. Abstract oracle независимо повторён:
+1024 подмножества/7 допустимых/минимум11;10 greedy/metric попыток упускают общий ствол.
+Это не геометрический fixture. Начать с focused tests/oracle, затем ограниченные fresh
+official-кандидаты; не ослаблять допуск и не увеличивать слепой перебор.
+Исходники61 отправлены в Git commit9a8b9e0; новый checkpoint добавляет native evidence и UI.
 Повторный review субагента упёрся в quota, это не пройденный gate. Пользователь разрешил
 Git push/checkpoints при низком лимите; VPS не трогать. Compose/scale/R-этапы открыты.
 

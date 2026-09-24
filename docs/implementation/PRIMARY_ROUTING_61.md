@@ -1,7 +1,7 @@
 # Source61: единая система осей и ранний допуск стыков
 
-Дата:24.09.2026. Рабочие исходники `global-tree-61`; локальный API на момент этого
-checkpoint ещё58. Изменение поведения поиска, не рефакторинг и не новое правило СП.
+Дата:24.09.2026. Исходники и локальный API `global-tree-61`; dataset и native gates PASS.
+Изменение поведения поиска, не рефакторинг и не новое правило СП.
 
 ## Подтверждённый результат свежего полного плана
 
@@ -22,6 +22,58 @@ Cheapest использует существующую корневую каме
 отдельный corridor-тест41,201 с. Для58 planner был299,002 с. Это одиночные локальные
 прогоны, не статистический benchmark и не новое время пользовательского UI-запуска.
 Никакого reuse готового маршрута между запросами нет.
+
+## Свежий native-запуск и UI
+
+Package PASS, перед штатным SIGTERM API58 проверено отсутствие queued/running jobs.
+JAR61 SHA256 `203d171852291026a4622951fb8f9c945b1478b74e31705b768de858a2359dc0`;
+API127.0.0.1:8000/PostGIS readinessUP. В UI нажата «Новый расчёт», прежний официальный
+import `7eebc444-9717-4ce5-8fcf-de19d00ce63d`, без нового импорта/reuse результата.
+Run `1a00e3a5-a818-49f7-abba-a920b9dfdc85`, job `614015d5-ad76-4b83-848f-003dd493c075`,
+completed/attempt1; heartbeat/lease работали.
+
+| Native default2D /PostGIS | Длина, м | Новые узловые камеры | Новые камеры врезки | Повороты | Стоимость, ₽ |
+|---|---:|---:|---:|---:|---:|
+| Preferred61: shortest /rank1 |1857,155|13|0|13|273953260,00|
+| Cheapest61 /rank2 |1895,501|11|0|21|272450601,54|
+| Balanced61 /rank3 |1932,357|15|0|14|286968270,45|
+
+Все17/17, valid, validation/sizing/engineering issues пусты, экономика complete;
+один существующий корень106, два луча. Native balanced остался прежним: не объявлять
+весь native result равным depth-on fixture. Native preferred58 был1887,223 м/13 камер/
+16 поворотов/276461145,20 ₽: улучшение30,068 м и2507885,20 ₽, камеры без изменения.
+Cheapest58 стоил271680791,18 ₽ с11 узловыми +1 новой камерой врезки;61 имеет11+0,
+но дороже на769810,36 ₽. Это компромисс, не улучшение всех показателей.
+
+Полное время321,618 с против58:312,305 с; planner321,338 против311,997 с.
+**Ускорение native не подтверждено**: одиночный запуск на9,314 с медленнее.
+Фазы61: independent54,001; shared37,924; group_spines109,150; finalized_portfolio120,262 с.
+У58 group_spines97,375 с. Дополнительная система осей — вероятный источник роста,
+но это не изолированный benchmark; не увеличивать слепой перебор.
+
+Отдельный Node-checker сверил версии/input SHA/параметры/новые IDs/attempt, достижимость
+всех узлов без циклов, единственность родителей, конечные точки, длины, расходы из
+официального GeoJSON, сохранение расходов и вместимость камер. HTTP export200:974 features,
+SHA256 `8f27844edd414e8a88e922f76271fde5673d120b6e76eaac9395e2a3ea8fffa4`;
+summary/rank/цены до копейки/ID концов/WGS84/стоимость лучей PASS. Это не дополнительный
+независимый расчёт препятствий/глубины/ДУ. Выгрузка получена напрямую по HTTP;
+кнопка видима, браузерная запись в Downloads не выполнялась. Console warn/error пусты;
+в серверном логе прежний client-abort/Broken pipe при закрытии ответа клиентом — не clean log.
+
+Обе actual61-live-preferred/cheapest PNG построены и просмотрены: единый масштаб/охват,
+исходные полилинии без сглаживания. Оригинал Downloads/1.geojson только прочитан;
+SHA и все reference-геометрии сверены. Евгений — геометрический ориентир, не нормативный допуск.
+
+UI прежде открывал balanced/rank3 с15 камерами. Теперь первым показывается preferred,
+если valid, имеет максимум подключений среди valid и **явный пустой** engineering_issues.
+При отсутствующей оценке/замечаниях/меньшем подключении/invalid остаётся engineering fallback.
+Рейтинг/геометрия не меняются. Key по runId сбрасывает выбор для нового запуска;
+refetch того же запуска не отменяет ручной выбор, useEffect не добавлен.
+RED2 ожидаемых/34 PASS; GREEN36 web +35 scripts, lint/typecheck и production web build PASS.
+Build предупреждает о крупном MapLibre chunk (>500 kB); это не ошибка сборки, размер не оптимизирован.
+После reload UI автоматически показывает shortest/1,86 км/17of17/score13,242; карта отрисована,
+console clean. Backend/JAR неизменны после полного745 Java/3 skipped; после UI-only изменения
+проверена загрузка свежего61 run, повторный расчёт не запускался.
 
 ## Причина и реализация
 
@@ -71,6 +123,16 @@ mode68,037454462°; сравнивались baseline и mode у ближайш�
 совместные пары/тройки потребителей при начальном построении дерева, а не новые локальные
 переносы. В61 это не реализовано.
 
+Основной агент независимо повторил абстрактную пробу на target61:1024 подмножества рёбер,
+7 допустимых деревьев, минимум веса11; все10 greedy/seeded/metric запусков вернули null,
+на подграфе оптимального ствола штатный builder успешен. Граф: root0→shared1 вес8;
+дляi=0..2 root0→private(2+i) вес6, private→leaf(5+i) вес1, shared1→leaf вес1.
+Root capacity2, каждый leaf резервирует3. Координаты(i·0,1;0) — только API графа, это **не**
+геометрически допустимая трасса. Probe `.tooling/Global61TreeCompletenessProbe.java`.
+Следующий gate: bounded совместное подключение пары/тройки через общий узел; сначала
+независимый oracle/focused test, затем ограниченные fresh official-кандидаты, полный допуск
+и сравнение времени. Reference не использовать как seed.
+
 ## Проверки и текущие границы
 
 - RED:8 новых тестов,5 ожидаемых падений на58 (сжатие и допуск стыков).
@@ -78,24 +140,31 @@ mode68,037454462°; сравнивались baseline и mode у ближайш�
   уточнён fixture с действительно более плотной семьёй и детерминированное разрешение
   численно равных сумм. Финальный fast:745 total /742 выполнено /3 skipped,0 failures/errors.
 - Final official dataset/corridor/export:3/3 PASS. Итого **745 выполненных Java /3 skipped**.
-- Web31 +scripts35, lint/typecheck PASS. Frontend в61 не менялся.
+- До UI-доводки web31 +scripts35; итог после выбора вкладки web36 +scripts35,
+  lint/typecheck PASS. Backend после полного набора не менялся.
 - `pwsh`/Docker отсутствуют: команды PowerShell/Compose не выполнены; использованы
   checkout-local Java11/Maven и совместимый Node24. Native-проверка не заменит Compose/scale.
 - Повторный независимый review61 не состоялся: субагент получил quota error. Ранее он
   завершил только отдельный аудит дерева; не выдавать его за review интегрированных правок.
-- Новый JAR/native UI→API→БД→карта→HTTP export **ещё не проверены на момент checkpoint**.
-  Локальный API58 остаётся доступен. R-этапы и общая цель открыты.
+- JAR/native UI→API→БД→карта и HTTP export PASS, границы проверки выше.
+  R-этапы и общая цель открыты.
 
 Evidence (игнорируется Git): `.tooling/global61-probe/{red,fast,fast-final,datasets,
 web-test,lint,typecheck}.log`, `inventory.log`, `baseline.log`, `mode.log`, `mode-audit.log`,
 `mode-early-turn.log`, `mode-early-audit.log`, `compression-audit.log`,
 `mode-safe-compression.log`, `mode-regularized.log`; `.tooling/primary61-final-official.json`
 и `primary61-final-corridor.json`. Пробы имеют отдельные output-пути в первой строке лога.
+Native: `.tooling/primary61-live-{run,job,bundle}.json`, `primary61-live-export.geojson`,
+`primary61-api-live.log`, `verify-primary61.mjs`; `global61-probe/{ui-red,ui-green,ui-lint,
+ui-typecheck,ui-build,live-quality,native-independent-check}.log`;
+`routing-comparison-61-live-{preferred,cheapest}/side-by-side.png`.
 
 ## Передача и Git
 
 Пользователь24.09 разрешил отправить изменения в Git и сохранять последующие checkpoints
 при низком остатке лимита. Сохраняются исходники, тесты и документация накопленной работы,
 не `.tooling`, uploads, секреты или бинарные артефакты. Git push не является деплоем VPS.
-После checkpoint продолжить с независимой проверкой результата61, сборкой и свежим native
-запуском. Не подставлять исследовательскую картинку вместо результата работающего приложения.
+Исходники отправлены в origin/master commit `9a8b9e0`, удалённый SHA проверен.
+Следующий checkpoint добавляет native evidence и UI-only выбор вкладки. Дальше — bounded
+совместный seed, не повтор локальных переносов. VPS не обновлялся. Не подставлять
+исследовательскую картинку вместо результата работающего приложения.

@@ -127,15 +127,18 @@ function variantName(variant: OfficialRouteVariant): string {
   return "Вариант сети";
 }
 
-/** Начальный вид карты не меняет серверный рейтинг и не жертвует полнотой подключения. */
+/** Показываем проверенный выбор расчёта; при инженерных замечаниях сохраняем прежний fallback. */
 function initialVariant(result: OfficialCalculationResult): OfficialRouteVariant | undefined {
   const maximumConnected = result.variants.reduce(
     (maximum, variant) => variant.valid ? Math.max(maximum, variant.connected_demand_count) : maximum,
     0,
   );
+  const preferred = result.variants.find((variant) => variant.id === result.preferred_variant_id);
+  if (preferred?.valid && preferred.connected_demand_count === maximumConnected
+      && preferred.engineering_issues?.length === 0) return preferred;
   return result.variants.find((variant) => variant.strategy === "engineering"
     && variant.valid && variant.connected_demand_count === maximumConnected)
-    ?? result.variants.find((variant) => variant.id === result.preferred_variant_id)
+    ?? preferred
     ?? result.variants[0];
 }
 

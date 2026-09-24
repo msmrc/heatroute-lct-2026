@@ -73,6 +73,25 @@ function nodeTitle(node: OfficialRouteNode): string {
   return node.node_type.replaceAll("_", " ");
 }
 
+function nodePointRole(node: OfficialRouteNode): string {
+  if (node.node_type === "demand_connection") return "demand_connection";
+  if (node.node_type === "new_branch_chamber") return "new_chamber";
+  if (node.node_type === "new_tie_in_chamber") return "new_chamber";
+  if (node.node_type === "existing_chamber_tie_in") return "existing_chamber_tie_in";
+  return "technical_node";
+}
+
+function pointRoleTitle(role: string): string {
+  if (role === "demand_connection") return "Подключение ОКС";
+  if (role === "new_chamber") return "Новая камера";
+  if (role === "existing_chamber_tie_in") return "Врезка в существующую камеру";
+  if (role === "tie_in") return "Точка врезки";
+  if (role === "reconstruction_chamber") return "Реконструкция камеры";
+  if (role === "existing_chamber") return "Существующая камера";
+  if (role === "source") return "Источник";
+  return "Техническая вершина";
+}
+
 function toWgs84(x: number, y: number): [number, number] {
   const [longitude = 0, latitude = 0] = proj4(METRIC_CRS, WGS84_CRS, [x, y]);
   return [longitude, latitude];
@@ -137,6 +156,7 @@ function routeFeatureCollection(variant: OfficialRouteVariant): MapFeatureCollec
     properties: {
       map_layer: "calculated_node",
       node_type: node.node_type,
+      point_role: nodePointRole(node),
       label: nodeTitle(node),
       target_id: node.target_id ?? null,
       root: node.root,
@@ -187,7 +207,7 @@ function addOverlayLayers(map: MapLibreMap, contextData: FeatureCollection, rout
     { id: "restriction-line", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "restriction"], paint: { "line-color": ["match", ["get", "restriction_type"], "water", "#5794c9", "railway", "#b58a50", "#8b8f96"], "line-opacity": 0.58, "line-width": 1.2, "line-dasharray": [4, 4] } },
     { id: "network-casing", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_network"], paint: { "line-color": "rgba(255,255,255,.92)", "line-width": 5 } },
     { id: "network-line", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_network"], paint: { "line-color": "#238577", "line-width": 2.6 } },
-    { id: "source-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "source"], paint: { "circle-radius": 8, "circle-color": "#ef6b3b", "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } },
+    { id: "source-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "source"], paint: { "circle-radius": 8, "circle-color": "#d94747", "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } },
     { id: "chamber-points", type: "circle", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_chamber"], paint: { "circle-radius": 4.5, "circle-color": "#34363b", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 } },
     { id: "context-points", type: "circle", source: CONTEXT_SOURCE, filter: ["all", ["==", ["geometry-type"], "Point"], ["!", ["in", ["get", "object_type"], ["literal", ["source", "heat_chamber"]]]]], paint: { "circle-radius": 3.5, "circle-color": "#4d9e68", "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.8 } },
     { id: "reconstruction-casing", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "map_layer"], "calculated_reconstruction"], paint: { "line-color": "rgba(255,255,255,.96)", "line-width": 9 } },
@@ -205,23 +225,31 @@ function addOverlayLayers(map: MapLibreMap, contextData: FeatureCollection, rout
       paint: {
         "circle-radius": [
           "match",
-          ["get", "node_type"],
-          "technical_node", 2,
-          "demand_connection", 5,
-          "new_branch_chamber", 7,
-          "new_tie_in_chamber", 6,
-          "existing_chamber_tie_in", 6,
+          ["get", "point_role"],
+          "technical_node", 1.6,
+          "demand_connection", 2,
+          "new_chamber", 2,
+          "existing_chamber_tie_in", 2,
+          "tie_in", 2,
           2,
         ],
         "circle-color": [
-          "case",
-          ["==", ["get", "node_type"], "technical_node"], "#8b949e",
-          ["==", ["get", "node_type"], "demand_connection"], "#45a55a",
-          ["==", ["get", "root"], true], "#ed6a3b",
+          "match",
+          ["get", "point_role"],
+          "technical_node", "#475569",
+          "demand_connection", "#45a55a",
+          "new_chamber", "#7357f6",
+          "existing_chamber_tie_in", "#34363b",
+          "tie_in", "#f59e0b",
           "#7357f6",
         ],
         "circle-stroke-color": "#ffffff",
-        "circle-stroke-width": ["case", ["==", ["get", "node_type"], "technical_node"], 1, 2.4],
+        "circle-stroke-width": [
+          "match",
+          ["get", "point_role"],
+          "technical_node", 0.7,
+          0.9,
+        ],
       },
     },
   ];
@@ -244,6 +272,11 @@ function selectedObject(feature: MapGeoJSONFeature): SelectedMapObject {
   if (typeof properties.added_flow_tph === "number") details.push(["Добавленный расход", `${properties.added_flow_tph.toLocaleString("ru-RU")} т/ч`]);
   if (typeof properties.crossing_angle_degrees === "number") details.push(["Угол перехода", `${properties.crossing_angle_degrees.toLocaleString("ru-RU")}°`]);
   if (typeof properties.address === "string" && properties.address) details.push(["Адрес", properties.address]);
+  const inferredPointRole = typeof properties.point_role === "string" ? properties.point_role
+    : objectType === "heat_chamber" ? "existing_chamber"
+      : objectType === "source" ? "source"
+        : undefined;
+  if (inferredPointRole) details.push(["Тип точки", pointRoleTitle(inferredPointRole)]);
   if (typeof properties.feature_id === "string" && properties.feature_id) details.push(["ID", properties.feature_id]);
   const fallback = objectType === "heat_network" ? "Существующая теплосеть" : objectType ?? "Объект карты";
   return {
@@ -417,6 +450,16 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
                 {label}
               </button>
             ))}
+            <div className="official-map-point-legend" aria-label="Условные обозначения точек">
+              <strong>Обозначения</strong>
+              <span><i className="is-demand" />Подключение ОКС</span>
+              <span><i className="is-new-chamber" />Новая камера</span>
+              <span><i className="is-tie-in" />Врезка</span>
+              <span><i className="is-existing-chamber" />Существующая камера</span>
+              <span><i className="is-reconstruction" />Реконструкция</span>
+              <span><i className="is-source" />Источник</span>
+              <span><i className="is-technical" />Техническая вершина</span>
+            </div>
           </div>
         )}
       </div>

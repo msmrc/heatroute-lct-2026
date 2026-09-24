@@ -142,7 +142,7 @@ public class OfficialRouteValidator {
             }
 
             Set<String> withOwnOksExempt = new HashSet<>(exemptions);
-            withOwnOksExempt.add(egress.oksId());
+            withOwnOksExempt.addAll(egress.terminalExemptionIds());
             List<OfficialRouteGeometryRules.Constraint> outsideConstraints = geometryRules.applicableConstraints(
                     baseConstraints,
                     withOwnOksExempt,
@@ -158,9 +158,10 @@ public class OfficialRouteValidator {
                     outsideCoordinates[index] = route.getCoordinateN(index);
                 }
                 LineString outsideRoute = geometryFactory.createLineString(outsideCoordinates);
-                List<OfficialRouteGeometryRules.Constraint> ownOks =
-                        geometryRules.ownOksFootprintConstraint(allConstraints, egress.oksId());
-                issues.addAll(geometryRules.validateForbidden(edge, outsideRoute, ownOks));
+                List<OfficialRouteGeometryRules.Constraint> ownTerminalTerritories =
+                        geometryRules.ownTerminalFootprintConstraints(
+                                allConstraints, egress.terminalExemptionIds());
+                issues.addAll(geometryRules.validateForbidden(edge, outsideRoute, ownTerminalTerritories));
             }
         }
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)

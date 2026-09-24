@@ -53,9 +53,11 @@ export function officialRouteFeatureCollection(
       continue;
     }
     const reconstruction = objectType === "heat_chamber_reconstruction";
-    const label = objectType === "tie_in" ? "Точка врезки"
-      : objectType === "heat_chamber" ? "Новая тепловая камера"
-        : reconstruction ? "Реконструкция тепловой камеры" : "Технический узел";
+    const pointRole = outputPointRole(objectType, id, variantId);
+    const label = pointRole === "tie_in" ? "Точка врезки"
+      : pointRole === "new_chamber" ? "Новая тепловая камера"
+        : pointRole === "demand_connection" ? "Подключение ОКС"
+          : reconstruction ? "Реконструкция тепловой камеры" : "Технический узел";
     features.push({
       type: "Feature",
       geometry: { type: "Point", coordinates: geometry.coordinates as number[] },
@@ -63,12 +65,25 @@ export function officialRouteFeatureCollection(
         ...common,
         map_layer: reconstruction ? "calculated_reconstruction_chamber" : "calculated_node",
         node_type: objectType,
+        point_role: reconstruction ? "reconstruction_chamber" : pointRole,
         label,
         root: objectType === "tie_in",
       },
     });
   }
   return { type: "FeatureCollection", features };
+}
+
+function outputPointRole(objectType: string, id: string, variantId: string): string {
+  if (objectType === "tie_in") return "tie_in";
+  if (objectType === "heat_chamber") return "new_chamber";
+  if (objectType === "technical_node" && id.includes(":demand:")) return "demand_connection";
+  const localId = id.startsWith(`${variantId}:`) ? id.slice(variantId.length + 1) : id;
+  if (objectType === "technical_node"
+      && (localId.startsWith("tie:chamber:") || localId.startsWith("tie:segment:"))) {
+    return "tie_in";
+  }
+  return "technical_node";
 }
 
 function number(value: unknown): number | null {

@@ -4,6 +4,19 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 24 сентября 2026 года
 
+**UI update, 24.09.2026 (verification pending):** точки результата на карте разделены по
+визуальным ролям (ОКС, новая/существующая камера, врезка, реконструкция, источник и техническая
+вершина), добавлены легенда и тип точки в инспекторе. Алгоритм, экономика и официальный контракт
+не изменялись; frontend checks не запускались, поэтому gate/R-stage не закрывается.
+
+**Export cleanup, 24.09.2026 (live baseline verified):** промежуточные координаты формы трассы
+остаются внутри `heat_network` LineString, но больше не создают самостоятельные
+`technical_node`. Такие узлы сохраняются только на концах топологии и границах изменения
+параметров участка. Легенда точек перенесена в раскрывающуюся панель слоёв. На baseline-run
+`15a4b2a6-8891-42b6-9d85-1d0007b7fd35` все три strict exports прошли; в каждом осталось 18
+полезных technical nodes и 0 сгенерированных geometry/section nodes. Автотесты не запускались,
+поэтому ни один gate/R-stage этим не закрывается.
+
 > **Актуальный письменный контракт (повторно сверен 23.09.2026).**
 > `Техническое_приложение_ЛЦТ_новое.docx` имеет приоритет над ранними разделами этого roadmap
 > и прежними устными разъяснениями. Нет отдельной наценки на поворот; допускается изменение
@@ -1101,3 +1114,27 @@ gate subsequently passed 2/2 (523 executed Java tests overall, 3 scale skips), i
 two deflections >90 degrees, so passing tests do not close that unimplemented contract check.
 No established runtime/quality improvement or live promotion. Existing incident network DU in
 new-chamber cost/export remains a separate open correctness check, not closed by the fee fix.
+
+### Road plus social-area diagnostic — 24 September, global-tree-61
+
+An opt-in local dataset combines the corrected input with 94 OSM-derived road polygons and one
+kindergarten `social_area` around the building served by connection point 11. The normal corrected
+dataset remains unchanged. Live run `f6afcce2-d6f1-4b8a-81a4-9c10df9225d1` produced three valid
+17/17 variants; the preferred cheapest result is 1,880.547 m / RUB 280,703,240.09. Runtime was
+2,008.615 seconds, so this confirms constraint handling but fails the six- and ten-minute iteration
+targets. It does not promote OSM roads to default input or close any routing-performance gate.
+
+### Square terminal social area and road fast path — 24 September, global-tree-62
+
+The kindergarten diagnostic polygon is now a clean rectangle matching the visible lighter
+territory. A contained demand can leave its own social area along one straight terminal prefix;
+the exemption is identity-scoped and is not available to other branches. Shallow direct road/tram
+crossings try perpendicular portals before the full visibility graph, with the resulting segment
+still validated against the entire restriction set.
+
+Live run `2217cd3e-ea31-4af8-a373-26ec0f6d9c05` completed in 1,041.600 seconds, a 48.1% reduction
+from the prior 2,008.615-second diagnostic. All three variants are complete for 17/17 demands and
+have zero validation, engineering and sizing issues. This remains above both iteration targets and
+does not close a performance or routing-quality gate. The next performance work should remove
+repeated shared-network searches and redundant portfolio validation while preserving exact route
+semantics; it must not weaken obstacle or expert geometry constraints.

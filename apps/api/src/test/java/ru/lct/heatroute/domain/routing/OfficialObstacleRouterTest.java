@@ -316,9 +316,34 @@ class OfficialObstacleRouterTest {
                 .filter(section -> "road".equals(section.getRestrictionType()))
                 .findFirst()
                 .orElseThrow();
-        // The official road rule requires at least 45 degrees. The router may choose the shorter
-        // legal 45-degree portal instead of the older, unnecessarily strict 90-degree expectation.
-        assertThat(roadSection.getCrossingAngleDegrees()).isEqualByComparingTo("45.000");
+        // A simple shallow crossing now takes the bounded perpendicular fast path instead of
+        // constructing repeated visibility graphs. The official minimum of 45 degrees is retained.
+        assertThat(roadSection.getCrossingAngleDegrees()).isEqualByComparingTo("90.000");
+    }
+
+    @Test
+    void keepsForbiddenDetoursWhileDeferringRoadCrossingAngles() throws Exception {
+        ImportedOfficialFeature park = restriction(
+                "park", "park-1", "POLYGON ((10 -10, 30 -10, 30 10, 10 10, 10 -10))");
+        ImportedOfficialFeature road = restriction(
+                "road", "road-1", "POLYGON ((40 -100, 60 -100, 60 100, 40 100, 40 -100))");
+
+        RoutePath route = router.find(
+                new Coordinate(0, 0),
+                new Coordinate(100, 0),
+                100,
+                List.of(park, road),
+                Collections.emptySet(),
+                RoutePreference.SHORTEST);
+
+        assertThat(route).isNotNull();
+        assertThat(rules.line(route.coordinates()).distance(park.getMetricGeometry()))
+                .isGreaterThanOrEqualTo(1.0 - OfficialRouteGeometryRules.EPSILON_M);
+        assertThat(route.sections())
+                .filteredOn(section -> "road".equals(section.getRestrictionType()))
+                .singleElement()
+                .satisfies(section ->
+                        assertThat(section.getCrossingAngleDegrees()).isEqualByComparingTo("90.000"));
     }
 
     @Test

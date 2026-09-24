@@ -513,12 +513,23 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .official-map-layer-button { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid rgba(32, 35, 40, .1); border-radius: 12px; background: rgba(255, 255, 255, .96); box-shadow: 0 3px 12px rgba(30, 34, 40, .12); color: #34383e; cursor: pointer; transition: background 140ms var(--ease), transform 100ms var(--ease); }
 .official-map-layer-button:hover, .official-map-layer-button.is-open { background: #f4f2ff; color: var(--accent); }
 .official-map-layer-button:active { transform: scale(.97); }
-.official-map-layer-panel { position: absolute; top: 52px; left: 0; display: grid; width: 190px; gap: 3px; padding: 8px; border: 1px solid rgba(32, 35, 40, .1); border-radius: 14px; background: rgba(255, 255, 255, .97); box-shadow: 0 10px 30px rgba(30, 34, 40, .15); backdrop-filter: blur(18px); animation: enter 150ms var(--ease) both; }
+.official-map-layer-panel { position: absolute; top: 52px; left: 0; display: grid; width: 246px; gap: 3px; padding: 8px; border: 1px solid rgba(32, 35, 40, .1); border-radius: 14px; background: rgba(255, 255, 255, .97); box-shadow: 0 10px 30px rgba(30, 34, 40, .15); backdrop-filter: blur(18px); animation: enter 150ms var(--ease) both; }
 .official-map-layer-panel > strong { padding: 7px 9px 8px; color: #30343a; font-size: 13px; }
 .official-map-layer-panel button { display: flex; min-height: 38px; align-items: center; gap: 10px; padding: 0 9px; border: 0; border-radius: 9px; background: transparent; color: #43474d; cursor: pointer; font: inherit; font-size: 13px; text-align: left; }
 .official-map-layer-panel button:hover { background: #f4f5f6; }
 .official-map-layer-panel button > span { display: grid; width: 18px; height: 18px; place-items: center; border: 1px solid #c8ccd1; border-radius: 5px; color: #fff; }
 .official-map-layer-panel button > span.is-checked { border-color: var(--accent); background: var(--accent); }
+.official-map-point-legend { display: grid; grid-template-columns: repeat(2, max-content); gap: 7px 12px; margin-top: 6px; padding: 11px 9px 5px; border-top: 1px solid rgba(32, 35, 40, .1); }
+.official-map-point-legend > strong { grid-column: 1 / -1; padding-bottom: 2px; color: #30343a; font-size: 12px; }
+.official-map-point-legend span { display: flex; align-items: center; gap: 7px; color: #555a62; font-size: 11px; white-space: nowrap; }
+.official-map-point-legend i { width: 10px; height: 10px; flex: 0 0 auto; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(32, 35, 40, .16); background: #8b949e; }
+.official-map-point-legend i.is-demand { width: 8px; height: 8px; margin: 1px; background: #45a55a; }
+.official-map-point-legend i.is-new-chamber { background: #7357f6; }
+.official-map-point-legend i.is-tie-in { background: #f59e0b; }
+.official-map-point-legend i.is-existing-chamber { background: #34363b; }
+.official-map-point-legend i.is-reconstruction { background: #d94f70; }
+.official-map-point-legend i.is-source { background: #d94747; border-radius: 2px; }
+.official-map-point-legend i.is-technical { width: 6px; height: 6px; margin: 2px; border-width: 1px; background: #475569; }
 .official-map-state { position: absolute; top: 64px; left: 50%; display: flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid rgba(38, 36, 43, .12); border-radius: 9px; background: rgba(255, 255, 255, .92); box-shadow: 0 5px 18px rgba(30, 27, 34, .11); color: #4f4b56; font-size: 12px; transform: translateX(-50%); backdrop-filter: blur(12px); }
 .official-map-state.is-error { color: #b13c3c; }
 .official-map-state.is-warning { color: #9a6419; }
@@ -702,6 +713,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .official-map-shell { min-height: 480px; }
   .official-route-map { height: 480px; }
   .official-map-layer-control { top: 8px; left: 8px; }
+  .official-map-point-legend { grid-template-columns: max-content; }
   .official-route-map .maplibregl-ctrl-top-left { top: 60px; left: 8px; }
   .official-map-inspector { right: 8px; bottom: 102px; }
   .route-canvas-footer { align-items: flex-start; flex-direction: column; justify-content: center; padding-block: 9px; }

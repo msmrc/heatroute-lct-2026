@@ -139,9 +139,9 @@ public class OfficialObstacleRouter {
         org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope();
         coordinates.forEach(bounds::expandToInclude);
         List<Constraint> constraints = environment.corridorConstraints(diameter, bounds).stream()
-                // Снимается лишь собственный ОКС на обязательном вводе, не произвольный запрет
-                // с совпавшим ID. Свободный хвост уже отдельно проверен PreparedCorridor.
-                .filter(constraint -> !("oks".equals(constraint.type()) && egress.oksId().equals(constraint.id())))
+                // Only the containing OKS and its containing social parcel are waived on the
+                // mandatory terminal leg. The outside prefix is checked independently.
+                .filter(constraint -> !egress.terminalExemptionIds().contains(constraint.id()))
                 .collect(java.util.stream.Collectors.toList());
         RoutePath candidate = path(coordinates, constraints);
         ConstraintIndex index = rules.index(constraints);
@@ -180,7 +180,15 @@ public class OfficialObstacleRouter {
             OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
             List<LineString> acceptedRoutes, String ownOksId) {
         return lineAllowed(List.of(adjacent, endpoint), diameter, environment, exemptFeatureIds,
-                acceptedRoutes, java.util.Objects.requireNonNull(ownOksId));
+                acceptedRoutes, Set.of(java.util.Objects.requireNonNull(ownOksId)));
+    }
+
+    boolean terminalApproachAllowed(
+            Coordinate adjacent, Coordinate endpoint, int diameter,
+            OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
+            List<LineString> acceptedRoutes, OfficialRouteGeometryRules.NormalEgress egress) {
+        return lineAllowed(List.of(adjacent, endpoint), diameter, environment, exemptFeatureIds,
+                acceptedRoutes, egress.terminalExemptionIds());
     }
 
     private boolean lineAllowed(
@@ -189,7 +197,7 @@ public class OfficialObstacleRouter {
             OfficialRoutingEnvironment environment,
             Set<String> exemptFeatureIds,
             List<LineString> acceptedRoutes,
-            String ownOksId) {
+            Set<String> terminalExemptionIds) {
         if (coordinates.size() < 2) {
             return false;
         }
@@ -197,8 +205,8 @@ public class OfficialObstacleRouter {
         Coordinate end = coordinates.get(coordinates.size() - 1);
         List<Constraint> constraints = new ArrayList<>(environment.constraints(
                 diameter, exemptFeatureIds, start, end));
-        if (ownOksId != null) {
-            constraints.removeIf(constraint -> "oks".equals(constraint.type()) && ownOksId.equals(constraint.id()));
+        if (terminalExemptionIds != null) {
+            constraints.removeIf(constraint -> terminalExemptionIds.contains(constraint.id()));
         }
         constraints.addAll(rules.applicableConstraints(
                 rules.routeAvoidanceConstraints(acceptedRoutes),
@@ -307,6 +315,10 @@ public class OfficialObstacleRouter {
                 return dogleg;
             }
         }
+        RoutePath specialCrossing = directSpecialCrossing(start, end, constraintIndex, constraints);
+        if (specialCrossing != null) {
+            return specialCrossing;
+        }
         // Карманы восстанавливают отсутствующий путь, но не заменяют уже допустимый hull-маршрут:
         // обычный коридор 200/600 м имеет приоритет над карманом в коридоре 75 м.
         List<List<Coordinate>> ordinaryGraphs = new ArrayList<>(CORRIDOR_EXPANSIONS.length);
@@ -336,6 +348,50 @@ public class OfficialObstacleRouter {
             }
         }
         return null;
+    }
+
+    /**
+     * Avoids building three visibility graphs when the direct line is blocked only by a shallow
+     * road/tram crossing. Perpendicular portals are still validated against every constraint, so
+     * any building, clearance or interacting crossing falls back to the complete search.
+     */
+    private RoutePath directSpecialCrossing(
+            Coordinate start,
+            Coordinate end,
+            ConstraintIndex constraintIndex,
+            List<Constraint> constraints) {
+        LineString directLine = rules.line(List.of(start, end));
+        Envelope corridor = directLine.getEnvelopeInternal();
+        List<Coordinate> portals = new ArrayList<>();
+        for (Constraint constraint : constraintIndex.query(corridor)) {
+            if (constraint.rule().isForbidden()) {
+                continue;
+            }
+            addSpecialCrossingPortals(portals, constraint, directLine, corridor);
+        }
+        if (portals.isEmpty()) {
+            return null;
+        }
+        double dx = end.x - start.x;
+        double dy = end.y - start.y;
+        double denominator = dx * dx + dy * dy;
+        portals.sort(Comparator
+                .comparingDouble((Coordinate point) ->
+                        ((point.x - start.x) * dx + (point.y - start.y) * dy) / denominator)
+                .thenComparingDouble(point -> point.x)
+                .thenComparingDouble(point -> point.y));
+        List<Coordinate> candidate = new ArrayList<>();
+        candidate.add(new Coordinate(start));
+        for (Coordinate portal : portals) {
+            if (candidate.get(candidate.size() - 1).distance(portal) > OfficialRouteGeometryRules.EPSILON_M) {
+                candidate.add(new Coordinate(portal));
+            }
+        }
+        candidate.add(new Coordinate(end));
+        LineString line = rules.line(candidate);
+        return line.isSimple() && rules.lineAllowed(line, constraintIndex)
+                ? path(candidate, constraints)
+                : null;
     }
 
     /** Точное сравнение без округления; порядок сохраняет индексы и разрешение равенств поиска. */

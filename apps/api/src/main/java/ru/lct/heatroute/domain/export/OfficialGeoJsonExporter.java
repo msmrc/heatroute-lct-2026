@@ -213,15 +213,17 @@ public class OfficialGeoJsonExporter {
             fallback.set("length_m", edge.path("length_m"));
             sections.add(fallback);
         }
+        JsonNode depthProfile = edge.path("depth_profile");
+        if (!hasDepthProfile(depthProfile)) {
+            sections = mergeEquivalentSections(sections);
+        }
         int diameter = edge.path("diameter").asInt();
         PipeCatalogEntry pipe = pipeCatalog.byDiameter(diameter).orElseThrow();
-        JsonNode depthProfile = edge.path("depth_profile");
         BigDecimal edgeLength = edge.path("length_m").decimalValue();
         BigDecimal sectionTotal = sections.stream()
                 .map(section -> section.path("length_m").decimalValue())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal cumulative = BigDecimal.ZERO;
-        double[] previousDirection = null;
         for (int index = 0; index < sections.size(); index++) {
             JsonNode section = sections.get(index);
             BigDecimal sectionStart = edgeLength.multiply(cumulative)
@@ -234,42 +236,26 @@ public class OfficialGeoJsonExporter {
             SpecialCrossingType crossing = crossingType(kind, section.path("restriction_type").asText(null));
             double geometryLength = coordinateLength(section.path("coordinates"));
             if (geometryLength <= 1e-9) continue;
-            double consumed = 0.0;
-            for (int coordinateIndex = 1; coordinateIndex < section.path("coordinates").size(); coordinateIndex++) {
-                JsonNode from = section.path("coordinates").path(coordinateIndex - 1);
-                JsonNode to = section.path("coordinates").path(coordinateIndex);
-                double dx = to.path("xm").asDouble() - from.path("xm").asDouble();
-                double dy = to.path("ym").asDouble() - from.path("ym").asDouble();
-                double geometrySegmentLength = Math.hypot(dx, dy);
-                if (geometrySegmentLength <= 1e-9) continue;
-                BigDecimal segmentStart = sectionStart.add(sectionEnd.subtract(sectionStart)
-                        .multiply(BigDecimal.valueOf(consumed / geometryLength)));
-                consumed += geometrySegmentLength;
-                BigDecimal segmentEnd = coordinateIndex == section.path("coordinates").size() - 1
-                        ? sectionEnd
-                        : sectionStart.add(sectionEnd.subtract(sectionStart)
-                                .multiply(BigDecimal.valueOf(consumed / geometryLength)));
-                BigDecimal segmentLength = section.path("length_m").decimalValue()
-                        .multiply(BigDecimal.valueOf(geometrySegmentLength / geometryLength));
-                BigDecimal bendMultiplier = BigDecimal.ONE;
-                List<BigDecimal> cuts = profileCuts(depthProfile, segmentStart, segmentEnd);
-                for (int piece = 1; piece < cuts.size(); piece++) {
-                    BigDecimal pieceStart = cuts.get(piece - 1);
-                    BigDecimal pieceEnd = cuts.get(piece);
-                    String startNode = pieceStart.signum() == 0
-                            ? endpointId(variantId, edge, nodes, true)
-                            : technicalNodeId(
-                                    variantId,
-                                    edge.path("id").asText(),
-                                    pieceStart,
-                                    isDepthProfileBreakpoint(depthProfile, pieceStart));
-                    String endNode = pieceEnd.compareTo(edgeLength) == 0
-                            ? endpointId(variantId, edge, nodes, false)
-                            : technicalNodeId(
-                                    variantId,
-                                    edge.path("id").asText(),
-                                    pieceEnd,
-                                    isDepthProfileBreakpoint(depthProfile, pieceEnd));
+            BigDecimal sectionSpan = sectionEnd.subtract(sectionStart);
+            if (sectionSpan.signum() == 0) continue;
+            List<BigDecimal> cuts = profileCuts(depthProfile, sectionStart, sectionEnd);
+            for (int piece = 1; piece < cuts.size(); piece++) {
+                BigDecimal pieceStart = cuts.get(piece - 1);
+                BigDecimal pieceEnd = cuts.get(piece);
+                String startNode = pieceStart.signum() == 0
+                        ? endpointId(variantId, edge, nodes, true)
+                        : technicalNodeId(
+                                variantId,
+                                edge.path("id").asText(),
+                                pieceStart,
+                                isDepthProfileBreakpoint(depthProfile, pieceStart));
+                String endNode = pieceEnd.compareTo(edgeLength) == 0
+                        ? endpointId(variantId, edge, nodes, false)
+                        : technicalNodeId(
+                                variantId,
+                                edge.path("id").asText(),
+                                pieceEnd,
+                                isDepthProfileBreakpoint(depthProfile, pieceEnd));
                 if (pieceStart.signum() > 0) {
                     technicalNodes.putIfAbsent(startNode, metricAtStation(
                             section.path("coordinates"), sectionStart, sectionEnd, pieceStart));
@@ -278,37 +264,72 @@ public class OfficialGeoJsonExporter {
                     technicalNodes.putIfAbsent(endNode, metricAtStation(
                             section.path("coordinates"), sectionStart, sectionEnd, pieceEnd));
                 }
-                BigDecimal length = segmentLength
-                        .multiply(pieceEnd.subtract(pieceStart))
-                        .divide(segmentEnd.subtract(segmentStart), 12, RoundingMode.HALF_UP);
-                BigDecimal cost = economicsCalculator.constructionSegmentCost(
-                        pipe, length, crossing, averageDepth(depthProfile, pieceStart, pieceEnd), bendMultiplier);
+                ExportPieceMeasure measure = measureSectionPiece(
+                        section, section.path("length_m").decimalValue(),
+                        sectionStart, sectionEnd, pieceStart, pieceEnd,
+                        pipe, crossing, depthProfile);
                 ObjectNode properties = properties(
                         "network:" + variantId + ":" + edge.path("id").asText()
-                                + ":" + index + ":" + coordinateIndex + ":" + (piece - 1),
+                                + ":" + index + ":" + (piece - 1),
                         "heat_network",
                         variantId);
                 properties.put("start_node_id", startNode);
                 properties.put("end_node_id", endNode);
                 properties.set("flow_tph", edge.path("flow_tph"));
                 properties.put("diameter", diameter);
-                properties.set("length", objectMapper.valueToTree(length));
+                properties.set("length", objectMapper.valueToTree(measure.length));
                 properties.put("laying_method", kind);
-                properties.set("cost", objectMapper.valueToTree(cost));
-                    if (hasDepthProfile(depthProfile)) {
-                        properties.set("depth_start", objectMapper.valueToTree(depthAt(depthProfile, pieceStart)));
-                        properties.set("depth_end", objectMapper.valueToTree(depthAt(depthProfile, pieceEnd)));
-                        output.accept(feature(lineGeometry(
-                                section.path("coordinates"), depthProfile, sectionStart, sectionEnd,
-                                pieceStart, pieceEnd, pipe.getEnvelopeHeightM()), properties));
-                    } else {
-                        output.accept(feature(lineGeometry2d(
-                                section.path("coordinates"), sectionStart, sectionEnd, pieceStart, pieceEnd),
-                                properties));
-                    }
+                properties.set("cost", objectMapper.valueToTree(measure.cost));
+                if (hasDepthProfile(depthProfile)) {
+                    properties.set("depth_start", objectMapper.valueToTree(depthAt(depthProfile, pieceStart)));
+                    properties.set("depth_end", objectMapper.valueToTree(depthAt(depthProfile, pieceEnd)));
+                    output.accept(feature(lineGeometry(
+                            section.path("coordinates"), depthProfile, sectionStart, sectionEnd,
+                            pieceStart, pieceEnd, pipe.getEnvelopeHeightM()), properties));
+                } else {
+                    output.accept(feature(lineGeometry2d(
+                            section.path("coordinates"), sectionStart, sectionEnd, pieceStart, pieceEnd),
+                            properties));
                 }
-                previousDirection = new double[]{dx, dy};
             }
+        }
+    }
+
+    /**
+     * Consecutive 2D sections with identical export properties are one physical pipe section.
+     * Their intermediate routing vertices stay inside the LineString and do not become facilities.
+     */
+    private List<JsonNode> mergeEquivalentSections(List<JsonNode> sections) {
+        List<JsonNode> merged = new ArrayList<>();
+        ObjectNode current = null;
+        for (JsonNode section : sections) {
+            String kind = section.path("kind").asText("base");
+            String restrictionType = section.path("restriction_type").asText("");
+            if (current == null
+                    || !kind.equals(current.path("kind").asText("base"))
+                    || !restrictionType.equals(current.path("restriction_type").asText(""))) {
+                current = objectMapper.createObjectNode();
+                current.put("kind", kind);
+                if (!restrictionType.isEmpty()) current.put("restriction_type", restrictionType);
+                current.set("length_m", section.path("length_m").deepCopy());
+                current.set("coordinates", section.path("coordinates").deepCopy());
+                current.putArray("_source_sections").add(section.deepCopy());
+                merged.add(current);
+                continue;
+            }
+            current.put("length_m", current.path("length_m").decimalValue()
+                    .add(section.path("length_m").decimalValue()));
+            appendCoordinates((ArrayNode) current.path("coordinates"), section.path("coordinates"));
+            ((ArrayNode) current.path("_source_sections")).add(section.deepCopy());
+        }
+        return merged;
+    }
+
+    private void appendCoordinates(ArrayNode target, JsonNode source) {
+        for (int index = 0; index < source.size(); index++) {
+            JsonNode coordinate = source.path(index);
+            if (index == 0 && !target.isEmpty() && target.path(target.size() - 1).equals(coordinate)) continue;
+            target.add(coordinate.deepCopy());
         }
     }
 
@@ -586,7 +607,20 @@ public class OfficialGeoJsonExporter {
         BigDecimal span = sectionEnd.subtract(sectionStart);
         BigDecimal startFraction = pieceStart.subtract(sectionStart).divide(span, 12, RoundingMode.HALF_UP);
         BigDecimal endFraction = pieceEnd.subtract(sectionStart).divide(span, 12, RoundingMode.HALF_UP);
-        for (BigDecimal fraction : List.of(startFraction, endFraction)) {
+        java.util.SortedSet<BigDecimal> fractions = new java.util.TreeSet<>();
+        fractions.add(startFraction);
+        fractions.add(endFraction);
+        double cumulative = 0.0;
+        for (int index = 1; index < metricCoordinates.size(); index++) {
+            cumulative += coordinateDistance(metricCoordinates.path(index - 1), metricCoordinates.path(index));
+            BigDecimal fraction = total <= 1e-9
+                    ? BigDecimal.ZERO
+                    : BigDecimal.valueOf(cumulative / total);
+            if (fraction.compareTo(startFraction) > 0 && fraction.compareTo(endFraction) < 0) {
+                fractions.add(fraction);
+            }
+        }
+        for (BigDecimal fraction : fractions) {
             double[] metric = metricAtFraction(metricCoordinates, fraction.doubleValue(), total);
             double[] wgs = transform(metric[0], metric[1]);
             ArrayNode position = coordinates.addArray();
@@ -594,6 +628,73 @@ public class OfficialGeoJsonExporter {
             position.add(wgs[1]);
         }
         return geometry;
+    }
+
+    private ExportPieceMeasure measureSectionPiece(
+            JsonNode section,
+            BigDecimal sectionLength,
+            BigDecimal sectionStart,
+            BigDecimal sectionEnd,
+            BigDecimal pieceStart,
+            BigDecimal pieceEnd,
+            PipeCatalogEntry pipe,
+            SpecialCrossingType crossing,
+            JsonNode depthProfile) {
+        if (!hasDepthProfile(depthProfile) && section.path("_source_sections").isArray()) {
+            return measureOriginalTwoDimensionalSections(section.path("_source_sections"), pipe, crossing);
+        }
+        JsonNode coordinates = section.path("coordinates");
+        double geometryLength = coordinateLength(coordinates);
+        double consumed = 0.0;
+        BigDecimal length = BigDecimal.ZERO;
+        BigDecimal cost = BigDecimal.ZERO;
+        for (int index = 1; index < coordinates.size(); index++) {
+            double segmentGeometryLength = coordinateDistance(coordinates.path(index - 1), coordinates.path(index));
+            if (segmentGeometryLength <= 1e-9) continue;
+            BigDecimal segmentStart = sectionStart.add(sectionEnd.subtract(sectionStart)
+                    .multiply(BigDecimal.valueOf(consumed / geometryLength)));
+            consumed += segmentGeometryLength;
+            BigDecimal segmentEnd = index == coordinates.size() - 1
+                    ? sectionEnd
+                    : sectionStart.add(sectionEnd.subtract(sectionStart)
+                            .multiply(BigDecimal.valueOf(consumed / geometryLength)));
+            BigDecimal overlapStart = segmentStart.compareTo(pieceStart) < 0 ? pieceStart : segmentStart;
+            BigDecimal overlapEnd = segmentEnd.compareTo(pieceEnd) > 0 ? pieceEnd : segmentEnd;
+            if (overlapEnd.compareTo(overlapStart) <= 0) continue;
+            BigDecimal segmentLength = sectionLength
+                    .multiply(BigDecimal.valueOf(segmentGeometryLength / geometryLength));
+            BigDecimal overlapLength = segmentLength.multiply(overlapEnd.subtract(overlapStart))
+                    .divide(segmentEnd.subtract(segmentStart), 12, RoundingMode.HALF_UP);
+            length = length.add(overlapLength);
+            cost = cost.add(economicsCalculator.constructionSegmentCost(
+                    pipe, overlapLength, crossing,
+                    averageDepth(depthProfile, overlapStart, overlapEnd), BigDecimal.ONE));
+        }
+        return new ExportPieceMeasure(length, cost);
+    }
+
+    private ExportPieceMeasure measureOriginalTwoDimensionalSections(
+            JsonNode sections,
+            PipeCatalogEntry pipe,
+            SpecialCrossingType crossing) {
+        BigDecimal length = BigDecimal.ZERO;
+        BigDecimal cost = BigDecimal.ZERO;
+        for (JsonNode section : sections) {
+            JsonNode coordinates = section.path("coordinates");
+            double geometryLength = coordinateLength(coordinates);
+            if (geometryLength <= 1e-9) continue;
+            for (int index = 1; index < coordinates.size(); index++) {
+                double segmentGeometryLength = coordinateDistance(
+                        coordinates.path(index - 1), coordinates.path(index));
+                if (segmentGeometryLength <= 1e-9) continue;
+                BigDecimal segmentLength = section.path("length_m").decimalValue()
+                        .multiply(BigDecimal.valueOf(segmentGeometryLength / geometryLength));
+                length = length.add(segmentLength);
+                cost = cost.add(economicsCalculator.constructionSegmentCost(
+                        pipe, segmentLength, crossing, TWO_DIMENSIONAL_DEPTH_M, BigDecimal.ONE));
+            }
+        }
+        return new ExportPieceMeasure(length, cost);
     }
 
     private List<BigDecimal> profileCuts(JsonNode profile, BigDecimal start, BigDecimal end) {
@@ -621,7 +722,7 @@ public class OfficialGeoJsonExporter {
 
     private String technicalNodeId(String variantId, String edgeId, BigDecimal station, boolean depthBreakpoint) {
         return outputId(variantId, "technical:" + edgeId + ":"
-                + (depthBreakpoint ? "depth:" : "geometry:") + station
+                + (depthBreakpoint ? "depth:" : "section:") + station
                 .setScale(3, RoundingMode.HALF_UP).toPlainString());
     }
 
@@ -715,6 +816,16 @@ public class OfficialGeoJsonExporter {
         return Math.hypot(
                 right.path("xm").asDouble() - left.path("xm").asDouble(),
                 right.path("ym").asDouble() - left.path("ym").asDouble());
+    }
+
+    private static final class ExportPieceMeasure {
+        private final BigDecimal length;
+        private final BigDecimal cost;
+
+        private ExportPieceMeasure(BigDecimal length, BigDecimal cost) {
+            this.length = length;
+            this.cost = cost;
+        }
     }
 
     private double[] coordinate(JsonNode coordinate) {

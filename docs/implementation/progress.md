@@ -1468,3 +1468,90 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
   branch.
 - Compose packaging compiled main and test sources with Java 11 and skipped test execution. The
   full automated suite, lint and typecheck were not run by explicit request.
+
+# 2026-09-24 — distinct map point roles (implementation only)
+
+- The route map now assigns stable visual roles to demand connections, new chambers, tie-ins,
+  existing chambers, reconstruction chambers and technical geometry vertices for both preview and
+  strict official-output data.
+- A persistent map legend and inspector role label make physical facilities visually distinct from
+  generated export vertices. Technical nodes remain selectable but small and grey; routing,
+  geometry, economics and official export content are unchanged.
+- The legend is placed beside the left-side map controls in the full-screen workspace so the
+  results inspector cannot cover it, and carries an explicit `Обозначения` heading.
+- Strict-output root IDs with the `:tie:` role are now displayed as orange tie-ins instead of grey
+  technical vertices. All calculated markers remain compact and close to the route-line width;
+  their role is communicated by colour rather than oversized symbols.
+- Focused frontend assertions were extended for strict-output role classification. Tests, lint,
+  typecheck, build and browser smoke were not run for this implementation-only change.
+
+# 2026-09-24 — remove algorithm-only export points (implementation only)
+
+- Geometry-only route vertices are retained as coordinates inside each exported `heat_network`
+  LineString instead of being emitted as standalone `technical_node` point features.
+- Technical nodes remain at real topology endpoints and at section/depth boundaries where route
+  properties change, preserving reference integrity and useful engineering semantics.
+- Strict-output map classification now recognizes a tie-in only when the local node ID itself is a
+  tie-in root. An inherited `:tie:` fragment inside a generated edge ID no longer recolours a
+  technical node as a physical connection.
+- The point legend was moved into the collapsible layer panel so it is hidden while that panel is
+  closed and no longer occupies the map canvas permanently.
+- The exporter aggregation keeps original polyline coordinates and sums the same per-segment
+  lengths and costs into fewer output features. Focused backend/frontend expectations were updated,
+  but tests, build, lint, typecheck, live export and browser smoke were not run.
+
+## Live baseline evidence
+
+- Rebuilt the local API/web images with Maven test execution skipped and opened the canonical
+  144-feature corrected competition dataset without the experimental roads or kindergarten area.
+- Run `15a4b2a6-8891-42b6-9d85-1d0007b7fd35` completed in 439.666 seconds and connected 17/17
+  demands in all three valid variants. Shortest is 1,857.155 m / RUB 273,953,260.00; cheapest is
+  1,895.501 m / RUB 272,450,601.54; balanced is 1,928.150 m / RUB 286,238,609.32.
+- All three strict exports succeeded. Balanced/shortest/cheapest contain respectively 32/30/28
+  `heat_network` features, 15/13/11 new chambers and exactly 18 `technical_node` features: 17
+  demand endpoints plus one physical tie-in root. Generated geometry/section technical nodes are
+  zero in every variant.
+- The in-app browser was switched to the new baseline run with the shortest variant selected. The
+  point legend is visible only inside the expanded layer panel. Automated tests, lint and
+  typecheck were not run.
+
+# 2026-09-24 — road and kindergarten social-area experiment (`global-tree-61`, local)
+
+- A separate ignored experiment dataset keeps the corrected 144 source objects, adds the existing
+  94 OSM-derived `restriction_type=road` polygons and one `social_area` for the building served by
+  connection point 11 at улица Родченко, дом 1. A narrow service approach remains outside the
+  forbidden social polygon so the experiment measures obstacle routing instead of making the
+  destination itself unreachable. The ordinary corrected dataset is unchanged.
+- Run `f6afcce2-d6f1-4b8a-81a4-9c10df9225d1` completed in 2,008.615 seconds and published three
+  official-valid 17/17 variants with no validation or engineering issues. Engineering is
+  1,860.391 m / 288,150,035.15 RUB; shortest is 1,856.603 m / 284,834,678.95 RUB; cheapest is
+  1,880.547 m / 280,703,240.09 RUB and remains the preferred score winner.
+- The local browser now displays this run with the restrictions layer enabled and the kindergarten
+  social polygon selected. The experiment is useful for geometry review but exceeds both the six-
+  minute target and the earlier ten-minute development ceiling; full OSM road polygons therefore
+  remain opt-in diagnostic input rather than the default routing dataset.
+- No automated tests, lint, typecheck or build were run. The explicitly requested verification was
+  one live local import/calculation and browser inspection of the published result.
+
+# 2026-09-24 — square kindergarten territory and safe road fast path (`global-tree-62`, local)
+
+- The opt-in experiment now models the kindergarten as a clean rectangular `social_area` matching
+  the lighter cadastral territory. A terminal inside its own social polygon receives a single
+  straight egress through that exact territory; the same polygon remains forbidden to every other
+  branch, and all foreign social areas keep their ordinary clearance.
+- A direct segment that intersects only a shallow road/tram polygon now tries perpendicular entry
+  and exit portals before constructing the full visibility graph. The candidate is still checked
+  against every active restriction; parks, foreign social areas, buildings and complex crossings
+  continue through the complete obstacle search.
+- Run `2217cd3e-ea31-4af8-a373-26ec0f6d9c05` completed in 1,041.600 seconds versus 2,008.615
+  seconds for the previous road/social diagnostic (48.1% faster). It published three complete
+  17/17 variants with zero validation, engineering or sizing issues: balanced 1,877.566 m /
+  283,714,352.13 RUB; shortest 1,864.361 m / 283,597,161.22 RUB; cheapest 1,950.225 m /
+  283,118,693.11 RUB.
+- The measured improvement does not meet the six-minute target or the ten-minute development
+  ceiling. The independent phase fell from roughly 15:26 to 8:01; repeated shared-network searches
+  and candidate validation are now the dominant optimization targets. No restriction was relaxed
+  to obtain this speed-up.
+- The API image was rebuilt with Maven test execution skipped and the final Compose service became
+  healthy. Automated tests, lint and typecheck were not run; one final live local calculation was
+  performed on the rebuilt service.

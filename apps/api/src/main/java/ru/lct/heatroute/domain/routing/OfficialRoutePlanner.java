@@ -4515,7 +4515,7 @@ public class OfficialRoutePlanner {
             if (validAtFinalDiameter && (egress == null || (hasMandatoryEgress(edge, egress)
                     && obstacleRouter.terminalApproachAllowed(approach,
                             downstream.getCoordinate().toCoordinate(), edge.getDiameter(),
-                            routingEnvironment, exemptions, acceptedRoutes, egress.oksId())))) {
+                            routingEnvironment, exemptions, acceptedRoutes, egress)))) {
                 result.add(edge);
                 acceptedRoutes.add(routeLine(edge));
                 continue;

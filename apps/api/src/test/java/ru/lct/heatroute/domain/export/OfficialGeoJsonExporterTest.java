@@ -357,7 +357,7 @@ class OfficialGeoJsonExporterTest {
     }
 
     @Test
-    void labelsGeometryOnlyIntermediateNodesWithoutDepthSuffix() throws Exception {
+    void keepsGeometryOnlyVerticesInsideLineStringWithoutExportingPointObjects() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("source", "source", "POINT (500000 6170000)", "{}"),
                 feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
@@ -369,17 +369,21 @@ class OfficialGeoJsonExporterTest {
                         new TieInCandidate("cp", "network", "heat_network", 50, true)))));
         ObjectNode edge = (ObjectNode) calculation.path("variants").path(0).path("edges").path(0);
         edge.remove("depth_profile");
-        ObjectNode section = (ObjectNode) edge.putArray("sections").addObject();
-        section.put("kind", "base");
-        section.put("length_m", edge.path("length_m").decimalValue());
-        ArrayNode coordinates = section.putArray("coordinates");
+        ArrayNode sections = edge.putArray("sections");
         JsonNode first = edge.path("coordinates").get(0);
         JsonNode last = edge.path("coordinates").get(edge.path("coordinates").size() - 1);
-        coordinates.add(first.deepCopy());
-        coordinates.addObject()
+        ObjectNode midpoint = objectMapper.createObjectNode()
                 .put("xm", first.path("xm").decimalValue().add(last.path("xm").decimalValue()).divide(BigDecimal.valueOf(2)))
                 .put("ym", first.path("ym").decimalValue().add(last.path("ym").decimalValue()).divide(BigDecimal.valueOf(2)));
-        coordinates.add(last.deepCopy());
+        BigDecimal halfLength = edge.path("length_m").decimalValue().divide(BigDecimal.valueOf(2));
+        ObjectNode firstSection = sections.addObject();
+        firstSection.put("kind", "base");
+        firstSection.put("length_m", halfLength);
+        firstSection.putArray("coordinates").add(first.deepCopy()).add(midpoint.deepCopy());
+        ObjectNode secondSection = sections.addObject();
+        secondSection.put("kind", "base");
+        secondSection.put("length_m", edge.path("length_m").decimalValue().subtract(halfLength));
+        secondSection.putArray("coordinates").add(midpoint.deepCopy()).add(last.deepCopy());
 
         ObjectNode output = exporter.export(calculation, features);
 
@@ -390,16 +394,16 @@ class OfficialGeoJsonExporterTest {
                 .map(feature -> feature.path("properties").path("id").asText())
                 .filter(id -> id.contains(":technical:" + edge.path("id").asText() + ":"))
                 .collect(Collectors.toList());
-        assertThat(generatedNodeIds)
-                .hasSize(calculation.path("variants").size())
-                .allSatisfy(id -> assertThat(id).contains(":geometry:"));
-        assertThat(generatedNodeIds).noneMatch(id -> id.contains(":depth:"));
+        assertThat(generatedNodeIds).isEmpty();
         assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
                 .filter(feature -> "heat_network".equals(
-                        feature.path("properties").path("object_type").asText())))
-                .allSatisfy(feature -> {
+                        feature.path("properties").path("object_type").asText()))
+                .filter(feature -> feature.path("properties").path("id").asText()
+                        .contains(edge.path("id").asText())))
+                .anySatisfy(feature -> {
                     assertThat(feature.path("properties").has("depth_start")).isFalse();
                     assertThat(feature.path("properties").has("depth_end")).isFalse();
+                    assertThat(feature.path("geometry").path("coordinates")).hasSize(3);
                 });
     }
 

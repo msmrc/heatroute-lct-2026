@@ -141,7 +141,7 @@ public class OfficialObstacleRouter {
         List<Constraint> constraints = environment.corridorConstraints(diameter, bounds).stream()
                 // Only the containing OKS and its containing social parcel are waived on the
                 // mandatory terminal leg. The outside prefix is checked independently.
-                .filter(constraint -> !egress.terminalExemptionIds().contains(constraint.id()))
+                .filter(constraint -> !egress.exempts(constraint))
                 .collect(java.util.stream.Collectors.toList());
         RoutePath candidate = path(coordinates, constraints);
         ConstraintIndex index = rules.index(constraints);
@@ -180,7 +180,8 @@ public class OfficialObstacleRouter {
             OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
             List<LineString> acceptedRoutes, String ownOksId) {
         return lineAllowed(List.of(adjacent, endpoint), diameter, environment, exemptFeatureIds,
-                acceptedRoutes, Set.of(java.util.Objects.requireNonNull(ownOksId)));
+                acceptedRoutes, constraint -> "oks".equals(constraint.type())
+                        && java.util.Objects.requireNonNull(ownOksId).equals(constraint.id()));
     }
 
     boolean terminalApproachAllowed(
@@ -188,7 +189,7 @@ public class OfficialObstacleRouter {
             OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
             List<LineString> acceptedRoutes, OfficialRouteGeometryRules.NormalEgress egress) {
         return lineAllowed(List.of(adjacent, endpoint), diameter, environment, exemptFeatureIds,
-                acceptedRoutes, egress.terminalExemptionIds());
+                acceptedRoutes, egress::exempts);
     }
 
     private boolean lineAllowed(
@@ -197,7 +198,7 @@ public class OfficialObstacleRouter {
             OfficialRoutingEnvironment environment,
             Set<String> exemptFeatureIds,
             List<LineString> acceptedRoutes,
-            Set<String> terminalExemptionIds) {
+            java.util.function.Predicate<Constraint> terminalExemption) {
         if (coordinates.size() < 2) {
             return false;
         }
@@ -205,8 +206,8 @@ public class OfficialObstacleRouter {
         Coordinate end = coordinates.get(coordinates.size() - 1);
         List<Constraint> constraints = new ArrayList<>(environment.constraints(
                 diameter, exemptFeatureIds, start, end));
-        if (terminalExemptionIds != null) {
-            constraints.removeIf(constraint -> terminalExemptionIds.contains(constraint.id()));
+        if (terminalExemption != null) {
+            constraints.removeIf(terminalExemption);
         }
         constraints.addAll(rules.applicableConstraints(
                 rules.routeAvoidanceConstraints(acceptedRoutes),

@@ -19,7 +19,7 @@ class RoutingAlgorithmRegistryTest {
         assertThat(registry.require(RoutingAlgorithmProfile.STABLE)).isSameAs(stable);
         assertThat(registry.require(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL)).isSameAs(stable);
         assertThat(registry.require(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL).version())
-                .isEqualTo("global-tree-61");
+                .isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
     }
 
     @Test

@@ -439,7 +439,7 @@ public class OfficialRouteGeometryRules {
                 start.y + directionY * rayLength);
         LineString ray = geometryFactory.createLineString(new Coordinate[] {start, rayEnd});
         double requiredDistance = baseDistance;
-        Set<String> exemptionIds = new HashSet<>(egress.terminalExemptionIds());
+        Set<String> socialAreaIds = new HashSet<>(egress.socialAreaIds());
         double socialClearance = preparationClearanceM("social_area", diameter).doubleValue();
         for (ImportedOfficialFeature feature : containingSocialAreas) {
             Geometry intersections = ray.intersection(feature.getMetricGeometry().getBoundary());
@@ -455,13 +455,13 @@ public class OfficialRouteGeometryRules {
                 requiredDistance = Math.max(
                         requiredDistance,
                         farthestProjection + socialClearance + NORMAL_EGRESS_MARGIN_M);
-                exemptionIds.add(feature.getFeatureId());
+                socialAreaIds.add(feature.getFeatureId());
             }
         }
         Coordinate extendedExit = new Coordinate(
                 start.x + directionX * requiredDistance,
                 start.y + directionY * requiredDistance);
-        return Optional.of(new NormalEgress(egress.oksId(), start, extendedExit, exemptionIds));
+        return Optional.of(new NormalEgress(egress.oksId(), start, extendedExit, socialAreaIds));
     }
 
     private void addDistinctEgress(List<NormalEgress> result, NormalEgress candidate) {
@@ -746,6 +746,18 @@ public class OfficialRouteGeometryRules {
                 .collect(Collectors.toList());
     }
 
+    List<Constraint> ownTerminalFootprintConstraints(List<Constraint> constraints, NormalEgress egress) {
+        return constraints.stream()
+                .filter(egress::exempts)
+                .map(constraint -> new Constraint(
+                        constraint.id,
+                        constraint.type,
+                        constraint.source,
+                        constraint.source,
+                        constraint.rule))
+                .collect(Collectors.toList());
+    }
+
     LineString line(List<Coordinate> coordinates) {
         return geometryFactory.createLineString(coordinates.toArray(new Coordinate[0]));
     }
@@ -920,23 +932,32 @@ public class OfficialRouteGeometryRules {
         private final String oksId;
         private final Coordinate start;
         private final Coordinate exit;
-        private final Set<String> terminalExemptionIds;
+        private final Set<String> socialAreaIds;
 
         private NormalEgress(String oksId, Coordinate start, Coordinate exit) {
-            this(oksId, start, exit, Set.of(oksId));
+            this(oksId, start, exit, Set.of());
         }
 
-        private NormalEgress(String oksId, Coordinate start, Coordinate exit, Set<String> terminalExemptionIds) {
+        private NormalEgress(String oksId, Coordinate start, Coordinate exit, Set<String> socialAreaIds) {
             this.oksId = oksId;
             this.start = new Coordinate(start);
             this.exit = new Coordinate(exit);
-            this.terminalExemptionIds = Set.copyOf(terminalExemptionIds);
+            this.socialAreaIds = Set.copyOf(socialAreaIds);
         }
 
         String oksId() { return oksId; }
         Coordinate start() { return new Coordinate(start); }
         Coordinate exit() { return new Coordinate(exit); }
-        Set<String> terminalExemptionIds() { return terminalExemptionIds; }
+        Set<String> socialAreaIds() { return socialAreaIds; }
+        Set<String> terminalExemptionIds() {
+            Set<String> ids = new HashSet<>(socialAreaIds);
+            ids.add(oksId);
+            return Set.copyOf(ids);
+        }
+        boolean exempts(Constraint constraint) {
+            return ("oks".equals(constraint.type()) && oksId.equals(constraint.id()))
+                    || ("social_area".equals(constraint.type()) && socialAreaIds.contains(constraint.id()));
+        }
     }
 
     static final class ConstraintIndex {

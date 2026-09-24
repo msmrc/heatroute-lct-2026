@@ -1555,3 +1555,30 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
 - The API image was rebuilt with Maven test execution skipped and the final Compose service became
   healthy. Automated tests, lint and typecheck were not run; one final live local calculation was
   performed on the rebuilt service.
+
+# 2026-09-24 — separate downloads for calculated variants (verified locally)
+
+- The results toolbar no longer requests the run-wide export that combines all ranked variants.
+  Its export menu exposes one button per calculated variant and always supplies that variant's
+  `variant_id` to the existing strict export endpoint.
+- `Скачать все` downloads the same exportable variants sequentially as separate, uniquely named
+  GeoJSON files instead of merging them into one collection. It is enabled only when every
+  calculated variant is complete, valid, ranked and costed.
+- The backend export format and routing/economics are unchanged. The final local web gate passes:
+  8 Vitest files / 36 tests, 35 script tests, ESLint, TypeScript and the production Vite build.
+  Browser smoke will be covered by the production deployment verification below.
+
+# 2026-09-24 — CI repair after `06f3f39` (verified locally)
+
+- Terminal egress exemptions are now keyed by both feature identity and constraint role: the own
+  building exemption applies only to its `oks` constraint and a containing social parcel exemption
+  only to its `social_area` constraint. A foreign park or other obstacle with the same source ID is
+  no longer removed from route or final-validator checks.
+- Two backend assertions now follow the declared `STABLE_ALGORITHM_VERSION` instead of freezing the
+  superseded `global-tree-61` label. The route-map lifecycle assertion was aligned with the current
+  compact point-role styling; neither adjustment relaxes routing or export requirements.
+- Run `ci #98` reached GitHub and integration passed, but backend failed four assertions and web
+  failed one stale styling assertion. The repaired final state passes the full Java 11 gate:
+  750 tests, zero failures/errors and three skipped scale tests. The web gate passes 36 Vitest
+  tests, 35 script tests, ESLint, TypeScript and the production build. GitHub CI and live deployment
+  remain pending until this exact commit is pushed.

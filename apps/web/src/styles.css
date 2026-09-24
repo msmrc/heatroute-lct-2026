@@ -746,6 +746,15 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .map-workspace-actions { display: flex; justify-content: flex-end; }
 .map-workspace-actions input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .map-workspace-actions button { min-height: 42px; }
+.map-export-menu { position: relative; }
+.map-export-menu > summary { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--foreground); font-size: 14px; font-weight: 600; cursor: pointer; list-style: none; }
+.map-export-menu > summary::-webkit-details-marker { display: none; }
+.map-export-menu > summary:hover { background: var(--surface-soft); }
+.map-export-menu > summary[aria-disabled="true"] { cursor: not-allowed; opacity: .55; pointer-events: none; }
+.map-export-menu__content { position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; display: grid; width: 230px; gap: 7px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--surface); box-shadow: 0 16px 42px rgba(30, 27, 34, .16); }
+.map-export-menu__content strong { padding: 2px 4px 5px; color: var(--muted-foreground); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
+.map-export-menu__content button { width: 100%; justify-content: flex-start; }
+.map-export-menu__content button:last-child { justify-content: center; margin-top: 3px; }
 
 .route-workspace {
   --route-demand: #22a06b;
@@ -935,6 +944,8 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .map-workspace-actions button { width: 42px; padding: 0; }
   .map-workspace-actions button { font-size: 0; }
   .map-workspace-actions button svg { width: 17px; height: 17px; }
+  .map-export-menu > summary { width: 42px; padding: 0; font-size: 0; }
+  .map-export-menu__content button { width: 100%; padding-inline: 12px; font-size: 13px; }
   .route-workspace-inspector { display: none; }
   .route-variant-tabs--floating { top: 10px; left: 10px; display: flex; max-width: calc(100% - 20px); transform: none; }
   .route-variant-tabs--floating button { min-width: 0; padding-inline: 8px; }

@@ -165,17 +165,17 @@ describe("OfficialRouteMap lifecycle", () => {
 
     expect(routeNodes?.paint?.["circle-radius"]).toEqual([
       "match",
-      ["get", "node_type"],
-      "technical_node", 2,
-      "demand_connection", 5,
-      "new_branch_chamber", 7,
-      "new_tie_in_chamber", 6,
-      "existing_chamber_tie_in", 6,
+      ["get", "point_role"],
+      "technical_node", 1.6,
+      "demand_connection", 2,
+      "new_chamber", 2,
+      "existing_chamber_tie_in", 2,
+      "tie_in", 2,
       2,
     ]);
     const colorExpression = JSON.stringify(routeNodes?.paint?.["circle-color"]);
     expect(colorExpression).toContain("technical_node");
-    expect(colorExpression).toContain("#8b949e");
+    expect(colorExpression).toContain("#475569");
     expect(colorExpression).toContain("demand_connection");
     expect(colorExpression).toContain("#45a55a");
 

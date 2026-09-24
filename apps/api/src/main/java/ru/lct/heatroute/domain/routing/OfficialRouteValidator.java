@@ -141,13 +141,9 @@ public class OfficialRouteValidator {
                 continue;
             }
 
-            Set<String> withOwnOksExempt = new HashSet<>(exemptions);
-            withOwnOksExempt.addAll(egress.terminalExemptionIds());
-            List<OfficialRouteGeometryRules.Constraint> outsideConstraints = geometryRules.applicableConstraints(
-                    baseConstraints,
-                    withOwnOksExempt,
-                    route.getCoordinateN(0),
-                    route.getCoordinateN(route.getNumPoints() - 1));
+            List<OfficialRouteGeometryRules.Constraint> outsideConstraints = allConstraints.stream()
+                    .filter(constraint -> !egress.exempts(constraint))
+                    .collect(java.util.stream.Collectors.toList());
             issues.addAll(geometryRules.validate(edge, route, outsideConstraints));
 
             // Only the terminal approach may enter the demand's own OKS. Its clearance is waived
@@ -160,7 +156,7 @@ public class OfficialRouteValidator {
                 LineString outsideRoute = geometryFactory.createLineString(outsideCoordinates);
                 List<OfficialRouteGeometryRules.Constraint> ownTerminalTerritories =
                         geometryRules.ownTerminalFootprintConstraints(
-                                allConstraints, egress.terminalExemptionIds());
+                                allConstraints, egress);
                 issues.addAll(geometryRules.validateForbidden(edge, outsideRoute, ownTerminalTerritories));
             }
         }

@@ -267,8 +267,10 @@ const rawBase = typeof configuredApiBase === "string" ? configuredApiBase : "/ap
 const absoluteBase = rawBase.startsWith("/") ? `${window.location.origin}${rawBase}` : rawBase;
 export const API_BASE = absoluteBase.replace(/\/$/, "");
 
-export function officialExportUrl(runId: string): string {
-  return `${API_BASE}/official/runs/${runId}/export`;
+export function officialExportUrl(runId: string, variantId?: string): string {
+  const path = `${API_BASE}/official/runs/${encodeURIComponent(runId)}/export`;
+  if (!variantId) return path;
+  return `${path}?${new URLSearchParams({ variant_id: variantId })}`;
 }
 
 export function getOfficialVariantOutput(

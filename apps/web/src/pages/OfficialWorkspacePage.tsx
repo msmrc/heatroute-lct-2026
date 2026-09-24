@@ -19,6 +19,7 @@ import {
   getOfficialRun,
   humanFileSize,
   officialExportUrl,
+  type OfficialRouteVariant,
   type OfficialRun,
 } from "../shared/api";
 
@@ -37,6 +38,36 @@ function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : error instanceof Error ? error.message : "Неизвестная ошибка";
 }
 
+function variantExportName(variant: OfficialRouteVariant): string {
+  if (variant.strategy === "cheapest") return "Самый дешёвый";
+  if (variant.strategy === "shortest") return "Самый короткий";
+  if (variant.strategy === "engineering") return "Оптимальный";
+  return `Вариант ${variant.rank ?? variant.id}`;
+}
+
+function variantExportFilename(runId: string, variant: OfficialRouteVariant): string {
+  const strategy = variant.strategy.replace(/[^a-zA-Z0-9_-]+/g, "-") || "variant";
+  const rank = variant.rank == null ? "unranked" : `rank-${variant.rank}`;
+  return `heatroute-${runId}-${strategy}-${rank}.geojson`;
+}
+
+async function downloadVariantExport(runId: string, variant: OfficialRouteVariant): Promise<void> {
+  const response = await fetch(officialExportUrl(runId, variant.id));
+  if (!response.ok) {
+    const payload = await response.json().catch(() => undefined) as { message?: string } | undefined;
+    throw new ApiError(payload?.message ?? `API вернул ${response.status}`, response.status, payload);
+  }
+
+  const objectUrl = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = variantExportFilename(runId, variant);
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
 export function OfficialWorkspacePage() {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +75,7 @@ export function OfficialWorkspacePage() {
   const [jobId, setJobId] = useState(() => localStorage.getItem(JOB_KEY) ?? "");
   const [runId, setRunId] = useState(() => localStorage.getItem(RUN_KEY) ?? "");
   const [processingFilename, setProcessingFilename] = useState("");
+  const [downloadingVariantIds, setDownloadingVariantIds] = useState<Set<string>>(() => new Set());
   const stableRunId = localStorage.getItem(STABLE_RUN_KEY) ?? "";
   const experimentalRunId = localStorage.getItem(EXPERIMENTAL_RUN_KEY) ?? "";
 
@@ -236,6 +268,26 @@ export function OfficialWorkspacePage() {
     event.currentTarget.value = "";
   }
 
+  async function downloadVariants(variants: OfficialRouteVariant[]) {
+    setDownloadingVariantIds((current) => new Set([...current, ...variants.map((variant) => variant.id)]));
+    try {
+      for (const variant of variants) {
+        await downloadVariantExport(runId, variant);
+      }
+      toast.success(variants.length === 1
+        ? `Скачан вариант «${variantExportName(variants[0]!)}»`
+        : `Скачано файлов: ${variants.length}`);
+    } catch (error) {
+      toast.error(`Не удалось скачать результат: ${errorText(error)}`);
+    } finally {
+      setDownloadingVariantIds((current) => {
+        const next = new Set(current);
+        variants.forEach((variant) => next.delete(variant.id));
+        return next;
+      });
+    }
+  }
+
   if (isProcessing) {
     return (
       <div className="official-processing-screen" role="status" aria-live="polite">
@@ -261,8 +313,11 @@ export function OfficialWorkspacePage() {
   }
 
   if (currentImport && currentRun?.state === "completed" && currentRun.result) {
-    const exportReady = currentRun.result.variants.some((variant) =>
+    const exportableVariants = currentRun.result.variants.filter((variant) =>
       variant.valid && variant.rank != null && variant.economics?.complete === true);
+    const exportReady = exportableVariants.length > 0;
+    const allExportsReady = exportableVariants.length === currentRun.result.variants.length;
+    const exportPending = downloadingVariantIds.size > 0;
     return (
       <div className="official-map-workspace">
         <header className="map-workspace-toolbar">
@@ -307,17 +362,46 @@ export function OfficialWorkspacePage() {
               {loadDemo.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Eye size={16} />}
               {loadDemo.isPending ? "Открываем…" : "Последний расчёт"}
             </Button>
-            <Button
-              variant="outline"
-              disabled={!exportReady}
-              title={exportReady
-                ? "Скачать официальный GeoJSON"
-                : "Для экспорта нужны исходные данные реконструкции и итоговый rank"}
-              onClick={() => { window.location.href = officialExportUrl(currentRun.id); }}
-            >
-              <Download size={16} />
-              {exportReady ? "Скачать результат" : "Экспорт недоступен"}
-            </Button>
+            <details className="map-export-menu">
+              <summary
+                aria-disabled={!exportReady || exportPending}
+                title={exportReady
+                  ? "Скачать отдельные варианты GeoJSON"
+                  : "Для экспорта нужны исходные данные реконструкции и итоговый rank"}
+                onClick={(event) => {
+                  if (!exportReady || exportPending) event.preventDefault();
+                }}
+              >
+                {exportPending ? <LoaderCircle className="is-spinning" size={16} /> : <Download size={16} />}
+                {exportReady ? "Экспорт" : "Экспорт недоступен"}
+              </summary>
+              {exportReady && (
+                <div className="map-export-menu__content">
+                  <strong>Скачать вариант</strong>
+                  {currentRun.result.variants.map((variant) => {
+                    const ready = exportableVariants.some((candidate) => candidate.id === variant.id);
+                    return (
+                      <Button
+                        key={variant.id}
+                        variant="outline"
+                        disabled={!ready || downloadingVariantIds.has(variant.id)}
+                        title={ready ? `Скачать «${variantExportName(variant)}» отдельным GeoJSON` : "Вариант не готов к экспорту"}
+                        onClick={() => void downloadVariants([variant])}
+                      >
+                        <Download size={15} /> {variantExportName(variant)}
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    disabled={!allExportsReady || exportPending}
+                    title={allExportsReady ? "Скачать каждый вариант отдельным GeoJSON-файлом" : "Не все варианты готовы к экспорту"}
+                    onClick={() => void downloadVariants(exportableVariants)}
+                  >
+                    <Download size={15} /> Скачать все ({exportableVariants.length})
+                  </Button>
+                </div>
+              )}
+            </details>
             <input
               ref={inputRef}
               type="file"

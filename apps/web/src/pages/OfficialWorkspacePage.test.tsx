@@ -15,7 +15,8 @@ const api = vi.hoisted(() => ({
   getOfficialJob: vi.fn(),
   getLatestOfficialRun: vi.fn(),
   getOfficialRun: vi.fn(),
-  officialExportUrl: vi.fn((runId: string) => `/api/v1/official/runs/${runId}/export`),
+  officialExportUrl: vi.fn((runId: string, variantId?: string) =>
+    `/api/v1/official/runs/${runId}/export${variantId ? `?variant_id=${variantId}` : ""}`),
 }));
 
 vi.mock("../shared/api", () => ({
@@ -98,14 +99,14 @@ describe("OfficialWorkspacePage", () => {
 
     renderWorkspace();
 
-    const exportButton = await screen.findByRole("button", { name: "Экспорт недоступен" });
-    expect((exportButton as HTMLButtonElement).disabled).toBe(true);
+    const exportButton = await screen.findByText("Экспорт недоступен");
+    expect(exportButton.getAttribute("aria-disabled")).toBe("true");
     expect(exportButton.getAttribute("title")).toBe(
       "Для экспорта нужны исходные данные реконструкции и итоговый rank",
     );
   });
 
-  it("offers the strict GeoJSON download for a complete ranked result", async () => {
+  it("offers separate strict GeoJSON downloads for every complete ranked variant", async () => {
     localStorage.setItem("heatroute.officialImportId", "import-1");
     localStorage.setItem("heatroute.officialRunId", "run-1");
     api.getOfficialImport.mockResolvedValue(completedImport());
@@ -113,9 +114,13 @@ describe("OfficialWorkspacePage", () => {
 
     renderWorkspace();
 
-    const exportButton = await screen.findByRole("button", { name: "Скачать результат" });
-    expect((exportButton as HTMLButtonElement).disabled).toBe(false);
-    expect(exportButton.getAttribute("title")).toBe("Скачать официальный GeoJSON");
+    const exportMenu = await screen.findByText("Экспорт");
+    fireEvent.click(exportMenu);
+
+    expect(screen.getByRole("button", { name: /Самый дешёвый/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Самый короткий/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Оптимальный/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Скачать все (3)" })).toBeTruthy();
   });
 
   it("can replace a persisted result with the latest completed run", async () => {
@@ -203,7 +208,7 @@ describe("OfficialWorkspacePage", () => {
 
     expect(await screen.findByText(/Архивный эксперимент/)).toBeTruthy();
     expect(screen.getByText("Карта результатов")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Скачать результат" })).toBeTruthy();
+    expect(screen.getByText("Экспорт")).toBeTruthy();
     expect(localStorage.getItem("heatroute.officialRunId")).toBe("run-archive");
     expect(api.createOfficialRun).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /Новый эксперимент|Экспериментальный алгоритм/ })).toBeNull();
@@ -266,17 +271,18 @@ function completedRun(exportReady: boolean) {
     input_sha256: "hash",
     created_at: "2026-09-16T00:00:00Z",
     result: {
-      preferred_variant_id: "variant-1",
-      variants: [{
-        id: "variant-1",
+      preferred_variant_id: "variant-cheapest",
+      variants: ["cheapest", "shortest", "engineering"].map((strategy, index) => ({
+        id: `variant-${strategy}`,
+        strategy,
         valid: true,
-        rank: exportReady ? 1 : null,
+        rank: exportReady ? index + 1 : null,
         economics: { complete: exportReady },
         nodes: [],
         edges: [],
         connections: [],
         issues: [],
-      }],
+      })),
     },
   };
 }

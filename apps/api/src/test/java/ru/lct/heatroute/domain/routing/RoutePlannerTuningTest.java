@@ -10,7 +10,7 @@ class RoutePlannerTuningTest {
         RoutePlannerTuning stable = RoutePlannerTuning.stable();
         RoutePlannerTuning experimental = RoutePlannerTuning.expertExperimental();
 
-        assertThat(stable.getAlgorithmVersion()).isEqualTo("global-tree-61");
+        assertThat(stable.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
         assertThat(experimental.getAlgorithmVersion()).isEqualTo(stable.getAlgorithmVersion());
         assertThat(experimental.getEngineeringEgressExtraM())
                 .isEqualTo(stable.getEngineeringEgressExtraM());

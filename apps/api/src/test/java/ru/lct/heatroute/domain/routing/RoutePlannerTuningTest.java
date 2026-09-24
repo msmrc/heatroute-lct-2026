@@ -6,19 +6,23 @@ import org.junit.jupiter.api.Test;
 
 class RoutePlannerTuningTest {
     @Test
-    void experimentalSearchBudgetIsSeparateAndStrictlyWiderThanStable() {
+    void legacyFactoryUsesThePrimaryVersionAndBudgets() {
         RoutePlannerTuning stable = RoutePlannerTuning.stable();
         RoutePlannerTuning experimental = RoutePlannerTuning.expertExperimental();
 
-        assertThat(stable.getAlgorithmVersion()).isEqualTo("global-tree-46");
-        assertThat(experimental.getAlgorithmVersion()).isEqualTo("expert-tree-1");
+        assertThat(stable.getAlgorithmVersion()).isEqualTo("global-tree-61");
+        assertThat(experimental.getAlgorithmVersion()).isEqualTo(stable.getAlgorithmVersion());
+        assertThat(experimental.getEngineeringEgressExtraM())
+                .isEqualTo(stable.getEngineeringEgressExtraM());
         assertThat(experimental.getEngineeringZoneRadiusM())
-                .isGreaterThan(stable.getEngineeringZoneRadiusM());
+                .isEqualTo(stable.getEngineeringZoneRadiusM());
         assertThat(experimental.getMaximumEngineeringZoneDemands())
-                .isGreaterThan(stable.getMaximumEngineeringZoneDemands());
+                .isEqualTo(stable.getMaximumEngineeringZoneDemands());
         assertThat(experimental.getMaximumEngineeringZoneRebuilds())
-                .isGreaterThan(stable.getMaximumEngineeringZoneRebuilds());
+                .isEqualTo(stable.getMaximumEngineeringZoneRebuilds());
         assertThat(experimental.getMaximumGlobalEngineeringRepairs())
-                .isGreaterThan(stable.getMaximumGlobalEngineeringRepairs());
+                .isEqualTo(stable.getMaximumGlobalEngineeringRepairs());
+        assertThat(experimental.getMaximumEngineeringEgressCandidates())
+                .isEqualTo(stable.getMaximumEngineeringEgressCandidates());
     }
 }

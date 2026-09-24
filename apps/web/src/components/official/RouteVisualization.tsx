@@ -122,9 +122,40 @@ function groupInputWarnings(warnings: OfficialInputWarning[]): InputWarningGroup
 
 function variantName(variant: OfficialRouteVariant): string {
   if (variant.strategy === "engineering") return "Инженерная трасса";
-  if (variant.strategy === "cheapest") return "Самый дешёвый";
-  if (variant.strategy === "shortest") return "Самый короткий";
+  if (variant.strategy === "cheapest") return "Приоритет стоимости";
+  if (variant.strategy === "shortest") return "Приоритет длины";
   return "Вариант сети";
+}
+
+/** Начальный вид карты не меняет серверный рейтинг и не жертвует полнотой подключения. */
+function initialVariant(result: OfficialCalculationResult): OfficialRouteVariant | undefined {
+  const maximumConnected = result.variants.reduce(
+    (maximum, variant) => variant.valid ? Math.max(maximum, variant.connected_demand_count) : maximum,
+    0,
+  );
+  return result.variants.find((variant) => variant.strategy === "engineering"
+    && variant.valid && variant.connected_demand_count === maximumConnected)
+    ?? result.variants.find((variant) => variant.id === result.preferred_variant_id)
+    ?? result.variants[0];
+}
+
+/** Лучи считаются так же, как в экономике backend: каждое новое ребро от корня — отдельная врезка. */
+function connectionMetrics(variant: OfficialRouteVariant) {
+  const rootIds = new Set(variant.nodes.filter((node) => node.root).map((node) => node.id));
+  const usedRootIds = new Set<string>();
+  let tieInRayCount = 0;
+  for (const edge of variant.edges) {
+    if (rootIds.has(edge.upstream_node_id)) {
+      tieInRayCount += 1;
+      usedRootIds.add(edge.upstream_node_id);
+    }
+  }
+  return {
+    branchChamberCount: variant.nodes.filter((node) => node.node_type === "new_branch_chamber").length,
+    newTieInChamberCount: variant.nodes.filter((node) => node.node_type === "new_tie_in_chamber").length,
+    connectionSiteCount: usedRootIds.size,
+    tieInRayCount,
+  };
 }
 
 function nodeName(node: OfficialRouteNode): string {
@@ -324,7 +355,7 @@ export function RouteVisualization({
   importId: string;
   warnings?: OfficialInputWarning[];
 }) {
-  const defaultVariant = result.variants.find((item) => item.id === result.preferred_variant_id) ?? result.variants[0];
+  const defaultVariant = initialVariant(result);
   const [variantId, setVariantId] = useState(defaultVariant?.id ?? "");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedObject, setSelectedObject] = useState<SelectedMapObject | null>(null);
@@ -367,6 +398,7 @@ export function RouteVisualization({
 
   if (!variant || !layout) return null;
 
+  const metrics = connectionMetrics(variant);
   const noRoute = variant.connections.filter((connection) => connection.status === "no_route");
   const reconstructionIssues = variant.reconstruction?.issues ?? [];
   const reconstructionWarnings = reconstructionIssues.filter((issue) => issue.code === "RECONSTRUCTION_INPUT_UNAVAILABLE");
@@ -445,7 +477,8 @@ export function RouteVisualization({
                 onClick={() => changeVariant(item.id)} onKeyDown={(event) => handleVariantTabKeyDown(event, index)}>
                 <span>{variantName(item)}</span>
                 <small>{formatLength(item.total_length_m)}</small>
-                {item.rank ? <i>место {item.rank}</i> : item.id === result.preferred_variant_id && <i>рекомендуем</i>}
+                {item.rank ? <i title="Рейтинг по полноте подключения и целевому показателю стоимости и длины">место {item.rank}</i>
+                  : item.id === result.preferred_variant_id && <i>выбор расчёта</i>}
               </button>
             ))}
           </div>
@@ -529,22 +562,28 @@ export function RouteVisualization({
             </>
           ) : (
             <>
-              {variant.id === result.preferred_variant_id && <Badge tone="success">Рекомендуемый вариант</Badge>}
+              {variant.id === result.preferred_variant_id && (
+                <Badge tone="success">{variant.rank != null ? "Лучший по целевому показателю" : "Выбор расчёта"}</Badge>
+              )}
               <p className="route-inspector-summary">{
                 variant.strategy === "engineering"
-                  ? "Инженерно регулярная трасса: углы 90–135°, между поворотами не менее 2 м; допуск по длине и стоимости до 10%."
+                  ? "Вариант с приоритетом инженерной геометрии. Оставшиеся замечания приведены ниже."
                   : variant.strategy === "cheapest"
-                    ? "Вариант с приоритетом минимальной итоговой стоимости."
-                    : "Вариант с приоритетом минимальной суммарной длины новой сети."
-              }</p>
+                    ? "Вариант с приоритетом стоимости; углы могут быть нерегулярными. Отсутствие ошибок обязательной проверки не гарантирует инженерную регулярность."
+                    : "Вариант с приоритетом длины. После инженерной обработки он может быть длиннее других."
+              } Глобальный минимум стоимости или длины не гарантируется.</p>
               <dl className="route-inspector-list">
                 <div><dt>Длина</dt><dd>{formatLength(variant.total_length_m)}</dd></div>
                 <div><dt>Подключено</dt><dd>{variant.connected_demand_count} из {result.demand_count} ОКС</dd></div>
                 <div><dt>Участков</dt><dd>{variant.edges.length}</dd></div>
-                <div><dt>Камер и врезок</dt><dd>{variant.nodes.filter((node) => node.chamber).length}</dd></div>
+                <div><dt>Камеры ветвления</dt><dd>{metrics.branchChamberCount}</dd></div>
+                <div><dt>Новые камеры врезки</dt><dd>{metrics.newTieInChamberCount}</dd></div>
+                <div><dt>Места подключения</dt><dd>{metrics.connectionSiteCount}</dd></div>
+                <div><dt>Врезки — новые лучи</dt><dd>{metrics.tieInRayCount}</dd></div>
                 <div><dt>{variant.economics?.complete ? "Стоимость" : "Известная стоимость"}</dt><dd>{variant.economics ? formatMoney(variant.economics.calculated_cost) : "—"}</dd></div>
                 <div><dt>Итоговый показатель</dt><dd>{variant.economics?.score != null ? variant.economics.score.toLocaleString("ru-RU", { maximumFractionDigits: 3 }) : "Нужны данные реконструкции"}</dd></div>
               </dl>
+              <p className="route-inspector-hint">Одно место подключения может иметь несколько новых лучей.</p>
             </>
           )}
 

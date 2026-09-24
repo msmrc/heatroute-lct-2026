@@ -6,7 +6,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.run.RoutingAlgorithmProfile;
 
-/** Сопоставляет сохранённый профиль запуска с единственной реализацией алгоритма. */
+/** Разрешает основной профиль и устаревшее API-имя в одну реализацию алгоритма. */
 @Component
 public class RoutingAlgorithmRegistry {
     private final Map<RoutingAlgorithmProfile, RoutingAlgorithm> algorithms;
@@ -15,25 +15,27 @@ public class RoutingAlgorithmRegistry {
         EnumMap<RoutingAlgorithmProfile, RoutingAlgorithm> indexed =
                 new EnumMap<>(RoutingAlgorithmProfile.class);
         for (RoutingAlgorithm implementation : implementations) {
+            if (implementation.profile() != RoutingAlgorithmProfile.STABLE) {
+                throw new IllegalStateException("Only the stable routing implementation may be registered");
+            }
             RoutingAlgorithm previous = indexed.put(implementation.profile(), implementation);
             if (previous != null) {
                 throw new IllegalStateException(
                         "Duplicate routing algorithm profile: " + implementation.profile().getWireName());
             }
         }
-        for (RoutingAlgorithmProfile profile : RoutingAlgorithmProfile.values()) {
-            if (!indexed.containsKey(profile)) {
-                throw new IllegalStateException("Missing routing algorithm profile: " + profile.getWireName());
-            }
+        if (!indexed.containsKey(RoutingAlgorithmProfile.STABLE)) {
+            throw new IllegalStateException("Missing routing algorithm profile: stable");
         }
         this.algorithms = Map.copyOf(indexed);
     }
 
     public RoutingAlgorithm require(RoutingAlgorithmProfile profile) {
-        RoutingAlgorithm algorithm = algorithms.get(profile);
-        if (algorithm == null) {
-            throw new IllegalArgumentException("Unsupported algorithm_profile: " + profile.getWireName());
+        if (profile == RoutingAlgorithmProfile.STABLE
+                || profile == RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL) {
+            // Сохранённые параметры и старые API-клиенты читаются без миграции данных.
+            return algorithms.get(RoutingAlgorithmProfile.STABLE);
         }
-        return algorithm;
+        throw new IllegalArgumentException("Unsupported algorithm_profile: " + profile);
     }
 }

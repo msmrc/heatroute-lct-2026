@@ -81,7 +81,7 @@ public class RouteVariant {
     public ExistingNetworkReconstructionResult getReconstruction() { return reconstruction; }
     public VariantEconomics getEconomics() { return economics; }
     public Integer getRank() { return rank; }
-    public boolean isValid() { return validationIssues.isEmpty(); }
+    public boolean isValid() { return validationIssues.isEmpty() && sizingIssues.isEmpty(); }
     public long getConnectedDemandCount() {
         return connections.stream().filter(connection -> "connected".equals(connection.getStatus())).count();
     }

@@ -134,8 +134,15 @@ public class OfficialGeoJsonExporter {
             throw new IllegalStateException("OFFICIAL_EXPORT_INCOMPLETE: no fully costed ranked variant");
         }
         boolean allowMissingTieInDiameter = allowsMissingTieInDiameter(calculation);
+        ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex support =
+                new ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex(inputFeatures);
+        Map<JsonNode, Map<String, Integer>> chamberDiameters = new java.util.IdentityHashMap<>();
+        // Проверяем все выбранные варианты до передачи первой feature потребителю потока.
         for (JsonNode variant : variants) {
-            appendVariant(output, variant, inputById, allowMissingTieInDiameter);
+            chamberDiameters.put(variant, SavedChamberAssessment.verify(variant, support, economics));
+        }
+        for (JsonNode variant : variants) {
+            appendVariant(output, variant, inputById, allowMissingTieInDiameter, chamberDiameters.get(variant));
         }
     }
 
@@ -153,20 +160,28 @@ public class OfficialGeoJsonExporter {
             Consumer<ObjectNode> output,
             JsonNode variant,
             Map<String, ImportedOfficialFeature> inputById,
-            boolean allowMissingTieInDiameter) {
+            boolean allowMissingTieInDiameter,
+            Map<String, Integer> maxDiameterByNode) {
         String variantId = variant.path("id").asText();
         Map<String, JsonNode> nodes = new HashMap<>();
         variant.path("nodes").forEach(node -> nodes.put(node.path("id").asText(), node));
-        Map<String, Integer> maxDiameterByNode = maximumDiameterByNode(variant.path("edges"));
         Map<String, double[]> generatedTechnicalNodes = new LinkedHashMap<>();
+        BigDecimal[] physicalCost = {BigDecimal.ZERO};
+        Consumer<ObjectNode> checkedOutput = feature -> {
+            JsonNode properties = feature.path("properties");
+            if (Set.of("heat_network", "heat_chamber").contains(properties.path("object_type").asText())) {
+                physicalCost[0] = physicalCost[0].add(properties.path("cost").decimalValue());
+            }
+            output.accept(feature);
+        };
 
         for (JsonNode edge : variant.path("edges")) {
-            appendEdgeSections(output, variantId, edge, nodes, generatedTechnicalNodes);
+            appendEdgeSections(checkedOutput, variantId, edge, nodes, generatedTechnicalNodes);
         }
         for (JsonNode node : variant.path("nodes")) {
             String nodeType = node.path("node_type").asText();
             if (node.path("chamber").asBoolean() && nodeType.startsWith("new_")) {
-                appendNewChamber(output, variantId, node, maxDiameterByNode);
+                appendNewChamber(checkedOutput, variantId, node, maxDiameterByNode);
             }
             if (!node.path("chamber").asBoolean()
                     || node.path("root").asBoolean() && !nodeType.startsWith("new_")) {
@@ -175,6 +190,11 @@ public class OfficialGeoJsonExporter {
         }
         generatedTechnicalNodes.forEach((id, coordinate) ->
                 appendTechnicalNode(output, variantId, id, coordinate));
+        BigDecimal expected = physicalCost[0].add(variant.path("economics").path("tie_in_cost").decimalValue());
+        if (expected.compareTo(variant.path("economics").path("construction_cost").decimalValue()) != 0) {
+            throw new IllegalStateException("OFFICIAL_EXPORT_INCOMPLETE: recalculate variant " + variantId
+                    + "; exported construction components disagree with saved economics");
+        }
         appendSummary(output, variantId, variant);
     }
 

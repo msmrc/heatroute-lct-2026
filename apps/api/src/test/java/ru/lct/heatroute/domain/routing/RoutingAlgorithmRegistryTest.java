@@ -11,22 +11,41 @@ import ru.lct.heatroute.domain.run.RoutingAlgorithmProfile;
 
 class RoutingAlgorithmRegistryTest {
     @Test
-    void resolvesStableAndExperimentalImplementationsIndependently() {
+    void resolvesLegacyProfileToTheSamePrimaryImplementationAndVersion() {
         RoutingAlgorithm stable = algorithm(RoutingAlgorithmProfile.STABLE);
-        RoutingAlgorithm experimental = algorithm(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
-        RoutingAlgorithmRegistry registry = new RoutingAlgorithmRegistry(List.of(stable, experimental));
+        when(stable.version()).thenReturn(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
+        RoutingAlgorithmRegistry registry = new RoutingAlgorithmRegistry(List.of(stable));
 
         assertThat(registry.require(RoutingAlgorithmProfile.STABLE)).isSameAs(stable);
-        assertThat(registry.require(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL)).isSameAs(experimental);
+        assertThat(registry.require(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL)).isSameAs(stable);
+        assertThat(registry.require(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL).version())
+                .isEqualTo("global-tree-61");
     }
 
     @Test
-    void refusesToStartWithoutEveryDeclaredProfile() {
+    void refusesToStartWithoutThePrimaryImplementation() {
+        assertThatThrownBy(() -> new RoutingAlgorithmRegistry(List.of()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("stable");
+    }
+
+    @Test
+    void refusesDuplicatePrimaryImplementations() {
         RoutingAlgorithm stable = algorithm(RoutingAlgorithmProfile.STABLE);
 
-        assertThatThrownBy(() -> new RoutingAlgorithmRegistry(List.of(stable)))
+        assertThatThrownBy(() -> new RoutingAlgorithmRegistry(List.of(stable, stable)))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("expert_experimental");
+                .hasMessageContaining("Duplicate");
+    }
+
+    @Test
+    void refusesReintroducingAnIndependentLegacyImplementation() {
+        RoutingAlgorithm stable = algorithm(RoutingAlgorithmProfile.STABLE);
+        RoutingAlgorithm experimental = algorithm(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
+
+        assertThatThrownBy(() -> new RoutingAlgorithmRegistry(List.of(stable, experimental)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Only the stable");
     }
 
     private RoutingAlgorithm algorithm(RoutingAlgorithmProfile profile) {

@@ -326,7 +326,7 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
       attributionControl: { compact: true },
     });
     mapRef.current = map;
-    map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
+    map.addControl(new NavigationControl({ showCompass: false }), "top-left");
     map.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
 
     const resizeObserver = new ResizeObserver(() => map.resize());

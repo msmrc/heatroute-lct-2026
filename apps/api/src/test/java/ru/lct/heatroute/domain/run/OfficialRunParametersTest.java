@@ -28,7 +28,7 @@ class OfficialRunParametersTest {
     }
 
     @Test
-    void keepsTheExperimentalProfileInsideImmutableParameters() {
+    void keepsTheLegacyProfileInsideImmutableParameters() {
         OfficialRunParameters parameters = new OfficialRunParameters(
                 null,
                 null,
@@ -40,7 +40,7 @@ class OfficialRunParametersTest {
     }
 
     @Test
-    void roundTripsTheExperimentalProfileForDurableJobReplay() throws Exception {
+    void roundTripsTheLegacyProfileWithoutRewritingSavedParameters() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper()
                 .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
         OfficialRunParameters original = new OfficialRunParameters(
@@ -55,6 +55,22 @@ class OfficialRunParametersTest {
         assertThat(json).contains("\"algorithm_profile\":\"expert_experimental\"");
         assertThat(restored.getAlgorithmProfile())
                 .isEqualTo(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
+    }
+
+    @Test
+    void readsOlderParametersWithoutAProfileAsPrimary() throws Exception {
+        OfficialRunParameters restored = new ObjectMapper().readValue(
+                "{\"minimum_depth_m\":0.7,\"maximum_depth_m\":10.0}",
+                OfficialRunParameters.class);
+
+        assertThat(restored.getAlgorithmProfile()).isEqualTo(RoutingAlgorithmProfile.STABLE);
+    }
+
+    @Test
+    void stillRejectsUnknownProfilesInsteadOfSilentlySelectingPrimary() {
+        assertThatThrownBy(() -> RoutingAlgorithmProfile.fromWireName("unknown_algorithm"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown algorithm_profile");
     }
 
     @Test

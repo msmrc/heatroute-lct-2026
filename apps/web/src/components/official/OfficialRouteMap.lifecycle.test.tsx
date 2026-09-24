@@ -95,6 +95,26 @@ afterEach(() => {
 });
 
 describe("OfficialRouteMap lifecycle", () => {
+  it("places zoom on the left, away from the right inspector and bottom summary", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { unmount } = render(
+      <QueryClientProvider client={queryClient}>
+        <OfficialRouteMap runId="run-1" importId="import-1" variant={variant()} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(maplibre.NavigationControl).toHaveBeenCalledOnce());
+    expect(maplibre.map.addControl).toHaveBeenCalledWith(
+      maplibre.NavigationControl.mock.instances[0], "top-left",
+    );
+    expect(maplibre.map.addControl).not.toHaveBeenCalledWith(expect.anything(), "bottom-right");
+    expect(maplibre.map.addControl).toHaveBeenCalledWith(
+      maplibre.ScaleControl.mock.instances[0], "bottom-left",
+    );
+
+    unmount();
+  });
+
   it("adds the calculated overlay on style.load without waiting for remote tiles", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { unmount } = render(

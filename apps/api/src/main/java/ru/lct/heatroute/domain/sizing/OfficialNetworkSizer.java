@@ -186,20 +186,21 @@ public class OfficialNetworkSizer {
         }
 
         PipeCatalogEntry selected = minimum.get();
-        BigDecimal continuous = selected.getDiameter() == (previousDiameter == null ? -1 : previousDiameter)
-                ? previousLength.add(edge.getLengthM())
-                : edge.getLengthM();
+        BigDecimal continuous = continuousLengthM(
+                edge.getLengthM(), selected.getDiameter(), previousDiameter, previousLength);
         if (continuous.compareTo(BigDecimal.valueOf(selected.getMaxContinuousLengthM())) > 0) {
             int minimumDiameter = selected.getDiameter();
             Optional<PipeCatalogEntry> promoted = pipeCatalog.entries().stream()
                     .filter(pipe -> pipe.getDiameter() > minimumDiameter)
                     .filter(pipe -> pipe.getMaxFlowTph().compareTo(flow) >= 0)
                     .filter(pipe -> BigDecimal.valueOf(pipe.getMaxContinuousLengthM())
-                            .compareTo(edge.getLengthM()) >= 0)
+                            .compareTo(continuousLengthM(
+                                    edge.getLengthM(), pipe.getDiameter(), previousDiameter, previousLength)) >= 0)
                     .findFirst();
             if (promoted.isPresent()) {
                 selected = promoted.get();
-                continuous = edge.getLengthM();
+                continuous = continuousLengthM(
+                        edge.getLengthM(), selected.getDiameter(), previousDiameter, previousLength);
             } else {
                 issues.add(new NetworkSizingIssue(
                         "MAX_CONTINUOUS_LENGTH_EXCEEDED",
@@ -210,5 +211,13 @@ public class OfficialNetworkSizer {
         }
         diameters.put(edge.getId(), selected.getDiameter());
         continuousLengths.put(edge.getId(), continuous);
+    }
+
+    /** Повышение относительно минимального ДУ не сбрасывает длину, если фактический ДУ остался прежним. */
+    private BigDecimal continuousLengthM(
+            BigDecimal edgeLength, int diameter, Integer previousDiameter, BigDecimal previousLength) {
+        return previousDiameter != null && diameter == previousDiameter
+                ? previousLength.add(edgeLength)
+                : edgeLength;
     }
 }

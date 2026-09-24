@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Download, Eye, FileJson2, FlaskConical, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Eye, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -20,7 +20,6 @@ import {
   humanFileSize,
   officialExportUrl,
   type OfficialRun,
-  type RoutingAlgorithmProfile,
 } from "../shared/api";
 
 const IMPORT_KEY = "heatroute.officialImportId";
@@ -29,12 +28,9 @@ const RUN_KEY = "heatroute.officialRunId";
 const STABLE_RUN_KEY = "heatroute.officialStableRunId";
 const EXPERIMENTAL_RUN_KEY = "heatroute.officialExperimentalRunId";
 
-function runProfile(run: OfficialRun): RoutingAlgorithmProfile {
-  return run.parameters?.algorithm_profile ?? "stable";
-}
-
-function profileName(profile: RoutingAlgorithmProfile): string {
-  return profile === "expert_experimental" ? "Экспериментальный" : "Основной";
+/** Старое API-имя профиля теперь запускает основной алгоритм; архив определяет фактическая версия. */
+function isArchivedExperiment(run: OfficialRun): boolean {
+  return run.algorithm_version.startsWith("expert-tree-");
 }
 
 function errorText(error: unknown): string {
@@ -51,10 +47,10 @@ export function OfficialWorkspacePage() {
   const stableRunId = localStorage.getItem(STABLE_RUN_KEY) ?? "";
   const experimentalRunId = localStorage.getItem(EXPERIMENTAL_RUN_KEY) ?? "";
 
-  function rememberRun(value: OfficialRun, profile: RoutingAlgorithmProfile) {
+  function rememberRun(value: OfficialRun) {
     localStorage.setItem(RUN_KEY, value.id);
     setRunId(value.id);
-    if (profile === "expert_experimental") {
+    if (isArchivedExperiment(value)) {
       localStorage.setItem(EXPERIMENTAL_RUN_KEY, value.id);
     } else {
       localStorage.setItem(STABLE_RUN_KEY, value.id);
@@ -118,7 +114,7 @@ export function OfficialWorkspacePage() {
       queryClient.setQueryData(["official-import", importedValue.id], importedValue);
 
       if (runValue) {
-        rememberRun(runValue, "stable");
+        rememberRun(runValue);
         queryClient.setQueryData(["official-run", runValue.id], runValue);
         if (runValue.job_id) {
           localStorage.setItem(JOB_KEY, runValue.job_id);
@@ -153,7 +149,7 @@ export function OfficialWorkspacePage() {
         setJobId("");
         setRunId("");
         queryClient.setQueryData(["official-import", demoImport.id], demoImport);
-        toast.success("Демо-набор открыт — выберите основной или экспериментальный алгоритм");
+        toast.success("Демо-набор открыт — можно рассчитать варианты подключения");
         return;
       }
       if (!value) return;
@@ -163,7 +159,7 @@ export function OfficialWorkspacePage() {
       }
       localStorage.setItem(IMPORT_KEY, value.import_id);
       setImportId(value.import_id);
-      rememberRun(value, runProfile(value));
+      rememberRun(value);
       queryClient.setQueryData(["official-run", value.id], value);
       if (value.job_id) {
         localStorage.setItem(JOB_KEY, value.job_id);
@@ -189,17 +185,17 @@ export function OfficialWorkspacePage() {
     onError: (error) => toast.error(errorText(error)),
   });
   const startRun = useMutation({
-    mutationFn: (profile: RoutingAlgorithmProfile) => createOfficialRun(importId, {
-      algorithm_profile: profile,
+    mutationFn: () => createOfficialRun(importId, {
+      algorithm_profile: "stable",
     }),
-    onSuccess: (value, profile) => {
-      rememberRun(value, profile);
+    onSuccess: (value) => {
+      rememberRun(value);
       queryClient.setQueryData(["official-run", value.id], value);
       if (value.job_id) {
         localStorage.setItem(JOB_KEY, value.job_id);
         setJobId(value.job_id);
       }
-      toast.success(`${profileName(profile)} расчёт всех ОКС поставлен в очередь`);
+      toast.success("Расчёт всех ОКС поставлен в очередь");
     },
     onError: (error) => toast.error(errorText(error)),
   });
@@ -218,15 +214,14 @@ export function OfficialWorkspacePage() {
   const currentRun = run.data;
   useEffect(() => {
     if (!currentRun) return;
-    const profile = runProfile(currentRun);
-    if (profile === "expert_experimental") {
+    if (isArchivedExperiment(currentRun)) {
       localStorage.setItem(EXPERIMENTAL_RUN_KEY, currentRun.id);
     } else {
       localStorage.setItem(STABLE_RUN_KEY, currentRun.id);
     }
   }, [currentRun]);
   const activeRun = currentRun && currentJob?.run_id === currentRun.id ? currentRun : undefined;
-  const currentRunProfile = currentRun ? runProfile(currentRun) : "stable";
+  const archivedExperiment = currentRun ? isArchivedExperiment(currentRun) : false;
   const isJobActive = currentJob?.state === "queued" || currentJob?.state === "running" || currentJob?.state === "cancel_requested";
   const isRunActive = currentRun?.state === "queued" || currentRun?.state === "running";
   const isRunLoading = Boolean(runId) && run.isPending && !run.isError;
@@ -268,9 +263,6 @@ export function OfficialWorkspacePage() {
   if (currentImport && currentRun?.state === "completed" && currentRun.result) {
     const exportReady = currentRun.result.variants.some((variant) =>
       variant.valid && variant.rank != null && variant.economics?.complete === true);
-    const nextProfile: RoutingAlgorithmProfile = currentRunProfile === "stable"
-      ? "expert_experimental"
-      : "stable";
     return (
       <div className="official-map-workspace">
         <header className="map-workspace-toolbar">
@@ -282,31 +274,34 @@ export function OfficialWorkspacePage() {
             </div>
           </div>
           <div className="map-workspace-status">
-            <CheckCircle2 size={16} /> Данные проверены <span>·</span> {profileName(currentRunProfile)} расчёт <span>·</span> {currentRun.algorithm_version}
+            <CheckCircle2 size={16} /> Данные проверены <span>·</span> {archivedExperiment ? "Архивный эксперимент" : "Расчёт"} <span>·</span> {currentRun.algorithm_version}
           </div>
           <div className="map-workspace-actions">
-            {currentRunProfile !== "stable" && stableRunId && stableRunId !== currentRun.id && (
-              <Button variant="outline" onClick={() => openRun(stableRunId)} title="Открыть последний основной расчёт">
-                <Eye size={16} /> Основной
-              </Button>
-            )}
-            {currentRunProfile !== "expert_experimental" && experimentalRunId && experimentalRunId !== currentRun.id && (
-              <Button variant="outline" onClick={() => openRun(experimentalRunId)} title="Открыть последний эксперимент">
-                <FlaskConical size={16} /> Эксперимент
-              </Button>
-            )}
+            {((archivedExperiment && stableRunId && stableRunId !== currentRun.id)
+              || (!archivedExperiment && experimentalRunId && experimentalRunId !== currentRun.id)) ? (
+              <details>
+                <summary>Сохранённые расчёты</summary>
+                {archivedExperiment ? (
+                  <Button variant="outline" onClick={() => openRun(stableRunId)}>
+                    <Eye size={16} /> Последний основной расчёт
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => openRun(experimentalRunId)}>
+                    <Eye size={16} /> Архивный результат
+                  </Button>
+                )}
+              </details>
+            ) : null}
             <Button
               variant="outline"
               disabled={startRun.isPending}
-              title={nextProfile === "expert_experimental"
-                ? "Запустить изолированный профиль с расширенным групповым поиском"
-                : "Запустить основной алгоритм с неизменными настройками"}
-              onClick={() => startRun.mutate(nextProfile)}
+              title="Рассчитать все варианты основным алгоритмом"
+              onClick={() => startRun.mutate()}
             >
               {startRun.isPending
                 ? <LoaderCircle className="is-spinning" size={16} />
-                : nextProfile === "expert_experimental" ? <FlaskConical size={16} /> : <Play size={16} />}
-              {nextProfile === "expert_experimental" ? "Новый эксперимент" : "Новый основной"}
+                : <Play size={16} />}
+              Новый расчёт
             </Button>
             <Button variant="outline" onClick={() => loadDemo.mutate()} disabled={loadDemo.isPending}>
               {loadDemo.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Eye size={16} />}
@@ -337,6 +332,7 @@ export function OfficialWorkspacePage() {
           </div>
         </header>
         <RouteVisualization
+          key={currentRun.id}
           result={currentRun.result}
           runId={currentRun.id}
           importId={currentRun.import_id}
@@ -437,17 +433,8 @@ export function OfficialWorkspacePage() {
               <>
                 <p>Обработает все точки спроса, сравнит раздельные подключения и общие стволы, сохранит частичный результат для no-route.</p>
                 <div className="card-actions">
-                  <Button disabled={!currentImport.report.valid || startRun.isPending} onClick={() => startRun.mutate("stable")}>
+                  <Button disabled={!currentImport.report.valid || startRun.isPending} onClick={() => startRun.mutate()}>
                     {startRun.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <Play size={16} />} Рассчитать варианты
-                  </Button>
-                  <Button
-                    variant="outline"
-                    disabled={!currentImport.report.valid || startRun.isPending}
-                    title="Отдельный алгоритм с расширенным групповым поиском"
-                    onClick={() => startRun.mutate("expert_experimental")}
-                  >
-                    {startRun.isPending ? <LoaderCircle className="is-spinning" size={16} /> : <FlaskConical size={16} />}
-                    Экспериментальный алгоритм
                   </Button>
                   <Button variant="outline" disabled={!currentImport.report.valid || startJob.isPending} onClick={() => startJob.mutate()}>
                     Только топология
@@ -475,24 +462,14 @@ export function OfficialWorkspacePage() {
                   <Button variant="outline" onClick={() => void job.refetch()}><RotateCcw size={15} /> Обновить</Button>
                   {isJobActive && <Button variant="outline" disabled={cancelJob.isPending} onClick={() => cancelJob.mutate()}>Отменить</Button>}
                   {!isJobActive && currentJob.job_type === "topology_analysis" && (
-                    <>
-                      <Button disabled={startRun.isPending} onClick={() => startRun.mutate("stable")}>
-                        {startRun.isPending ? <LoaderCircle className="is-spinning" size={15} /> : <Play size={15} />} Рассчитать варианты
-                      </Button>
-                      <Button variant="outline" disabled={startRun.isPending} onClick={() => startRun.mutate("expert_experimental")}>
-                        <FlaskConical size={15} /> Экспериментальный алгоритм
-                      </Button>
-                    </>
+                    <Button disabled={startRun.isPending} onClick={() => startRun.mutate()}>
+                      {startRun.isPending ? <LoaderCircle className="is-spinning" size={15} /> : <Play size={15} />} Рассчитать варианты
+                    </Button>
                   )}
                   {!isJobActive && currentJob.job_type !== "topology_analysis" && (
-                    <>
-                      <Button variant="outline" disabled={startRun.isPending} onClick={() => startRun.mutate("stable")}>
-                        <Play size={15} /> Новый основной
-                      </Button>
-                      <Button variant="outline" disabled={startRun.isPending} onClick={() => startRun.mutate("expert_experimental")}>
-                        <FlaskConical size={15} /> Новый эксперимент
-                      </Button>
-                    </>
+                    <Button variant="outline" disabled={startRun.isPending} onClick={() => startRun.mutate()}>
+                      <Play size={15} /> Новый расчёт
+                    </Button>
                   )}
                 </div>
               </>

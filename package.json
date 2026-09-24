@@ -6,9 +6,11 @@
     "dev": "pnpm --filter @heatroute/web dev",
     "build": "pnpm --filter @heatroute/web build",
     "benchmark:reference": "node scripts/reference-routing-benchmark.mjs",
+    "compare:routing": "node scripts/render-routing-comparison.mjs",
+    "quality:routing": "node scripts/routing-geometry-quality.mjs",
     "preview": "pnpm --filter @heatroute/web preview",
     "lint": "pnpm --filter @heatroute/web lint",
     "typecheck": "pnpm --filter @heatroute/web typecheck",
-    "test": "pnpm --filter @heatroute/web test && node --test scripts/local-demo-server.test.mjs scripts/reference-routing-benchmark.test.mjs"
+    "test": "pnpm --filter @heatroute/web test && node --test scripts/local-demo-server.test.mjs scripts/reference-routing-benchmark.test.mjs scripts/render-routing-comparison.test.mjs scripts/routing-geometry-quality.test.mjs"
   }
 }

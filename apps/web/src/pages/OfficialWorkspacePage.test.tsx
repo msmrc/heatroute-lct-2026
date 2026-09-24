@@ -143,37 +143,88 @@ describe("OfficialWorkspacePage", () => {
 
     expect(await screen.findByText("Данные готовы к расчёту")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Рассчитать варианты" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Экспериментальный алгоритм" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Эксперимент/ })).toBeNull();
     expect(api.createOfficialDemoImport).toHaveBeenCalledOnce();
     expect(api.createOfficialRun).not.toHaveBeenCalled();
     expect(localStorage.getItem("heatroute.officialImportId")).toBe("import-1");
   });
 
-  it("starts the isolated experimental profile from a completed stable result", async () => {
+  it.each(["stable", "expert_experimental"])("starts the primary algorithm from a saved %s result", async (profile) => {
     localStorage.setItem("heatroute.officialImportId", "import-1");
     localStorage.setItem("heatroute.officialRunId", "run-1");
     api.getOfficialImport.mockResolvedValue(completedImport());
-    api.getOfficialRun.mockResolvedValue(completedRun(true));
+    api.getOfficialRun.mockResolvedValue({
+      ...completedRun(true),
+      algorithm_version: profile === "expert_experimental" ? "expert-tree-1" : "global-tree-46",
+      parameters: { algorithm_profile: profile },
+    });
     api.createOfficialRun.mockResolvedValue({
       ...completedRun(false),
-      id: "run-experiment",
+      id: "run-new",
       state: "queued",
-      job_id: "job-experiment",
-      algorithm_version: "expert-tree-1",
-      parameters: { algorithm_profile: "expert_experimental" },
+      job_id: "job-new",
+      algorithm_version: "global-tree-47",
+      parameters: { algorithm_profile: "stable" },
       result: undefined,
     });
     api.getOfficialJob.mockReturnValue(new Promise(() => undefined));
 
     renderWorkspace();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Новый эксперимент" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Новый расчёт" }));
 
     await waitFor(() => expect(api.createOfficialRun).toHaveBeenCalledWith("import-1", {
-      algorithm_profile: "expert_experimental",
+      algorithm_profile: "stable",
     }));
-    expect(localStorage.getItem("heatroute.officialExperimentalRunId")).toBe("run-experiment");
-    expect(localStorage.getItem("heatroute.officialStableRunId")).toBe("run-1");
+    expect(localStorage.getItem("heatroute.officialStableRunId")).toBe("run-new");
+    expect(localStorage.getItem("heatroute.officialExperimentalRunId"))
+      .toBe(profile === "expert_experimental" ? "run-1" : null);
+  });
+
+  it("opens a saved experimental result as an archive without starting a new calculation", async () => {
+    localStorage.setItem("heatroute.officialImportId", "import-1");
+    localStorage.setItem("heatroute.officialRunId", "run-1");
+    localStorage.setItem("heatroute.officialExperimentalRunId", "run-archive");
+    const archived = {
+      ...completedRun(true),
+      id: "run-archive",
+      algorithm_version: "expert-tree-1",
+      parameters: { algorithm_profile: "expert_experimental" },
+    };
+    api.getOfficialImport.mockResolvedValue(completedImport());
+    api.getOfficialRun.mockImplementation((id) => Promise.resolve(
+      id === "run-archive" ? archived : completedRun(true),
+    ));
+
+    renderWorkspace();
+
+    fireEvent.click(await screen.findByText("Сохранённые расчёты"));
+    fireEvent.click(screen.getByRole("button", { name: "Архивный результат" }));
+
+    expect(await screen.findByText(/Архивный эксперимент/)).toBeTruthy();
+    expect(screen.getByText("Карта результатов")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Скачать результат" })).toBeTruthy();
+    expect(localStorage.getItem("heatroute.officialRunId")).toBe("run-archive");
+    expect(api.createOfficialRun).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Новый эксперимент|Экспериментальный алгоритм/ })).toBeNull();
+  });
+
+  it("identifies a compatibility-alias run by its actual primary version", async () => {
+    localStorage.setItem("heatroute.officialImportId", "import-1");
+    localStorage.setItem("heatroute.officialRunId", "run-1");
+    api.getOfficialImport.mockResolvedValue(completedImport());
+    api.getOfficialRun.mockResolvedValue({
+      ...completedRun(true),
+      algorithm_version: "global-tree-47",
+      parameters: { algorithm_profile: "expert_experimental" },
+    });
+
+    renderWorkspace();
+
+    expect(await screen.findByText(/global-tree-47/)).toBeTruthy();
+    expect(screen.queryByText(/Архивный эксперимент/)).toBeNull();
+    await waitFor(() => expect(localStorage.getItem("heatroute.officialStableRunId")).toBe("run-1"));
+    expect(localStorage.getItem("heatroute.officialExperimentalRunId")).toBeNull();
   });
 });
 

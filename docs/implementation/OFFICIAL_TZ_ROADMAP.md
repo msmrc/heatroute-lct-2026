@@ -2,7 +2,127 @@
 
 **Статус документа:** рабочая база для ПМа и разработчиков
 **Дата аудита:** 15 сентября 2026 года
-**Последнее обновление:** 23 сентября 2026 года
+**Последнее обновление:** 24 сентября 2026 года
+
+> **Актуальный письменный контракт (повторно сверен 23.09.2026).**
+> `Техническое_приложение_ЛЦТ_новое.docx` имеет приоритет над ранними разделами этого roadmap
+> и прежними устными разъяснениями. Нет отдельной наценки на поворот; допускается изменение
+> направления 0–90°. Новая камера включает присоединение, 5 млн ₽ взимается за каждый новый
+> луч только в существующую камеру. Нельзя отказаться от доступного подключения ради score.
+> Нет реконструкции существующей сети; глубина — отдельный необязательный режим.
+> Реестр источников, инженерных эвристик и открытых проверок:
+> [ROUTING_STANDARDS_APPLICABILITY.md](ROUTING_STANDARDS_APPLICABILITY.md).
+> Нижеследующий вывод и старые записи gates являются историческими, а не новой приёмкой.
+
+**Текущий source61, fresh dataset PASS/native pending:** основной результат1857,155 м/
+13 новых камер/13 поворотов/17of17,273953260,00 ₽. Cheapest11 камер/21 поворот, без новой
+камеры врезки. Fast742 +datasets3 =745 выполненных Java /3 skipped; web31+scripts35,
+lint/typecheck PASS. Planner279,503 с, не доказательство нового UI-времени. Локальный API
+пока58; JAR/native61 и Compose/scale не проверены. Пользователь разрешил Git checkpoints,
+VPS не обновлялся. R-этапы/общая цель открыты. [Evidence61](PRIMARY_ROUTING_61.md).
+
+**Исследование60, без production-изменений:** допустимый диагностический кандидат
+11 камер/20 поворотов/1941,530 м проходит sizing/depth/export и независимый topology checker,
+но не улучшает preferred58. Не интегрирован, не новый fresh UI result. Картинка с разметкой
+Евгения построена и просмотрена;104-raw-draft аудит shortlist не нашёл пропущенного raw-выигрыша.
+Следующая гипотеза — целое дерево в альтернативной общей системе осей. Рабочая версия58,
+readinessUP; нового ускорения/приёмки/R-stage closure нет. [Отчёт60](PRIMARY_ROUTING_60.md).
+
+**Предыдущее исследование59, без production-изменений:** парные переносы камер проверены тремя
+ограниченными поисками.64 candidate finish/export PASS, но среди финалистов нет замены
+без регрессии других показателей. Рабочая версия остаётся58; новые full-plan/live gates
+не заявляются. [Выводы и следующий шаг](PRIMARY_ROUTING_59.md). R-этапы не закрыты.
+
+**Текущий checkpoint58, dataset/native PASS:** глобальное сохранение ввода вызвало регрессию13→14 камер;
+initial58 отклонён. Core сохраняет прежнюю доводку, согласованный перенос камеры сравнивает
+обе политики после полного допуска; добавлена проверка препятствий на последнем вводе.
+RED/GREEN, final fast727 +datasets3 =730 выполнено /3 skipped, web31+scripts35, lint/typecheck PASS.
+Весь result равен57 кроме верхней версии; corridor равен. Planner299,002 с — без заметного
+ускорения. JAR/API58 readinessUP; fresh UI job completed/attempt1,312,305 с, native result
+равен57 кроме версии. UI→БД→карта→HTTP export200/1030 features PASS, actual58 изображения
+просмотрены. Preferred1887,223 м/13 камер/16 поворотов без изменения. Compound probe12 камер
+не интегрирован; общая цель/этапы/Compose/scale не закрыты, Git/VPS не изменены.
+[Evidence58](PRIMARY_ROUTING_58.md).
+
+**Предыдущий локальный checkpoint57 — dataset/native PASS:** одноразовая оценка draft при отборе
+и bounded-подготовка индексов. Fast718 +datasets3 =721 выполненный Java /3 scale skipped;
+web31+scripts35, lint/typecheck PASS. Весь результат deep-equal56 кроме версии, corridor полностью
+равен. Planner299,930→298,629 с — существенного ускорения нет. API57 readinessUP, свежий UI job
+completed/attempt1,305,650 с; весь native результат равен56 кроме версии. Карта/17of17 и реальный
+HTTP export1030 features PASS; actual57-live-preferred/cheapest изображения просмотрены.
+Preferred1887,223 м /13 камер /16 поворотов, без изменения. Геометрические Hanan-filter и
+leaf-exchange probes не улучшили score/форму и не интегрированы. Цель/Compose/scale/R-этапы
+остаются открыты. [Evidence57](PRIMARY_ROUTING_57.md).
+
+**Предыдущий локальный checkpoint, source56:** точный ускоренный segment/polygon predicate.
+Java fast692 выполнено /3 scale skipped +datasets3/3 PASS =695 выполнено /3 skipped;
+web31+scripts35, lint/typecheck PASS. Весь fresh результат равен55 кроме версии, corridor — полностью.
+All-17 с depth/sizing/economics/export:299,930 с против350,860 с (одиночные замеры,55 с JFR).
+Preferred17/17,1887,222 м /13 камер /16 поворотов без изменения. Картинка56 просмотрена.
+API56 readinessUP, свежий UI job completed/attempt1 за309,280 с; карта/результат и HTTP export
+1030 features PASS. Live default2D preferred1887,223 м /13 камер /16 поворотов,17/17;
+другие параметры/метрический pipeline, не объявляется равным depth-on fixture.
+Актуальные пользовательские изображения56-live-preferred/56-live-cheapest просмотрены.
+Открыты budget лишних копий/индексов, финализация и геометрия13→11 камер, Compose/scale.
+Это не закрытие цели или R-этапа. [Evidence и ограничения56](PRIMARY_ROUTING_56.md).
+Упоминания live49 ниже относятся к прошлым checkpoint.
+
+**Предыдущий проверенный локальный checkpoint, source55:** согласованный перенос камеры и всех подходов
+после выбора финальных ролей. Fast668 выполнено /3 scale skipped +datasets3/3 PASS =671 выполненный
+Java-тест /3 scale skipped. Свежий plan/export подтвердил1887,222 м /13 камер /16 поворотов,
+17/17, на1 209 456,31 ₽ дешевле54. Полная глубина/sizing/экономика и независимый exporter gate PASS;
+web31+scripts35, lint/typecheck PASS. Фактические картинки55 построены и просмотрены. All-17
+350,860 с с коротким JFR; ускорение не заявляется. Live49 readinessUP, новый runtime/Compose/scale
+не проверены. Камер не стало меньше; это не закрытие цели или R-этапа.
+[Evidence и ограничения55](PRIMARY_ROUTING_55.md).
+
+**Предыдущий проверенный локальный checkpoint, source54:** сокращение допустимых лишних ступенек с сохранением
+вводов/концевых звеньев и повторным полным допуском. Малый regression141→81 м /4→0 поворотов
+PASS; первоначальный Java fast622 выполнено /3 skipped, web31+scripts35, lint/typecheck PASS.
+Первый dataset gate3/3 PASS (all-17 340,751 с), выбранные сети равны53 кроме версии. Review выявил
+случай пустых секций с недосчётом концов: защита добавлена; final fast642 выполнено /3 skipped
+PASS +final datasets3/3 PASS =645 выполнено /3 scale skipped. Итоговый all-17 340,630 с,
+глубина/sizing/экономика и независимый экспорт PASS. Весь финальный результат равен53 кроме
+версии: preferred13 камер/18 поворотов,1898,684 м; улучшения формы/скорости54 не показал.
+Новые фактические картинки54 построены. Live49, Compose/scale и R-статусы не меняются.
+[Evidence и ограничения](PRIMARY_ROUTING_54.md).
+
+**Предыдущий проверенный локальный checkpoint, source53:** shortcut и snap сохраняют соседние
+обязательные углы; точная дедупликация хвостов не меняет принятые ответы. Java fast622total /
+619 выполнено /3 scale skipped +dataset3/3 PASS =622 выполнено суммарно /3 skipped.
+Web31 +scripts35, lint/typecheck PASS. Свежий all-17 с depth/sizing/экономикой и независимой
+проверкой экспорта PASS: preferred17/17,1898,684 м /13 новых узловых камер /18 поворотов;
+cheapest1961,037 м /11 камер /24 поворота. Весь `run.result` совпадает с52 кроме верхнего
+`algorithm_version` (deep assertion, не stringify); у JSON-обёртки отдельно меняются временные
+метки и дублирующая версия. All-17:358,585→340,609 с — одиночные локальные замеры, не
+статистически доказанное ускорение. Фактические картинки53 обновлены и просмотрены.
+[Evidence и точные логи](PRIMARY_ROUTING_53.md).
+
+Причина отдельной доработки54 после53: retained-end interior simplification. Синтетический настоящий
+finish сохраняет compliant-зигзаг141 м /4 поворота, хотя81 м /0 поворотов с теми же концами,
+лучами и нормальным вводом независимо проходят geometry/engineering/sizing/depth. Причина —
+доводка только `nonCompliantEdgeIds`; сохранение защищённого конечного подхода необходимо.
+В53 это **не реализовано**. Цель по форме/камерам/скорости, Compose/scale и R-этапы не закрыты;
+live остаётся49, не состоянием текущих исходников.
+
+**Предыдущий локальный checkpoint, source52:** ранний контроль обязательного поворота в A*;
+performance-only A/B с проверкой связности дал417,499→313,977 с при полном совпадении
+`run.result`. Исправление сохранения вводов при объединении камер прошло интегрированный
+Java fast610 +corridor1 +dataset2 =613 выполнено /3 scale skipped, web31+scripts35 и
+lint/typecheck PASS. Финальный all-17 с новыми подходами358,585 с,preferred17/17,
+1898,684 м /13 камер /18 поворотов /277670360,94 ₽; реальный экспорт PASS.
+Камер/стоимости меньше51, но поворотов больше: качество геометрии ещё не достигнуто.
+[Evidence](PRIMARY_ROUTING_52.md).
+Это не закрытие R-этапов; live49 и Compose/scale не обновлялись.
+
+**Предыдущий локальный gate, source51:** ДУ существующей опоры включён в цену новой камеры;
+обязательный предел поворота ≤90° реализован во всех ролях и повторно проверяется при экспорте.
+589 Java-тестов выполнено суммарно / 3 scale skipped, web31 + scripts35 и lint/typecheck PASS.
+Свежий all-17: 17/17, выбран shortest1899,927 м /14 камер /15 поворотов, повторный экспорт
+всех ролей после ревью секций PASS. Время407,177 с не доказывает ускорение; три лишние камеры
+и геометрия отдельных узлов ещё требуют работы. [Evidence и ограничения](PRIMARY_ROUTING_51.md).
+Это не закрытие R-этапов; live49 и Compose/scale не обновлялись.
+
 **Главный вывод:** видеовстреча организаторов сузила активный supplied-dataset scope. Java-контур,
 2D routing и эксплуатационная база сохраняются. Q&A-правила normal egress, connect-vs-penalty,
 bend cost, overlapping special coefficients, per-ray tie-in и profile-aware rank/export реализованы
@@ -113,11 +233,11 @@ Q&A-правила.
 3. Построить существующую геометрию и допустимые кандидаты врезок в камеры/линейные участки.
 4. Для каждой demand point построить обязательный выход из собственного OKS по нормали.
 5. Построить допустимые independent/shared/diverse маршруты к кандидатам.
-6. Учесть углы 45°/90°, коэффициент 1,5 нестандартного поворота и max `K_special` перекрытий.
+6. Учесть допустимое изменение направления 0–90° без наценки на поворот и max `K_special` перекрытий.
 7. Преобразовать маршруты в деревья; создать камеры во всех разветвлениях и врезках.
 8. Снизу вверх просуммировать `flow_tph`, назначить ДУ и проверить непрерывную длину.
-9. Для каждого demand сравнить marginal connection cost с официальным penalty.
-10. Посчитать каждую новую ветку в existing chamber отдельной врезкой.
+9. Подключить все точки, для которых найден допустимый маршрут; штраф не разрешает намеренное отключение.
+10. Посчитать каждую новую ветку в existing chamber отдельной врезкой; новая камера уже включает присоединение.
 11. Рассчитать стоимость/score без обязательной реконструкции и выбрать до трёх вариантов.
 12. Независимо проверить инварианты и потоково выгрузить официальный GeoJSON.
 13. Только в strict-profile с полным baseline дополнительно рассчитать реконструкцию; optional R8
@@ -142,7 +262,7 @@ Q&A-правила.
 | Существующая сеть | Upstream reconstruction реализована | Для supplied profile реконструкция не обязательна и не блокирует результат | Реализовано локально; verification pending | P0 |
 | Ограничения | Динамические OKS buffers и запретные типы участвуют в search и final validation | Точная опубликованная 2D-таблица | Полная exact/boundary/negative matrix; OKS footprint hard-blocked, кроме terminal normal-egress собственного объекта | P0 |
 | Специальные проходы | Union span и composite type поддержаны | Один overlap span с максимальным `K_special` | Реализовано локально; verification pending | P0 |
-| Стоимость | Segment-wise bend ×1.5; tie-in считается по каждому root ray | Bend ×1.5; 5 млн за каждый новый луч | Supplied-file verified; shared score 48.672753143 ниже independent 64.318630863 | P0 |
+| Стоимость | Наценка поворота удалена; выявлена лишняя плата врезки в новую камеру | Нет наценки поворота; 5 млн за новый луч только в существующую камеру | Исправление и повторная проверка стоимости/выбора обязательны; старые score не являются новым gate | P0 |
 | Ранжирование | Supplied rank не требует reconstruction baseline; strict требует | Supplied profile ранжируется без reconstruction baseline | Supplied-file verified: full-coverage shared 17/17 выбран rank 1 | P0 |
 | Неподключённые ОКС | Direct exclusive spur сравнивается с penalty | `no_route` участвует в оптимизации против marginal connection cost | Реализовано локально; verification pending | P0 |
 | Выход | Supplied adapter допускает отсутствие reconstruction | Валидный supplied result скачивается без обязательной реконструкции | Реализовано локально; reduced whitelist требует подтверждения | P0 |
@@ -201,8 +321,9 @@ Q&A-правила.
 - Иначе в точке врезки строится новая камера.
 - Разветвления выполняются только в камерах.
 - Стоимость камеры определяется максимальным примыкающим ДУ: 3, 5, 8 или 12 млн рублей по диапазону.
-- Каждая независимая врезка стоит 5 млн рублей.
-- Реконструкция существующей камеры учитывается один раз и только для камеры, используемой как точка врезки.
+- Каждый новый участок в существующую камеру стоит дополнительно 5 млн рублей.
+- Новая камера включает присоединение; отдельная плата врезки к ней не добавляется.
+- Существующие камеры и сеть в обязательной модели не реконструируются.
 
 ### 6.3. Неподключённые ОКС
 
@@ -216,7 +337,9 @@ Q&A-правила.
 
 `S = 0,7 * (C / 25 000 000) + 0,3 * (L / 100)`.
 
-`C` включает новые участки, новые камеры, врезки, реконструкцию участков и камер, а также штрафы. `L` включает новые и реконструируемые линейные участки. Чем меньше `S`, тем выше вариант.
+`C` включает новые участки, новые камеры, врезки в существующие камеры и штрафы.
+`L` включает только новые линейные участки. Чем меньше `S`, тем выше вариант.
+Технически доступные подключения нельзя исключать ради уменьшения `S`.
 
 ## 7. Целевая архитектура
 
@@ -845,7 +968,7 @@ Reference proximity is diagnostic only: it does not override official validity, 
 or the active organizer contract, and it does not close any R-stage. Future topology work may use
 the general engineering patterns, but production code must not contain fixture coordinates or IDs.
 
-### Isolated horizontal algorithm experiments — 23 September
+### Isolated horizontal algorithm experiments — 23 September (superseded by primary consolidation)
 
 Run creation now persists an explicit routing profile. `stable` remains the default and retains
 `global-tree-46`; `expert_experimental` selects the separately versioned `expert-tree-1` component
@@ -871,7 +994,101 @@ or expert geometry rules.
 
 The exact tracked official GeoJSON is packaged in the Java artifact and exposed through an
 idempotent demo-import endpoint. On a fresh database the workspace opens that validated import and
-lets the user explicitly choose the stable or experimental profile; if a completed run already
+lets the user explicitly start the main calculation; if a completed run already
 exists, the same action opens it immediately. No result fixture is presented as an algorithm run,
 and opening the demo does not silently enqueue the expensive official calculation. This closes the
 empty-database demo UX defect only; route quality and runtime gates remain unchanged.
+
+### Primary routing consolidation — 23 September, global-tree-47
+
+The current launch path uses one primary algorithm. The old experiment profile is only an API
+compatibility alias; historical results are retained. [PRIMARY_ROUTING_47.md](PRIMARY_ROUTING_47.md)
+records exact-preserving search acceleration, final geometry/sizing safety, reusable chambers,
+group-trunk candidates and the measured quality/performance comparisons.
+
+Status: implementation slice with local verification, **R4/R9 acceptance remains open**. Require
+the final all-dataset Java run, live import/calculation/export, varied official-like geometry,
+distinct meaningful alternatives and the separate Compose/scale gates. A smaller angle count or
+fewer tie-in sites does not by itself justify worse cost/length. Do not describe a bounded heuristic
+as an exact optimum or the advisory expert drawing as a fully validated engineering design.
+
+### Finalized portfolio selection — 23 September, global-tree-48
+
+[PRIMARY_ROUTING_48.md](PRIMARY_ROUTING_48.md) records retained local-search alternatives,
+selection on the finalized geometry/economics, explicit depth admission when enabled, and an
+exact ordered-graph duplicate-search skip. Comparison images use real result/reference coordinates
+on the same metric extent and preserve source provenance. Check its verification record before
+claiming quality or runtime improvements. These changes do not close R4/R9, Compose or scale gates.
+
+### Invocation-local obstacle preparation — 23 September, global-tree-49
+
+[PRIMARY_ROUTING_49.md](PRIMARY_ROUTING_49.md) records the sampled buffering bottleneck and
+bounded preparation reuse within one calculation. Every query retains its source window and
+endpoint exceptions; the independent final validator and search budgets are unchanged. Exact
+48/49 result comparison and fresh live timings, not old saved results, are the acceptance evidence
+for this optimization. The main engineering route still has a length/score tradeoff against the
+initial baseline. R4/R9 and Compose/scale/restart acceptance remain open.
+
+Local verification completed for this slice: 303 executed Java tests, 31 web and 21 script tests,
+lint/typecheck/build, fresh browser/PostGIS job and export. Complete official/live `48`/`49`
+results are exactly equal excluding only version; full-case time 492.612 → 273.074 s, live time
+554.817 → 286.960 s on overlapping local runs. This is measured exact-preserving acceleration,
+not a new quality/official acceptance claim. Evidence and remaining tradeoffs are in the checkpoint.
+
+### Facade-oriented common corridors — in progress, global-tree-50
+
+[PRIMARY_ROUTING_50.md](PRIMARY_ROUTING_50.md) tracks the renewed expert-like geometry objective.
+A data-derived orthogonal graph and capacity-constrained shared-tree candidate are being integrated.
+Initial geometric validity is not full acceptance: length, chambers, engineering finish, sizing,
+economics, varied geometry and fresh runtime evidence remain to be verified. No R-stage is closed.
+Focused progress: metric-closure/grid/dataset gate 39/39; real finish with enabled depth and
+economics passed for 14 early candidates. These remain inferior in length/chambers and still have
+expert angle warnings. This does not close the expert-like geometry objective or the full/live
+pipeline gates. Root exception regressions and mixed-neighborhood orientation are now corrected;
+foreign-obstacle prefix, self-intersection and port-retry cancellation tests also pass.
+Current Java gate: 442 executed tests, zero failures/errors, three scale probes skipped; long full
+dataset planner verification remains separate. Same-scale source-verified images show a 1901.581 m,
+14-camera corridor candidate vs Evgeny's 1913.859 m / 11 markers. Alignment improves, but cost and
+camera count regress against 49 and some junction angles remain poor. Follow-up full-planner dataset
+gate is 2/2 PASS (444 executed Java total). The selected result is exactly equal to 49 except version,
+with a slower observed 377.970-second pipeline. Thus no new candidate is promoted and no expert-like
+quality or performance goal is closed. Selected-result and candidate images are labeled separately.
+Live remains 49; see the version-50 checkpoint for exact scope and remaining work.
+
+Subsequent chamber-consolidation work is not covered by that full gate. A bounded three-pass
+probe achieved 11 cameras and lower cost but retained four bad bends, so it was not promoted.
+New junction assignment/link approach/normal-transition components passed 16 focused Java tests
+(`.tooling/corridor-transitions-gate.log`). Real-data integration and the reproduced free-space /
+retained-branch regressions remain under verification; no R-stage or live deployment is complete.
+Those regressions subsequently pass in a 52-test focused gate. Axis-intersection candidate
+placement passes 14 focused tests and produces a valid 11-camera / 1985.974 m candidate with
+remaining quality/cost tradeoffs. Bounded refinement has been connected to the main portfolio;
+its renewed full gate and performance check are pending. Earlier full-run evidence is historical
+for these subsequent changes, and no acceptance/deployment claim is made.
+
+Renewed refinement unit/component gate: 493 tests / zero failures-errors / 3 skipped,
+490 executed (`.tooling/primary50-refinement-unit.log`). The actual production-refinement probe
+has a valid 11-camera / 1986.104 m / RUB 277626080.01 candidate, 17/17 and complete enabled depth,
+but cost and remaining geometry tradeoffs prevent a quality-completion claim. Fresh source-verified
+comparison images are in `.tooling/routing-comparison-50-refined`. Renewed full-pipeline tests
+then pass 2/2 (492 executed Java tests total). Main refinement executes, but selected outputs
+remain exactly unchanged from the pre-refinement 50 run. Internal all-17 time is 440.828 s,
+slower than the prior non-isolated 377.970 s measurement. Actual selected-result images are in
+`.tooling/routing-comparison-50-refined-selected`; no quality/speed completion, live promotion,
+R-stage, Compose or scale closure. Logs and exact scope are recorded in PRIMARY_ROUTING_50.md.
+
+### Standards applicability and new-chamber attachment cost — 23 September
+
+[ROUTING_STANDARDS_APPLICABILITY.md](ROUTING_STANDARDS_APPLICABILITY.md) records the amended
+DOCX fingerprint, verified SP registry dates, contest-vs-engineering rules and remaining gaps.
+The erroneous extra attachment fee at new chambers is removed; rays at existing chambers retain
+their RUB 5 million charge. Real planner/export regression reproduced before the fix, then passes.
+Exact-state deduplication inside corridor refinement is reviewed and tested, including later
+re-entry of a state not yet expanded because of beam pruning. No route replay between jobs.
+Focused Java: 52/52 PASS. Extended Java: 524 total / 0 failures-errors / 3 skipped, 521 executed,
+including real corridor refinement. Web 31 + scripts 35, lint/typecheck PASS. New full main-pipeline
+gate subsequently passed 2/2 (523 executed Java tests overall, 3 scale skips), internal all-17
+433.648 s. Selected geometry/coverage/length/cost remain unchanged; the fresh cheapest still has
+two deflections >90 degrees, so passing tests do not close that unimplemented contract check.
+No established runtime/quality improvement or live promotion. Existing incident network DU in
+new-chamber cost/export remains a separate open correctness check, not closed by the fee fix.

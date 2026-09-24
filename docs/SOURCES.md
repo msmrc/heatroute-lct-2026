@@ -1,9 +1,11 @@
 # Technical sources
 
-Primary product requirements are the organizer PDF and technical DOCX. The later organizer video
-Q&A is an active scope clarification for the supplied dataset, but direct conflicts still require
-written confirmation. The extracted decisions, timestamps and unresolved questions are recorded in
-`implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`.
+Primary product requirements are the organizer PDF and the amended technical DOCX
+`Техническое_приложение_ЛЦТ_новое.docx`. The amended written contract supersedes conflicting older
+roadmap prose and earlier video Q&A. Source fingerprint, standards applicability and the explicit
+separation of contest rules from expert heuristics are recorded in
+[ROUTING_STANDARDS_APPLICABILITY.md](implementation/ROUTING_STANDARDS_APPLICABILITY.md).
+Historical Q&A decisions and timestamps remain in `implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`.
 
 Source precedence:
 

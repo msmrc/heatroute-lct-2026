@@ -27,7 +27,7 @@ class OfficialVariantEconomicsCalculatorTest {
     @Test
     void calculatesEveryOfficialCostComponentAndExactTotal() {
         RouteNode root = new RouteNode(
-                "root", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "existing");
+                "root", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "existing", 50);
         RouteNode demand = new RouteNode(
                 "demand", "demand_connection", coordinate(10, 0), false, false, 0, "oks-1");
         RouteSection base = new RouteSection(
@@ -55,18 +55,18 @@ class OfficialVariantEconomicsCalculatorTest {
                 reconstruction);
 
         assertThat(result.isComplete()).isTrue();
-        assertThat(result.getConstructionCost()).isEqualByComparingTo("8740230");
+        assertThat(result.getConstructionCost()).isEqualByComparingTo("3740230");
         assertThat(result.getChamberConstructionCost()).isEqualByComparingTo("3000000");
-        assertThat(result.getTieInCost()).isEqualByComparingTo("5000000");
+        assertThat(result.getTieInCost()).isEqualByComparingTo("0");
         assertThat(result.getReconstructionCost()).isEqualByComparingTo("0");
         assertThat(result.getChamberReconstructionCost()).isEqualByComparingTo("0");
         assertThat(result.getUnconnectedPenalty()).isEqualByComparingTo("101000000");
-        assertThat(result.getCalculatedCost()).isEqualByComparingTo("109740230");
+        assertThat(result.getCalculatedCost()).isEqualByComparingTo("104740230");
         assertThat(result.getNewNetworkLength()).isEqualByComparingTo("10");
         assertThat(result.getReconstructionLength()).isEqualByComparingTo("0");
         assertThat(result.getLength()).isEqualByComparingTo("10");
         assertThat(result.getScore()).isEqualByComparingTo(
-                officialEconomics.score(new BigDecimal("109740230"), new BigDecimal("10")));
+                officialEconomics.score(new BigDecimal("104740230"), new BigDecimal("10")));
     }
 
     @Test
@@ -98,9 +98,9 @@ class OfficialVariantEconomicsCalculatorTest {
     }
 
     @Test
-    void chargesEveryNewRayFromTheSameTieInChamberIndependently() {
+    void doesNotChargeSeparateTieInsForRaysFromANewChamber() {
         RouteNode root = new RouteNode(
-                "root", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "existing");
+                "root", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "existing", 50);
         RouteNode first = new RouteNode(
                 "first", "demand_connection", coordinate(10, 0), false, false, 0, "oks-1");
         RouteNode second = new RouteNode(
@@ -112,7 +112,7 @@ class OfficialVariantEconomicsCalculatorTest {
                 List.of(root, first, second), List.of(firstRay, secondRay), List.of(),
                 ExistingNetworkReconstructionResult.empty());
 
-        assertThat(result.getTieInCost()).isEqualByComparingTo("10000000.00");
+        assertThat(result.getTieInCost()).isEqualByComparingTo("0.00");
     }
 
     @Test
@@ -130,7 +130,7 @@ class OfficialVariantEconomicsCalculatorTest {
     @Test
     void comparesExclusiveSpurCostAgainstTheUnconnectedPenaltyWithoutReconstruction() {
         RouteNode root = new RouteNode(
-                "root", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "existing");
+                "root", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "existing", 50);
         RouteNode demand = new RouteNode(
                 "demand", "demand_connection", coordinate(10, 0), false, false, 0, "oks-1");
         RouteConnection connection = new RouteConnection(
@@ -141,7 +141,7 @@ class OfficialVariantEconomicsCalculatorTest {
                 .isFalse();
         assertThat(calculator.marginalConnectionCost(
                 List.of(edge("spur", "root", "demand", "base", null)), List.of(root, demand)))
-                .isEqualByComparingTo("8740230.00");
+                .isEqualByComparingTo("3740230.00");
     }
 
     @Test
@@ -168,9 +168,9 @@ class OfficialVariantEconomicsCalculatorTest {
     }
 
     @Test
-    void reproducesAppendixExampleFromNormativeRatesAndFormulas() {
+    void pricesASpecialSpurWithANewChamberWithoutASeparateAttachmentCharge() {
         RouteNode tieIn = new RouteNode(
-                "tie", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "net-12");
+                "tie", "new_tie_in_chamber", coordinate(0, 0), true, true, 2, "net-12", 150);
         RouteNode demand = new RouteNode(
                 "node", "demand_connection", coordinate(145.2, 0), false, false, 0, "oks-1");
         RouteSection road = new RouteSection(
@@ -194,18 +194,18 @@ class OfficialVariantEconomicsCalculatorTest {
                         "oks-1", "cp-1", new BigDecimal("80.0"), "connected", null)),
                 reconstruction);
 
-        assertThat(result.getConstructionCost()).isEqualByComparingTo("35942288.00");
+        assertThat(result.getConstructionCost()).isEqualByComparingTo("30942288.00");
         assertThat(result.getChamberConstructionCost()).isEqualByComparingTo("3000000.00");
-        assertThat(result.getTieInCost()).isEqualByComparingTo("5000000.00");
+        assertThat(result.getTieInCost()).isEqualByComparingTo("0.00");
         assertThat(result.getReconstructionCost()).isEqualByComparingTo("0.00");
         assertThat(result.getChamberReconstructionCost()).isEqualByComparingTo("0.00");
         assertThat(result.getUnconnectedPenalty()).isEqualByComparingTo("0.00");
-        assertThat(result.getCalculatedCost()).isEqualByComparingTo("35942288.00");
+        assertThat(result.getCalculatedCost()).isEqualByComparingTo("30942288.00");
         assertThat(result.getNewNetworkLength()).isEqualByComparingTo("145.2");
         assertThat(result.getReconstructionLength()).isEqualByComparingTo("0.0");
         assertThat(result.getLength()).isEqualByComparingTo("145.2");
         assertThat(result.getScore()).isEqualByComparingTo(
-                officialEconomics.score(new BigDecimal("35942288"), new BigDecimal("145.2")));
+                officialEconomics.score(new BigDecimal("30942288"), new BigDecimal("145.2")));
     }
 
     @Test

@@ -121,6 +121,158 @@ class OfficialGeoJsonExporterTest {
     }
 
     @Test
+    void sizesAndPricesANewTieInChamberForTheExistingNetworkDiameter() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (500000 6170000)", "{}"),
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
+                        "{\"diameter\":1000}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
+        OfficialCalculationResult calculation = planner().plan(features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true))));
+        assertThat(calculation.getVariants()).isNotEmpty().allSatisfy(variant -> {
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(1);
+            assertThat(variant.getEconomics().getChamberConstructionCost()).isEqualByComparingTo("8000000");
+            assertThat(variant.getEconomics().getTieInCost()).isEqualByComparingTo("0");
+        });
+        JsonNode output = exporter.export(objectMapper.valueToTree(calculation), features);
+        assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(item -> "heat_chamber".equals(item.path("properties").path("object_type").asText())))
+                .isNotEmpty().allSatisfy(chamber -> {
+                    assertThat(chamber.path("properties").path("diameter").asInt()).isEqualTo(1000);
+                    assertThat(chamber.path("properties").path("cost").decimalValue()).isEqualByComparingTo("8000000");
+                });
+    }
+
+    @Test
+    void legacyCameraMetadataIsResolvedButAStaleOrContradictoryCostCannotBeExported() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)", "{\"diameter\":1000}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
+        JsonNode calculation = objectMapper.valueToTree(planner().plan(features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true)))));
+        JsonNode legacy = calculation.deepCopy();
+        legacy.path("variants").forEach(variant -> variant.path("nodes").forEach(node ->
+                ((ObjectNode) node).remove("existing_incident_diameter")));
+        assertThat(exporter.export(legacy, features).path("features")).isNotEmpty();
+
+        JsonNode contradictory = calculation.deepCopy();
+        contradictory.path("variants").forEach(variant -> variant.path("nodes").forEach(node -> {
+            if (node.path("root").asBoolean()) ((ObjectNode) node).put("existing_incident_diameter", 100);
+        }));
+        assertThatThrownBy(() -> exporter.export(contradictory, features))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("OFFICIAL_EXPORT_INCOMPLETE")
+                .hasMessageContaining("differs from the import");
+
+        JsonNode stale = legacy.deepCopy();
+        ((ObjectNode) stale.path("variants").path(0).path("economics")).put("chamber_construction_cost", 3000000);
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        assertThatThrownBy(() -> exporter.writeValidated(stale, features, stream))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("recalculate")
+                .hasMessageContaining("chamber_construction_cost");
+        assertThat(stream.size()).isLessThan(100); // Только оболочка FeatureCollection, ни одного объекта.
+        assertThat(stream.toString(java.nio.charset.StandardCharsets.UTF_8)).doesNotContain("\"type\":\"Feature\"");
+    }
+
+    @Test
+    void cheapestSelectionAlreadyAccountsForTheExistingDiameterBeforeExport() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "a-high", "LINESTRING (500000 6170000, 500100 6170000)", "{\"diameter\":1000}"),
+                feature("heat_network", "z-low", "LINESTRING (500000 6170090, 500100 6170090)", "{\"diameter\":100}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170040)", "{\"flow_tph\":5}"));
+        OfficialCalculationResult calculation = planner().plan(features,
+                new TopologyAnalysis(1, 2, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "a-high", "heat_network", 40, true),
+                        new TieInCandidate("cp", "z-low", "heat_network", 50, true))));
+        assertThat(calculation.getVariants()).filteredOn(v -> "cheapest".equals(v.getId()))
+                .singleElement().satisfies(variant -> {
+                    assertThat(variant.getConnectedDemandCount()).isEqualTo(1);
+                    assertThat(variant.getNodes()).filteredOn(ru.lct.heatroute.domain.routing.RouteNode::isRoot)
+                            .singleElement().satisfies(root -> {
+                                assertThat(root.getTargetId()).isEqualTo("z-low");
+                                assertThat(root.getExistingIncidentDiameter()).isEqualTo(100);
+                            });
+                    assertThat(variant.getEconomics().getChamberConstructionCost()).isEqualByComparingTo("3000000");
+                });
+        assertThat(exporter.export(objectMapper.valueToTree(calculation), features).path("features")).isNotEmpty();
+    }
+
+    @Test
+    void storedValidFlagCannotHideAnExcessiveTurnFromTheExporter() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)", "{\"diameter\":50}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
+        JsonNode calculation = objectMapper.valueToTree(planner().plan(features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true)))));
+        JsonNode before = calculation.deepCopy();
+        ObjectNode variant = (ObjectNode) calculation.path("variants").path(0);
+        assertThat(variant.path("valid").asBoolean()).isTrue();
+        ArrayNode points = ((ObjectNode) variant.path("edges").path(0)).putArray("coordinates");
+        points.addObject().put("xm", 500050).put("ym", 6170000);
+        points.addObject().put("xm", 500050).put("ym", 6170020);
+        points.addObject().put("xm", 500049).put("ym", 6170005);
+        points.addObject().put("xm", 500050).put("ym", 6170050);
+        assertThatThrownBy(() -> exporter.export(calculation, features))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("ROUTE_DEFLECTION_EXCEEDED");
+        assertThatThrownBy(() -> exporter.validateVariant(calculation, features, variant.path("id").asText()))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("ROUTE_DEFLECTION_EXCEEDED");
+        assertThat(exporter.export(before, features).path("features")).isNotEmpty();
+
+        JsonNode sectionOnly = before.deepCopy();
+        ObjectNode changed = (ObjectNode) sectionOnly.path("variants").path(0);
+        ArrayNode sectionPoints = ((ObjectNode) changed.path("edges").path(0).path("sections").path(0))
+                .putArray("coordinates");
+        sectionPoints.addObject().put("xm", 500050).put("ym", 6170000);
+        sectionPoints.addObject().put("xm", 500050).put("ym", 6170020);
+        sectionPoints.addObject().put("xm", 500050).put("ym", 6170010);
+        sectionPoints.addObject().put("xm", 500050).put("ym", 6170050);
+        assertThatThrownBy(() -> exporter.validateVariant(sectionOnly, features, changed.path("id").asText()))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("ROUTE_DEFLECTION_EXCEEDED");
+        ByteArrayOutputStream rejected = new ByteArrayOutputStream();
+        assertThatThrownBy(() -> exporter.writeValidatedVariant(sectionOnly, features, changed.path("id").asText(), rejected))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("ROUTE_DEFLECTION_EXCEEDED");
+        assertThat(rejected.toString(java.nio.charset.StandardCharsets.UTF_8)).doesNotContain("\"type\":\"Feature\"");
+    }
+
+    @Test
+    void newChamberAttachmentHasNoSeparateFeeInBothCalculationAndExport() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("source", "source", "POINT (500000 6170000)", "{}"),
+                feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
+                        "{\"diameter\":50}"),
+                feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
+        OfficialCalculationResult calculation = planner().plan(features,
+                new TopologyAnalysis(1, 1, 0, Collections.emptyList(), List.of(
+                        new TieInCandidate("cp", "network", "heat_network", 50, true))));
+        assertThat(calculation.getVariants()).isNotEmpty().allSatisfy(variant -> {
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(1);
+            assertThat(variant.getNodes()).anyMatch(node -> "new_tie_in_chamber".equals(node.getNodeType()));
+            assertThat(variant.getEconomics().getTieInCost()).isEqualByComparingTo("0");
+        });
+
+        ObjectNode output = exporter.export(objectMapper.valueToTree(calculation), features);
+        assertThat(validator.validate(output)).isEmpty();
+        assertThat(StreamSupport.stream(output.path("features").spliterator(), false)
+                .filter(feature -> "variant_summary".equals(feature.path("properties").path("object_type").asText())))
+                .isNotEmpty().allSatisfy(feature -> {
+                    JsonNode summary = feature.path("properties");
+                    assertThat(summary.path("existing_chamber_tie_in_count").asInt()).isZero();
+                    assertThat(summary.path("existing_chamber_tie_in_cost").decimalValue())
+                            .isEqualByComparingTo("0");
+                    BigDecimal componentCost = StreamSupport.stream(output.path("features").spliterator(), false)
+                            .map(item -> item.path("properties"))
+                            .filter(properties -> summary.path("variant_id").equals(properties.path("variant_id")))
+                            .filter(properties -> Set.of("heat_network", "heat_chamber")
+                                    .contains(properties.path("object_type").asText()))
+                            .map(properties -> properties.path("cost").decimalValue())
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    assertThat(summary.path("construction_cost").decimalValue()).isEqualByComparingTo(componentCost);
+                });
+    }
+
+    @Test
     void rejectsResultWithoutCompleteRankedVariant() {
         ObjectNode calculation = objectMapper.createObjectNode();
         calculation.putArray("variants").addObject()
@@ -137,7 +289,7 @@ class OfficialGeoJsonExporterTest {
         List<ImportedOfficialFeature> features = List.of(
                 feature("source", "source", "POINT (500000 6170000)", "{}"),
                 feature("heat_network", "network", "LINESTRING (500000 6170000, 500100 6170000)",
-                        "{\"upstream_object_id\":\"source\"}"),
+                        "{\"upstream_object_id\":\"source\",\"diameter\":50}"),
                 feature("oks_connection_point", "cp", "POINT (500050 6170050)", "{\"flow_tph\":5}"));
         OfficialCalculationResult result = planner().plan(
                 features,
@@ -221,9 +373,13 @@ class OfficialGeoJsonExporterTest {
         section.put("kind", "base");
         section.put("length_m", edge.path("length_m").decimalValue());
         ArrayNode coordinates = section.putArray("coordinates");
-        coordinates.addObject().put("xm", 500000).put("ym", 6170000);
-        coordinates.addObject().put("xm", 500050).put("ym", 6170020);
-        coordinates.addObject().put("xm", 500100).put("ym", 6170000);
+        JsonNode first = edge.path("coordinates").get(0);
+        JsonNode last = edge.path("coordinates").get(edge.path("coordinates").size() - 1);
+        coordinates.add(first.deepCopy());
+        coordinates.addObject()
+                .put("xm", first.path("xm").decimalValue().add(last.path("xm").decimalValue()).divide(BigDecimal.valueOf(2)))
+                .put("ym", first.path("ym").decimalValue().add(last.path("ym").decimalValue()).divide(BigDecimal.valueOf(2)));
+        coordinates.add(last.deepCopy());
 
         ObjectNode output = exporter.export(calculation, features);
 

@@ -4,10 +4,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
+import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.ConstraintIndex;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 final class OfficialRoutingEnvironment {
@@ -16,11 +21,16 @@ final class OfficialRoutingEnvironment {
     private final List<ImportedOfficialFeature> features;
     private final RoutingFeatureSource source;
     private final OfficialRouteGeometryRules rules;
+    private final PreparedRoutingConstraints preparedWindowConstraints;
+    private final ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex existingSupport;
     private final Map<Integer, List<Constraint>> baseByDiameter = new HashMap<>();
     private final Map<String, java.util.Optional<RoutePath>> routeCache = new HashMap<>();
     private long visibilitySearches;
     private long visibilityNodes;
     private long visibilityPairChecks;
+    private long rejectedTurns;
+    private final long startedNanos = System.nanoTime();
+    private long phaseStartedNanos = startedNanos;
 
     OfficialRoutingEnvironment(
             List<ImportedOfficialFeature> features,
@@ -35,7 +45,11 @@ final class OfficialRoutingEnvironment {
         this.features = features;
         this.source = source;
         this.rules = rules;
+        this.preparedWindowConstraints = new PreparedRoutingConstraints(rules);
+        this.existingSupport = new ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex(features);
     }
+
+    RouteNode verifiedRootSupport(RouteNode root) { return existingSupport.verified(root); }
 
     List<Constraint> constraints(
             int diameter,
@@ -46,7 +60,7 @@ final class OfficialRoutingEnvironment {
                 diameter,
                 ignored -> rules.baseConstraints(features, diameter));
         List<Constraint> all = new java.util.ArrayList<>(base);
-        all.addAll(rules.baseConstraints(source.findInMetricWindow(window(start, end)), diameter));
+        all.addAll(preparedWindowConstraints.prepare(source.findInMetricWindow(window(start, end)), diameter));
         return rules.applicableConstraints(all, exemptFeatureIds, start, end);
     }
 
@@ -54,6 +68,16 @@ final class OfficialRoutingEnvironment {
         List<ImportedOfficialFeature> matching = new java.util.ArrayList<>(features);
         matching.addAll(source.findByFeatureIds(featureIds));
         return rules.depthAvoidanceConstraints(matching, featureIds);
+    }
+
+    /** Исходные отступы всего локального коридора без послаблений для концов отдельных путей. */
+    List<Constraint> corridorConstraints(int diameter, Envelope bounds) {
+        Envelope query = new Envelope(bounds);
+        query.expandBy(WINDOW_MARGIN_M);
+        List<Constraint> all = new java.util.ArrayList<>(baseByDiameter.computeIfAbsent(
+                diameter, ignored -> rules.baseConstraints(features, diameter)));
+        all.addAll(preparedWindowConstraints.prepare(source.findInMetricWindow(query), diameter));
+        return all;
     }
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgress(int diameter, Coordinate point) {
@@ -95,8 +119,35 @@ final class OfficialRoutingEnvironment {
         List<Constraint> all = new java.util.ArrayList<>(baseByDiameter.computeIfAbsent(
                 diameter,
                 ignored -> rules.baseConstraints(features, diameter)));
-        all.addAll(rules.baseConstraints(source.findInMetricWindow(window(point, point)), diameter));
+        all.addAll(preparedWindowConstraints.prepare(source.findInMetricWindow(window(point, point)), diameter));
         return rules.pointInsideForbiddenClearance(point, rules.index(all));
+    }
+
+    /**
+     * Подготавливает ограничения для серии точечных проверок одного ДУ без повторной буферизации.
+     * Результат принадлежит вызывающей операции; исходное окно каждой точки сохраняется.
+     */
+    Predicate<Coordinate> preparePointClearance(int diameter, Envelope pointBounds) {
+        if (pointBounds == null || pointBounds.isNull()) throw new IllegalArgumentException("Point bounds are required");
+        Envelope bounds = new Envelope(pointBounds);
+        Envelope query = new Envelope(bounds);
+        query.expandBy(WINDOW_MARGIN_M);
+        ConstraintIndex core = rules.index(baseByDiameter.computeIfAbsent(diameter,
+                ignored -> rules.baseConstraints(features, diameter)));
+        ConstraintIndex nearby = rules.index(preparedWindowConstraints.prepare(source.findInMetricWindow(query), diameter));
+        GeometryFactory factory = new GeometryFactory();
+        return point -> {
+            if (!bounds.covers(point.x, point.y)) throw new IllegalArgumentException("Point outside prepared bounds");
+            if (rules.pointInsideForbiddenClearance(point, core)) return true;
+            Geometry geometry = factory.createPoint(point);
+            Envelope pointWindow = window(point, point);
+            for (Constraint constraint : nearby.query(geometry.getEnvelopeInternal())) {
+                if (constraint.rule().isForbidden()
+                        && constraint.source().getEnvelopeInternal().intersects(pointWindow)
+                        && constraint.preparedBlocked().covers(geometry)) return true;
+            }
+            return false;
+        };
     }
 
     List<ImportedOfficialFeature> featuresInWindow(Coordinate start, Coordinate end) {
@@ -105,16 +156,25 @@ final class OfficialRoutingEnvironment {
         return result;
     }
 
-    void recordVisibilitySearch(int nodeCount, double corridorExpansionM, long evaluatedPairCount) {
+    List<org.locationtech.jts.geom.Geometry> buildingFootprints(Coordinate start, Coordinate end) {
+        return featuresInWindow(start, end).stream().filter(rules::isBuildingFeature)
+                .map(ImportedOfficialFeature::getMetricGeometry)
+                .filter(geometry -> geometry != null && geometry.getDimension() == 2)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    void recordVisibilitySearch(int nodeCount, double corridorExpansionM, long evaluatedPairCount, long rejectedTurnCount) {
         visibilitySearches++;
         visibilityNodes += nodeCount;
         visibilityPairChecks += evaluatedPairCount;
+        rejectedTurns += rejectedTurnCount;
         if (visibilitySearches == 1 || visibilitySearches % 25 == 0) {
             LOGGER.info(
-                    "Routing visibility profile searches={} total_nodes={} evaluated_pairs={} last_nodes={} last_evaluated_pairs={} corridor_m={}",
+                    "Routing visibility profile searches={} total_nodes={} evaluated_pairs={} angle_pruned={} last_nodes={} last_evaluated_pairs={} corridor_m={}",
                     visibilitySearches,
                     visibilityNodes,
                     visibilityPairChecks,
+                    rejectedTurns,
                     nodeCount,
                     evaluatedPairCount,
                     corridorExpansionM);
@@ -122,12 +182,17 @@ final class OfficialRoutingEnvironment {
     }
 
     void logVisibilitySummary(String phase) {
+        long now = System.nanoTime();
         LOGGER.info(
-                "Routing phase profile phase={} searches={} total_nodes={} evaluated_pairs={}",
+                "Routing phase profile phase={} searches={} total_nodes={} evaluated_pairs={} angle_pruned={} phase_ms={} elapsed_ms={}",
                 phase,
                 visibilitySearches,
                 visibilityNodes,
-                visibilityPairChecks);
+                visibilityPairChecks,
+                rejectedTurns,
+                (now - phaseStartedNanos) / 1_000_000L,
+                (now - startedNanos) / 1_000_000L);
+        phaseStartedNanos = now;
     }
 
     RoutePath cachedRoute(String key, java.util.function.Supplier<RoutePath> calculation) {

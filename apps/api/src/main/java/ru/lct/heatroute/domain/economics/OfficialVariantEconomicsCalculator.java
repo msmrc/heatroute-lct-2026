@@ -3,9 +3,7 @@ package ru.lct.heatroute.domain.economics;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeSet;
 import org.springframework.stereotype.Component;
@@ -132,12 +130,13 @@ public class OfficialVariantEconomicsCalculator {
     }
 
     /**
-     * Each newly laid ray entering the existing network is an independent tie-in. A single
-     * chamber may therefore have more than one tie-in when it starts several new branches.
+     * По §3.2 приложения каждый новый луч из существующей камеры оплачивается отдельно.
+     * Новая камера уже включает присоединение; критерий существующего корня совпадает с экспортом.
      */
     private long tieInCount(List<RouteNode> nodes, List<RouteEdge> edges) {
         java.util.Set<String> rootIds = nodes.stream()
                 .filter(RouteNode::isRoot)
+                .filter(node -> "existing_chamber_tie_in".equals(node.getNodeType()))
                 .map(RouteNode::getId)
                 .collect(java.util.stream.Collectors.toSet());
         return edges.stream()
@@ -278,15 +277,8 @@ public class OfficialVariantEconomicsCalculator {
     }
 
     private BigDecimal newChamberCost(List<RouteNode> nodes, List<RouteEdge> edges) {
-        Map<String, Integer> maximumDiameterByNode = new HashMap<>();
-        for (RouteEdge edge : edges) {
-            maximumDiameterByNode.merge(edge.getUpstreamNodeId(), edge.getDiameter(), Math::max);
-            maximumDiameterByNode.merge(edge.getDownstreamNodeId(), edge.getDiameter(), Math::max);
-        }
-        return nodes.stream()
-                .filter(RouteNode::isChamber)
-                .filter(node -> node.getNodeType().startsWith("new_"))
-                .map(node -> economics.chamberCost(maximumDiameterByNode.get(node.getId())))
+        return ru.lct.heatroute.domain.sizing.OfficialChamberSizing.diameters(nodes, edges).values().stream()
+                .map(economics::chamberCost)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 

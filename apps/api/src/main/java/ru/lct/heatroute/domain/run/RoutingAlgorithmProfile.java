@@ -4,9 +4,10 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.Arrays;
 
-/** Выбирает изолированный профиль планировщика для неизменяемого запуска. */
+/** Хранит API-имя в параметрах запуска; устаревшее имя разрешается в основной алгоритм. */
 public enum RoutingAlgorithmProfile {
     STABLE("stable"),
+    /** Сохранён для чтения истории и совместимости старых API-клиентов. */
     EXPERT_EXPERIMENTAL("expert_experimental");
 
     private final String wireName;

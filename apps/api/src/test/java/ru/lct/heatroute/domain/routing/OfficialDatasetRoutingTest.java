@@ -32,6 +32,8 @@ import ru.lct.heatroute.domain.depth.OfficialDepthProfileValidator;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
+import ru.lct.heatroute.domain.export.OfficialGeoJsonExporter;
+import ru.lct.heatroute.domain.export.OfficialOutputContractValidator;
 import ru.lct.heatroute.domain.input.OfficialGeoJsonInspector;
 import ru.lct.heatroute.domain.input.OfficialInputReport;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
@@ -51,11 +53,12 @@ class OfficialDatasetRoutingTest {
         List<ImportedOfficialFeature> features = loadOfficialFeatures();
         TopologyAnalysis topology = new ExistingNetworkTopologyAnalyzer().analyze(features);
         OfficialRoutePlanner planner = planner();
+        OfficialRunParameters parameters = new OfficialRunParameters(null, null, true);
 
         OfficialCalculationResult result = planner.plan(
                 features,
                 topology,
-                new OfficialRunParameters(null, null, true),
+                parameters,
                 OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
 
         assertThat(topology.getTieInCandidates()).hasSize(204);
@@ -70,6 +73,18 @@ class OfficialDatasetRoutingTest {
         assertThat(result.getVariants()).allMatch(RouteVariant::isValid);
         assertThat(result.getVariants()).allSatisfy(variant ->
                 assertThat(variant.getConnectedDemandCount()).isEqualTo(result.getDemandCount()));
+        RouteVariant engineering = result.getVariants().stream()
+                .filter(variant -> "balanced".equals(variant.getId())).findFirst().orElseThrow();
+        RouteVariant shortest = result.getVariants().stream()
+                .filter(variant -> "shortest".equals(variant.getId())).findFirst().orElseThrow();
+        RouteVariant cheapest = result.getVariants().stream()
+                .filter(variant -> "cheapest".equals(variant.getId())).findFirst().orElseThrow();
+        assertThat(engineering.getEngineeringIssues()).isEmpty();
+        assertThat(shortest.getEngineeringIssues()).isEmpty();
+        assertThat(shortest.getTotalLengthM()).isLessThanOrEqualTo(engineering.getTotalLengthM());
+        assertThat(result.getVariants()).allSatisfy(variant ->
+                assertThat(cheapest.getEconomics().getCalculatedCost())
+                        .isLessThanOrEqualTo(variant.getEconomics().getCalculatedCost()));
         RouteVariant preferred = result.getVariants().stream()
                 .filter(variant -> variant.getId().equals(result.getPreferredVariantId()))
                 .findFirst()
@@ -96,7 +111,16 @@ class OfficialDatasetRoutingTest {
                 assertThat(edge.getDepthProfile().getPoints()).hasSizeGreaterThanOrEqualTo(2);
             });
         });
-        ObjectNode demoBundle = buildLocalDemoBundle(result);
+        ObjectNode demoBundle = buildLocalDemoBundle(result, parameters);
+        // Проверяем не только сохранённый valid: фактический экспорт пересчитывает камеры,
+        // сумму физических объектов и обязательные повороты по готовой геометрии.
+        OfficialPipeCatalog exportCatalog = new OfficialPipeCatalog();
+        OfficialEconomics exportEconomics = new OfficialEconomics();
+        new OfficialGeoJsonExporter(objectMapper, exportCatalog, exportEconomics,
+                new OfficialOutputContractValidator(),
+                new OfficialVariantEconomicsCalculator(exportCatalog, exportEconomics))
+                .validate(objectMapper.valueToTree(result), features);
+        assertThat(demoBundle.path("run").path("parameters").path("depth_enabled").asBoolean()).isTrue();
         JsonNode demoImport = demoBundle.path("import");
         assertThat(demoImport.path("input_size_bytes").asLong()).isEqualTo(633_402L);
         assertThat(demoImport.path("report").path("sha256").asText())
@@ -124,7 +148,7 @@ class OfficialDatasetRoutingTest {
         }
     }
 
-    private OfficialRoutePlanner planner() {
+    OfficialRoutePlanner planner() {
         OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
         OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
@@ -160,7 +184,8 @@ class OfficialDatasetRoutingTest {
                 .collect(Collectors.joining("\n"));
     }
 
-    private ObjectNode buildLocalDemoBundle(OfficialCalculationResult result) throws Exception {
+    private ObjectNode buildLocalDemoBundle(OfficialCalculationResult result, OfficialRunParameters parameters)
+            throws Exception {
         byte[] datasetBytes;
         try (InputStream input = getClass().getResourceAsStream("/official/lct-2026.geojson")) {
             if (input == null) {
@@ -187,7 +212,7 @@ class OfficialDatasetRoutingTest {
         run.put("state", "completed");
         run.put("algorithm_version", result.getAlgorithmVersion());
         run.put("input_sha256", report.getSha256());
-        run.set("parameters", objectMapper.valueToTree(OfficialRunParameters.defaults()));
+        run.set("parameters", objectMapper.valueToTree(parameters));
         run.set("result", objectMapper.valueToTree(result));
         run.put("created_at", now);
         run.put("completed_at", now);
@@ -213,7 +238,7 @@ class OfficialDatasetRoutingTest {
         objectMapper.writerWithDefaultPrettyPrinter().writeValue(target.toFile(), bundle);
     }
 
-    private List<ImportedOfficialFeature> loadOfficialFeatures() throws Exception {
+    List<ImportedOfficialFeature> loadOfficialFeatures() throws Exception {
         JsonNode root;
         try (InputStream input = getClass().getResourceAsStream("/official/lct-2026.geojson")) {
             if (input == null) {

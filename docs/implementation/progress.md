@@ -1,5 +1,393 @@
 # Current implementation progress
 
+## Source61 — improved fresh full plan, native pending, 2026-09-24
+
+[PRIMARY_ROUTING_61.md](PRIMARY_ROUTING_61.md): bounded terminal-derived frame at the first
+group root, explicit shared grid/spur orientation, early exact port-turn admission, protected
+collinear compression and regularized corridor winners included in existing refinement.
+Final fast742 executed /3 skipped; datasets/export3/3 PASS =745 executed Java /3 skipped.
+Web31+scripts35, lint/typecheck PASS. Fresh preferred1857.155m/13 new branch cameras/13 bends,
+RUB273953260.00,17/17;58 was1887.222m/13/16,RUB276460904.63. Cheapest1895.501m/11 branch
+cameras/no new tie-in camera/21 bends. Planner279.503s, not a statistical or native speed claim.
+New JAR/native UI pending; API58 unchanged. No Compose/scale/R-stage/goal closure. User now
+authorizes Git checkpoints/push, not VPS deployment. Independent review61 hit quota error.
+
+## Research60 — eleven-camera diagnostic, no production change, 2026-09-24
+
+[PRIMARY_ROUTING_60.md](PRIMARY_ROUTING_60.md): second dynamic leaf exchange produces an
+admitted1941.530m/11-camera/20-bend diagnostic network,17/17, full sizing/depth/export PASS;
+independent topology/flow/root/turn checker PASS within its stated scope. Not an improvement
+over preferred58 and not a fresh end-to-end/UI result; not integrated. Exact comparison
+image rendered/viewed against Evgeny's1913.859m/11-marker/15-bend reference. Terminal-derived
+local frames, receiver relocation, capacity-chain and leaf-swap probes do not improve it.
+Independent104-raw-draft shortlist audit finds zero raw nonregressing and zero missed
+raw nonregressing candidates, despite near-duplicate crowding. Next: bounded alternate
+whole-corridor frame/tree generation upstream, not more equivalent local relocation.
+Runtime/class/JAR hashes unchanged58, readinessUP. No new main test/native/Compose gates,
+R-stage closure, Git/VPS changes or speed claim. Balanced-objective preference unanswered.
+
+## Research59 — bounded paired relocation, no production change, 2026-09-24
+
+[PRIMARY_ROUTING_59.md](PRIMARY_ROUTING_59.md): three diagnostic searches rebuild two
+adjacent cameras and their shared/outer approaches together. Length-first, bends-first
+and joint-interval positions:62/62/82 attempts,16/24/24 real candidate finish/export calls,
+all pass mandatory admission. No fully non-regressive replacement among finalists:
+13 cameras/16 bends/7 irregular pairs adds1.063m andRUB80987.41;
+12 cameras/17 bends worsens irregular pairs to11. Not integrated; runtime stays58.
+Independent geometry analysis identifies fixed-egress lower bounds and signed-port conflicts.
+Next: terminal-derived axes and explicit audit of bounded candidate selection, not larger
+blind budgets. No new full-plan/native/Compose gate, overall completion, Git or VPS change.
+
+## Source58 — scoped terminal alternatives, dataset and native gates passed, 2026-09-24
+
+[PRIMARY_ROUTING_58.md](PRIMARY_ROUTING_58.md): real red/green identifies the finalizer aiming
+an already valid terminal approach at a remote camera instead of the actual adjacent point.
+Global application passed initial datasets but regressed shortest13→14 cameras and price;
+that candidate is rejected, never deployed. Now the old core finalization is retained; bounded
+coordinated relocation finishes BOTH policies, admitting only non-regressive improvements.
+Full-DU prefix, extra terminal-obstacle check and full final admission remain. Final fast727
+executed /3 skipped, web31+scripts35, lint/typecheck PASS. Final datasets/export3/3 PASS:
+730 executed Java /3 skipped overall; full result exactly equal57 except top-level version,
+full corridor equal, negative controls checked. Planner299.002 s vs298.629 s: no speed claim.
+JAR/API58 readinessUP; fresh UI job76e08f8b-a3f9-447b-9f11-add6d902e895 completed/attempt1,
+312.305 s end-to-end (57:305.650 s). Run9caa60ec-9a35-40f9-83e0-cadfe5485f8c;
+native result also exactly equal57 except version, real HTTP export200/1030 features/same SHA.
+Full UI→DB→map→export PASS, console clean; existing server client-abort noise remains.
+Actual preferred1887.223 m/13 branch cameras/16 bends; shape unchanged. Both actual58 comparison
+images rendered and viewed; browser left on shortest/rank1. Verification skills used with CUA fallback.
+Compound leaf/receiver relocation probe yields12 cameras but extra bends; not integrated.
+Independent saved-artifact topology/flow/root/angle checker24 synthetic checks PASS.
+No overall shape/speed success, goal/R-stage/Compose/scale closure, Git or VPS update claimed.
+
+## Source57 — assessment/resource changes, dataset and native gates passed, 2026-09-24
+
+[PRIMARY_ROUTING_57.md](PRIMARY_ROUTING_57.md): admission metrics are reused only within the
+unchanged draft-selection pass, not recomputed inside comparators; no final admission removed.
+Real red/green:8→0 comparator sizing calls, same three completed drafts in both depth modes.
+Oversized/unsupported constraints reuse existing prepared fallback without copying; preparation
+retention reserves additional explicit index coordinates before allocation (not heap-byte cap).
+Java fast721 total /718 executed /3 scale skipped PASS; web31+scripts35, lint/typecheck PASS.
+Full dataset/export3/3 PASS: **721 Java executed /3 scale skipped overall**. Full56→57 result
+deep equality excluding only the top-level version; corridor identical. Planner299.930→298.629 s
+is no material overall speed gain (single runs, short isolated probe overlapped57).
+JAR57 packaged; local API57 PID81078 readinessUP. Fresh UI job
+`a80b9b0d-c25c-4a0d-9654-6eb7b2922b39` completed/attempt1,305.650 s end-to-end;
+native run `961aff95-7280-4460-96b4-cda7f144e1c1`. Full native56→57 result deep-equal except
+the top-level version; HTTP export200/1030 features, same SHA as56, cost/node/WGS84 checks PASS.
+UI opens result automatically; rank1 selected, map/17of17 verified, console clean, server
+client-abort noise remains. Actual preferred1887.223 m /13 chambers /16 bends; no geometry gain.
+Both57-live-preferred/57-live-cheapest images rendered and viewed, using actual default2D result.
+Two bounded geometry probes rejected: clearance-before-cap and leaf exchange both reduce a
+camera but worsen score/bends. Best validated exchange1906.953 m /12 cameras /17 bends,
+RUB275817240.07,17/17; real sizing/depth/export passed but not integrated.
+Next bounded geometry probe: leaf exchange plus receiver-chamber relocation/rebuilt approaches,
+then coordinated trunk/multiple-branch change if needed. These are not implemented in57.
+Geometry/goal/Compose/scale remain open; no Git/VPS update.
+
+## Exact segment/polygon predicate — source56 local gates passed, 2026-09-24
+
+[PRIMARY_ROUTING_56.md](PRIMARY_ROUTING_56.md): bounded prepared boundary index, exact JTS
+semantics including touches/holes; no objective/topology changes or cross-run route reuse.
+Fast692 executed /3 skipped +datasets3/3 PASS =**695 executed Java /3 scale skipped**.
+Web31+scripts35 and lint/typecheck PASS. Full55→56 result deeply equal except its top-level
+version; input/profile and full corridor output equal, including negative comparison controls.
+All-17 350.860→299.930 s in single local runs (55 included short JFR; not a clean benchmark).
+Preferred unchanged:17/17,1887.222 m /13 branch chambers /16 bends,RUB276460904.63.
+Image56-preferred rendered and viewed. JAR56 built; API56 readinessUP, native PostgreSQL/Vite.
+Fresh UI job `0871d44d-c89a-47f8-9526-0b1c4333c0c8` completed/attempt1 in309.280 s;
+real map/result and strict HTTP export1030 features PASS. Actual default2D preferred:
+1887.223 m /13 chambers /16 bends,RUB276461145.20,17/17; live images viewed in56-live-preferred
+and56-live-cheapest. Live is not exactly the depth-on/Proj4J fixture: differences explicitly
+recorded, not hidden by fuzzy equality. Browser console clean, server has client-abort noise.
+Review found oversized fallback copying and unaccounted additional preparation coordinates;
+explicit follow-up in source56 doc. Compose/scale and geometry/speed goal remain open.
+Historical live49 statements below refer to their old checkpoints, not the current process.
+
+## Coordinated chamber relocation — source55 local gates passed, 2026-09-24
+
+[PRIMARY_ROUTING_55.md](PRIMARY_ROUTING_55.md): bounded relocation jointly rebuilds all incident
+approaches, keeps the original finished roles and reselects after full admission. Real-network
+probe and now the fresh full55 plan both improve1898.684→1887.222 m and18→16 bends,
+13 cameras unchanged, cost277670360.94→276460904.63 RUB, all17 connected. Fast671 total /668
+executed /3 scale skipped plus datasets3/3 PASS: **671 executed Java /3 scale skipped overall**.
+All-17:350.860 s, corridor100.209 s; sizing/depth/economics/export preflight PASS. Web31+scripts35,
+lint/typecheck PASS. Independent snapshot arithmetic/root/capacity checks PASS; the unchanged
+legacy1.414 mm endpoint discrepancy is explicitly recorded. Images55-preferred/55-cheapest
+rendered and viewed. Short45s JFR identifies intersection predicates as a follow-up target,
+not a proven overall speedup; the run includes profiling overhead. Live49 readinessUP unchanged,
+new runtime/Compose/scale pending. No R-stage is closed; geometry/speed goal remains active.
+
+## Compliant interior simplification — source 54, local gates passed, 2026-09-24
+
+[PRIMARY_ROUTING_54.md](PRIMARY_ROUTING_54.md): the primary finalizer can now shorten a legal
+dogleg while preserving complete endpoint segments, local own-OKS approaches and topology.
+A second full sizing/depth/geometry/economics admission accepts only a shorter, non-costlier
+result with fewer bends and no engineering regression. The141→81 m /4→0 fixture passes all
+three strategies and both depth modes. Negative controls cover extra special-construction
+cost, crossings of separate/shared-root branches and illegal splice angles.
+
+Initial fast625 total /622 executed /3 scale skips, web31 +scripts35, lint/typecheck PASS.
+Initial datasets3/3 PASS; corridor98.643 s, all-17 340.751 s and complete result equals53 except
+the version. Additional helper review caught an empty-section fallback cost omission: the guard
+now declines that case. Final fast645 total /642 executed /3 skips PASS after the guard and
+extra regressions; final dataset3/3 PASS (corridor99.089 s, all-17 340.630 s), with enabled
+depth, sizing/economics and independent export validation. Overall **645 executed /3 scale
+skips**. `.tooling/verify-primary54-result.mjs` → `primary54-final-result-equivalence.log` PASS:
+the complete final result equals53 except the top-level version. Preferred remains1898.684 m,
+13 cameras,18 bends; cheapest1961.037 m,11 cameras,24 bends. Time340.609→340.630 s is not
+a speed gain. Actual images: `.tooling/routing-comparison-54-preferred` and `54-cheapest`.
+Live49 unchanged, readiness UP; this is not a smoke54/Compose gate. No R-stage is closed.
+Next: trace rejected chamber contractions/branch reassignment before increasing search budgets.
+
+## Safe shortcut/corner processing — source 53, 2026-09-24
+
+[PRIMARY_ROUTING_53.md](PRIMARY_ROUTING_53.md) records two reproduced postprocessing bugs:
+normalization could introduce an obtuse downstream turn, and corner snapping could invalidate
+a neighbour. Both shortcut endpoints and all three affected snap turns now use the existing
+millimetre-aware mandatory angle predicate. Only adjacent rounded duplicate points are removed.
+The six new tests include real forbidden polygons, large translated/rotated coordinates,
+all preferences, valid simplification, non-mutation and cancellation. No validator was weakened.
+
+Separately, exact ordered rounded-tail deduplication avoids repeated chamber-approach checks:
+38 -> 27 on the fixture, same eight accepted outputs; complete output digests match across24
+geometry combinations. Raw clearance precheck and original bounds are preserved.
+Integrated Java fast gate: **622 total /619 executed /3 scale skips**, no failures/errors,
+`.tooling/primary53-fast.log`. Separate dataset gates are now **3/3 PASS**
+(`.tooling/primary53-datasets.log`): corridor98.95 s and main dataset2/2 including all-17,
+complete enabled depth, sizing/economics and independent export validation. Overall fast +
+dataset: **622 executed /3 scale skips**. Web31 +scripts35 PASS
+(`primary53-web-test.log`), lint/typecheck PASS (`primary53-web-lint.log`, `primary53-web-typecheck.log`).
+
+Saved source53 `run.result` is deeply equal to integrated52 excluding ONLY its top-level
+`algorithm_version`: `.tooling/verify-primary53-equivalence.mjs` and
+`.tooling/primary53-result-equivalence.log` PASS, independent of object-property order, with
+ordered arrays and geometry-mutation negative controls. Input SHA/parameters match too.
+Whole bundle bytes are not equal: the wrapper additionally differs in three timestamps and
+the duplicate run version; the complete difference inventory is asserted and logged.
+Actual preferred shortest remains17/17,1898.684 m,13 branch cameras,18 bends,
+RUB277670360.94,score13.470822106; cheapest1961.037 m,11 cameras,24 bends,RUB275517854.67.
+Shortest and cheapest use existing TK106/two rays; balanced has15 branch cameras plus
+one new tie-in chamber on segment126, not TK106. Internal all-17 **358.585 ->340.609 s**:17.976 s less
+in these single runs, not a statistical speedup or SLA. No geometric improvement claimed.
+
+Actual53 preferred/cheapest renderings were regenerated and visually inspected in
+`.tooling/routing-comparison-53-preferred` and `53-cheapest`, with reference source-byte/geometry
+verification; exact logs `primary53-preferred-render.log`, `primary53-cheapest-render.log`.
+Advisory-only `.tooling/primary53-geometry-quality.json` confirms unchanged18/24 bends.
+
+Next bounded opportunity is reproduced, **not implemented in53**: compliant doglegs never
+reach `regularizeFinishedEngineeringEdges` because it only visits `nonCompliantEdgeIds`.
+Real-domain isolated finish retains141 m/4 bends;81 m/0 bends with the same terminal rays
+and OKS suffix passes independent geometry, engineering, sizing and enabled-depth validation.
+Full-edge regularize returns null here; exterior-only regularize plus retained final approach
+passes finish. Evidence: `.tooling/CompliantDoglegFinishProbe53.java`,
+`.tooling/primary53-compliant-dogleg-finish-final.log` (0.663 s process CPU).
+Follow-up54: bounded retained-end interior simplification, without weakening admission.
+Live remains49; Compose/scale for53 unverified; no Git push, VPS deployment or R-stage closure.
+
+## Early turn pruning and disconnected-graph rejection — source 52, 2026-09-24
+
+Current checkpoint: [PRIMARY_ROUTING_52.md](PRIMARY_ROUTING_52.md). Mandatory <=90-degree
+turns now participate in directed search. Subsequent performance-only changes reject disconnected
+visibility components before directed state expansion and use a conservative fast angle bound.
+Fresh all-17 A/B: **417.499 -> 313.977 seconds** (24.8% less in this pair of local runs).
+The complete `run.result` and input SHA are equal, including every variant, geometry, DU,
+depth, economics and rank: `.tooling/primary52-component-equivalence.log`.
+This is not a statistical benchmark or a new-machine SLA. No stored calculation result was reused.
+
+The separately reproduced missing terminal-incumbent candidate is addressed by bounded prefix
+retention during chamber merging (<=38 tails / <=8 accepted paths); 18 new tests cover its
+geometry and work bounds. Main integrated Java fast gate: **613 total / 610 executed / 3 scale
+skipped**, no failures/errors, `.tooling/primary52-integrated-fast.log`. Web31 + scripts35,
+lint/typecheck PASS (`primary52-web-*`). Full integrated corridor1 + main dataset2 subsequently
+PASS (`primary52-integrated-datasets.log`): **613 executed Java tests overall,3 scale skips**.
+Final all-17 time358.585 s:14.1% less than angle-only417.499 s, but44.608 s more than the
+performance-only run because the new alternatives/finishes spend part of the gain.
+Actual preferred shortest:17/17,1898.684 m,13 branch cameras,18 bends,RUB277670360.94,
+score13.470822106,existing TK106/two rays,complete sizing/economics/depth and export PASS.
+Against51:one fewer camera and RUB3123112.43 less, but18 vs15 bends and6 vs4 advisory oblique
+junction pairs. Not a Pareto improvement in geometric quality. Cheapest:1961.037 m,11 cameras,
+24 bends,RUB275517854.67. Actual final comparisons, visually reviewed:
+`.tooling/routing-comparison-52-preferred` and `52-cheapest`; advisory report `primary52-geometry-quality.json`.
+
+Separate follow-up reproduced: normalize can introduce a 135-degree turn into a legal path.
+`.tooling/primary52-normalize-audit.log` is a synthetic visibility-model diagnostic, not an
+official-dataset failure or a completed fix. Preserve adjacent mandatory angles during shortcut
+and corner snapping, then rerun the pipeline. Current final validator still rejects such paths.
+Live49 readiness is UP; no runtime replacement, Compose/scale closure, Git push or VPS update.
+
+## Mandatory turns and existing support DU — source 51, 2026-09-23
+
+Current implementation/evidence: [PRIMARY_ROUTING_51.md](PRIMARY_ROUTING_51.md).
+Existing-network DU now participates in new-chamber sizing/cost before selection and is rechecked
+at export. Role-independent <=90-degree deflection validation covers polyline vertices and
+degree-two nodes. A resulting 1/2 coverage regression exposed the old obtuse perpendicular
+approach; a checked local geometric repair restores 2/2 without weakening validation.
+Final fast Java gate: 589 total, **586 executed**, 3 opt-in scale skips, no failures/errors
+(`.tooling/primary51-final-fast.log`). Plus real corridor1/1 and fresh main dataset2/2:
+**589 executed Java tests overall**, 3 skipped. Web31 + scripts35, lint/typecheck PASS.
+Post-review export checks actual section geometry, joins and monotone equivalence to the edge;
+a reproduced endpoint-tolerance loop regression is fixed. Latest adapter revalidates the fresh
+all-17 artifact: all3 variants / 920 exported features PASS (`primary51-final-export-recheck.log`).
+Fresh main result selects shortest: 17/17, 1899.927 m, RUB280793473.37, 14 branch cameras,
+one existing TK106 root/two rays, 15 bends, no mandatory or engineering issues.
+Facade-axis deviation is 5.592 degrees, but four advisory irregular junction pairs and three
+extra cameras vs the expert remain. Cheapest uses9 cameras but2061.120 m and28 bends, so it is
+not the desired geometric solution. Internal all-17 time407.177 s includes a120s JFR window;
+not an isolated speed benchmark. Actual selected comparison: `.tooling/routing-comparison-51-preferred`.
+Live remains49. No Compose/scale gate, R-stage closure, Git push or VPS update.
+Open-defect statements in the source50 checkpoint below describe that historical source.
+
+## Standards applicability and attachment pricing — 2026-09-23
+
+The supplied SP references prompted a source/version check against the amended organizer DOCX.
+[ROUTING_STANDARDS_APPLICABILITY.md](ROUTING_STANDARDS_APPLICABILITY.md) separates contest
+requirements from expert geometry heuristics and records the verified SP status and limits.
+This is not a full 2026-SP compliance assessment. Old roadmap bend tariffs and per-ray fees for
+new chambers are superseded; route compensation/structural design is not inferred from 2D lines.
+
+Concrete pricing regression reproduced through the real planner/export test: a new tie-in chamber
+is wrongly charged an additional RUB 5 million despite appendix §3.2 including attachment in the
+chamber price. `.tooling/tie-in-economics-export-red.log`: 1 test, 1 expected regression failure
+(all three new-chamber variants). Correction is implemented: only rays at existing chamber roots
+are charged. Main focused Java gate is 52/52 PASS (`.tooling/primary50-standards-focused.log`),
+including the real planner/export regression. Extended Java gate is 524 tests, 0 failures/errors,
+3 opt-in scale skips: **521 executed**, `.tooling/primary50-standards-unit.log`. This includes the
+real all-17 corridor component with final sizing/economics/depth/refinement, not the full main
+pipeline. Separate full main-pipeline rerun subsequently passed 2/2: **523 executed Java tests
+overall, three scale skips**. Evidence: `.tooling/primary50-standards-official.log/.json`.
+Selected geometry/length/cost/coverage remain unchanged: balanced/shortest 17/17, 1899.051 m,
+RUB 269806210.70, 12 branch chambers; cheapest 1894.445 m, RUB 264775893.97, 11 branch chambers.
+All selected variants use existing chambers; the new-chamber fee fix does not lower their cost.
+Internal all-17 time: 433.648 s vs previous 440.828 s, non-isolated measurements; no established
+speed gain. The two excessive deflections in cheapest persist in this fresh result.
+Web 31 + scripts 35, lint/typecheck PASS in `.tooling/primary50-standards-web-*`.
+Separate open audit item: maximum diameter of a newly built chamber on the existing network must
+also account for the existing incident network, not only the new route edges.
+Mandatory bend audit is also open: the saved preceding main result's cheapest geometry contains
+two deflections above the appendix's 90-degree limit (91.2055 and 91.6649 degrees). The current
+`valid` flag and passing tests do not certify this untested official invariant. See the standards
+applicability note; implement an independent role-agnostic bound, not a new arbitrary bend tariff.
+
+Invocation-local exact-state deduplication is implemented for corridor refinement. Main Java 11
+initial focused gate: 22/22 PASS, `.tooling/primary50-dedup-focused.log`; no route-result cache
+across runs. Review then reproduced incorrect suppression of an unexpanded pruned seed. It is
+fixed with separate expanded/returned/frontier identity sets and two additional regression tests,
+included in the renewed gates above. Real corridor candidates remain unchanged (best 11-camera
+candidate 1986.104 m / RUB 277626080.01). No speed gain is inferred from this component gate.
+This changes beam diversity on duplicate states; old full main-pipeline results below do not
+verify the revised search or corrected attachment economics.
+No source-50 promotion, R-stage closure, Git push or live API replacement has occurred.
+
+## Expert-like corridor network — active work, 2026-09-23
+
+Latest checkpoint, 22:46: main refinement is integrated; renewed Java gate is 493 tests,
+0 failures/errors, 3 skipped (490 executed). Evidence: `.tooling/primary50-refinement-unit.log`.
+The production refinement probe produces `corridor-refined-16`: 11 branch cameras, 17/17,
+1986.104 m / RUB 277626080.01, complete final sizing/economics/enabled depth and no bend warnings.
+It remains a development candidate, not a selected/live result: +2.90% cost vs balanced 49,
+24 bends and two oblique junction-angle pairs under the advisory 5-degree diagnostic.
+Same-scale images and verified reference provenance are in `.tooling/routing-comparison-50-refined`.
+Renewed web/script gate: 31 + 35 tests, lint/typecheck PASS (`primary50-refined-web-*` logs).
+Renewed full main-pipeline gate is 2/2 PASS: **492 executed Java tests** in total, three scale
+tests skipped. All selected result fields exactly equal the pre-refinement 50 result (and 49
+except version): balanced/shortest still 1899.051 m / 12 cameras. Actual main pipeline executes
+refinement, but final selection does not promote it. Internal all-17 time is **440.828 s**,
+versus previous non-isolated 377.970 s for 50 and 272.911 s for 49. Faster operation is not proven.
+Evidence: `.tooling/primary50-refined-official.log/.json`; actual selected-result images are
+separate in `.tooling/routing-comparison-50-refined-selected`. Live remains 49; no R-stage closes.
+Earlier entries below describe intermediate states, not current verification claims.
+
+Current follow-up after the full gate below: bounded chamber consolidation is under development.
+The first real finish probe reached 11 cameras / 1875.812 m / RUB 265810817.85, but four bend-angle
+findings and worse junctions prevent promotion. Orthogonal assignment, retained-edge checks and
+normal-to-corridor transitions are being added; focused regressions expose missing free-space
+approaches. Main portfolio integration and renewed full verification are still pending. Earlier
+444-test/full-pipeline evidence does not cover these subsequent edits; live remains 49.
+New focused component gate: 16/16 PASS for `CorridorLinkApproachesTest`,
+`CorridorJunctionAssignmentTest`, `NormalCorridorTransitionsTest`; see
+`.tooling/corridor-transitions-gate.log`. This covers bounded checked geometry construction,
+crossing/retained-node handling, rotation/translation and cancellation, not the full new algorithm.
+Follow-up focused gates pass 52/52 (including both reproduced regressions), then 14/14 after adding
+local axis-intersection chamber positions. Best 11-camera candidate is 1985.974 m / RUB 277611239.00,
+with no bend warnings but remaining junction findings; still not a successful quality promotion.
+The bounded two-state, three-level refinement is now connected to the main portfolio, retaining
+all controls and requiring real finish before admission. Renewed full verification is pending.
+
+The user goal now requires dynamically generating expert-like common corridors, not only keeping
+the `49` result faster. [PRIMARY_ROUTING_50.md](PRIMARY_ROUTING_50.md) records the objective,
+geometric baseline and unfinished acceptance checks. A new bounded facade-oriented graph and
+degree-constrained tree candidate are implemented; early official-data candidates connect 17/17
+and pass the geometric validator but remain too long / chamber-heavy. They are not promoted as
+finished. The verified live API stays on `49`; no acceptance or deployment claim is made for `50`.
+The next focused gate passed 39 tests, including metric-closure trees and rotated corridor grids.
+All 14 early candidates also passed real final sizing/economics/enabled depth in a 13.568-second
+focused dataset test; they still have excessive length/cameras and expert-angle findings, so this
+is not a successful quality promotion. Dominant facade-cluster orientation, strict root-local
+exceptions, checked terminal prefixes and bounded conflict-aware port retries are now implemented.
+Current Java gate: 445 tests / 0 failures / 3 skipped (442 executed), excluding the separately
+running long full-planner dataset class. The new self-intersection, foreign-obstacle and cancellation
+regressions pass. Evidence: `.tooling/primary50-unit-current.log`.
+Fresh candidate `corridor-22` is 1901.581 m, 17/17, 14 branch chambers, 0 new tie-in chambers,
+one existing root / two outgoing rays, RUB 280954359.27, complete sizing/economics/enabled depth.
+Its expert-like alignment improves, but cost is +4.13% vs 49, chambers are worse and near-parallel
+junction rays remain. It is **not promoted**. Same-scale comparison images use actual result/reference
+vertices and explicitly say development candidate; see [PRIMARY_ROUTING_50.md](PRIMARY_ROUTING_50.md).
+Full-planner follow-up: `OfficialDatasetRoutingTest` 2/2 PASS, bringing the current executed Java
+total to 444 (three scale tests skipped). All result fields equal 49 except version: balanced stays
+1899.051 m / 12 cameras, cheapest 1894.445 m / 11 with ten bend-angle findings. Full-pipeline internal
+time is 377.970 s versus the previous non-isolated 272.911 s. New strategy currently costs time
+without improving selected outputs; it must not be promoted as success. Fresh selected-result images
+are separate from the development-candidate comparison. Live API remains 49; no R-stage closes here.
+
+## Invocation-local obstacle preparation — 2026-09-23
+
+Current local code is `global-tree-49`; [PRIMARY_ROUTING_49.md](PRIMARY_ROUTING_49.md) owns its
+verification record. JFR identified repeated constraint buffering as the main sampled hotspot.
+Preparation now reuses only exact immutable geometry within one calculation, bounded by entry
+and coordinate counts; source windows, per-path exemptions and independent final validation stay
+unchanged. New jobs do not replay previous route results. Unit gate: 301 executed Java tests,
+three opt-in scale tests skipped. Full dataset/live equivalence and timings are recorded there.
+Final evidence: two additional dataset tests pass (303 Java tests executed overall); all result
+fields match `48` except algorithm version. Full 17-demand case: 273.074 s vs 492.612 s; fresh live
+run: 286.960 s vs 554.817 s, with overlapping local runs rather than an isolated benchmark. The
+348-feature browser export is exactly equal. Web 31 + scripts 21, lint/typecheck/build and reference
+validation pass. Comparison images show 12 main-route branch chambers versus 11 expert markers,
+not a claimed global optimum. No R-stage, Compose, scale or restart gate is closed by this checkpoint.
+
+## Finalized portfolio and expert comparison — 2026-09-23
+
+The preceding local implementation is `global-tree-48`. See
+[PRIMARY_ROUTING_48.md](PRIMARY_ROUTING_48.md) for the change boundary and verification record.
+Local-search control trees are retained; length/cost roles use fully finished candidates, with
+mandatory profile admission when depth is enabled. Identical failed pocket graphs are skipped
+without changing the search on any different graph. Reproducible comparison maps retain all real
+vertices, common metric extent and the original expert overlay provenance. The preceding `47`
+checkpoint below remains historical evidence, not a claim about this revision.
+
+## Consolidated primary routing — 2026-09-23
+
+Active routing is now `stable` / `global-tree-47`. The separate experimental implementation and
+launch button have been removed; legacy profile requests dispatch to the same primary component,
+and archived results remain readable. This supersedes the profile-isolation description below.
+
+The implementation combines exact search/validation acceleration with group trunks, reusable
+degree-compatible chambers, legal fourth-ray approaches, shared physical tie-ins and courtyard
+fallback. Final sizing now follows all geometry changes and blocks invalid results. The UI opens
+the fullest valid engineering variant without changing the official objective ranking and shows
+separate camera/site/ray counts. See [PRIMARY_ROUTING_47.md](PRIMARY_ROUTING_47.md) for rationale,
+regressions, measured tradeoffs and the final verification record.
+
+Final local checks passed: 253 executed Java tests (three opt-in scale tests skipped), 31 web
+tests, eight script tests, lint/typecheck/build, reference validation, and the real browser →
+Java/PostGIS → export flow. The full 17-demand testcase took 451.725 s versus 930.455 s at the
+baseline; the live run took 467.942 s. Balanced now has 12 new chambers, one tie-in site/ray and
+zero expert bend/spacing findings, but length increased 5.48% and the official score worsened
+1.95%. This is a geometry/camera/runtime improvement, not an improvement in every objective.
+
+No R-stage is closed by this change. Native Java/PostGIS/UI checks and Docker/Compose acceptance
+are separate evidence; the latter remains mandatory in an equipped environment.
+
 ## Bundled local demo bootstrap — 2026-09-23
 
 The web workspace now handles an empty local database correctly. `Открыть демо` still opens the

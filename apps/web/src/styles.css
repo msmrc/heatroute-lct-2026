@@ -504,6 +504,9 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .official-route-map .maplibregl-canvas { outline: none; }
 .official-route-map .maplibregl-ctrl-group { overflow: hidden; border: 1px solid rgba(32, 35, 40, .1); border-radius: 12px; background: rgba(255, 255, 255, .96); box-shadow: 0 3px 12px rgba(30, 34, 40, .12); }
 .official-route-map .maplibregl-ctrl-group button { width: 36px; height: 36px; }
+/* Zoom sits below the layer button, outside the inspector and result drawer. */
+.official-route-map .maplibregl-ctrl-top-left { top: 64px; left: 12px; }
+.official-route-map .maplibregl-ctrl-top-left .maplibregl-ctrl { margin: 0; }
 .official-route-map .maplibregl-ctrl-attrib { border-radius: 8px 0 0; font-family: inherit; font-size: 10px; }
 .official-route-map .maplibregl-ctrl-scale { border-color: rgba(32, 35, 40, .65); background: rgba(255, 255, 255, .78); font-family: inherit; }
 .official-map-layer-control { position: absolute; z-index: 5; top: 12px; left: 12px; }
@@ -699,6 +702,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .official-map-shell { min-height: 480px; }
   .official-route-map { height: 480px; }
   .official-map-layer-control { top: 8px; left: 8px; }
+  .official-route-map .maplibregl-ctrl-top-left { top: 60px; left: 8px; }
   .official-map-inspector { right: 8px; bottom: 102px; }
   .route-canvas-footer { align-items: flex-start; flex-direction: column; justify-content: center; padding-block: 9px; }
   .route-comparison { grid-template-columns: 1fr; }
@@ -749,7 +753,8 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 .route-workspace .official-map-shell { width: 100%; height: 100%; min-height: 0; border-radius: 0; }
 .route-workspace .official-route-map { width: 100%; height: 100%; min-height: 0; }
 .route-workspace .official-map-layer-control { top: 76px; left: 16px; }
-.route-workspace .official-map-state-stack { position: absolute; z-index: 6; top: 132px; left: 16px; display: grid; width: max-content; max-width: min(420px, calc(100% - 370px)); gap: 8px; pointer-events: none; }
+.route-workspace .official-route-map .maplibregl-ctrl-top-left { top: 132px; left: 16px; }
+.route-workspace .official-map-state-stack { position: absolute; z-index: 6; top: 216px; left: 16px; display: grid; width: max-content; max-width: min(420px, calc(100% - 370px)); gap: 8px; pointer-events: none; }
 .route-workspace .official-map-state { position: static; max-width: 100%; line-height: 1.35; transform: none; }
 .route-variant-tabs--floating { position: absolute; z-index: 7; top: 14px; left: calc((100% - 354px) / 2); border-color: rgba(38, 36, 43, .12); background: rgba(255, 255, 255, .94); box-shadow: 0 5px 18px rgba(30, 34, 40, .12); transform: translateX(-50%); backdrop-filter: blur(16px); }
 .route-variant-tabs--floating button { min-width: 142px; min-height: 48px; padding: 7px 12px; }
@@ -924,6 +929,7 @@ code, pre { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   .route-variant-tabs--floating span { font-size: 12px; line-height: 1.25; }
   .route-map-view-controls { top: 76px; right: 10px; }
   .route-workspace .official-map-layer-control { top: 76px; left: 10px; }
+  .route-workspace .official-route-map .maplibregl-ctrl-top-left { left: 10px; }
   .route-workspace .official-map-state-stack { left: 10px; max-width: calc(100% - 20px); }
   .route-results-drawer { padding-inline: 10px; }
   .route-result-metrics article, .route-result-metrics button { padding-inline: 10px; }

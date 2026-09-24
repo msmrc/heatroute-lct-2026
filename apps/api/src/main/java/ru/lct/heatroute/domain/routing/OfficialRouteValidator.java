@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
+/** Независимо проверяет топологию, обязательные повороты, пересечения и пространственные ограничения. */
 @Component
 public class OfficialRouteValidator {
     private static final double TOLERANCE_M = 0.01;
@@ -55,6 +56,7 @@ public class OfficialRouteValidator {
             if (edge.getLengthM().signum() <= 0) {
                 issues.add(issue("NON_POSITIVE_EDGE_LENGTH", edge.getId(), "Route edge length must be positive"));
             }
+            validateSelfIntersection(edge, issues);
             RouteEdge previous = upstreamByDownstream.putIfAbsent(edge.getDownstreamNodeId(), edge);
             if (previous != null) {
                 issues.add(issue(
@@ -67,6 +69,7 @@ public class OfficialRouteValidator {
 
         validateRootsAndCycles(nodes, upstreamByDownstream, issues);
         validateChambers(nodes, upstreamByDownstream, childCount, issues);
+        issues.addAll(OfficialRouteDeflectionRules.validate(nodes, edges));
         validateCrossings(nodeById, edges, issues);
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
                 .thenComparing(issue -> issue.getSubjectId() == null ? "" : issue.getSubjectId()));
@@ -83,6 +86,9 @@ public class OfficialRouteValidator {
         }
         Map<String, RouteNode> nodesById = new HashMap<>();
         nodes.forEach(node -> nodesById.put(node.getId(), node));
+        // Один набор буферов на фактический ДУ в рамках этой независимой проверки.
+        // Исключения и подходы к endpoints применяются отдельно, исходные ограничения не меняются.
+        Map<Integer, List<OfficialRouteGeometryRules.Constraint>> constraintsByDiameter = new HashMap<>();
         for (RouteEdge edge : edges) {
             RouteNode upstream = nodesById.get(edge.getUpstreamNodeId());
             RouteNode downstream = nodesById.get(edge.getDownstreamNodeId());
@@ -115,9 +121,10 @@ public class OfficialRouteValidator {
             }
             int diameter = edge.getDiameter() == null ? 50 : edge.getDiameter();
             issues.addAll(geometryRules.validateMandatoryEgress(edge, route, features, diameter));
-            List<OfficialRouteGeometryRules.Constraint> allConstraints = geometryRules.constraints(
-                    features,
-                    diameter,
+            List<OfficialRouteGeometryRules.Constraint> baseConstraints = constraintsByDiameter.computeIfAbsent(
+                    diameter, value -> geometryRules.baseConstraints(features, value));
+            List<OfficialRouteGeometryRules.Constraint> allConstraints = geometryRules.applicableConstraints(
+                    baseConstraints,
                     exemptions,
                     route.getCoordinateN(0),
                     route.getCoordinateN(route.getNumPoints() - 1));
@@ -136,9 +143,8 @@ public class OfficialRouteValidator {
 
             Set<String> withOwnOksExempt = new HashSet<>(exemptions);
             withOwnOksExempt.add(egress.oksId());
-            List<OfficialRouteGeometryRules.Constraint> outsideConstraints = geometryRules.constraints(
-                    features,
-                    diameter,
+            List<OfficialRouteGeometryRules.Constraint> outsideConstraints = geometryRules.applicableConstraints(
+                    baseConstraints,
                     withOwnOksExempt,
                     route.getCoordinateN(0),
                     route.getCoordinateN(route.getNumPoints() - 1));
@@ -212,6 +218,19 @@ public class OfficialRouteValidator {
                         node.getId(),
                         "No chamber may have more than four incident sections"));
             }
+        }
+    }
+
+    /** Проверяет всё ребро: короткий или повторный первый сегмент не отменяет проверку остальной геометрии. */
+    private void validateSelfIntersection(RouteEdge edge, List<RouteValidationIssue> issues) {
+        if (edge.getCoordinates().size() < 3) return;
+        LineString route = geometryFactory.createLineString(edge.getCoordinates().stream()
+                .map(RouteCoordinate::toCoordinate).toArray(Coordinate[]::new));
+        // JTS допускает простое кольцо, но ребро дерева не может образовывать физическую петлю.
+        // Нулевая геометрия здесь не самопересечение; соседние совпадающие точки сами по себе допустимы.
+        if (route.getLength() > 0 && (route.isClosed() || !route.isSimple())) {
+            issues.add(issue("SELF_INTERSECTION", edge.getId(),
+                    "Route edge must not intersect, retrace or close onto itself"));
         }
     }
 

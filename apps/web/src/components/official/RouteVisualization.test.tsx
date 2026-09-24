@@ -85,6 +85,116 @@ const result: OfficialCalculationResult = {
 };
 
 describe("RouteVisualization", () => {
+  it("initially shows full engineering geometry without changing the server ranking", async () => {
+    const ranked = rankedResult();
+    render(<RouteVisualization result={ranked} runId="run-ranked" importId="import-1" />);
+
+    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Инженерная трасса.*место 2/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: /Приоритет стоимости.*место 1/ })).toBeTruthy();
+    expect(screen.queryByText("Лучший по целевому показателю")).toBeNull();
+    expect(screen.getByText("Вариант с приоритетом инженерной геометрии. Оставшиеся замечания приведены ниже. Глобальный минимум стоимости или длины не гарантируется.")).toBeTruthy();
+    expect(screen.getByText(/3 поворотов вне экспертного диапазона/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Приоритет стоимости/ }));
+
+    expect(await screen.findByText("Интерактивная карта cheapest")).toBeTruthy();
+    expect(screen.getByText("Лучший по целевому показателю")).toBeTruthy();
+    expect(screen.getByText(/17 поворотов вне экспертного диапазона/)).toBeTruthy();
+    expect(ranked.preferred_variant_id).toBe("cheapest");
+    expect(ranked.variants.map((variant) => variant.rank)).toEqual([1, 2]);
+  });
+
+  it.each(["invalid", "fewer-connections", "missing"])("falls back to the server preference when engineering is %s", async (scenario) => {
+    const ranked = rankedResult();
+    ranked.variants = ranked.variants.flatMap((variant) => {
+      if (variant.strategy !== "engineering") return [variant];
+      if (scenario === "missing") return [];
+      return [{
+        ...variant,
+        valid: scenario !== "invalid",
+        connected_demand_count: scenario === "fewer-connections" ? 1 : 2,
+      }];
+    });
+
+    render(<RouteVisualization result={ranked} runId="run-ranked" importId="import-1" />);
+
+    expect(await screen.findByText("Интерактивная карта cheapest")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Приоритет стоимости/ }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("does not imply engineering regularity when a cost-priority result has no reported issues", async () => {
+    const ranked = rankedResult();
+    ranked.variants = ranked.variants.map((variant) => ({ ...variant, engineering_issues: [] }));
+    render(<RouteVisualization result={ranked} runId="run-ranked" importId="import-1" />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Приоритет стоимости/ }));
+
+    expect(await screen.findByText("Интерактивная карта cheapest")).toBeTruthy();
+    expect(screen.getByText(/углы могут быть нерегулярными\. Отсутствие ошибок обязательной проверки не гарантирует инженерную регулярность/)).toBeTruthy();
+    expect(screen.getByText(/Глобальный минимум стоимости или длины не гарантируется/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /0 ошибок, 0 предупреждений/ })).toBeTruthy();
+    expect(screen.queryByText("Есть инженерные замечания")).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Самый дешёвый|Самый короткий/ })).toBeNull();
+    expect(screen.getByText("Лучший по целевому показателю")).toBeTruthy();
+  });
+
+  it("preserves a manual choice on same-run refetch and resets it for a new keyed run", async () => {
+    const ranked = rankedResult();
+    const { rerender } = render(
+      <RouteVisualization key="run-1" result={ranked} runId="run-1" importId="import-1" />,
+    );
+    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Приоритет стоимости/ }));
+
+    rerender(<RouteVisualization key="run-1" result={structuredClone(ranked)} runId="run-1" importId="import-1" />);
+
+    expect(await screen.findByText("Интерактивная карта cheapest")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /Приоритет стоимости/ }).getAttribute("aria-selected")).toBe("true");
+
+    rerender(<RouteVisualization key="run-2" result={structuredClone(ranked)} runId="run-2" importId="import-1" />);
+
+    expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
+  });
+
+  it("distinguishes chambers, connection sites and charged rays without counting technical nodes", () => {
+    const balanced = result.variants[1]!;
+    const root = balanced.nodes[0]!;
+    const metricResult: OfficialCalculationResult = {
+      ...result,
+      variants: [{
+        ...balanced,
+        nodes: [
+          ...balanced.nodes,
+          { ...root, id: "branch", root: false, node_type: "new_branch_chamber" },
+          { ...root, id: "technical", root: false, chamber: false, node_type: "technical_node" },
+          { ...root, id: "new-tie-a", target_id: "same-network-section", node_type: "new_tie_in_chamber", coordinate: { xm: 20, ym: 0 } },
+          { ...root, id: "new-tie-b", target_id: "same-network-section", node_type: "new_tie_in_chamber", coordinate: { xm: 40, ym: 0 } },
+          { ...root, id: "unused-root", target_id: "unused-chamber" },
+        ],
+        edges: [
+          { id: "existing-ray-1", length_m: 10, upstream_node_id: root.id, downstream_node_id: "branch" },
+          { id: "existing-ray-2", length_m: 10, upstream_node_id: root.id, downstream_node_id: "demand" },
+          { id: "branch-ray", length_m: 10, upstream_node_id: "branch", downstream_node_id: "technical" },
+          { id: "new-ray-a", length_m: 10, upstream_node_id: "new-tie-a", downstream_node_id: "demand" },
+          { id: "new-ray-b", length_m: 10, upstream_node_id: "new-tie-b", downstream_node_id: "demand" },
+        ],
+      }],
+    };
+
+    render(<RouteVisualization result={metricResult} runId="run-1" importId="import-1" />);
+
+    function metric(label: string) {
+      return screen.getByText(label, { selector: "dt" }).parentElement!.querySelector("dd")!.textContent;
+    }
+    expect(metric("Камеры ветвления")).toBe("1");
+    expect(metric("Новые камеры врезки")).toBe("2");
+    expect(metric("Места подключения")).toBe("3");
+    expect(metric("Врезки — новые лучи")).toBe("4");
+    expect(screen.queryByText("Камер и врезок")).toBeNull();
+    expect(screen.getByText("Одно место подключения может иметь несколько новых лучей.")).toBeTruthy();
+  });
+
   it("opens on the preferred variant and exposes no-route diagnostics when switched", async () => {
     const resultWithEngineeringWarning: OfficialCalculationResult = {
       ...result,
@@ -130,8 +240,9 @@ describe("RouteVisualization", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Карта/ }));
     expect(await screen.findByText("Интерактивная карта balanced")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: /Самый короткий/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Приоритет длины/ }));
     expect(await screen.findByText("Интерактивная карта shortest")).toBeTruthy();
+    expect(screen.getByText(/После инженерной обработки он может быть длиннее других\. Глобальный минимум/)).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: /Инженерная трасса/ }));
 
     const validationTrigger = screen.getByRole("button", { name: /Открыть результаты проверки/ });
@@ -155,8 +266,8 @@ describe("RouteVisualization", () => {
     const selectedVariantTab = screen.getByRole("tab", { name: /Инженерная трасса/ });
     selectedVariantTab.focus();
     fireEvent.keyDown(selectedVariantTab, { key: "ArrowRight" });
-    expect(screen.getByRole("tab", { name: /Самый короткий/ }).getAttribute("aria-selected")).toBe("true");
-    expect(document.activeElement).toBe(screen.getByRole("tab", { name: /Самый короткий/ }));
+    expect(screen.getByRole("tab", { name: /Приоритет длины/ }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: /Приоритет длины/ }));
     expect(screen.getByText(/ОКС 2: Маршрут не найден/)).toBeTruthy();
   });
 
@@ -207,3 +318,25 @@ describe("RouteVisualization", () => {
     expect(screen.queryByText("Numeric identifier is normalized to its decimal string representation")).toBeNull();
   });
 });
+
+function rankedResult(): OfficialCalculationResult {
+  const engineering = result.variants[1]!;
+  return {
+    ...result,
+    preferred_variant_id: "cheapest",
+    variants: [
+      {
+        ...engineering,
+        id: "cheapest",
+        strategy: "cheapest",
+        rank: 1,
+        engineering_issues: [{ code: "EXPERT_BEND_ANGLE_OUT_OF_RANGE", message: "17 bend angles are outside the expert 90-135 degree range" }],
+      },
+      {
+        ...engineering,
+        rank: 2,
+        engineering_issues: [{ code: "EXPERT_BEND_ANGLE_OUT_OF_RANGE", message: "3 bend angles are outside the expert 90-135 degree range" }],
+      },
+    ],
+  };
+}

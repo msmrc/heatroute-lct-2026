@@ -1,12 +1,13 @@
 package ru.lct.heatroute.domain.routing;
 
 /**
- * Фиксирует версию и ограниченные поисковые бюджеты одного профиля планировщика.
- * Stable-настройки сохраняют принятый baseline; experimental расширяет только инженерный поиск.
+ * Фиксирует версию и ограниченные поисковые бюджеты единственного основного планировщика.
  */
 public final class RoutePlannerTuning {
-    public static final String STABLE_ALGORITHM_VERSION = "global-tree-46";
-    public static final String EXPERIMENTAL_ALGORITHM_VERSION = "expert-tree-1";
+    public static final String STABLE_ALGORITHM_VERSION = "global-tree-61";
+    /** Совместимое имя константы; отдельного экспериментального алгоритма больше нет. */
+    @Deprecated
+    public static final String EXPERIMENTAL_ALGORITHM_VERSION = STABLE_ALGORITHM_VERSION;
 
     private final String algorithmVersion;
     private final double engineeringEgressExtraM;
@@ -44,15 +45,10 @@ public final class RoutePlannerTuning {
                 120.0);
     }
 
+    /** Старые вызовы используют основные бюджеты, без расширенного экспериментального поиска. */
+    @Deprecated
     public static RoutePlannerTuning expertExperimental() {
-        return new RoutePlannerTuning(
-                EXPERIMENTAL_ALGORITHM_VERSION,
-                90.0,
-                12,
-                7,
-                5,
-                3,
-                160.0);
+        return stable();
     }
 
     public String getAlgorithmVersion() { return algorithmVersion; }

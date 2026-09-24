@@ -71,6 +71,7 @@ export interface OfficialRun {
   completed_at?: string;
 }
 
+/** Legacy alias remains readable; new UI calculations always request stable. */
 export type RoutingAlgorithmProfile = "stable" | "expert_experimental";
 
 export interface OfficialRunParameters {
@@ -93,6 +94,7 @@ export interface OfficialRouteNode {
   target_id?: string | null;
   coordinate: OfficialRouteCoordinate;
   base_incident_sections: number;
+  existing_incident_diameter?: number | null;
 }
 
 export interface OfficialRouteEdge {

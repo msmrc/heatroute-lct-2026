@@ -84,13 +84,13 @@ class OfficialRoutePlannerTest {
         assertThat(shared.getNodes()).filteredOn(RouteNode::isChamber).hasSize(2);
         assertThat(shared.isValid()).isTrue();
         assertThat(result.getPreferredVariantId()).isEqualTo("balanced");
-        assertThat(result.getAlgorithmVersion()).isEqualTo("global-tree-46");
+        assertThat(result.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
         assertThat(shared.getEngineeringIssues()).isEmpty();
         assertThat(independent.getEngineeringIssues()).isEmpty();
     }
 
     @Test
-    void experimentalPlannerPublishesItsOwnVersionWithoutChangingStableVersion() throws Exception {
+    void legacyExperimentalTuningUsesThePrimaryAlgorithm() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
                 feature("restriction", "shared-oks",
@@ -105,8 +105,76 @@ class OfficialRoutePlannerTest {
         OfficialCalculationResult result = planner(RoutePlannerTuning.expertExperimental())
                 .plan(features, topology);
 
-        assertThat(result.getAlgorithmVersion()).isEqualTo("expert-tree-1");
-        assertThat(planner.plan(features, topology).getAlgorithmVersion()).isEqualTo("global-tree-46");
+        assertThat(result.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
+        JsonNode legacyResult = objectMapper.valueToTree(result);
+        JsonNode primaryResult = objectMapper.valueToTree(planner.plan(features, topology));
+        assertThat(legacyResult).isEqualTo(primaryResult);
+    }
+
+    @Test
+    void oppositeDemandsCanUseTwoRaysOfOneExistingChamber() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "north", "LINESTRING (0 0, 0 100)", "{}"),
+                feature("heat_network", "south", "LINESTRING (0 -100, 0 0)", "{}"),
+                feature("heat_chamber", "chamber", "POINT (0 0)", "{}"),
+                feature("oks_connection_point", "left", "POINT (-100 0)", "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "right", "POINT (100 0)", "{\"flow_tph\":5}"));
+        OfficialCalculationResult result = planner.plan(features, topology(List.of(
+                new TieInCandidate("left", "chamber", "heat_chamber", 100, false),
+                new TieInCandidate("right", "chamber", "heat_chamber", 100, false))));
+
+        assertThat(result.getVariants()).isNotEmpty().allSatisfy(variant -> {
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(2);
+            assertThat(variant.getNodes()).filteredOn(RouteNode::isRoot).hasSize(1);
+            assertThat(variant.getNodes()).filteredOn(node -> "new_branch_chamber".equals(node.getNodeType())).isEmpty();
+            assertThat(variant.getEdges()).hasSize(2);
+        });
+    }
+
+    @Test
+    void groupBackboneConnectsSixOppositeConsumersWithThreeBranchChambers() throws Exception {
+        List<ImportedOfficialFeature> features = new java.util.ArrayList<>(List.of(
+                feature("heat_network", "north", "LINESTRING (0 0,0 100)", "{}"),
+                feature("heat_network", "south", "LINESTRING (0 -100,0 0)", "{}"),
+                feature("heat_chamber", "chamber", "POINT (0 0)", "{}")));
+        List<TieInCandidate> candidates = new java.util.ArrayList<>();
+        for (int x : List.of(100, 200, 300)) {
+            for (int y : List.of(-30, 30)) {
+                String id = "consumer-" + x + "-" + y;
+                features.add(feature("oks_connection_point", id, "POINT (" + x + " " + y + ")",
+                        "{\"flow_tph\":3}"));
+                candidates.add(new TieInCandidate(id, "chamber", "heat_chamber", Math.hypot(x, y), false));
+            }
+        }
+        OfficialCalculationResult result = planner.plan(features, topology(candidates));
+
+        assertThat(result.getVariants()).isNotEmpty().allSatisfy(variant -> {
+            assertThat(variant.isValid()).isTrue();
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(6);
+            assertThat(variant.getSizingIssues()).isEmpty();
+        });
+        assertThat(result.getVariants()).anySatisfy(variant -> {
+            assertThat(variant.getNodes()).filteredOn(RouteNode::isRoot).hasSize(1);
+            assertThat(variant.getNodes()).filteredOn(node -> "new_branch_chamber".equals(node.getNodeType())).hasSize(3);
+            assertThat(variant.getEngineeringIssues()).isEmpty();
+            assertThat(variant.getTotalLengthM()).isLessThanOrEqualTo(new BigDecimal("485"));
+        });
+    }
+
+    @Test
+    void coincidentSegmentTieInsShareOnePhysicalChamber() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (0 -100,0 100)", "{}"),
+                feature("oks_connection_point", "left", "POINT (-100 0)", "{\"flow_tph\":5}"),
+                feature("oks_connection_point", "right", "POINT (100 0)", "{\"flow_tph\":5}"));
+        OfficialCalculationResult result = planner.plan(features, topology(List.of(
+                new TieInCandidate("left", "network", "heat_network", 100, true, 0.0, 0.0),
+                new TieInCandidate("right", "network", "heat_network", 100, true, 0.0, 0.0))));
+        assertThat(result.getVariants()).isNotEmpty().allSatisfy(variant -> {
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(2);
+            assertThat(variant.getNodes()).filteredOn(RouteNode::isChamber).hasSize(1);
+            assertThat(variant.getEdges()).hasSize(2);
+        });
     }
 
     @Test
@@ -148,6 +216,19 @@ class OfficialRoutePlannerTest {
         assertThat(shared.getEdges())
                 .anySatisfy(edge -> assertThat(edge.getFlowTph())
                         .isEqualByComparingTo(new BigDecimal("18")));
+    }
+
+    @Test
+    void finalConstraintWindowCoversTheWholeDetourNotOnlyEndpoints() throws Exception {
+        ImportedOfficialFeature obstacle = feature("oks_existing", "remote",
+                "POLYGON ((990 990,1010 990,1010 1010,990 1010,990 990))", "{}");
+        OfficialRoutingEnvironment environment = new OfficialObstacleRouter(geometryRules)
+                .prepare(List.of(), new InMemoryRoutingFeatureSource(List.of(obstacle)));
+        RouteEdge detour = new RouteEdge("detour", "root", "demand", 2835,
+                List.of(new RouteCoordinate(0, 0), new RouteCoordinate(1000, 1000), new RouteCoordinate(10, 0)),
+                List.of(), BigDecimal.ONE, 50);
+        assertThat(planner.featuresForEdges(List.of(), List.of(detour), environment))
+                .extracting(ImportedOfficialFeature::getFeatureId).contains("remote");
     }
 
     @Test
@@ -220,6 +301,8 @@ class OfficialRoutePlannerTest {
         assertThat(result.getVariants()).isNotEmpty().allSatisfy(variant -> {
             assertThat(variant.getConnectedDemandCount()).isEqualTo(2);
             assertThat(variant.getNoRouteDemandCount()).isZero();
+            assertThat(OfficialRouteDeflectionRules.validate(variant.getNodes(), variant.getEdges())).isEmpty();
+            assertThat(variant.isValid()).isTrue();
         });
     }
 
@@ -399,16 +482,28 @@ class OfficialRoutePlannerTest {
     @Test
     void preservesExpensiveButFeasibleConnectionForCoverageFirstGeneration() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
-                feature("heat_network", "network", "LINESTRING (50000 -10, 50000 10)", "{}"),
+                feature("heat_network", "network", "LINESTRING (10000 -10, 10000 10)", "{}"),
                 feature("oks_connection_point", "cp", "POINT (0 0)", "{\"flow_tph\":5}"));
 
         RouteVariant variant = planner.plan(
                 features,
-                topology(List.of(candidate("cp", "network", 50000))))
+                topology(List.of(candidate("cp", "network", 10000))))
                 .getVariants().get(0);
 
         assertThat(variant.getConnectedDemandCount()).isEqualTo(1);
         assertThat(variant.getNoRouteDemandCount()).isZero();
+        assertThat(variant.getSizingIssues()).isEmpty();
+    }
+
+    @Test
+    void routeBeyondEveryCatalogLengthIsNotPublishedAsValid() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(
+                feature("heat_network", "network", "LINESTRING (50000 -10, 50000 10)", "{}"),
+                feature("oks_connection_point", "cp", "POINT (0 0)", "{\"flow_tph\":5}"));
+        OfficialCalculationResult result = planner.plan(features,
+                topology(List.of(candidate("cp", "network", 50000))));
+        assertThat(result.getVariants()).isEmpty();
+        assertThat(result.getPreferredVariantId()).isNull();
     }
 
     @Test
@@ -484,6 +579,11 @@ class OfficialRoutePlannerTest {
             String wkt,
             String attributes) throws Exception {
         JsonNode node = objectMapper.readTree(attributes);
+        // У синтетических существующих труб этих сценариев ДУ50, если явно не задан другой.
+        // Новое приложение требует ДУ; отсутствие расхода/реконструкции по-прежнему допустимо.
+        if ("heat_network".equals(objectType) && !node.has("diameter")) {
+            ((com.fasterxml.jackson.databind.node.ObjectNode) node).put("diameter", 50);
+        }
         return new ImportedOfficialFeature(id, objectType, node, wktReader.read(wkt));
     }
 }

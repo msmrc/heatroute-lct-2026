@@ -26,6 +26,27 @@ class OfficialObstacleRouterTest {
     private final OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
 
     @Test
+    void checkedSuffixRejectsARepairCrossingAForbiddenAreaOrAnAcceptedRoute() throws Exception {
+        RoutePath approach = new RoutePath(List.of(new Coordinate(900, 50), new Coordinate(50, 54)),
+                List.of(), Math.hypot(850, 4));
+        Coordinate end = new Coordinate(50, 50);
+        OfficialRoutingEnvironment empty = router.prepare(List.of());
+        RoutePath repaired = router.withCheckedTerminalSuffix(approach, end, 50, empty, Set.of(), List.of());
+        assertThat(repaired).isNotNull();
+        assertThat(repaired.lengthM()).isEqualTo(858);
+        assertThat(repaired.sections()).isNotEmpty();
+        assertThat(repaired.sections().stream().mapToDouble(section -> section.getLengthM().doubleValue()).sum())
+                .isEqualTo(repaired.lengthM());
+
+        ImportedOfficialFeature park = restriction("park", "park-on-repair",
+                "POLYGON ((400 53, 420 53, 420 55, 400 55, 400 53))");
+        assertThat(router.withCheckedTerminalSuffix(approach, end, 50, router.prepare(List.of(park)),
+                Set.of(), List.of())).isNull();
+        LineString accepted = (LineString) wktReader.read("LINESTRING (500 53, 500 55)");
+        assertThat(router.withCheckedTerminalSuffix(approach, end, 50, empty, Set.of(), List.of(accepted))).isNull();
+    }
+
+    @Test
     void routesAroundEveryForbiddenPolygonType() throws Exception {
         for (String type : List.of("park", "social_area", "prohibited_site", "water")) {
             ImportedOfficialFeature obstacle = restriction(

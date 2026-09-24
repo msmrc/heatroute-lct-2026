@@ -11,6 +11,6 @@
     "preview": "pnpm --filter @heatroute/web preview",
     "lint": "pnpm --filter @heatroute/web lint",
     "typecheck": "pnpm --filter @heatroute/web typecheck",
-    "test": "pnpm --filter @heatroute/web test && node --test scripts/local-demo-server.test.mjs scripts/reference-routing-benchmark.test.mjs scripts/render-routing-comparison.test.mjs scripts/routing-geometry-quality.test.mjs"
+    "test": "pnpm --filter @heatroute/web test && node --test scripts/local-demo-server.test.mjs scripts/reference-routing-benchmark.test.mjs scripts/render-routing-comparison.test.mjs scripts/routing-geometry-quality.test.mjs scripts/scenario-datasets.test.mjs"
   }
 }

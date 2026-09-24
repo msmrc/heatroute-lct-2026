@@ -1,5 +1,29 @@
 # Current implementation progress
 
+## 2026-09-25 — экспертные материалы и компоненты строгой геометрии, без включения в runtime
+
+[EXPERT_ROUTING_2026_09_25.md](EXPERT_ROUTING_2026_09_25.md): G0/intake завершён на `2e7b713`.
+239-feature сценарий сохранён отдельно;144 исходных Feature совпадают,94дороги+1детсад.
+Два Node provenance-теста PASS. DOCX3/3страницы и PDF1/1 просмотрены; DWG только определён
+как DWG2007–2009, CAD-данные не прочитаны. Google Docs прочитаны, не изменены.
+
+`OfficialAxisClearance`61 focused PASS; `BuildingWallNormals`10 focused PASS, включая4отрицательные
+находки независимого review (касание другой части, почти касательная нормаль, узкий проход и
+допустимое равенство между касающимися отступами). Независимые360UTM-проб PASS.
+Компоненты НЕ включены в активный алгоритм. Строгая интеграция: RED6 прежнего ввода → GREEN6;
+полный plan2 максимум15/17,240,995с, геометрия хуже; проба3 собирает17, но валидатор отклоняет
+стыки с поворотами>90°. Эти gates FAIL, не новая «улучшенная» сеть.3production-файла возвращены
+к HEAD через apply_patch; патч/регрессии в ignored intake-каталоге для продолжения.
+
+Следующий шаг — обязательное направление ввода в поиске и совместный выбор луча порта,
+затем R+W/2 во всех стадиях. Не ослаблять17/17/углы ради зелёного теста.2/3м у камеры и исключение
+social_area требуют подтверждения источника; ответы пользователя пока не получены.
+Финальный clean Java:820случаев,0failures/errors,3scale skipped,5:29 (817выполнены).
+После последней поправки helper повторены71/71 component tests; по совокупности818уникальных
+Java-кейсов выполнены. Web36+scripts37, lint/typecheck иdiff-check PASS. Real Java inspector
+дополненного входа:valid239,0errors,76warnings. Native/Compose/scale не заявляются;pwsh/Docker нет.
+Локальный сервер и VPS не перезапускались. Общая цель и R-этапы не закрыты.
+
 ## Source61 — improved fresh plan, native and UI gates passed, 2026-09-24
 
 [PRIMARY_ROUTING_61.md](PRIMARY_ROUTING_61.md): bounded terminal-derived frame at the first

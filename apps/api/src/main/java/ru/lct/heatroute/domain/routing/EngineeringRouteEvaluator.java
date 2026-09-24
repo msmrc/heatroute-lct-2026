@@ -27,7 +27,6 @@ final class EngineeringRouteEvaluator {
     Evaluation evaluate(List<RouteEdge> edges) {
         int bendCount = 0;
         int invalidAngleCount = 0;
-        int insufficientSpacingCount = 0;
         double totalAngleDeviation = 0.0;
         double preferredAngleDeviation = 0.0;
         int irregularJunctionAngleCount = 0;
@@ -38,7 +37,6 @@ final class EngineeringRouteEvaluator {
         for (RouteEdge edge : edges) {
             List<RouteCoordinate> coordinates = edge.getCoordinates();
             addIncidentDirections(directionsByNode, edge, coordinates);
-            List<Integer> bends = new ArrayList<>();
             for (int index = 1; index + 1 < coordinates.size(); index++) {
                 Coordinate before = coordinates.get(index - 1).toCoordinate();
                 Coordinate at = coordinates.get(index).toCoordinate();
@@ -48,20 +46,11 @@ final class EngineeringRouteEvaluator {
                     continue;
                 }
                 bendCount++;
-                bends.add(index);
                 double deviation = angleDeviation(internalAngle);
                 totalAngleDeviation += deviation;
                 preferredAngleDeviation += preferredBendAngleDeviation(internalAngle);
                 if (deviation > ANGLE_EPSILON_DEGREES) {
                     invalidAngleCount++;
-                    nonCompliantEdgeIds.add(edge.getId());
-                }
-            }
-            for (int index = 1; index < bends.size(); index++) {
-                Coordinate previous = coordinates.get(bends.get(index - 1)).toCoordinate();
-                Coordinate current = coordinates.get(bends.get(index)).toCoordinate();
-                if (previous.distance(current) + LENGTH_EPSILON_M < MIN_BEND_SPACING_M) {
-                    insufficientSpacingCount++;
                     nonCompliantEdgeIds.add(edge.getId());
                 }
             }
@@ -99,6 +88,7 @@ final class EngineeringRouteEvaluator {
             }
         }
 
+        int insufficientSpacingCount = evaluateSpacing(edges, directionsByNode, nonCompliantEdgeIds);
         return new Evaluation(
                 bendCount,
                 invalidAngleCount,
@@ -108,6 +98,130 @@ final class EngineeringRouteEvaluator {
                 irregularJunctionAngleCount,
                 totalJunctionAngleDeviation,
                 nonCompliantEdgeIds);
+    }
+
+    /** Проверяет соседние изгибы непрерывных цепочек; камеры степени >= 3 обрывают цепочку. */
+    private int evaluateSpacing(
+            List<RouteEdge> edges,
+            Map<String, List<IncidentDirection>> directionsByNode,
+            Set<String> nonCompliantEdgeIds) {
+        Map<String, List<RouteEdge>> edgesByNode = new LinkedHashMap<>();
+        for (RouteEdge edge : edges) {
+            edgesByNode.computeIfAbsent(edge.getUpstreamNodeId(), ignored -> new ArrayList<>()).add(edge);
+            edgesByNode.computeIfAbsent(edge.getDownstreamNodeId(), ignored -> new ArrayList<>()).add(edge);
+        }
+        Set<RouteEdge> visited = new LinkedHashSet<>();
+        int violations = 0;
+        for (Map.Entry<String, List<RouteEdge>> entry : edgesByNode.entrySet()) {
+            if (entry.getValue().size() == 2) {
+                continue;
+            }
+            for (RouteEdge edge : entry.getValue()) {
+                if (!visited.contains(edge)) {
+                    violations += evaluateSpacingChain(edge, entry.getKey(), edgesByNode,
+                            directionsByNode, visited, nonCompliantEdgeIds);
+                }
+            }
+        }
+        // В замкнутом компоненте все узлы могут иметь степень 2: проверяем и пару через начало обхода.
+        for (RouteEdge edge : edges) {
+            if (!visited.contains(edge)) {
+                violations += evaluateSpacingChain(edge, edge.getUpstreamNodeId(), edgesByNode,
+                        directionsByNode, visited, nonCompliantEdgeIds);
+            }
+        }
+        return violations;
+    }
+
+    private int evaluateSpacingChain(
+            RouteEdge edge,
+            String startNodeId,
+            Map<String, List<RouteEdge>> edgesByNode,
+            Map<String, List<IncidentDirection>> directionsByNode,
+            Set<RouteEdge> visited,
+            Set<String> nonCompliantEdgeIds) {
+        List<RouteEdge> chain = new ArrayList<>();
+        List<SpacingBend> bends = new ArrayList<>();
+        String nodeId = startNodeId;
+        boolean closed = false;
+        while (visited.add(edge)) {
+            List<RouteCoordinate> coordinates = edge.getCoordinates();
+            if (coordinates.size() < 2) {
+                break;
+            }
+            boolean forward = edge.getUpstreamNodeId().equals(nodeId);
+            int edgeIndex = chain.size();
+            chain.add(edge);
+            if (edgeIndex > 0 && isSpacingBendNode(nodeId, directionsByNode)) {
+                int endpoint = forward ? 0 : coordinates.size() - 1;
+                bends.add(new SpacingBend(coordinates.get(endpoint).toCoordinate(), edgeIndex - 1, edgeIndex));
+            }
+            for (int offset = 1; offset + 1 < coordinates.size(); offset++) {
+                int index = forward ? offset : coordinates.size() - 1 - offset;
+                Coordinate at = coordinates.get(index).toCoordinate();
+                if (!isStraight(internalAngleDegrees(
+                        coordinates.get(index - 1).toCoordinate(), at, coordinates.get(index + 1).toCoordinate()))) {
+                    bends.add(new SpacingBend(at, edgeIndex, edgeIndex));
+                }
+            }
+            nodeId = forward ? edge.getDownstreamNodeId() : edge.getUpstreamNodeId();
+            List<RouteEdge> incident = edgesByNode.get(nodeId);
+            if (incident.size() != 2) {
+                break;
+            }
+            if (nodeId.equals(startNodeId)) {
+                closed = true;
+                if (isSpacingBendNode(nodeId, directionsByNode)) {
+                    int endpoint = forward ? coordinates.size() - 1 : 0;
+                    bends.add(new SpacingBend(coordinates.get(endpoint).toCoordinate(), edgeIndex, chain.size()));
+                }
+                break;
+            }
+            edge = incident.get(0) == edge ? incident.get(1) : incident.get(0);
+        }
+        int violations = 0;
+        for (int index = 1; index < bends.size(); index++) {
+            violations += checkSpacing(bends.get(index - 1), bends.get(index), chain, 0, nonCompliantEdgeIds);
+        }
+        if (closed && bends.size() > 1) {
+            violations += checkSpacing(bends.get(bends.size() - 1), bends.get(0),
+                    chain, chain.size(), nonCompliantEdgeIds);
+        }
+        return violations;
+    }
+
+    private boolean isSpacingBendNode(String nodeId, Map<String, List<IncidentDirection>> directionsByNode) {
+        List<IncidentDirection> directions = directionsByNode.get(nodeId);
+        return directions != null && directions.size() == 2
+                && !isStraight(angleBetween(directions.get(0), directions.get(1)));
+    }
+
+    private int checkSpacing(
+            SpacingBend previous,
+            SpacingBend current,
+            List<RouteEdge> chain,
+            int wrapOffset,
+            Set<String> nonCompliantEdgeIds) {
+        if (previous.coordinate.distance(current.coordinate) + LENGTH_EPSILON_M >= MIN_BEND_SPACING_M) {
+            return 0;
+        }
+        // Отмечаем оба ребра узлового изгиба и все рёбра между изгибами, в том числе прямые.
+        for (int index = previous.firstEdgeIndex; index <= current.lastEdgeIndex + wrapOffset; index++) {
+            nonCompliantEdgeIds.add(chain.get(index % chain.size()).getId());
+        }
+        return 1;
+    }
+
+    private static final class SpacingBend {
+        private final Coordinate coordinate;
+        private final int firstEdgeIndex;
+        private final int lastEdgeIndex;
+
+        private SpacingBend(Coordinate coordinate, int firstEdgeIndex, int lastEdgeIndex) {
+            this.coordinate = coordinate;
+            this.firstEdgeIndex = firstEdgeIndex;
+            this.lastEdgeIndex = lastEdgeIndex;
+        }
     }
 
     private void addIncidentDirections(
@@ -135,7 +249,9 @@ final class EngineeringRouteEvaluator {
         double dx = adjacent.x - node.x;
         double dy = adjacent.y - node.y;
         double length = Math.hypot(dx, dy);
-        if (length <= LENGTH_EPSILON_M) {
+        // Координаты уже округлены до миллиметров. Положительный короткий участок всё ещё
+        // задаёт направление; сантиметровый допуск расстояния не должен скрывать его изгиб.
+        if (length == 0.0) {
             return;
         }
         directionsByNode.computeIfAbsent(nodeId, ignored -> new ArrayList<>())
@@ -153,7 +269,9 @@ final class EngineeringRouteEvaluator {
         double bx = after.x - at.x;
         double by = after.y - at.y;
         double denominator = Math.hypot(ax, ay) * Math.hypot(bx, by);
-        if (denominator <= LENGTH_EPSILON_M) {
+        // Произведение длин имеет размерность м²: сравнивать его с допуском длины нельзя.
+        // Как и на стыке рёбер, исключаем только совпадающие точки, а не короткие звенья.
+        if (denominator == 0.0) {
             return 180.0;
         }
         double cosine = Math.max(-1.0, Math.min(1.0, (ax * bx + ay * by) / denominator));

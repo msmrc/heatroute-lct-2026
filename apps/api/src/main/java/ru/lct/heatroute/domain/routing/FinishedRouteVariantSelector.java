@@ -11,7 +11,9 @@ import java.util.stream.Collectors;
 /**
  * Назначает роли уже завершённым вариантам по фактической длине и стоимости, не меняя их геометрию.
  * Все роли сохраняют максимальный охват среди допустимых вариантов; ранги назначает вызывающий код.
- * Balanced заменяется только при лучшем score без инженерных ухудшений и с ростом длины не более 5%.
+ * При наличии сети без экспертных нарушений инженерные роли выбираются только среди таких сетей.
+ * Между сетями этого пула balanced заменяется только при лучшем score без инженерных ухудшений
+ * и с ростом длины не более 5%.
  */
 public final class FinishedRouteVariantSelector {
     private static final BigDecimal BALANCED_LENGTH_LIMIT = new BigDecimal("1.05");
@@ -48,6 +50,11 @@ public final class FinishedRouteVariantSelector {
         List<Candidate> engineeringCandidates = maximumCoverageCandidates.stream()
                 .filter(candidate -> !"cheapest".equals(candidate.variant.getStrategy()) || candidate.evaluation.isCompliant())
                 .collect(Collectors.toList());
+        List<Candidate> compliantCandidates = engineeringCandidates.stream()
+                .filter(candidate -> candidate.evaluation.isCompliant()).collect(Collectors.toList());
+        // Раннее неудачное назначение роли не должно навсегда сохранять её нарушения,
+        // если finish() уже получил полноценную сеть того же охвата без этих нарушений.
+        if (!compliantCandidates.isEmpty()) engineeringCandidates = compliantCandidates;
 
         Candidate balanced = byId(engineeringCandidates, "balanced");
         if (balanced == null) {

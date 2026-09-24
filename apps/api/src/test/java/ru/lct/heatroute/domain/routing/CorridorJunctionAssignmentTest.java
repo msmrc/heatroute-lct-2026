@@ -11,6 +11,21 @@ import org.locationtech.jts.geom.GeometryFactory;
 
 class CorridorJunctionAssignmentTest {
     @Test
+    void degreeTwoJoinUsesOfficialRoundingAllowanceInsteadOfTheStrategyAngleTolerance() {
+        RoutePath west = path(-10, 0, 0, 0);
+        RoutePath shorter = path(-10, 10, -0.035, 10, 0, 0);
+        RoutePath north = path(-10, 10, 0, 10, 0, 0);
+        assertThat(OfficialRouteDeflectionRules.validatePolyline("stub", shorter.coordinates().stream()
+                .map(c -> new RouteCoordinate(c.x, c.y)).collect(java.util.stream.Collectors.toList()))
+                .getIssues()).isEmpty();
+        List<RoutePath> chosen = CorridorJunctionAssignment.choose(new Coordinate(),
+                List.of(List.of(west), List.of(shorter, north)));
+        assertThat(chosen).containsExactly(west, north);
+        assertThat(CorridorJunctionAssignment.choose(new Coordinate(),
+                List.of(List.of(west), List.of(shorter)))).isNull();
+    }
+
+    @Test
     void choosesDifferentRaysInsteadOfTwoOverlappingShortestApproaches() {
         RoutePath north = path(0, 10, 0, 0);
         RoutePath shortOverlap = path(10, 10, 0, 10, 0, 0);

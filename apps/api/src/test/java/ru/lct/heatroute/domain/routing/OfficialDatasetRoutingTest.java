@@ -61,6 +61,14 @@ class OfficialDatasetRoutingTest {
                 parameters,
                 OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
 
+        // Диагностика не является принятым demo: сохраняем и отклонённые кандидаты для разбора отказа.
+        String probeOutput = System.getProperty("heatroute.probe.output", "").trim();
+        if (!probeOutput.isEmpty()) {
+            ObjectNode probe = objectMapper.createObjectNode().put("verification_state", "before_assertions");
+            probe.set("result", objectMapper.valueToTree(result));
+            Files.writeString(Path.of(probeOutput), objectMapper.writeValueAsString(probe));
+        }
+
         assertThat(topology.getTieInCandidates()).hasSize(204);
         assertThat(result.getDemandCount()).isEqualTo(17);
         assertThat(result.getPreferredVariantId())
@@ -79,8 +87,8 @@ class OfficialDatasetRoutingTest {
                 .filter(variant -> "shortest".equals(variant.getId())).findFirst().orElseThrow();
         RouteVariant cheapest = result.getVariants().stream()
                 .filter(variant -> "cheapest".equals(variant.getId())).findFirst().orElseThrow();
-        assertThat(engineering.getEngineeringIssues()).isEmpty();
-        assertThat(shortest.getEngineeringIssues()).isEmpty();
+        assertThat(engineering.getEngineeringIssues()).as(engineeringDiagnostics(engineering)).isEmpty();
+        assertThat(shortest.getEngineeringIssues()).as(engineeringDiagnostics(shortest)).isEmpty();
         assertThat(shortest.getTotalLengthM()).isLessThanOrEqualTo(engineering.getTotalLengthM());
         assertThat(result.getVariants()).allSatisfy(variant ->
                 assertThat(cheapest.getEconomics().getCalculatedCost())
@@ -182,6 +190,12 @@ class OfficialDatasetRoutingTest {
                                                 .collect(Collectors.joining(";")))
                                 .collect(Collectors.joining(" | ")))
                 .collect(Collectors.joining("\n"));
+    }
+
+    private String engineeringDiagnostics(RouteVariant variant) {
+        return variant.getId() + ": " + variant.getEngineeringIssues().stream()
+                .map(issue -> issue.getCode() + ":" + issue.getSubjectId() + ":" + issue.getMessage())
+                .collect(Collectors.joining(" | "));
     }
 
     private ObjectNode buildLocalDemoBundle(OfficialCalculationResult result, OfficialRunParameters parameters)

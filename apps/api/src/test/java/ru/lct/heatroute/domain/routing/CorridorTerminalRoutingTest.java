@@ -36,6 +36,66 @@ class CorridorTerminalRoutingTest {
     private final OrthogonalCorridorNetworkBuilder builder = new OrthogonalCorridorNetworkBuilder(router, pipes);
 
     @Test
+    void rejectedShortControlIsMarkedWithoutDiscardingTheValidReplacement() throws Exception {
+        for (double angle : new double[] {0, 13}) {
+            Fixture fixture = fixture(angle, 414000.00049, 6173000.00049);
+            Coordinate port = move(new Coordinate(-30, 10.015), fixture.transform);
+            CorridorTerminalRouter spurs = alternativeRouter(fixture, (id, end, diameter, avoidance) -> null);
+            CorridorTerminalRouter.Choice choice = spurs.routeChoice("terminal", fixture.demand, port, 50);
+            assertThat(choice.path()).isNotNull();
+            assertThat(choice.redirectedControl()).as("rounded short control at %s degrees", angle).isEqualTo(angle == 13);
+            assertThat(OfficialRouteDeflectionRules.validate(nodesFor(choice.path()),
+                    List.of(edgeFromTerminalPath(choice.path())))).isEmpty();
+            assertPathArithmetic(choice.path());
+        }
+    }
+
+    @Test
+    void almostAxialPortOffersAStraightAlternativeAfterRounding() throws Exception {
+        for (double angle : new double[] {0, 13, 71, 117, 203, 289}) {
+            Fixture fixture = fixture(angle, 414000.00049, 6173000.00049);
+            Coordinate port = move(new Coordinate(-30, 10.015), fixture.transform);
+            AtomicInteger fallbackCalls = new AtomicInteger();
+            RoutePath path = terminalPath(fixture.demand, port, fixture.features, fallbackCalls, Math.toRadians(angle));
+            assertThat(path).as("near-axis port at %s degrees", angle).isNotNull();
+            assertThat(fallbackCalls).hasValue(0);
+            RouteEdge edge = edgeFromTerminalPath(path);
+            assertThat(OfficialRouteDeflectionRules.validate(nodesFor(path), List.of(edge))).isEmpty();
+            assertThat(new OfficialRouteValidator(rules).validate(nodesFor(path), List.of(edge), fixture.features)).isEmpty();
+            assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edge)).isCompliant()).isTrue();
+            assertPathArithmetic(path);
+            assertSafeOwnPrefix(path, fixture.features.get(0).getMetricGeometry());
+            CorridorTerminalRouter spurs = alternativeRouter(fixture, (id, end, diameter, avoidance) -> null);
+            List<RoutePath> local = spurs.localAlternatives("terminal", fixture.demand, port, 50);
+            assertThat(local).as("local alternatives at %s degrees", angle).anySatisfy(candidate -> {
+                RouteEdge localEdge = edgeFromTerminalPath(candidate);
+                assertThat(new EngineeringRouteEvaluator().evaluate(List.of(localEdge)).bendCount()).isZero();
+                assertThat(OfficialRouteDeflectionRules.validate(nodesFor(candidate), List.of(localEdge))).isEmpty();
+                assertThat(new OfficialRouteValidator(rules)
+                        .validate(nodesFor(candidate), List.of(localEdge), fixture.features)).isEmpty();
+                assertPathArithmetic(candidate);
+                assertSafeOwnPrefix(candidate, fixture.features.get(0).getMetricGeometry());
+            });
+        }
+    }
+
+    @Test
+    void generatedGridPortDoesNotReceiveTheExistingTieInClearanceException() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        List<ImportedOfficialFeature> features = List.of(
+                new ImportedOfficialFeature("own", "oks_existing", json.createObjectNode(),
+                        new WKTReader().read("POLYGON ((0 0,10 0,10 10,0 10,0 0))")),
+                new ImportedOfficialFeature("foreign", "oks_existing", json.createObjectNode(),
+                        new WKTReader().read("POLYGON ((12 3,15 3,15 7,12 7,12 3))")));
+        AtomicInteger fallbackCalls = new AtomicInteger();
+        assertThat(terminalPath(new Coordinate(8, 5), new Coordinate(-20, 8), features, fallbackCalls)).isNull();
+        assertThat(fallbackCalls).hasValue(1);
+        CorridorTerminalRouter spurs = new CorridorTerminalRouter(router, router.prepare(features),
+                (id, port, diameter, avoidance) -> null, 0);
+        assertThat(spurs.localAlternatives("demand", new Coordinate(8, 5), new Coordinate(-20, 8), 50)).isEmpty();
+    }
+
+    @Test
     void diagonalPortUsesACompleteFacadeNormalThenOneRightAngleWithoutFallback() throws Exception {
         Fixture fixture = fixture(0, 0, 0);
         AtomicInteger fallbackCalls = new AtomicInteger();

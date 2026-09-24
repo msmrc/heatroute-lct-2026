@@ -67,10 +67,12 @@ class OfficialCorridorDatasetTest {
                         OfficialRouteGeometryRules.NormalEgress egress = environment
                                 .normalEgressTowards(diameter, point, junction,
                                         RoutePlannerTuning.stable().getEngineeringEgressExtraM()).orElse(null);
-                        RoutePath path = router.find(egress == null ? point : egress.exit(), junction, diameter,
-                                environment, Set.of(),
-                                RoutePreference.ENGINEERING, avoidance);
-                        return path == null || egress == null ? path : path.withMandatoryPrefix(point);
+                        RoutePath path = egress == null
+                                ? router.find(point, junction, diameter, environment, Set.of(), RoutePreference.ENGINEERING, avoidance)
+                                : router.findAfter(egress.start(), egress.exit(), junction, diameter,
+                                        environment, Set.of(), RoutePreference.ENGINEERING, avoidance);
+                        return path == null || egress == null ? path
+                                : router.withCheckedTerminalPrefix(egress, path, diameter, environment, Set.of(), avoidance);
                     });
             System.out.println("CORRIDOR target=" + target.getFeatureId() + " candidates=" + candidates.size());
             for (OrthogonalCorridorNetworkBuilder.Network candidate : candidates) {

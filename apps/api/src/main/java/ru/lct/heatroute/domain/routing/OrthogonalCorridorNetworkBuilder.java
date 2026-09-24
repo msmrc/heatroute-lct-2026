@@ -145,6 +145,7 @@ final class OrthogonalCorridorNetworkBuilder {
             reservations.merge(selected.index, 1, Integer::sum);
         }
         List<Network> results = new ArrayList<>();
+        List<Network> jointResults = new ArrayList<>();
         for (boolean farthestFirst : ports.size() == terminals.size() ? new boolean[] {true, false} : new boolean[0]) {
             // Метры — поисковый штраф создания камеры, не подмена официальной сметы.
             for (double junctionPenalty : new double[] {0, 25}) {
@@ -159,6 +160,7 @@ final class OrthogonalCorridorNetworkBuilder {
                 LOGGER.info("Corridor tree target={} farthest={} junction_penalty={} grid_edges={} assembled={}",
                         root.getTargetId(), farthestFirst, junctionPenalty, tree.size(), network != null);
                 if (network != null) results.add(network);
+                addJointCandidate(jointResults, tree, grid, ports, root, checks, spurs);
             }
         }
         for (double bendPenalty : ports.size() == terminals.size() ? new double[] {0, 3, 15} : new double[0]) {
@@ -168,11 +170,14 @@ final class OrthogonalCorridorNetworkBuilder {
             LOGGER.info("Corridor metric tree target={} bend_penalty={} assembled={}",
                     root.getTargetId(), bendPenalty, network != null);
             if (network != null) results.add(network);
+            if (tree != null) addJointCandidate(jointResults, tree, grid, ports, root, checks, spurs);
         }
         results.addAll(flexiblePortNetworks(terminals, terminalAnchors, grid, root,
-                rootCapacity, orientation, spurs, checks, false));
+                rootCapacity, orientation, spurs, checks, false, jointResults));
         results.addAll(flexiblePortNetworks(terminals, terminalAnchors, grid, root,
-                rootCapacity, orientation, spurs, checks, true));
+                rootCapacity, orientation, spurs, checks, true, jointResults));
+        // Контрольные полные сети сохраняют прежний порядок и не вытесняются ремонтами.
+        results.addAll(jointResults);
         LOGGER.info("Corridor terminal paths target={} attempts={} axial_paths={}",
                 root.getTargetId(), spurs.attempts(), spurs.axialPaths());
         return results;
@@ -186,7 +191,8 @@ final class OrthogonalCorridorNetworkBuilder {
     private List<Network> flexiblePortNetworks(List<Terminal> terminals, List<List<Coordinate>> anchors,
             OrthogonalCorridorGrid grid, RouteNode root, int rootCapacity,
             double orientation,
-            CorridorTerminalRouter spurs, PreparedCorridor checks, boolean includeNeighborhood) {
+            CorridorTerminalRouter spurs, PreparedCorridor checks, boolean includeNeighborhood,
+            List<Network> jointResults) {
         List<Coordinate> points = new ArrayList<>(grid.points());
         List<int[]> links = new ArrayList<>(grid.links());
         List<Double> lengths = grid.links().stream().map(link -> points.get(link[0]).distance(points.get(link[1])))
@@ -216,9 +222,11 @@ final class OrthogonalCorridorNetworkBuilder {
                     .limit(4).forEach(candidates::add);
             Map<Integer, Port> options = new LinkedHashMap<>();
             for (int port : candidates) {
-                RoutePath path = spurs.route(terminal.id, terminal.point, grid.points().get(port), diameter(terminal.flow));
+                CorridorTerminalRouter.Choice choice = spurs.routeChoice(
+                        terminal.id, terminal.point, grid.points().get(port), diameter(terminal.flow));
+                RoutePath path = choice.path();
                 if (path == null || path.lengthM() <= 0.01) continue;
-                options.put(port, new Port(terminal, port, path.reversed()));
+                options.put(port, new Port(terminal, port, path.reversed(), choice.redirectedControl()));
                 links.add(new int[] {leaf, port});
                 // Координаты графа ещё не округлены до миллиметра, а маршрут уже округлён.
                 lengths.add(Math.max(path.lengthM(), points.get(leaf).distance(points.get(port))));
@@ -226,7 +234,7 @@ final class OrthogonalCorridorNetworkBuilder {
             if (options.isEmpty()) return List.of();
             alternatives.put(leaf, options);
         }
-        List<List<int[]>> trees = new ArrayList<>();
+        List<CorridorPortSearch.Selection> trees = new ArrayList<>();
         CorridorTreeBuilder builder = new CorridorTreeBuilder();
         Map<Integer, Map<Integer, RoutePath>> paths = new LinkedHashMap<>();
         alternatives.forEach((leaf, choices) -> {
@@ -236,7 +244,8 @@ final class OrthogonalCorridorNetworkBuilder {
         });
         for (boolean farthest : new boolean[] {false, true}) {
             for (double junctionPenalty : new double[] {0, 25}) {
-                trees.add(CorridorPortSearch.solve(points, links, lengths, grid.points().size(), paths,
+                trees.addAll(CorridorPortSearch.solveWithPaths(points, links, lengths, grid.points().size(), paths,
+                        (leaf, port) -> jointPaths(alternatives.get(leaf).get(port), grid, spurs),
                         (allowed, weights) -> builder.buildWeighted(points, allowed, weights, grid.rootIndex(), rootCapacity,
                                 leafReservations, farthest, junctionPenalty, 3)));
             }
@@ -253,36 +262,115 @@ final class OrthogonalCorridorNetworkBuilder {
             seeds.add(seed);
         }
         for (int seed : seeds) {
-            trees.add(CorridorPortSearch.solve(points, links, lengths, grid.points().size(), paths,
+            trees.addAll(CorridorPortSearch.solveWithPaths(points, links, lengths, grid.points().size(), paths,
+                    (leaf, port) -> jointPaths(alternatives.get(leaf).get(port), grid, spurs),
                     (allowed, weights) -> builder.buildWeightedFrom(points, allowed, weights, grid.rootIndex(), rootCapacity,
                             leafReservations, seed, 25, 3)));
         }
         for (double bendPenalty : new double[] {3, 15}) {
-            trees.add(CorridorPortSearch.solve(points, links, lengths, grid.points().size(), paths,
+            trees.addAll(CorridorPortSearch.solveWithPaths(points, links, lengths, grid.points().size(), paths,
+                    (leaf, port) -> jointPaths(alternatives.get(leaf).get(port), grid, spurs),
                     (allowed, weights) -> builder.buildMetricClosureWeighted(points, allowed, weights, grid.rootIndex(), rootCapacity,
                             leafReservations, bendPenalty)));
         }
+        // Замена недопустимого короткого ввода может увести жадный поиск в другую топологию.
+        // Сохраняем основной поиск и добавляем до четырёх seed-попыток без таких замен.
+        // Потребителей не удаляем: при пустом наборе хотя бы одного ввода этот проход не нужен.
+        Map<Integer, Map<Integer, RoutePath>> stablePaths = new LinkedHashMap<>();
+        alternatives.forEach((leaf, choices) -> {
+            Map<Integer, RoutePath> stable = new LinkedHashMap<>();
+            choices.forEach((port, choice) -> { if (!choice.redirectedControl) stable.put(port, choice.path); });
+            stablePaths.put(leaf, stable);
+        });
+        int stableSeedCount = 0;
+        if (!stablePaths.equals(paths) && stablePaths.values().stream().noneMatch(Map::isEmpty)) {
+            List<int[]> stableLinks = new ArrayList<>();
+            List<Double> stableLengths = new ArrayList<>();
+            for (int i = 0; i < links.size(); i++) {
+                ensureActive();
+                int[] link = links.get(i);
+                int leaf = Math.max(link[0], link[1]), port = Math.min(link[0], link[1]);
+                if (leaf < grid.points().size() || stablePaths.get(leaf).containsKey(port)) {
+                    stableLinks.add(link); stableLengths.add(lengths.get(i));
+                }
+            }
+            for (int seed : seeds) {
+                stableSeedCount++;
+                trees.addAll(CorridorPortSearch.solveWithPaths(points, stableLinks, stableLengths,
+                        grid.points().size(), stablePaths,
+                        (leaf, port) -> jointPaths(alternatives.get(leaf).get(port), grid, spurs),
+                        (allowed, weights) -> builder.buildWeightedFrom(points, allowed, weights,
+                                grid.rootIndex(), rootCapacity, leafReservations, seed, 25, 3)));
+            }
+        }
         List<Network> results = new ArrayList<>();
-        for (List<int[]> tree : trees) {
-            if (tree == null) continue;
+        for (CorridorPortSearch.Selection selection : trees) {
             Map<Integer, Port> chosen = new LinkedHashMap<>();
             List<int[]> corridor = new ArrayList<>();
             boolean valid = true;
-            for (int[] link : tree) {
+            boolean changed = false;
+            for (int[] link : selection.tree()) {
                 int leaf = Math.max(link[0], link[1]);
                 if (leaf < grid.points().size()) { corridor.add(link); continue; }
                 int port = Math.min(link[0], link[1]);
-                if (chosen.put(leaf, alternatives.get(leaf).get(port)) != null) { valid = false; break; }
+                Port control = alternatives.get(leaf).get(port);
+                RoutePath selected = selection.paths().get(leaf);
+                changed |= selected != control.path;
+                if (chosen.put(leaf, new Port(control.terminal, port, selected)) != null) { valid = false; break; }
             }
             if (!valid || chosen.size() != terminals.size() || chosen.containsValue(null)) continue;
             List<Port> ports = chosen.entrySet().stream().sorted(Map.Entry.comparingByKey())
                     .map(Map.Entry::getValue).collect(Collectors.toList());
             Network network = compress(corridor, grid, ports, root, checks);
-            if (network != null) results.add(network);
+            if (network != null) (changed ? jointResults : results).add(network);
         }
-        LOGGER.info("Corridor flexible ports target={} options={} trees={}", root.getTargetId(),
-                alternatives.values().stream().mapToInt(Map::size).sum(), results.size());
+        LOGGER.info("Corridor flexible ports target={} options={} trees={} stable_options={} stable_seeds={}",
+                root.getTargetId(), alternatives.values().stream().mapToInt(Map::size).sum(), results.size(),
+                stablePaths.values().stream().mapToInt(Map::size).sum(), stableSeedCount);
         return results;
+    }
+
+    /** Фиксированные порты получают тот же совместный выбор путей, что и гибкий поиск. */
+    private void addJointCandidate(List<Network> results, List<int[]> tree, OrthogonalCorridorGrid grid,
+            List<Port> ports, RouteNode root, PreparedCorridor checks, CorridorTerminalRouter spurs) {
+        List<int[]> withLeaves = new ArrayList<>(tree);
+        Map<Integer, Map<Integer, RoutePath>> controls = new LinkedHashMap<>();
+        for (int i = 0; i < ports.size(); i++) {
+            int leaf = grid.points().size() + i;
+            Port port = ports.get(i);
+            withLeaves.add(new int[] {port.index, leaf});
+            controls.put(leaf, Map.of(port.index, port.path));
+        }
+        CorridorPortSearch.Selection selected = CorridorPortSearch.assignPaths(grid.points(), withLeaves,
+                grid.points().size(), controls,
+                (leaf, port) -> jointPaths(ports.get(leaf - grid.points().size()), grid, spurs));
+        if (selected == null) return;
+        List<Port> joint = new ArrayList<>();
+        boolean changed = false;
+        for (int i = 0; i < ports.size(); i++) {
+            Port control = ports.get(i);
+            RoutePath path = selected.paths().get(grid.points().size() + i);
+            changed |= path != control.path;
+            joint.add(new Port(control.terminal, control.index, path));
+        }
+        if (!changed) return;
+        Network network = compress(tree, grid, joint, root, checks);
+        if (network != null) results.add(network);
+    }
+
+    /** Локальный кэш принадлежит одному построению: контроль плюс до семи иных геометрий. */
+    private List<RoutePath> jointPaths(Port port, OrthogonalCorridorGrid grid, CorridorTerminalRouter spurs) {
+        if (port.jointPaths == null) {
+            List<RoutePath> paths = new ArrayList<>(List.of(port.path));
+            for (RoutePath candidate : spurs.localAlternatives(port.terminal.id, port.terminal.point,
+                    grid.points().get(port.index), diameter(port.terminal.flow))) {
+                RoutePath reversed = candidate.reversed();
+                if (paths.stream().noneMatch(old -> old.coordinates().equals(reversed.coordinates()))) paths.add(reversed);
+                if (paths.size() == 8) break;
+            }
+            port.jointPaths = List.copyOf(paths);
+        }
+        return port.jointPaths;
     }
 
     private Coordinate outsideBuffer(OfficialRouteGeometryRules.NormalEgress egress, double clearance) {
@@ -381,6 +469,7 @@ final class OrthogonalCorridorNetworkBuilder {
         List<RouteConnection> connections = ports.stream().map(port -> new RouteConnection(
                 port.terminal.id, port.terminal.connectionPointId, port.terminal.flow, "connected", null))
                 .collect(Collectors.toList());
+        if (!OfficialRouteDeflectionRules.validate(new ArrayList<>(nodes.values()), edges).isEmpty()) return null;
         return new Network(new ArrayList<>(nodes.values()), edges, connections);
     }
 
@@ -439,8 +528,14 @@ final class OrthogonalCorridorNetworkBuilder {
         private final Terminal terminal;
         private final int index;
         private final RoutePath path;
+        private final boolean redirectedControl;
+        private List<RoutePath> jointPaths;
         private Port(Terminal terminal, int index, RoutePath path) {
+            this(terminal, index, path, false);
+        }
+        private Port(Terminal terminal, int index, RoutePath path, boolean redirectedControl) {
             this.terminal = terminal; this.index = index; this.path = path;
+            this.redirectedControl = redirectedControl;
         }
     }
 

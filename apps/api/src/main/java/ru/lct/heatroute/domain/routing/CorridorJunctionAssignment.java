@@ -1,9 +1,16 @@
 package ru.lct.heatroute.domain.routing;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.function.IntFunction;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -20,6 +27,7 @@ final class CorridorJunctionAssignment {
     private static final double POSITION_EPSILON_M = 0.01;
     private static final double ORTHOGONAL_COSINE = Math.sin(Math.toRadians(5));
     private static final double OPPOSITE_COSINE = -Math.cos(Math.toRadians(5));
+    private static final int MAX_PORT_ASSIGNMENTS = 128;
 
     private CorridorJunctionAssignment() { }
 
@@ -72,6 +80,22 @@ final class CorridorJunctionAssignment {
         return List.copyOf(result);
     }
 
+    /**
+     * Сохраняет контрольные вводы, меняя только конфликтующие пути выбранного дерева.
+     * Пути направлены порт → потребитель. До 128 состояний, до восьми путей на ввод;
+     * проверка каждого состояния видит все вводы и фактическую степень портов.
+     */
+    static Map<Integer, RoutePath> choosePortPaths(Map<Integer, RoutePath> controls,
+            Map<Integer, Integer> attachments, List<LineString> grid,
+            IntFunction<List<RoutePath>> alternatives) {
+        ensureActive();
+        if (controls == null || attachments == null || grid == null || alternatives == null
+                || controls.size() > 64 || !controls.keySet().equals(attachments.keySet())) {
+            throw new IllegalArgumentException("Complete bounded terminal controls and attachments required");
+        }
+        return new PortSearch(controls, attachments, grid, alternatives).choose();
+    }
+
     private static Approach prepare(Coordinate junction, RoutePath path) {
         if (path == null || path.coordinates().size() < 2 || path.coordinates().size() > 1000) {
             throw new IllegalArgumentException("A path requires 2..1000 coordinates");
@@ -92,7 +116,8 @@ final class CorridorJunctionAssignment {
         }
         if (before == null) return null;
         double length = before.distance(endpoint);
-        return new Approach(path, line, (before.x - endpoint.x) / length, (before.y - endpoint.y) / length);
+        return new Approach(path, line, (before.x - endpoint.x) / length, (before.y - endpoint.y) / length,
+                before.x - endpoint.x, before.y - endpoint.y);
     }
 
     private static boolean compatible(Coordinate junction, Approach a, Approach b) {
@@ -122,6 +147,10 @@ final class CorridorJunctionAssignment {
             ensureActive();
             if (length >= bestLength) return;
             if (accepted.size() == choices.size()) {
+                if (accepted.size() == 2) {
+                    Approach a = accepted.get(0), b = accepted.get(1);
+                    if (!OfficialRouteDeflectionRules.allowsTurn(-a.dx, -a.dy, b.dx, b.dy)) return;
+                }
                 best = List.copyOf(accepted); bestLength = length; return;
             }
             for (Approach candidate : choices.get(accepted.size())) {
@@ -139,9 +168,124 @@ final class CorridorJunctionAssignment {
         private final LineString line;
         private final double x;
         private final double y;
+        private final double dx;
+        private final double dy;
 
-        private Approach(RoutePath path, LineString line, double x, double y) {
-            this.path = path; this.line = line; this.x = x; this.y = y;
+        private Approach(RoutePath path, LineString line, double x, double y, double dx, double dy) {
+            this.path = path; this.line = line; this.x = x; this.y = y; this.dx = dx; this.dy = dy;
+        }
+    }
+
+    private static final class PortSearch {
+        private final Map<Integer, RoutePath> controls;
+        private final Map<Integer, RoutePath> selected = new LinkedHashMap<>();
+        private final Map<Integer, Integer> attachments;
+        private final List<LineString> grid;
+        private final IntFunction<List<RoutePath>> alternatives;
+        private final List<Integer> leaves;
+        private final Map<Integer, List<RoutePath>> choices = new HashMap<>();
+        private final Set<String> visited = new HashSet<>();
+        private final int[] indices;
+        private Map<Integer, RoutePath> best;
+        private double bestLength = Double.POSITIVE_INFINITY;
+        private int bestBends = Integer.MAX_VALUE;
+
+        private PortSearch(Map<Integer, RoutePath> controls, Map<Integer, Integer> attachments,
+                List<LineString> grid, IntFunction<List<RoutePath>> alternatives) {
+            this.controls = controls; this.attachments = attachments;
+            this.grid = grid; this.alternatives = alternatives;
+            leaves = new ArrayList<>(controls.keySet());
+            leaves.sort(Integer::compareTo);
+            leaves.forEach(leaf -> selected.put(leaf, controls.get(leaf)));
+            indices = new int[leaves.size()];
+        }
+
+        private Map<Integer, RoutePath> choose() {
+            visit();
+            return best;
+        }
+
+        private void visit() {
+            ensureActive();
+            if (visited.size() >= MAX_PORT_ASSIGNMENTS || !visited.add(Arrays.toString(indices))) return;
+            int[] conflict = CorridorPortCompatibility.firstConflict(selected, attachments, grid);
+            EngineeringRouteEvaluator.Evaluation geometry = null;
+            if (conflict == null) {
+                geometry = evaluateGeometry();
+                if (!geometry.isCompliant()) {
+                    Set<String> offenders = geometry.nonCompliantEdgeIds();
+                    conflict = leaves.stream().filter(leaf -> offenders.contains("leaf:" + leaf))
+                            .mapToInt(Integer::intValue).toArray();
+                    // Ошибка только внутри неизменяемой сетки не исправляется заменой ввода.
+                    if (conflict.length == 0) return;
+                }
+            }
+            if (conflict == null) {
+                double length = selected.values().stream().mapToDouble(RoutePath::lengthM).sum();
+                if (length <= bestLength) {
+                    int bends = geometry.bendCount();
+                    if (length < bestLength || bends < bestBends) {
+                        best = Map.copyOf(selected); bestLength = length; bestBends = bends;
+                    }
+                }
+                return;
+            }
+            // Хотя бы один участник текущего конфликта обязан сменить геометрию.
+            // Возврат к прежним индексам разрешён: другой ввод мог уже сменить путь.
+            for (int leaf : conflict) {
+                if (leaf < 0) continue;
+                int position = leaves.indexOf(leaf), previous = indices[position];
+                List<RoutePath> paths = choices.computeIfAbsent(leaf, this::pathsFor);
+                for (int index = 0; index < paths.size(); index++) {
+                    ensureActive();
+                    if (index == previous) continue;
+                    indices[position] = index;
+                    selected.put(leaf, paths.get(index));
+                    visit();
+                    indices[position] = previous;
+                    selected.put(leaf, paths.get(previous));
+                }
+            }
+        }
+
+        /** Оцениваем целую сеть до компрессии: разрез на порту не скрывает изгиб или короткую полку. */
+        private EngineeringRouteEvaluator.Evaluation evaluateGeometry() {
+            List<RouteEdge> edges = new ArrayList<>();
+            for (int index = 0; index < grid.size(); index++) {
+                LineString line = grid.get(index);
+                edges.add(scoringEdge("grid:" + index, Arrays.asList(line.getCoordinates()), line.getLength(), false));
+            }
+            selected.forEach((leaf, path) -> edges.add(scoringEdge("leaf:" + leaf,
+                    path.coordinates(), path.lengthM(), true)));
+            return new EngineeringRouteEvaluator().evaluate(edges);
+        }
+
+        private RouteEdge scoringEdge(String id, List<Coordinate> points, double length, boolean terminal) {
+            List<RouteCoordinate> coordinates = new ArrayList<>();
+            for (Coordinate point : points) coordinates.add(new RouteCoordinate(point.x, point.y));
+            String downstream = terminal ? id : nodeKey(coordinates.get(coordinates.size() - 1));
+            return new RouteEdge(id, nodeKey(coordinates.get(0)), downstream, length,
+                    coordinates, List.of(), null, null);
+        }
+
+        private String nodeKey(RouteCoordinate point) {
+            return "port:" + point.getXM() + ":" + point.getYM();
+        }
+
+        private List<RoutePath> pathsFor(int leaf) {
+            List<RoutePath> supplied = alternatives.apply(leaf);
+            ensureActive();
+            if (supplied == null || supplied.size() > 8) {
+                throw new IllegalArgumentException("At most eight terminal alternatives required");
+            }
+            List<RoutePath> result = new ArrayList<>(List.of(controls.get(leaf)));
+            for (RoutePath path : supplied) {
+                if (path == null) throw new IllegalArgumentException("Terminal alternative cannot be null");
+                if (result.stream().noneMatch(old -> old.coordinates().equals(path.coordinates()))) result.add(path);
+            }
+            if (result.size() > 8) throw new IllegalArgumentException("At most eight paths including control required");
+            result.subList(1, result.size()).sort(Comparator.comparingDouble(RoutePath::lengthM));
+            return List.copyOf(result);
         }
     }
 }

@@ -1582,3 +1582,16 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
   750 tests, zero failures/errors and three skipped scale tests. The web gate passes 36 Vitest
   tests, 35 script tests, ESLint, TypeScript and the production build. GitHub CI and live deployment
   remain pending until this exact commit is pushed.
+
+# 2026-09-24 — `69c5e16` CI recovery and production deployment
+
+- Commit `69c5e160e673d32a082adc68b1c0fd7839fb1749` reached `origin/master` exactly. GitHub Actions
+  run `ci #99` passed all jobs: web in 1:01, backend in 8:23 and the Ubuntu 22 integration gate in
+  9:31, including 50 concurrent imports, public/internal contracts and restart recovery.
+- Before deployment, the live PostgreSQL database was backed up to
+  `/opt/heatroute/backups/heatroute-20260924T143943Z-06f3f391c0ef060efa21d533e3441c7d543e90c82.dump`
+  (713,784 bytes, mode 600). The clean VPS checkout was fast-forwarded and the API/web images were
+  rebuilt; db, api, web and gateway all became healthy.
+- Readiness, OpenAPI and public HTTPS checks pass. A fresh import
+  `f92e4ae2-fd49-47a4-a131-bdeecadef086` is `valid`: 144 features, zero errors and 76 advisory
+  warnings. No production routing job was started as part of this deployment smoke.

@@ -666,6 +666,17 @@ public class OfficialGeoJsonExporter {
             BigDecimal overlapLength = segmentLength.multiply(overlapEnd.subtract(overlapStart))
                     .divide(segmentEnd.subtract(segmentStart), 12, RoundingMode.HALF_UP);
             length = length.add(overlapLength);
+            if (hasDepthProfile(depthProfile)) {
+                // Смета делит цену сегмента по миллиметровым станциям профиля глубины.
+                // Геометрическая длина выше остаётся независимой от округления ценового интервала.
+                BigDecimal pricedStart = segmentStart.setScale(3, RoundingMode.HALF_UP);
+                BigDecimal pricedEnd = segmentEnd.setScale(3, RoundingMode.HALF_UP);
+                overlapStart = pricedStart.max(pieceStart.setScale(3, RoundingMode.HALF_UP));
+                overlapEnd = pricedEnd.min(pieceEnd.setScale(3, RoundingMode.HALF_UP));
+                if (overlapEnd.compareTo(overlapStart) <= 0) continue;
+                overlapLength = segmentLength.multiply(overlapEnd.subtract(overlapStart))
+                        .divide(pricedEnd.subtract(pricedStart), 12, RoundingMode.HALF_UP);
+            }
             cost = cost.add(economicsCalculator.constructionSegmentCost(
                     pipe, overlapLength, crossing,
                     averageDepth(depthProfile, overlapStart, overlapEnd), BigDecimal.ONE));

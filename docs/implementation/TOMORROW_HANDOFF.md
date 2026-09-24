@@ -3,7 +3,8 @@
 ## Source63 в разработке: не выдавать за принятый runtime
 
 Рабочая ветка `codex/routing-63-geometry`; `master` оставлен на `28c7059`.
-Экспортный rounding fix выделен в отдельный commit `3d9b3b0`. Не сливать/разворачивать всю
+Экспортный rounding fix — `3d9b3b0`, основной routing checkpoint — `d4d6ef5`; оба отправлены,
+remote SHA проверен. Не сливать/разворачивать всю
 ветку только потому, что технические gates зелёные: quality gate ниже открыт.
 
 Последний clean Java gate **PASS**:879/0/0/3skip,876выполнены,5:51;

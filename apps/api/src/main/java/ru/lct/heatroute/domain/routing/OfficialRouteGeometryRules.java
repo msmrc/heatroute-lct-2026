@@ -571,13 +571,29 @@ public class OfficialRouteGeometryRules {
                 }
                 continue;
             }
-            if (constraint.rule.getMinimumCrossingAngleDegrees() != null
-                    && hasSpecialCrossing(segment, constraint)
-                    && !meetsCrossingAngle(segment, constraint)) {
-                return false;
+            if (constraint.rule.getMinimumCrossingAngleDegrees() != null) {
+                if (constraint.source.getDimension() == 2
+                        && meetsPolygonCrossingAngle(segment, constraint)) {
+                    // A straight segment has one direction. If that direction is already legal,
+                    // an exact polygon intersection cannot make the crossing angle worse.
+                    continue;
+                }
+                Coordinate crossing = specialCrossingCoordinate(segment, constraint);
+                if (crossing != null && !meetsCrossingAngle(segment, constraint, crossing)) {
+                    return false;
+                }
             }
         }
         return true;
+    }
+
+    private boolean meetsPolygonCrossingAngle(LineString segment, Constraint constraint) {
+        Coordinate start = segment.getCoordinateN(0);
+        Coordinate end = segment.getCoordinateN(segment.getNumPoints() - 1);
+        double routeAngle = Math.atan2(end.y - start.y, end.x - start.x);
+        double difference = Math.abs(Math.toDegrees(routeAngle - constraint.sourceAxisAngle)) % 180.0;
+        double angle = difference > 90.0 ? 180.0 - difference : difference;
+        return angle + 1e-9 >= constraint.rule.getMinimumCrossingAngleDegrees().doubleValue();
     }
 
     boolean pointInsideForbiddenClearance(Coordinate coordinate, ConstraintIndex constraints) {
@@ -788,39 +804,59 @@ public class OfficialRouteGeometryRules {
     }
 
     private boolean hasSpecialCrossing(LineString route, Constraint constraint) {
+        return specialCrossingCoordinate(route, constraint) != null;
+    }
+
+    private Coordinate specialCrossingCoordinate(LineString route, Constraint constraint) {
         if (!route.getEnvelopeInternal().intersects(constraint.source.getEnvelopeInternal())) {
-            return false;
+            return null;
+        }
+        if (constraint.preparedSource != null && !constraint.preparedSource.intersects(route)) {
+            return null;
         }
         Geometry intersection = route.intersection(constraint.source);
         if (intersection.isEmpty()) {
-            return false;
+            return null;
         }
         if (constraint.source.getDimension() == 2) {
-            return intersection.getLength() > EPSILON_M;
+            return intersection.getLength() > EPSILON_M ? intersection.getCoordinate() : null;
         }
         Coordinate routeStart = route.getCoordinateN(0);
         Coordinate routeEnd = route.getCoordinateN(route.getNumPoints() - 1);
-        return java.util.Arrays.stream(intersection.getCoordinates())
+        boolean interior = java.util.Arrays.stream(intersection.getCoordinates())
                 .anyMatch(coordinate -> coordinate.distance(routeStart) > EPSILON_M
                         && coordinate.distance(routeEnd) > EPSILON_M);
+        return interior ? intersection.getCoordinate() : null;
     }
 
     private boolean meetsCrossingAngle(LineString route, Constraint constraint) {
+        Coordinate crossing = specialCrossingCoordinate(route, constraint);
+        return crossing == null || meetsCrossingAngle(route, constraint, crossing);
+    }
+
+    private boolean meetsCrossingAngle(
+            LineString route, Constraint constraint, Coordinate crossing) {
         BigDecimal minimum = constraint.rule.getMinimumCrossingAngleDegrees();
-        return minimum == null || crossingAngle(route, constraint) + 1e-9 >= minimum.doubleValue();
+        return minimum == null
+                || crossingAngle(route, constraint, crossing) + 1e-9 >= minimum.doubleValue();
     }
 
     private double crossingAngle(LineString route, Constraint constraint) {
         Coordinate crossing = route.intersection(constraint.source).getCoordinate();
+        return crossingAngle(route, constraint, crossing);
+    }
+
+    private double crossingAngle(
+            LineString route, Constraint constraint, Coordinate crossing) {
         double routeAngle = localAngle(route, crossing);
         double objectAngle = constraint.source.getDimension() == 2
-                ? polygonAxisAngle(constraint.source)
+                ? constraint.sourceAxisAngle
                 : localAngle(constraint.source, crossing);
         double difference = Math.abs(Math.toDegrees(routeAngle - objectAngle)) % 180.0;
         return difference > 90.0 ? 180.0 - difference : difference;
     }
 
-    private double polygonAxisAngle(Geometry polygonal) {
+    private static double polygonAxisAngle(Geometry polygonal) {
         Geometry rectangle = new MinimumDiameter(polygonal).getMinimumRectangle();
         Coordinate[] coordinates = rectangle.getCoordinates();
         LineSegment longest = null;
@@ -873,6 +909,8 @@ public class OfficialRouteGeometryRules {
         private final Geometry source;
         private final Geometry blocked;
         private final PreparedGeometry preparedBlocked;
+        private final PreparedGeometry preparedSource;
+        private final double sourceAxisAngle;
         private final long segmentIndexCoordinateReservation;
         private volatile PreparedSegmentIntersection segmentIntersection;
         private volatile boolean segmentIntersectionInitialized;
@@ -889,6 +927,11 @@ public class OfficialRouteGeometryRules {
             this.source = source;
             this.blocked = blocked;
             this.preparedBlocked = blocked == null ? null : PreparedGeometryFactory.prepare(blocked);
+            boolean specialPolygon = !rule.isForbidden()
+                    && rule.getMinimumCrossingAngleDegrees() != null
+                    && source.getDimension() == 2;
+            this.preparedSource = specialPolygon ? PreparedGeometryFactory.prepare(source) : null;
+            this.sourceAxisAngle = specialPolygon ? polygonAxisAngle(source) : 0.0;
             this.segmentIndexCoordinateReservation = PreparedSegmentIntersection.additionalCoordinateReservation(blocked);
             this.rule = rule;
         }

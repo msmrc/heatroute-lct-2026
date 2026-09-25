@@ -25,6 +25,14 @@ final class OfficialRoutingEnvironment {
     private final ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex existingSupport;
     private final Map<Integer, List<Constraint>> baseByDiameter = new HashMap<>();
     private final Map<String, java.util.Optional<RoutePath>> routeCache = new HashMap<>();
+    private final Map<ConstraintSetKey, OfficialObstacleRouter.SegmentVisibilityMemo> visibilityMemos =
+            new java.util.LinkedHashMap<ConstraintSetKey, OfficialObstacleRouter.SegmentVisibilityMemo>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(
+                        Map.Entry<ConstraintSetKey, OfficialObstacleRouter.SegmentVisibilityMemo> eldest) {
+                    return size() > 8;
+                }
+            };
     private long visibilitySearches;
     private long visibilityNodes;
     private long visibilityPairChecks;
@@ -203,9 +211,64 @@ final class OfficialRoutingEnvironment {
         return route;
     }
 
+    /**
+     * Shares exact segment checks only while the complete ordered constraint set has the same
+     * immutable geometry and rule objects. This recognizes equivalent endpoint-clearance wrappers
+     * while retaining endpoint exemptions and dynamic route-avoidance constraints; a bounded LRU
+     * prevents exploratory candidates from retaining unbounded visibility graphs.
+     */
+    OfficialObstacleRouter.SegmentVisibilityMemo visibilityMemo(List<Constraint> constraints) {
+        ConstraintSetKey key = new ConstraintSetKey(constraints);
+        return visibilityMemos.computeIfAbsent(
+                key, ignored -> new OfficialObstacleRouter.SegmentVisibilityMemo());
+    }
+
     private org.locationtech.jts.geom.Envelope window(Coordinate start, Coordinate end) {
         org.locationtech.jts.geom.Envelope result = new org.locationtech.jts.geom.Envelope(start, end);
         result.expandBy(WINDOW_MARGIN_M);
         return result;
+    }
+
+    private static final class ConstraintSetKey {
+        private final Constraint[] constraints;
+        private final int hash;
+
+        private ConstraintSetKey(List<Constraint> constraints) {
+            this.constraints = constraints.toArray(new Constraint[0]);
+            int result = 1;
+            for (Constraint constraint : this.constraints) {
+                result = 31 * result + constraint.id().hashCode();
+                result = 31 * result + constraint.type().hashCode();
+                result = 31 * result + System.identityHashCode(constraint.source());
+                result = 31 * result + System.identityHashCode(constraint.blocked());
+                result = 31 * result + System.identityHashCode(constraint.rule());
+            }
+            this.hash = result;
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object candidate) {
+            if (this == candidate) return true;
+            if (!(candidate instanceof ConstraintSetKey)) return false;
+            Constraint[] other = ((ConstraintSetKey) candidate).constraints;
+            if (constraints.length != other.length) return false;
+            for (int index = 0; index < constraints.length; index++) {
+                Constraint left = constraints[index];
+                Constraint right = other[index];
+                if (!left.id().equals(right.id())
+                        || !left.type().equals(right.type())
+                        || left.source() != right.source()
+                        || left.blocked() != right.blocked()
+                        || left.rule() != right.rule()) {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 }

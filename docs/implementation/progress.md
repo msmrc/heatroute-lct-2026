@@ -1619,3 +1619,27 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
 - Readiness, OpenAPI and public HTTPS checks pass. A fresh import
   `f92e4ae2-fd49-47a4-a131-bdeecadef086` is `valid`: 144 features, zero errors and 76 advisory
   warnings. No production routing job was started as part of this deployment smoke.
+
+# 2026-09-25 — bounded visibility reuse for the road scenario (`global-tree-62`, local)
+
+- Visibility results are reused between widening graphs and route candidates only when immutable
+  constraint geometry/rule identities match. The primitive cache is bounded to 1,000,000 segment
+  results per constraint set and eight recently used sets; dynamic avoidance remains route-local.
+- Forbidden base geometry, special road/rail crossings and dynamic already-built-route avoidance
+  are evaluated as independent conjunctive layers. The 94 unchanged road polygons can therefore
+  reuse exact crossing decisions when a building exemption or accepted tree edge changes. No
+  obstacle, clearance, crossing-angle or final-validation rule was removed.
+- Polygonal special crossings prepare their source geometry and road-axis angle once. A candidate
+  segment computes an exact intersection at most once; an angle-valid straight segment avoids an
+  unnecessary intersection calculation altogether.
+- On the same 239-feature roads + kindergarten import, cold run
+  `44c7de70-40cf-43e9-b620-5dabb1c53952` completed in 800.299 seconds versus the measured
+  2,444.523-second baseline (67.3% faster, 3.05x speed-up). All three results remain valid and
+  connect 17/17; lengths and costs are unchanged: balanced 1,944.918 m / RUB 287,968,057.20,
+  shortest 1,865.399 m / RUB 284,291,588.54, cheapest 1,915.484 m / RUB 280,437,901.04.
+- The six-minute goal is not reached. Phase times are 157.287 s independent, 242.472 s shared,
+  126.482 s group spines and 273.655 s final portfolio. The dominant remaining target is the 85
+  portfolio candidates plus corridor refinements, not the road intersection primitive itself.
+- The API image built successfully and compiled 140 production plus 89 test source files; Maven
+  test execution was skipped. One final live Compose calculation verified the result above.
+  Automated tests, lint and typecheck were not run.

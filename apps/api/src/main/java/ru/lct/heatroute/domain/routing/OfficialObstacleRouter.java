@@ -290,19 +290,34 @@ public class OfficialObstacleRouter {
             RoutePreference preference,
             List<LineString> acceptedRoutes,
             List<Constraint> additionalConstraints) {
-        List<Constraint> constraints = new ArrayList<>(environment.constraints(
-                diameter, exemptFeatureIds, start, end));
-        constraints.addAll(rules.applicableConstraints(
+        List<Constraint> baseConstraints = environment.constraints(
+                diameter, exemptFeatureIds, start, end);
+        List<Constraint> dynamicConstraints = new ArrayList<>(rules.applicableConstraints(
                 rules.routeAvoidanceConstraints(acceptedRoutes),
                 Collections.emptySet(),
-                start,
-                end));
-        constraints.addAll(rules.applicableConstraints(
+                start, end));
+        dynamicConstraints.addAll(rules.applicableConstraints(
                 additionalConstraints,
                 exemptFeatureIds,
                 start,
                 end));
+        List<Constraint> constraints = new ArrayList<>(baseConstraints);
+        constraints.addAll(dynamicConstraints);
         ConstraintIndex constraintIndex = rules.index(constraints);
+        List<Constraint> forbiddenBaseConstraints = baseConstraints.stream()
+                .filter(constraint -> constraint.rule().isForbidden())
+                .collect(java.util.stream.Collectors.toList());
+        List<Constraint> crossingBaseConstraints = baseConstraints.stream()
+                .filter(constraint -> !constraint.rule().isForbidden())
+                .filter(constraint -> constraint.rule().getMinimumCrossingAngleDegrees() != null)
+                .collect(java.util.stream.Collectors.toList());
+        ConstraintIndex forbiddenBaseConstraintIndex = rules.index(forbiddenBaseConstraints);
+        ConstraintIndex crossingBaseConstraintIndex = crossingBaseConstraints.isEmpty()
+                ? null
+                : rules.index(crossingBaseConstraints);
+        ConstraintIndex dynamicConstraintIndex = dynamicConstraints.isEmpty()
+                ? null
+                : rules.index(dynamicConstraints);
         if (rules.pointInsideForbiddenClearance(start, constraintIndex)
                 || rules.pointInsideForbiddenClearance(end, constraintIndex)) {
             return null;
@@ -323,6 +338,13 @@ public class OfficialObstacleRouter {
         // Карманы восстанавливают отсутствующий путь, но не заменяют уже допустимый hull-маршрут:
         // обычный коридор 200/600 м имеет приоритет над карманом в коридоре 75 м.
         List<List<Coordinate>> ordinaryGraphs = new ArrayList<>(CORRIDOR_EXPANSIONS.length);
+        SegmentVisibilityMemo baseVisibility = environment.visibilityMemo(forbiddenBaseConstraints);
+        SegmentVisibilityMemo crossingVisibility = crossingBaseConstraints.isEmpty()
+                ? null
+                : environment.visibilityMemo(crossingBaseConstraints);
+        SegmentVisibilityMemo sharedVisibility = dynamicConstraints.isEmpty()
+                ? environment.visibilityMemo(baseConstraints)
+                : new SegmentVisibilityMemo();
         for (boolean includePockets : new boolean[] {false, true}) {
             for (int corridor = 0; corridor < CORRIDOR_EXPANSIONS.length; corridor++) {
                 double expansion = CORRIDOR_EXPANSIONS[corridor];
@@ -335,7 +357,10 @@ public class OfficialObstacleRouter {
                     // Храним только три графа текущего вызова, а не результаты других расчётов.
                     continue;
                 }
-                SearchResult search = shortestPath(nodes, constraintIndex, preference, start, end);
+                SearchResult search = shortestPath(
+                        nodes, constraintIndex, preference, start, end, sharedVisibility,
+                        forbiddenBaseConstraintIndex, crossingBaseConstraintIndex,
+                        dynamicConstraintIndex, baseVisibility, crossingVisibility);
                 environment.recordVisibilitySearch(nodes.size(), expansion, search.evaluatedPairCount, search.rejectedTurns);
                 if (!search.coordinates.isEmpty()) {
                     List<Coordinate> normalized = normalize(search.coordinates, constraintIndex);
@@ -740,6 +765,32 @@ public class OfficialObstacleRouter {
             RoutePreference preference,
             Coordinate start,
             Coordinate end) {
+        return shortestPath(nodes, constraints, preference, start, end, new SegmentVisibilityMemo());
+    }
+
+    private SearchResult shortestPath(
+            List<Coordinate> nodes,
+            ConstraintIndex constraints,
+            RoutePreference preference,
+            Coordinate start,
+            Coordinate end,
+            SegmentVisibilityMemo sharedVisibility) {
+        return shortestPath(nodes, constraints, preference, start, end, sharedVisibility,
+                constraints, null, null, sharedVisibility, null);
+    }
+
+    private SearchResult shortestPath(
+            List<Coordinate> nodes,
+            ConstraintIndex constraints,
+            RoutePreference preference,
+            Coordinate start,
+            Coordinate end,
+            SegmentVisibilityMemo sharedVisibility,
+            ConstraintIndex baseConstraints,
+            ConstraintIndex crossingConstraints,
+            ConstraintIndex dynamicConstraints,
+            SegmentVisibilityMemo baseVisibility,
+            SegmentVisibilityMemo crossingVisibility) {
         ensureNotCancelled();
         int size = nodes.size();
         if (size < 2) {
@@ -759,7 +810,9 @@ public class OfficialObstacleRouter {
         if (blockedNodes[0] || blockedNodes[1]) {
             return new SearchResult(Collections.emptyList(), 0);
         }
-        VisibilityCache visibility = new VisibilityCache(size);
+        VisibilityCache visibility = new VisibilityCache(
+                nodes, sharedVisibility, baseConstraints, crossingConstraints, dynamicConstraints,
+                baseVisibility, crossingVisibility);
         // Несвязность геометрического графа запрещает любой направленный путь. Проверяем
         // меньший фронт с двух концов, прежде чем раскрывать дорогие состояния направлений.
         if (!visibility.connectsEndpoints(nodes, constraints, blockedNodes)) {
@@ -1266,14 +1319,164 @@ public class OfficialObstacleRouter {
         }
     }
 
+    /**
+     * Reuses expensive segment/constraint checks between the widening visibility graphs of one
+     * route attempt. Exact coordinate bits are used deliberately: geometrically close navigation
+     * vertices must not inherit a result calculated for a different segment.
+     */
+    static final class SegmentVisibilityMemo {
+        private static final int MAX_CACHED_SEGMENTS = 1_000_000;
+        private final Map<ExactPointKey, Integer> pointIds = new HashMap<>();
+        private final LongByteTable segmentValues = new LongByteTable();
+
+        private int[] ids(List<Coordinate> nodes) {
+            int[] result = new int[nodes.size()];
+            for (int index = 0; index < nodes.size(); index++) {
+                ExactPointKey key = new ExactPointKey(nodes.get(index));
+                Integer existing = pointIds.get(key);
+                if (existing == null) {
+                    existing = pointIds.size();
+                    pointIds.put(key, existing);
+                }
+                result[index] = existing;
+            }
+            return result;
+        }
+
+        private byte get(int first, int second) {
+            return segmentValues.get(pairKey(first, second));
+        }
+
+        private void put(int first, int second, byte value) {
+            if (segmentValues.size() < MAX_CACHED_SEGMENTS) {
+                segmentValues.put(pairKey(first, second), value);
+            }
+        }
+
+        private long pairKey(int first, int second) {
+            int left = Math.min(first, second);
+            int right = Math.max(first, second);
+            return ((long) left << 32) | (right & 0xffffffffL);
+        }
+    }
+
+    private static final class ExactPointKey {
+        private final long x;
+        private final long y;
+
+        private ExactPointKey(Coordinate coordinate) {
+            this.x = Double.doubleToLongBits(coordinate.x);
+            this.y = Double.doubleToLongBits(coordinate.y);
+        }
+
+        @Override
+        public boolean equals(Object candidate) {
+            if (this == candidate) return true;
+            if (!(candidate instanceof ExactPointKey)) return false;
+            ExactPointKey other = (ExactPointKey) candidate;
+            return x == other.x && y == other.y;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * Long.hashCode(x) + Long.hashCode(y);
+        }
+    }
+
+    /** Primitive open-addressed table: 0 is unknown, 1 is visible, 2 is blocked. */
+    private static final class LongByteTable {
+        private static final double LOAD_FACTOR = 0.6;
+        private long[] keys = new long[1024];
+        private byte[] values = new byte[1024];
+        private int size;
+
+        private int size() {
+            return size;
+        }
+
+        private byte get(long key) {
+            int index = index(key, keys.length);
+            while (values[index] != 0) {
+                if (keys[index] == key) return values[index];
+                index = (index + 1) & (keys.length - 1);
+            }
+            return 0;
+        }
+
+        private void put(long key, byte value) {
+            if ((size + 1) > keys.length * LOAD_FACTOR) resize();
+            int index = index(key, keys.length);
+            while (values[index] != 0) {
+                if (keys[index] == key) {
+                    values[index] = value;
+                    return;
+                }
+                index = (index + 1) & (keys.length - 1);
+            }
+            keys[index] = key;
+            values[index] = value;
+            size++;
+        }
+
+        private void resize() {
+            long[] oldKeys = keys;
+            byte[] oldValues = values;
+            keys = new long[oldKeys.length * 2];
+            values = new byte[oldValues.length * 2];
+            size = 0;
+            for (int index = 0; index < oldKeys.length; index++) {
+                if (oldValues[index] != 0) put(oldKeys[index], oldValues[index]);
+            }
+        }
+
+        private int index(long key, int capacity) {
+            long mixed = key;
+            mixed ^= mixed >>> 33;
+            mixed *= 0xff51afd7ed558ccdl;
+            mixed ^= mixed >>> 33;
+            mixed *= 0xc4ceb9fe1a85ec53l;
+            mixed ^= mixed >>> 33;
+            return (int) mixed & (capacity - 1);
+        }
+    }
+
     private final class VisibilityCache {
         private final int nodeCount;
         private final byte[] values;
+        private final int[] sharedNodeIds;
+        private final int[] baseNodeIds;
+        private final int[] crossingNodeIds;
+        private final SegmentVisibilityMemo sharedVisibility;
+        private final SegmentVisibilityMemo baseVisibility;
+        private final SegmentVisibilityMemo crossingVisibility;
+        private final ConstraintIndex baseConstraints;
+        private final ConstraintIndex crossingConstraints;
+        private final ConstraintIndex dynamicConstraints;
         private long evaluatedPairCount;
 
-        private VisibilityCache(int nodeCount) {
-            this.nodeCount = nodeCount;
+        private VisibilityCache(
+                List<Coordinate> nodes,
+                SegmentVisibilityMemo sharedVisibility,
+                ConstraintIndex baseConstraints,
+                ConstraintIndex crossingConstraints,
+                ConstraintIndex dynamicConstraints,
+                SegmentVisibilityMemo baseVisibility,
+                SegmentVisibilityMemo crossingVisibility) {
+            this.nodeCount = nodes.size();
             this.values = new byte[nodeCount * (nodeCount - 1) / 2];
+            this.sharedVisibility = sharedVisibility;
+            this.sharedNodeIds = sharedVisibility.ids(nodes);
+            this.baseVisibility = baseVisibility;
+            this.baseNodeIds = baseVisibility == sharedVisibility
+                    ? sharedNodeIds
+                    : baseVisibility.ids(nodes);
+            this.crossingVisibility = crossingVisibility;
+            this.crossingNodeIds = crossingVisibility == null
+                    ? null
+                    : crossingVisibility.ids(nodes);
+            this.baseConstraints = baseConstraints;
+            this.crossingConstraints = crossingConstraints;
+            this.dynamicConstraints = dynamicConstraints;
         }
 
         private boolean isKnownBlocked(int first, int second) {
@@ -1321,12 +1524,43 @@ public class OfficialObstacleRouter {
             int index = index(left, right);
             byte cached = values[index];
             if (cached == 0) {
-                ensureNotCancelled();
-                cached = rules.segmentAllowed(nodes.get(left), nodes.get(right), constraints)
-                        ? (byte) 1
-                        : (byte) 2;
+                cached = sharedVisibility.get(sharedNodeIds[left], sharedNodeIds[right]);
+                if (cached == 0) {
+                    ensureNotCancelled();
+                    byte baseCached = baseVisibility.get(baseNodeIds[left], baseNodeIds[right]);
+                    if (baseCached == 0) {
+                        baseCached = rules.segmentAllowed(
+                                nodes.get(left), nodes.get(right), baseConstraints)
+                                        ? (byte) 1
+                                        : (byte) 2;
+                        baseVisibility.put(baseNodeIds[left], baseNodeIds[right], baseCached);
+                        evaluatedPairCount++;
+                    }
+                    cached = baseCached;
+                    if (cached == 1 && crossingConstraints != null) {
+                        byte crossingCached = crossingVisibility.get(
+                                crossingNodeIds[left], crossingNodeIds[right]);
+                        if (crossingCached == 0) {
+                            crossingCached = rules.segmentAllowed(
+                                    nodes.get(left), nodes.get(right), crossingConstraints)
+                                            ? (byte) 1
+                                            : (byte) 2;
+                            crossingVisibility.put(
+                                    crossingNodeIds[left], crossingNodeIds[right], crossingCached);
+                            evaluatedPairCount++;
+                        }
+                        cached = crossingCached;
+                    }
+                    if (cached == 1 && dynamicConstraints != null) {
+                        cached = rules.segmentAllowed(
+                                nodes.get(left), nodes.get(right), dynamicConstraints)
+                                        ? (byte) 1
+                                        : (byte) 2;
+                        evaluatedPairCount++;
+                    }
+                    sharedVisibility.put(sharedNodeIds[left], sharedNodeIds[right], cached);
+                }
                 values[index] = cached;
-                evaluatedPairCount++;
             }
             return cached == 1;
         }

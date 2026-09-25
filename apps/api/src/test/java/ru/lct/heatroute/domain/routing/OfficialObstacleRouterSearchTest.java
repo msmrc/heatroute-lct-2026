@@ -261,6 +261,31 @@ class OfficialObstacleRouterSearchTest {
     }
 
     @Test
+    void reusesExactSegmentVisibilityAcrossWideningGraphs() {
+        VisibilityCounter countingRules = new VisibilityCounter(Set.of());
+        OfficialObstacleRouter countingRouter = new OfficialObstacleRouter(countingRules);
+        ConstraintIndex constraints = rules.index(List.of());
+        OfficialObstacleRouter.SegmentVisibilityMemo memo =
+                new OfficialObstacleRouter.SegmentVisibilityMemo();
+        List<Coordinate> firstGraph = List.of(new Coordinate(0, 0), new Coordinate(10, 0));
+        List<Coordinate> widenedGraph = List.of(
+                new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(5, 5));
+
+        Object first = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPath",
+                firstGraph, constraints, RoutePreference.SHORTEST,
+                firstGraph.get(0), firstGraph.get(1), memo);
+        Object widened = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPath",
+                widenedGraph, constraints, RoutePreference.SHORTEST,
+                widenedGraph.get(0), widenedGraph.get(1), memo);
+
+        assertThat((List<?>) ReflectionTestUtils.getField(first, "coordinates")).hasSize(2);
+        assertThat((List<?>) ReflectionTestUtils.getField(widened, "coordinates")).hasSize(2);
+        assertThat(ReflectionTestUtils.getField(first, "evaluatedPairCount")).isEqualTo(1L);
+        assertThat(ReflectionTestUtils.getField(widened, "evaluatedPairCount")).isEqualTo(0L);
+        assertThat(countingRules.visibilityChecks).isEqualTo(1);
+    }
+
+    @Test
     void deduplicatedCoincidentEndpointsYieldNoRoute() {
         Coordinate endpoint = new Coordinate(0, 0);
         assertThat(router.find(endpoint, new Coordinate(endpoint), 100,

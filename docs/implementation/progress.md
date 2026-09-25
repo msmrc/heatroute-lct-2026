@@ -1,5 +1,15 @@
 # Current implementation progress
 
+## 2026-09-25 — performance80: query-local primitive ordinals
+
+[Source80](PRIMARY_ROUTING_80.md): заменена boxed comparator sort при том же STRtree и исходном
+порядке. Массив только от3hits, без cache/общего scratch; geometry/expanded envelopes/порог128
+не менялись.5постоянныхtests,1500mixed+400concurrent differential queries и growth boundaries;
+scoped81PASS. Clean/fast1227cases/1224PASS/0fail/0error/3skip; web36/scripts37/lint/typecheckPASS.
+Full80session59635 запущен, full79session51226/roads79session69123/roads77session2599 продолжаются.
+Свежие exact variants и общее ускорение не доказаны; quality/compact/G2/scale/Compose/R/цель открыты.
+Runtime61/VPS прежние, осталось около 2% лимита; checkpoint сохраняется в Git.
+
 ## 2026-09-25 — контрольный full78 завершён, проверка79 продолжается
 
 1220cases/1216PASS/1compactFAIL/0errors/3skip;fixture599,957с.17/17, geometry/sizing/depth/

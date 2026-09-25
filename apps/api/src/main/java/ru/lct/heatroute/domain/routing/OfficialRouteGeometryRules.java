@@ -2,6 +2,7 @@ package ru.lct.heatroute.domain.routing;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -21,6 +22,7 @@ import org.locationtech.jts.linearref.LengthIndexedLine;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.locationtech.jts.index.strtree.STRtree;
+import org.locationtech.jts.index.ItemVisitor;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialAxisClearance;
@@ -1195,32 +1197,55 @@ public class OfficialRouteGeometryRules {
 
         boolean hasRoadCrossings() { return !roads.isEmpty(); }
 
-        @SuppressWarnings("unchecked")
         List<Constraint> query(org.locationtech.jts.geom.Envelope envelope) {
             if (tree == null) {
                 return all;
             }
             // STRtree обходит элементы в пространственном порядке. Возвращаем исходный порядок,
             // поскольку от него зависят индексы навигационных узлов и разрешение равенств поиска.
-            List<Integer> ordinals = (List<Integer>) tree.query(envelope);
-            if (ordinals.isEmpty()) {
+            OrdinalHits ordinals = new OrdinalHits();
+            tree.query(envelope, ordinals);
+            if (ordinals.size == 0) {
                 return List.of();
             }
-            if (ordinals.size() == 1) {
-                return List.of(all.get(ordinals.get(0)));
+            if (ordinals.size == 1) {
+                return List.of(all.get(ordinals.first));
             }
-            if (ordinals.size() == 2) {
-                int first = ordinals.get(0);
-                int second = ordinals.get(1);
+            if (ordinals.size == 2) {
+                int first = ordinals.first;
+                int second = ordinals.second;
                 return first < second ? List.of(all.get(first), all.get(second))
                         : List.of(all.get(second), all.get(first));
             }
-            ordinals.sort(Integer::compare);
-            List<Constraint> result = new ArrayList<>(ordinals.size());
-            for (int ordinal : ordinals) {
-                result.add(all.get(ordinal));
+            Arrays.sort(ordinals.values, 0, ordinals.size);
+            List<Constraint> result = new ArrayList<>(ordinals.size);
+            for (int index = 0; index < ordinals.size; index++) {
+                result.add(all.get(ordinals.values[index]));
             }
             return result;
+        }
+
+        /** Данные только одного запроса; для частых 0–2 попаданий массив не создаётся. */
+        private static final class OrdinalHits implements ItemVisitor {
+            private int first;
+            private int second;
+            private int[] values;
+            private int size;
+
+            @Override
+            public void visitItem(Object item) {
+                int ordinal = (Integer) item;
+                if (size == 0) { first = ordinal; size = 1; return; }
+                if (size == 1) { second = ordinal; size = 2; return; }
+                if (values == null) {
+                    values = new int[16];
+                    values[0] = first;
+                    values[1] = second;
+                } else if (size == values.length) {
+                    values = Arrays.copyOf(values, size + size / 2);
+                }
+                values[size++] = ordinal;
+            }
         }
     }
 

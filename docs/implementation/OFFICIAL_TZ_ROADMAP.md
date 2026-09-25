@@ -4,6 +4,12 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Приоритетная актуализация — source80:** [query-local ordinal sort](PRIMARY_ROUTING_80.md).
+Behavior-preserving optimization:5новыхtests/scoped81PASS, clean/fast1227cases/1224PASS/3skip,
+web36/scripts37/lint/typecheckPASS. Full80session59635 и full79/roads79/roads77 ещё выполняются.
+Точный состав/порядок query проверен; полное variants80==79 и end-to-end gain ещё не подтверждены.
+Качество, этапы R и цель пока не подтверждены; runtime61/VPS прежние.
+
 **Результат full78:**1220cases/1216PASS/1compactFAIL/3skip, fixture599,957с;17/17/strict
 exportPASS, но cheapest сохранил3плохих угла. [Подробности78](PRIMARY_ROUTING_78.md).
 Full79/roads77/roads79 ещё выполняются; runtime61/VPS не менялись. Это не принятый quality gate.

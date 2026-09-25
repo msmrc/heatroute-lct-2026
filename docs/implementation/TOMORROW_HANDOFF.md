@@ -1,5 +1,15 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source80 — оптимизация сортировки препятствий
+
+Сначала [PRIMARY_ROUTING_80.md](PRIMARY_ROUTING_80.md). Query-local primitive ordinals сохраняют
+точные состав/порядок STRtree query, без нового кэша/изменения геометрии.5новыхtests, scoped81PASS,
+clean/fast1227cases/1224PASS/0fail/0error/3skip; web36/scripts37/lint/typecheckPASS. End-to-end gain
+не измерен. Full80session59635 на `.tooling/source80-build.GwJekn/apps/api/target` запущен.
+Full79session51226/roads79session69123 делят frozen target79; roads77session2599 — target77.
+Не менять targets и не дублировать процессы. Нужны exact variants80==79 и all-role quality,
+затем roads/native/изображения. Runtime61/VPS неизменны; на checkpoint оставалось2%лимита.
+
 ## Актуально: source79 — не перестраивать целиком допустимую сеть
 
 **Обновление:** full78session46700 завершён1220cases/1216PASS/1compactFAIL/3skip;17of17/strict

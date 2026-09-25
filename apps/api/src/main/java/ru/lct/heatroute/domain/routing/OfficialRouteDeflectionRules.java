@@ -53,7 +53,7 @@ public final class OfficialRouteDeflectionRules {
         return sorted(issues);
     }
 
-    /** Один проход по координатам: память не зависит от числа вершин; результат хранит лишь крайние лучи. */
+    /** Один проход по координатам: память не зависит от числа вершин; результат хранит крайние лучи и длину. */
     public static PolylineCheck validatePolyline(String edgeId, Iterable<RouteCoordinate> coordinates) {
         if (coordinates == null) throw new IllegalArgumentException("Route coordinates are required");
         ensureActive();
@@ -112,6 +112,7 @@ public final class OfficialRouteDeflectionRules {
         Vector incoming = null;
         boolean reported = false;
         long index = -1;
+        double actualLengthM = 0;
         for (RouteCoordinate point : coordinates) {
             ensureActive();
             index++;
@@ -131,6 +132,7 @@ public final class OfficialRouteDeflectionRules {
                 issues.add(undefined(edgeId, "Route direction must be finite"));
                 return null;
             }
+            actualLengthM += outgoing.length;
             if (firstDirection == null) firstDirection = outgoing;
             if (!reported && incoming != null && exceedsRightAngle(incoming, outgoing)) {
                 issues.add(exceeded(edgeId, incoming, outgoing, "at internal vertex before coordinate " + index));
@@ -144,7 +146,7 @@ public final class OfficialRouteDeflectionRules {
             issues.add(undefined(edgeId, "Route geometry needs at least two distinct coordinates"));
             return null;
         }
-        return new EdgeDirections(first, previous, firstDirection, incoming.reversed());
+        return new EdgeDirections(first, previous, firstDirection, incoming.reversed(), actualLengthM);
     }
 
     private static boolean exceedsRightAngle(Vector incoming, Vector outgoing) {
@@ -198,6 +200,8 @@ public final class OfficialRouteDeflectionRules {
             this.issues = List.copyOf(issues); this.directions = directions;
         }
         public List<RouteValidationIssue> getIssues() { return issues; }
+        /** Фактическая длина в метрах без округления; NaN при неопределённой геометрии. */
+        public double getActualLengthM() { return directions == null ? Double.NaN : directions.actualLengthM; }
         public EdgeEndpoints endpoints(String upstreamNodeId, String downstreamNodeId) {
             return new EdgeEndpoints(upstreamNodeId, downstreamNodeId, directions);
         }
@@ -230,8 +234,11 @@ public final class OfficialRouteDeflectionRules {
         private final RouteCoordinate lastPoint;
         private final Vector first;
         private final Vector last;
-        private EdgeDirections(RouteCoordinate firstPoint, RouteCoordinate lastPoint, Vector first, Vector last) {
+        private final double actualLengthM;
+        private EdgeDirections(RouteCoordinate firstPoint, RouteCoordinate lastPoint, Vector first, Vector last,
+                double actualLengthM) {
             this.firstPoint = firstPoint; this.lastPoint = lastPoint; this.first = first; this.last = last;
+            this.actualLengthM = actualLengthM;
         }
         private Vector at(RouteCoordinate node) {
             double firstDistance = Vector.between(node, firstPoint).length;

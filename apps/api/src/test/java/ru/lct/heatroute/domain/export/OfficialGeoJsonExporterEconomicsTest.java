@@ -39,8 +39,7 @@ class OfficialGeoJsonExporterEconomicsTest {
     @Test
     void depthBreakpointBeforeADiagonalBendPreservesSavedConstructionCost() {
         ObjectNode calculation = calculation(false, true);
-        BigDecimal expected = calculation.path("variants").path(0).path("economics")
-                .path("construction_cost").decimalValue();
+        BigDecimal expected = pipeConstructionCost(calculation);
         assertThat(expected).isEqualByComparingTo("531991.79");
 
         exporter.validate(calculation, List.of());
@@ -50,8 +49,7 @@ class OfficialGeoJsonExporterEconomicsTest {
     @Test
     void sectionBoundariesUseTheSameMillimetreStationsAsDepthPricing() {
         ObjectNode calculation = calculation(true, true);
-        BigDecimal expected = calculation.path("variants").path(0).path("economics")
-                .path("construction_cost").decimalValue();
+        BigDecimal expected = pipeConstructionCost(calculation);
         exporter.validate(calculation, List.of());
         assertExportedCost(calculation, expected);
     }
@@ -59,8 +57,7 @@ class OfficialGeoJsonExporterEconomicsTest {
     @Test
     void twoDimensionalPricingStillUsesTheOriginalSectionLengths() {
         ObjectNode calculation = calculation(false, false);
-        BigDecimal expected = calculation.path("variants").path(0).path("economics")
-                .path("construction_cost").decimalValue();
+        BigDecimal expected = pipeConstructionCost(calculation);
         assertThat(expected).isEqualByComparingTo(economics.newNetworkCost(pipes.byDiameter(300).orElseThrow(),
                 new BigDecimal("3.414"), SpecialCrossingType.BASE, new BigDecimal("3")));
         assertExportedCost(calculation, expected);
@@ -96,8 +93,7 @@ class OfficialGeoJsonExporterEconomicsTest {
                         List.of(new RouteSection("base", null, null, coordinates, 17.315, null)),
                         BigDecimal.ONE, 125, profile);
                 ObjectNode calculation = calculation(edge);
-                BigDecimal expected = calculation.path("variants").path(0).path("economics")
-                        .path("construction_cost").decimalValue();
+                BigDecimal expected = pipeConstructionCost(calculation);
                 if (control == null) control = expected;
                 assertThat(expected).isEqualByComparingTo(control);
                 exporter.validate(calculation, List.of());
@@ -114,6 +110,15 @@ class OfficialGeoJsonExporterEconomicsTest {
                 .map(properties -> properties.path("cost").decimalValue())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(physical).isEqualByComparingTo(expected);
+    }
+
+    private BigDecimal pipeConstructionCost(ObjectNode calculation) {
+        JsonNode saved = calculation.path("variants").path(0).path("economics");
+        // Тест проверяет округление цены трубы. Камера ввода теперь явно присутствует
+        // и оплачивается отдельно; прежние денежные границы трубы остаются неизменными.
+        assertThat(saved.path("chamber_construction_cost").decimalValue()).isPositive();
+        return saved.path("construction_cost").decimalValue()
+                .subtract(saved.path("chamber_construction_cost").decimalValue());
     }
 
     private ObjectNode calculation(boolean separateSections, boolean depthEnabled) {
@@ -135,7 +140,7 @@ class OfficialGeoJsonExporterEconomicsTest {
     private ObjectNode calculation(RouteEdge edge) {
         List<RouteCoordinate> coordinates = edge.getCoordinates();
         List<RouteNode> nodes = List.of(
-                new RouteNode("start", "technical_node", coordinates.get(0), false, true, 0, null),
+                new RouteNode("start", "new_branch_chamber", coordinates.get(0), true, true, 0, null),
                 new RouteNode("end", "demand_connection", coordinates.get(coordinates.size() - 1),
                         false, false, 0, null));
         List<RouteConnection> connections = List.of(new RouteConnection("demand", "end", BigDecimal.ONE, "connected", null));

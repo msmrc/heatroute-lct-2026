@@ -7,7 +7,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToDoubleFunction;
 
 /**
  * Проверяет уточнение Евгения от 25.09.2026: ввод ОКС начинается в камере,
@@ -21,6 +23,16 @@ public final class ExpertChamberRouteValidator {
 
     /** Обходит лес за O(V + E + число координат); технические вершины не обнуляют длину участка. */
     public List<RouteValidationIssue> validate(List<RouteNode> nodes, List<RouteEdge> edges) {
+        return validate(nodes, edges, this::actualLengthM);
+    }
+
+    /**
+     * Принимает измеренные по фактическим полилиниям EPSG:32637 длины из потокового адаптера.
+     * Provider не должен подставлять заявленную length_m; непроверяемой геометрии соответствует NaN.
+     */
+    public List<RouteValidationIssue> validate(List<RouteNode> nodes, List<RouteEdge> edges,
+            ToDoubleFunction<RouteEdge> measuredLengthM) {
+        Objects.requireNonNull(measuredLengthM, "Measured geometry length provider is required");
         Map<String, RouteNode> byId = new LinkedHashMap<>();
         for (RouteNode node : nodes) {
             if (node.getId() == null || byId.putIfAbsent(node.getId(), node) != null) {
@@ -66,7 +78,7 @@ public final class ExpertChamberRouteValidator {
             }
             for (RouteEdge edge : children) {
                 pending.addLast(new PathState(byId.get(edge.getDownstreamNodeId()), chamberId,
-                        lengthM + actualLengthM(edge)));
+                        lengthM + measuredLengthM.applyAsDouble(edge)));
             }
         }
         if (visited != nodes.size()) issues.addAll(topologyIssue(null));

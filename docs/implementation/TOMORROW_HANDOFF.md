@@ -1,6 +1,15 @@
 # Handoff — Артём / PM / developer
 
-## Текущий source67: clean/fresh прогон выполняется
+## Текущий source68: контрольные relocation-ветви сохранены
+
+Сначала [PRIMARY_ROUTING_68.md](PRIMARY_ROUTING_68.md), код `ae452a7`. Независимое review
+обнаружило в67 потерю исходного улучшения80→70м после ремонта конкурента до75м. Реальный
+RED→GREEN;79focusedPASS. В relocation остаются исходные3роли+1repair, промежуточного
+вытеснения нет. Full **compiled67** ещё выполняется; не переносить его результаты на68.
+После него snapshot, метрики/JFR, затем fresh68/export и roads+kindergarten. Runtime61/VPS
+не обновлялись; полного no-loss/performance/R-gate пока нет.
+
+## Предыдущий source67: clean/fresh прогон выполняется
 
 Сначала [PRIMARY_ROUTING_67.md](PRIMARY_ROUTING_67.md). Код `ff1a4c1`/`da44a56` отправлен.
 Поздний cheapest получает существующую инженерную доводку после выбора portfolio, только

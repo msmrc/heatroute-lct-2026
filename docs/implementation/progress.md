@@ -1,5 +1,14 @@
 # Current implementation progress
 
+## 2026-09-25 — source68: сохранение исходных relocation-контролей
+
+[PRIMARY_ROUTING_68.md](PRIMARY_ROUTING_68.md), код `ae452a7`. Review67 выявил потерю ещё
+не выполненного улучшения исходной сети после промежуточного отбора нового победителя.
+RED на реальном planner:75м вместо достижимых70м из80м. Теперь relocation получает три
+исходные роли плюс один repair, без вытеснения. Isolated Java11 focused79/79PASS.
+Полный compiled67 продолжает работу без изменения его `target`; включён30сJFR, замер не
+изолированный. Full/fresh68 и roads+kindergarten ещё впереди, runtime61 сохранён.
+
 ## 2026-09-25 — source67: поздняя инженерная доводка и повторная подготовка контуров
 
 [PRIMARY_ROUTING_67.md](PRIMARY_ROUTING_67.md), код `ff1a4c1`/`da44a56` отправлен.

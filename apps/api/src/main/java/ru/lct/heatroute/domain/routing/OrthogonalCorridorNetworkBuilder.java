@@ -574,11 +574,10 @@ final class OrthogonalCorridorNetworkBuilder {
                 if (finalDiameter == null) return null;
                 Envelope bounds = new Envelope();
                 simplified.forEach(bounds::expandToInclude);
-                // Загружаем ограничения по полной фактической линии и ДУ этого ребра, не только
-                // по исходной сетке: terminal spur может выходить за её охват и иметь меньший ДУ.
-                PreparedCorridor assembly = router.prepareCorridor(finalDiameter, environment, bounds,
-                        root.getCoordinate().toCoordinate(), root.getTargetId());
-                RoutePath complete = assembly.completeCheckedAssembly(simplified);
+                // Секции и целый special проверяем по полной линии и ДУ этого ребра: terminal spur
+                // может выйти за сетку. Отступы звеньев/ввода проверены выше, итоговый ДУ — в finish.
+                RoutePath complete = router.completeCheckedCorridorAssembly(finalDiameter, environment, bounds,
+                        root.getCoordinate().toCoordinate(), root.getTargetId(), simplified);
                 if (complete == null) return null;
                 edges.add(new RouteEdge("corridor:" + fromNode.getId() + ":" + toNode.getId(),
                         fromNode.getId(), toNode.getId(), complete.lengthM(),

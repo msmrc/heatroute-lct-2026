@@ -76,6 +76,20 @@ public class OfficialObstacleRouter {
         return new PreparedCorridor(rules, environment.corridorConstraints(diameter, bounds), root, targetId, traversal);
     }
 
+    /**
+     * Завершает секции уже проверенных звеньев, не строя неиспользуемые запрещённые буферы заново.
+     * Не является проверкой отступов: проверки звеньев, вводов и финальной сети обязательны отдельно.
+     * Нестандартные правила сохраняют прежний полный путь подготовки.
+     */
+    RoutePath completeCheckedCorridorAssembly(int diameter, OfficialRoutingEnvironment environment,
+            Envelope bounds, Coordinate root, String targetId, List<Coordinate> coordinates) {
+        if (!rules.hasStandardPreparationRules()) {
+            return prepareCorridor(diameter, environment, bounds, root, targetId).completeCheckedAssembly(coordinates);
+        }
+        return new PreparedCorridor(rules, environment.corridorCrossingConstraints(diameter, bounds), root, targetId)
+                .completeCheckedAssembly(coordinates);
+    }
+
     double buildingClearanceM(int diameter) { return rules.preparationClearanceM("oks", diameter).doubleValue(); }
 
     RouteAvoidance avoidanceFor(RouteEdge edge, List<RouteEdge> accepted, Map<String, RouteNode> nodes) {

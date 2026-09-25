@@ -97,6 +97,15 @@ public class OfficialRouteGeometryRules {
         return result;
     }
 
+    /** Только ограничения, используемые разметкой секций и полным пересечением дороги/трамвая. */
+    List<Constraint> crossingConstraints(List<ImportedOfficialFeature> features, int diameter) {
+        List<ImportedOfficialFeature> crossingFeatures = features.stream()
+                .filter(feature -> catalog.find(constraintType(feature))
+                        .map(rule -> !rule.isForbidden()).orElse(false))
+                .collect(Collectors.toList());
+        return baseConstraints(crossingFeatures, diameter);
+    }
+
     /** Called only after an input geometry has passed the null/empty checks. */
     BigDecimal preparationClearanceM(String type, int diameter) {
         SpatialConstraintRule rule = catalog.find(type).orElse(null);

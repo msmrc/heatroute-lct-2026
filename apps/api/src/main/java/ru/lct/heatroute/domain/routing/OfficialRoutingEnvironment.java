@@ -88,6 +88,15 @@ final class OfficialRoutingEnvironment {
         return all;
     }
 
+    /** Полное окно фактической полилинии; запрещённые буферы не нужны уже проверенной сборке секций. */
+    List<Constraint> corridorCrossingConstraints(int diameter, Envelope bounds) {
+        Envelope query = new Envelope(bounds);
+        query.expandBy(WINDOW_MARGIN_M);
+        List<Constraint> all = new java.util.ArrayList<>(rules.crossingConstraints(features, diameter));
+        all.addAll(rules.crossingConstraints(source.findInMetricWindow(query), diameter));
+        return all;
+    }
+
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgress(int diameter, Coordinate point) {
         return rules.normalEgress(featuresInWindow(point, point), diameter, point);
     }

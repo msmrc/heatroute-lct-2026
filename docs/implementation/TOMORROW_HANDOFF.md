@@ -1,6 +1,17 @@
 # Handoff — Артём / PM / developer
 
-## Текущий source66: 11 камер у cheapest, общий quality gate открыт
+## Текущий source67: clean/fresh прогон выполняется
+
+Сначала [PRIMARY_ROUTING_67.md](PRIMARY_ROUTING_67.md). Код `ff1a4c1`/`da44a56` отправлен.
+Поздний cheapest получает существующую инженерную доводку после выбора portfolio, только
+если это даёт полный compliant результат без роста цены/длины; исходные роли сохранены.
+Replay66:2090,416м/11новых камер/23поворота/0expert/17of17/strict exportPASS. Это НЕ fresh67.
+Подготовка obstacle buffer/hull ограничена одним поиском и бюджетом памяти;80router PASS.
+Repair77focused/4guardsPASS; web36/scripts37/lint/typecheckPASS. Clean924/fresh67 выполняется,
+надо дождаться результата, сохранить
+surefire snapshot и сравнить все роли/экспорт/время. Runtime61 не обновлять по одному replay.
+
+## Предыдущий source66: 11 камер у cheapest, общий quality gate открыт
 
 Сначала [PRIMARY_ROUTING_66.md](PRIMARY_ROUTING_66.md). Код `8d58875` / `3c50437` в origin,
 ветка `codex/routing-63-geometry`. Исходная aggregate-DU сетка сохранена; вторая добавляет

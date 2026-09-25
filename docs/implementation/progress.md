@@ -1,5 +1,18 @@
 # Current implementation progress
 
+## 2026-09-25 — source67: поздняя инженерная доводка и повторная подготовка контуров
+
+[PRIMARY_ROUTING_67.md](PRIMARY_ROUTING_67.md), код `ff1a4c1`/`da44a56` отправлен.
+Отдельный диагностический replay66 подтвердил2090,416м/11новых камер/23поворота/0expert,
+17of17/strict exportPASS после существующего regularizeEngineeringDraft(false). Он был
+пропущен для позднего cheapest. В67 добавлен этот этап после отбора, с сохранением исходных
+ролей и запретом ухудшения длины/цены. RED→GREEN и отказ от более дорогого park-detour PASS.
+Отдельно obstacle buffer/hull готовится один раз между расширениями одного поиска;
+router80/80PASS, реальные6→1вычисления, точная геометрия сохранена. Repair focused77/77,
+затем guards4/4PASS. Web36/scripts37/lint/typecheckPASS. Clean924/fresh67 выполняется;
+итог пока не получен.
+Replay66 не объявляется fresh67. Runtime61/VPS не менялись, общий quality gate открыт.
+
 ## 2026-09-25 — source66: индивидуальные anchors и UTM-точность
 
 Код `8d58875` / `3c50437` отправлен, remote SHA проверен.

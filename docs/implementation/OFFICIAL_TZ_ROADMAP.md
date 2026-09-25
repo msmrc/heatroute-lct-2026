@@ -4,7 +4,15 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
-**Текущий source66, WIP:** [индивидуальные вводы и сохранение контрольной сетки](PRIMARY_ROUTING_66.md).
+**Текущий source67, WIP:** [поздняя доводка и подготовка препятствий](PRIMARY_ROUTING_67.md).
+Код `ff1a4c1`/`da44a56` отправлен. Replay66 даёт11новых камер/2090,416м/23поворота/0expert/
+strict exportPASS; исправлено отсутствие этого этапа у позднего победителя portfolio.
+Отдельная search-local подготовка контуров сохраняет точные результаты;80router PASS,
+repair77focused/4guardsPASS. Web36/scripts37/lint/typecheckPASS; clean924/fresh67 выполняется,
+runtime61 сохранён.
+Ускорение всего расчёта, release/R-этапы и fresh67 пока не подтверждены.
+
+**Предыдущий source66, WIP:** [индивидуальные вводы и сохранение контрольной сетки](PRIMARY_ROUTING_66.md).
 Код `8d58875` / `3c50437` в origin. Исправлены локальный mismatch ДУ anchors и численная
 потеря минимального перехода при UTM-переносе. Focused55/web36/scripts37/lint/typecheckPASS;
 clean914:910PASS/1failure/0errors/3skip, compact-control FAIL. Fresh652,482с/17of17/strict

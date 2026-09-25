@@ -37,7 +37,8 @@ class OfficialFinalDiameterSharedJunctionTest {
 
         assertValid(fixture.singleNodes(), after, fixture.features);
         assertThat(after.get(0)).isNotSameAs(before);
-        assertThat(after.get(0).getLengthM()).isEqualByComparingTo("31.408");
+        assertThat(after.get(0).getLengthM()).isLessThan(before.getLengthM());
+        assertPreservedChamberApproach(before, after.get(0));
     }
 
     @Test
@@ -295,12 +296,37 @@ class OfficialFinalDiameterSharedJunctionTest {
         RouteEdge before = fixture.edge("branch", "root", "demand", 500, List.of(
                 fixture.point(-20, 0), fixture.point(-20, 20), fixture.point(20, 20),
                 fixture.point(20, 0), fixture.point(10, 0), fixture.point(-1, 0)));
+        List<RouteNode> branchNodes = List.of(fixture.node("root", -20, 0, true),
+                fixture.node("demand", -1, 0, false));
+        RouteEdge control = find(ensure(branchNodes, List.of(before), fixture.features), "branch");
+        assertValid(branchNodes, List.of(control), fixture.features);
+        assertPreservedChamberApproach(before, control);
+        // Сосед занимает настоящий удалённый участок контрольного обхода, а не старую
+        // диагональ, которая теперь запрещена из-за потери нормали камеры.
+        List<RouteCoordinate> controlPoints = control.getCoordinates();
+        Coordinate remoteStart = controlPoints.get(controlPoints.size() - 3).toCoordinate();
+        Coordinate approach = controlPoints.get(controlPoints.size() - 2).toCoordinate();
+        Coordinate root = fixture.point(-20, 0);
+        assertThat(remoteStart.distance(root)).isGreaterThan(2);
+        assertThat(approach.distance(root)).isGreaterThan(2);
+        assertThat(remoteStart.distance(approach)).isGreaterThan(2);
         RouteEdge incident = fixture.edge("sibling", "root", "other", 500, List.of(
-                fixture.point(-20, 0), fixture.point(-20, -20), fixture.point(-12, -20),
-                fixture.point(-12, 0), fixture.point(-15, 0)));
-        List<RouteNode> nodes = List.of(fixture.node("root", -20, 0, true),
-                fixture.node("demand", -1, 0, false), fixture.node("other", -15, 0, false));
+                root, fixture.point(-20, -20), new Coordinate(approach.x, fixture.point(0, -20).y),
+                approach, remoteStart));
+        List<RouteNode> nodes = new ArrayList<>(branchNodes);
+        nodes.add(new RouteNode("other", "demand_connection", new RouteCoordinate(remoteStart.x, remoteStart.y),
+                false, false, 0, null));
         assertRemoteCollisionRemainsBlocked(fixture, nodes, before, incident, 1);
+    }
+
+    private void assertPreservedChamberApproach(RouteEdge before, RouteEdge after) {
+        var original = ExpertChamberGeometryRules.summarize(before.getCoordinates());
+        var repaired = ExpertChamberGeometryRules.summarize(after.getCoordinates());
+        assertThat(repaired.getFirstBendDistanceM()).isGreaterThanOrEqualTo(2);
+        assertThat(ExpertChamberGeometryRules.straightDirections(original.getFirstDx(), original.getFirstDy(),
+                repaired.getFirstDx(), repaired.getFirstDy())).isTrue();
+        assertThat(repaired.hasInvalidBendAngle()).isFalse();
+        assertThat(repaired.hasShortBendSpacing()).isFalse();
     }
 
     private void assertIncomingAcceptedEdge(int diameter, boolean repairRequired) throws Exception {

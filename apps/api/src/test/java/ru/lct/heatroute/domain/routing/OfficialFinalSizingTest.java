@@ -45,7 +45,9 @@ class OfficialFinalSizingTest {
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", new RouteCoordinate(0, 0), true, true, 2, "existing"),
                 new RouteNode("demand:one", "demand_connection", new RouteCoordinate(170, 0), false, false, 0, null));
-        List<Coordinate> original = List.of(new Coordinate(0, 0), new Coordinate(85, 1), new Coordinate(170, 0));
+        // Оба поворота разрешены §2.1 ТЗ, но между ними всего sqrt(2) м: необходим ремонт.
+        List<Coordinate> original = List.of(new Coordinate(0, 0), new Coordinate(85, 1),
+                new Coordinate(86, 0), new Coordinate(170, 0));
         LineString originalLine = rules.line(original);
         RouteEdge edge = new RouteEdge("edge", "root", "demand:one", originalLine.getLength(),
                 original.stream().map(c -> new RouteCoordinate(c.x, c.y)).collect(Collectors.toList()),

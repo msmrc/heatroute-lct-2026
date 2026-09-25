@@ -13,9 +13,10 @@ import org.locationtech.jts.geom.Geometry;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.topology.ExistingNetworkIncidence;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
-/** Не теряем компактный полный черновик при отбрасывании коротких неустойчивых вводов. */
+/** Не теряем компактный полный черновик; его сохранение не означает финального допуска камер. */
 class OfficialCorridorControlRecoveryTest {
     @Test
     void preservesCompactInputDerivedDraftForFinalRegularization() throws Exception {
@@ -32,11 +33,7 @@ class OfficialCorridorControlRecoveryTest {
                 demands.values().stream().mapToDouble(f -> f.getMetricGeometry().getCoordinate().y).average().orElseThrow());
         ImportedOfficialFeature target = features.stream().filter(f -> "heat_chamber".equals(f.getObjectType()))
                 .min(Comparator.comparingDouble(f -> f.getMetricGeometry().getCoordinate().distance(center))).orElseThrow();
-        int incident = (int) features.stream().filter(f -> "heat_network".equals(f.getObjectType()))
-                .filter(f -> f.getMetricGeometry().distance(target.getMetricGeometry()) <= 0.01).count();
-        Coordinate rootPoint = target.getMetricGeometry().getCoordinate();
-        RouteNode root = new RouteNode("root:" + target.getFeatureId(), "existing_chamber_tie_in",
-                new RouteCoordinate(rootPoint.x, rootPoint.y), true, true, incident, target.getFeatureId());
+        RouteNode root = OfficialCorridorDatasetTest.existingRoot(target, new ExistingNetworkIncidence(features));
         List<OrthogonalCorridorNetworkBuilder.Terminal> terminals = demands.values().stream()
                 .map(f -> new OrthogonalCorridorNetworkBuilder.Terminal(f.getFeatureId(), f.getFeatureId(),
                         f.getMetricGeometry().getCoordinate(), new BigDecimal(f.getAttributes().path("flow_tph").asText())))
@@ -45,7 +42,7 @@ class OfficialCorridorControlRecoveryTest {
                 .map(ImportedOfficialFeature::getMetricGeometry).collect(Collectors.toList());
 
         List<OrthogonalCorridorNetworkBuilder.Network> candidates = new OrthogonalCorridorNetworkBuilder(
-                router, new OfficialPipeCatalog()).buildWithTerminalFrame(terminals, root, 4 - incident,
+                router, new OfficialPipeCatalog()).buildWithTerminalFrame(terminals, root, 4 - root.getBaseIncidentSections(),
                 buildings, environment, (id, port, diameter, avoidance) -> OfficialCorridorDatasetTest.terminalRoute(
                         router, environment, demands.get(id).getMetricGeometry().getCoordinate(), port, diameter, avoidance));
 
@@ -60,6 +57,7 @@ class OfficialCorridorControlRecoveryTest {
             assertThat(candidate.edges().stream().mapToDouble(edge -> edge.getLengthM().doubleValue()).sum())
                     .isLessThan(1860.0);
         });
-        // Это gate черновика; экспертные правила, ДУ, глубину и экспорт проверяет полный dataset test.
+        // Ближайшая камера может не иметь свободной нормали по фактическим лучам существующей сети.
+        // Это gate черновика: финальные нормали, 2м, ДУ, глубину и экспорт проверяет полный dataset test.
     }
 }

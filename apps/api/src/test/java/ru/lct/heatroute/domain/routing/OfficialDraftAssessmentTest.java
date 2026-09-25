@@ -58,7 +58,9 @@ class OfficialDraftAssessmentTest {
         OfficialRoutingEnvironment environment = router.prepare(List.of());
         RouteVariant source = planner.withEngineeringAssessment(planner.finish("seed", "engineering",
                 new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
-        assertThat(source.isValid()).isTrue();
+        assertThat(source.isValid()).isFalse();
+        assertThat(source.getValidationIssues()).extracting(RouteValidationIssue::getCode)
+                .containsExactly("EXPERT_CHAMBER_SPACING_TOO_SHORT");
         assertThat(source.getEngineeringIssues()).extracting(RouteValidationIssue::getCode)
                 .containsExactly("EXPERT_CHAMBER_SPACING_TOO_SHORT");
         sizer.reset();

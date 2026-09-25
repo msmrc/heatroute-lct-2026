@@ -14,7 +14,7 @@ import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
 
 /**
- * Проверяет бюджет между search и повторным отбором ролей на трёх независимых камерах.
+ * Частичный обязательный ремонт не становится выбранной ролью до исправления всех камер.
  * Цена и заявленная длина синтетические: физический пересчёт проверяют интеграционные тесты.
  */
 class ChamberQualityPortfolioBudgetTest {
@@ -23,152 +23,105 @@ class ChamberQualityPortfolioBudgetTest {
     private final EngineeringRouteEvaluator engineering = new EngineeringRouteEvaluator();
 
     @Test
-    void originalPriceAnchorSurvivesExplicitAndDefaultRoleFeedback() {
-        RouteVariant anchor = compound("balanced", 0, "100", "100");
-        RouteVariant first = compound("repair-104", 1, "104", "99");
-        RouteVariant second = compound("repair-108", 2, "108", "98");
-        assertStrictRepair(anchor, first);
-        assertStrictRepair(first, second);
-        assertThat(second.getEconomics().getCalculatedCost())
-                .isGreaterThan(anchor.getEconomics().getCalculatedCost().multiply(new BigDecimal("1.05")))
-                .isLessThan(first.getEconomics().getCalculatedCost().multiply(new BigDecimal("1.05")));
-
+    void anInvalidCheapPriceAnchorCannotDisplaceTheCompleteMandatoryRepair() {
+        RouteVariant anchor = compound("invalid-anchor", 0, "100", "100");
+        RouteVariant partial = compound("partial", 1, "104", "99");
+        RouteVariant complete = compound("complete", 3, "130", "110");
+        assertStrictRepair(anchor, partial);
         for (boolean depth : List.of(false, true)) {
             for (boolean reverse : List.of(false, true)) {
-                List<RouteVariant> inputs = ordered(reverse, anchor, first, second);
-                assertSource(role(selector.select(inputs, depth), "balanced"), anchor);
-                List<RouteVariant> selected = selector.selectChamberQuality(inputs, depth, anchor);
-                assertSource(role(selected, "balanced"), first);
-                assertSource(role(selected, "shortest"), second);
-                assertSource(role(selected, "cheapest"), anchor);
-
-                // Возвращаем именно назначенные роли: вариант 108 уже присутствует как shortest.
-                List<RouteVariant> explicitFeedback = new ArrayList<>(selected);
-                List<RouteVariant> defaultFeedback = new ArrayList<>(selected);
-                for (int repeat = 0; repeat < 2; repeat++) {
-                    Collections.reverse(explicitFeedback);
-                    Collections.reverse(defaultFeedback);
-                    explicitFeedback = new ArrayList<>(selector.selectChamberQuality(explicitFeedback, depth, anchor));
-                    defaultFeedback = new ArrayList<>(selector.select(defaultFeedback, depth));
-                    assertSource(role(explicitFeedback, "balanced"), first);
-                    assertSource(role(defaultFeedback, "balanced"), first);
-                    assertSource(role(explicitFeedback, "cheapest"), anchor);
-                    assertSource(role(defaultFeedback, "cheapest"), anchor);
-                }
+                List<RouteVariant> candidates = ordered(reverse, anchor, partial, complete);
+                assertThat(selector.select(candidates, depth)).hasSize(3)
+                        .allSatisfy(role -> assertSource(role, complete));
+                assertThat(selector.selectChamberQuality(candidates, depth, anchor)).hasSize(3)
+                        .allSatisfy(role -> assertSource(role, complete));
             }
         }
     }
 
     @Test
-    void explicitLengthAnchorAlsoConstrainsCheaperEconomicImprovementOnFeedback() {
-        RouteVariant anchor = compound("balanced", 0, "100000000", "100");
-        RouteVariant first = compound("repair-104m", 1, "104000000", "104");
-        RouteVariant next = compound("cheaper-108m", 2, "90000000", "108");
-        assertStrictRepair(anchor, first);
-        assertStrictRepair(first, next);
-        assertThat(next.getTotalLengthM())
-                .isGreaterThan(anchor.getTotalLengthM().multiply(new BigDecimal("1.05")))
-                .isLessThan(first.getTotalLengthM().multiply(new BigDecimal("1.05")));
-        assertThat(next.getEconomics().getCalculatedCost()).isLessThan(first.getEconomics().getCalculatedCost());
-        assertThat(next.getEconomics().getScore()).isLessThan(anchor.getEconomics().getScore())
-                .isLessThan(first.getEconomics().getScore());
-
+    void roleFeedbackCannotBringBackAShorterPartialRepair() {
+        RouteVariant anchor = compound("invalid-anchor", 0, "100", "100");
+        RouteVariant partial = compound("short-partial", 2, "90", "98");
+        RouteVariant complete = compound("complete", 3, "120", "110");
         for (boolean depth : List.of(false, true)) {
-            for (boolean reverse : List.of(false, true)) {
-                List<RouteVariant> selected = selector.selectChamberQuality(ordered(reverse, anchor, first), depth, anchor);
-                assertSource(role(selected, "balanced"), first);
-                List<RouteVariant> feedback = new ArrayList<>(selected);
-                feedback.add(next);
-                if (reverse) Collections.reverse(feedback);
-
-                // Общий pool сохраняет дешёвую сеть; исходный бюджет ограничивает только balanced.
-                List<RouteVariant> result = selector.selectChamberQuality(feedback, depth, anchor);
-                assertSource(role(result, "balanced"), first);
-                assertThat(role(result, "balanced").getTotalLengthM()).isEqualByComparingTo("104");
-                assertSource(role(result, "shortest"), anchor);
-                assertSource(role(result, "cheapest"), next);
-                assertThat(role(result, "cheapest").getEconomics().getCalculatedCost()).isEqualByComparingTo("90000000");
+            List<RouteVariant> roles = selector.select(List.of(anchor, partial, complete), depth);
+            for (int repeat = 0; repeat < 2; repeat++) {
+                List<RouteVariant> feedback = new ArrayList<>(roles);
+                feedback.add(partial); feedback.add(anchor); Collections.reverse(feedback);
+                roles = selector.selectChamberQuality(feedback, depth, anchor);
+                assertThat(roles).hasSize(3).allSatisfy(role -> assertSource(role, complete));
             }
         }
     }
 
     @Test
-    void intermediateRepairRemainsSelectableWhenFinalWinnerExceedsBalancedLengthBudget() {
-        RouteVariant anchor = compound("balanced", 0, "100", "100");
-        RouteVariant shortest = compound("shortest", 0, "100", "100");
-        RouteVariant seed = compound("cheapest", 0, "90", "110");
-        RouteVariant intermediate = compound("repair-104m", 1, "94", "104");
-        RouteVariant finalWinner = compound("repair-110m", 2, "94", "110");
-        assertStrictRepair(seed, intermediate);
-        assertStrictRepair(intermediate, finalWinner);
-        assertThat(finalWinner.getTotalLengthM())
-                .isGreaterThan(anchor.getTotalLengthM().multiply(new BigDecimal("1.05")))
-                .isLessThan(seed.getTotalLengthM().multiply(new BigDecimal("1.05")));
-
+    void intermediateRepairsStayInternalUntilAllChambersPass() {
+        RouteVariant seed = compound("seed", 0, "100", "100");
+        RouteVariant first = compound("first", 1, "110", "110");
+        RouteVariant second = compound("second", 2, "120", "120");
+        RouteVariant last = compound("last", 3, "130", "130");
         for (boolean depth : List.of(false, true)) {
             AtomicInteger expansions = new AtomicInteger();
-            List<RouteVariant> pool = ChamberQualityRefinementSearch.alternatives(seed, depth, current -> {
-                int pass = expansions.getAndIncrement();
-                assertThat(pass).isLessThan(3);
-                if (pass == 2) {
-                    assertThat(current).isSameAs(finalWinner);
-                    return List.of();
-                }
-                assertThat(current).isSameAs(pass == 0 ? seed : intermediate);
-                return List.of(pass == 0 ? intermediate : finalWinner);
-            });
+            List<RouteVariant> pool = ChamberQualityRefinementSearch.alternatives(seed, depth,
+                    current -> List.of(List.of(first, second, last).get(expansions.getAndIncrement())));
             assertThat(expansions.get()).isEqualTo(3);
-            assertThat(pool).containsExactlyInAnyOrder(intermediate, finalWinner);
+            assertThat(pool).containsExactly(last);
+            assertThat(selector.select(pool, depth)).hasSize(3).allSatisfy(role -> assertSource(role, last));
+            assertThat(last.getConnectedDemandCount()).isEqualTo(seed.getConnectedDemandCount());
+        }
+    }
 
-            List<RouteVariant> originals = List.of(anchor, shortest, seed);
-            List<RouteVariant> finalOnly = new ArrayList<>(originals);
-            finalOnly.add(finalWinner);
-            assertSource(role(selector.selectChamberQuality(finalOnly, depth, anchor), "balanced"), anchor);
+    @Test
+    void boundedPartialProgressCanContinueButCannotEnterTheRolePortfolio() {
+        RouteVariant seed = compound("seed", 0, "100", "100", 4);
+        RouteVariant first = compound("first", 1, "110", "110", 4);
+        RouteVariant second = compound("second", 2, "120", "120", 4);
+        RouteVariant third = compound("third", 3, "130", "130", 4);
+        AtomicInteger expansions = new AtomicInteger();
+        RouteVariant progress = ChamberQualityRefinementSearch.advanceRepair(seed, true,
+                current -> List.of(List.of(first, second, third).get(expansions.getAndIncrement())));
+        assertThat(progress).isSameAs(third);
+        assertThat(expansions.get()).isEqualTo(3);
+        assertThat(selector.select(List.of(seed, progress), true)).isEmpty();
+        RouteVariant complete = compound("a-complete", 4, "140", "140", 4);
+        RouteVariant tie = compound("b-complete", 4, "140", "140", 4);
+        for (boolean reverse : List.of(false, true)) {
+            RouteVariant result = ChamberQualityRefinementSearch.improve(progress, true,
+                    current -> ordered(reverse, complete, tie));
+            assertThat(result).isSameAs(complete);
+            assertThat(result.getConnectedDemandCount()).isEqualTo(8);
+            assertThat(new ExpertChamberRouteValidator().validate(result.getNodes(), result.getEdges())).isEmpty();
+        }
+    }
 
-            for (boolean reverse : List.of(false, true)) {
-                List<RouteVariant> portfolio = new ArrayList<>(originals);
-                portfolio.addAll(pool);
-                if (reverse) Collections.reverse(portfolio);
-                List<RouteVariant> selected = selector.selectChamberQuality(portfolio, depth, anchor);
-                assertSource(role(selected, "balanced"), intermediate);
-                assertSource(role(selected, "shortest"), anchor);
-                assertSource(role(selected, "cheapest"), seed);
-                assertThat(role(selected, "balanced").getTotalLengthM()).isEqualByComparingTo("104");
+    @Test
+    void aStrictValidAnchorStillEnforcesBothFivePercentBoundaries() {
+        RouteVariant anchor = compound("valid-anchor", 3, "100", "100");
+        for (boolean depth : List.of(false, true)) {
+            RouteVariant boundary = compound("boundary", 3, "105", "105");
+            assertThat(selector.selectChamberQuality(List.of(boundary), depth, anchor)).hasSize(3)
+                    .allSatisfy(role -> assertSource(role, boundary));
+            for (RouteVariant outside : List.of(compound("price-over", 3, "105.001", "105"),
+                    compound("length-over", 3, "105", "105.001"))) {
+                assertThat(selector.selectChamberQuality(List.of(outside), depth, anchor))
+                        .extracting(RouteVariant::getId).containsExactly("shortest", "cheapest");
             }
         }
     }
 
     @Test
-    void retainsAllSixAdmittedNeighboursPerSeedAndChoosesDeterministicallyAcrossTheirOrder() {
-        RouteVariant anchor = compound("balanced", 0, "100", "110", 4);
-        RouteVariant first = compound("a-first", 1, "101", "108", 4);
-        RouteVariant firstTie = compound("b-first", 1, "101", "108", 4);
-        RouteVariant second = compound("a-second", 2, "102", "107", 4);
-        RouteVariant secondTie = compound("b-second", 2, "102", "107", 4);
-        RouteVariant third = compound("a-third", 3, "103", "106", 4);
-        RouteVariant thirdTie = compound("b-third", 3, "103", "106", 4);
-        assertStrictRepair(anchor, first);
-        assertStrictRepair(first, second);
-
-        for (boolean reverseFirst : List.of(false, true)) {
-            for (boolean reverseSecond : List.of(false, true)) {
-                AtomicInteger expansions = new AtomicInteger();
-                List<RouteVariant> pool = ChamberQualityRefinementSearch.alternatives(anchor, true, current -> {
-                    int pass = expansions.getAndIncrement();
-                    assertThat(pass).isLessThan(3);
-                    assertThat(current).isSameAs(pass == 0 ? anchor : pass == 1 ? first : second);
-                    return pass == 0 ? ordered(reverseFirst, first, firstTie)
-                            : pass == 1 ? ordered(reverseSecond, second, secondTie) : ordered(reverseFirst, third, thirdTie);
-                });
-                assertThat(expansions.get()).isEqualTo(3);
-                assertThat(pool).hasSize(6).containsExactlyInAnyOrder(first, firstTie, second, secondTie, third, thirdTie);
-                // Ещё одна нерегулярная камера остаётся: остановка вызвана бюджетом трёх проходов.
-                assertThat(engineering.evaluate(third.getEdges()).irregularJunctionAngleCount()).isPositive();
-                List<RouteVariant> portfolio = new ArrayList<>(pool);
-                portfolio.add(anchor);
-                assertSource(role(selector.selectChamberQuality(portfolio, true, anchor), "balanced"), third);
-                Collections.reverse(portfolio);
-                assertSource(role(selector.selectChamberQuality(portfolio, true, anchor), "balanced"), third);
+    void validRoleFeedbackCannotCompoundTheOriginalPriceOrLengthBudget() {
+        RouteVariant anchor = compound("valid-anchor", 3, "100", "100");
+        RouteVariant first = compound("first", 3, "104", "104");
+        RouteVariant compoundIncrease = compound("compound", 3, "108", "108");
+        for (boolean depth : List.of(false, true)) {
+            List<RouteVariant> roles = selector.selectChamberQuality(List.of(first), depth, anchor);
+            for (int repeat = 0; repeat < 2; repeat++) {
+                List<RouteVariant> feedback = new ArrayList<>(roles);
+                feedback.add(compoundIncrease);
+                roles = selector.selectChamberQuality(feedback, depth, anchor);
+                assertThat(roles).hasSize(3).allSatisfy(role -> assertSource(role, first));
             }
         }
     }
@@ -179,10 +132,6 @@ class ChamberQualityPortfolioBudgetTest {
         assertThat(repaired.isCompliant()).isTrue();
         assertThat(repaired.irregularJunctionAngleCount()).isLessThan(original.irregularJunctionAngleCount());
         assertThat(repaired.preservesJunctionQualityOf(original)).isTrue();
-    }
-
-    private RouteVariant role(List<RouteVariant> variants, String id) {
-        return variants.stream().filter(variant -> id.equals(variant.getId())).findFirst().orElseThrow();
     }
 
     private void assertSource(RouteVariant actual, RouteVariant expected) {
@@ -233,7 +182,9 @@ class ChamberQualityPortfolioBudgetTest {
                 List.of(), List.of(), List.of(), ExistingNetworkReconstructionResult.empty(), economics, null);
         assertThat(engineering.evaluate(edges).isCompliant()).isTrue();
         assertThat(engineering.evaluate(edges).irregularJunctionAngleCount()).isEqualTo(chamberCount - repaired);
-        assertThat(new ExpertChamberRouteValidator().validate(nodes, edges)).isEmpty();
+        if (repaired == chamberCount) assertThat(new ExpertChamberRouteValidator().validate(nodes, edges)).isEmpty();
+        else assertThat(new ExpertChamberRouteValidator().validate(nodes, edges))
+                .extracting(RouteValidationIssue::getCode).containsOnly("EXPERT_CHAMBER_OBLIQUE_ENTRY");
         assertThat(result.getConnectedDemandCount()).isEqualTo(2 * chamberCount);
         return result;
     }

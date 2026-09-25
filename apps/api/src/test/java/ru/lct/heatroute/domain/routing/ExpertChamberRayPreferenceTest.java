@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.locationtech.jts.geom.Coordinate;
 
-/** Предпочтение Т/креста: соседние лучи 90°, противоположные 180°; не новая обязательная норма. */
+/** Метрики качества лучей; обязательные нормали отдельно проверяет ExpertChamberGeometryRules. */
 class ExpertChamberRayPreferenceTest {
     private final EngineeringRouteEvaluator evaluator = new EngineeringRouteEvaluator();
 
@@ -123,9 +123,9 @@ class ExpertChamberRayPreferenceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"60, false, 1, 30", "90, true, 1, 0", "120, true, 1, 15",
-            "135, true, 1, 0", "180, true, 0, 0"})
-    void pipeInternalAnglesAndDegreeTwoNodesKeepExistingRules(double angle, boolean compliant, int bends, double preferred) {
+    @CsvSource({"60, false, 1, 30", "90, true, 1, 0", "120, true, 1, 30",
+            "135, true, 1, 45", "150, true, 1, 30", "180, true, 0, 0"})
+    void pipeInternalAnglesAndDegreeTwoNodesFollowTzDeflectionRange(double angle, boolean compliant, int bends, double preferred) {
         RouteCoordinate first = point(100, 0), center = point(0, 0);
         RouteCoordinate last = point(100 * Math.cos(Math.toRadians(angle)), 100 * Math.sin(Math.toRadians(angle)));
         List<List<RouteEdge>> representations = List.of(

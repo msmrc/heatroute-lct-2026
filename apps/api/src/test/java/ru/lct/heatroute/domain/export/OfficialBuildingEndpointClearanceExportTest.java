@@ -150,7 +150,7 @@ class OfficialBuildingEndpointClearanceExportTest {
         ObjectNode edge = (ObjectNode) saved(fixture).path("edges").path(0);
         // SavedRouteGeometry допускает миллиметровое округление секции, но не уменьшение отступа.
         edge.putArray("sections").add(mapper.valueToTree(new RouteSection("base", null, null,
-                List.of(point(-40, 0, rotated), point(-0.5, 0.001, rotated), point(0, 0, rotated)), 40, null)));
+                List.of(point(-40, 0, rotated), point(-2, 0.001, rotated), point(0, 0, rotated)), 40, null)));
         assertAccepted(fixture, withoutBuilding(fixture));
         assertRejected(fixture);
     }

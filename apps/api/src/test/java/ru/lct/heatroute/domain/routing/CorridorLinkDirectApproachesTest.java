@@ -112,7 +112,7 @@ class CorridorLinkDirectApproachesTest {
         // The grid is slightly tilted: this new candidate must actually be a direct tail,
         // not the old exact-axis two-point control covered by CorridorLinkDirectionTest.
         List<RoutePath> paths = build(source(outerUpstream, List.of(outer, junction)),
-                outer, junction, angle + 0.00002, List.of(road));
+                outer, junction, angle + 0.000002, List.of(road));
         boolean direct = paths.stream().anyMatch(path -> path.coordinates().equals(List.of(rounded(outer), rounded(junction))));
         assertThat(direct).isEqualTo(goodDirection);
         assertValid(paths, outer, junction, outerUpstream, List.of(road));
@@ -152,13 +152,13 @@ class CorridorLinkDirectApproachesTest {
     }
 
     @Test
-    void directOfferKeepsTheExistingLFamilyAndEightPathRayBudget() {
+    void obliqueDirectTailIsReplacedByTheFourNormalRayFamilies() {
         Coordinate outer = new Coordinate(0, 0), junction = new Coordinate(25, 20);
         RouteEdge source = source(true, List.of(outer, new Coordinate(20, 0), new Coordinate(20, 20)));
         List<RoutePath> paths = build(source, outer, junction, 0, List.of());
-        assertThat(paths).hasSizeBetween(5, 8);
-        assertThat(paths).anySatisfy(p -> assertThat(p.coordinates()).containsExactly(outer, junction));
-        // All four axial final rays remain available alongside the additional diagonal.
+        assertThat(paths).hasSizeBetween(4, 8);
+        assertThat(paths).noneSatisfy(p -> assertThat(p.coordinates()).containsExactly(outer, junction));
+        // Все четыре нормальных луча доступны; краткая диагональ не получает допуск камеры.
         for (Coordinate ray : List.of(new Coordinate(1, 0), new Coordinate(-1, 0),
                 new Coordinate(0, 1), new Coordinate(0, -1))) {
             assertThat(paths.stream().anyMatch(p -> matchesRay(p, ray))).isTrue();

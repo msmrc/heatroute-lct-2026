@@ -10,13 +10,13 @@ import java.util.Set;
 import org.locationtech.jts.geom.Coordinate;
 
 /**
- * Оценивает экспертную геометрию: внутренний угол трубы 90–135° и минимум 2 м между изгибами.
+ * Оценивает повороты по ТЗ: внутренний угол трубы 90–180° и минимум 2 м между изгибами.
  * Предпочтения лучей камер считаются отдельно и не меняют {@link Evaluation#isCompliant()}.
  * Официальные отступы/пересечения принадлежат каталогу; это не проверка всех требований эксперта или СП.
  */
 final class EngineeringRouteEvaluator {
     static final double MIN_INTERNAL_ANGLE_DEGREES = 90.0;
-    static final double MAX_INTERNAL_ANGLE_DEGREES = 135.0;
+    static final double MAX_INTERNAL_ANGLE_DEGREES = 180.0;
     static final double MIN_BEND_SPACING_M = 2.0;
     static final double ANGLE_EPSILON_DEGREES = 0.5;
     private static final double LENGTH_EPSILON_M = 0.01;

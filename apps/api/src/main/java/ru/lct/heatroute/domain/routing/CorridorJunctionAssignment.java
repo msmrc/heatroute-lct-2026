@@ -19,7 +19,7 @@ import org.locationtech.jts.geom.Point;
 
 /**
  * Выбирает совместимые подходы к общей камере: разные лучи, без наложений и скрытых пересечений.
- * Ортогональность с допуском 5° — фильтр этой кандидатной стратегии, не новая официальная норма.
+ * Камерные лучи занимают перпендикулярные оси; до реального поворота сохраняется минимум 2 м.
  * Препятствия проверяет поставщик путей; итоговая сеть всё равно проходит независимый validator.
  */
 final class CorridorJunctionAssignment {
@@ -51,10 +51,6 @@ final class CorridorJunctionAssignment {
 
     /** Пути направлены внешний узел → камера; ответ сохраняет порядок внешних узлов. */
     static List<RoutePath> choose(Coordinate junction, List<List<RoutePath>> alternatives) {
-        return choose(junction, alternatives, 5.0);
-    }
-
-    private static List<RoutePath> choose(Coordinate junction, List<List<RoutePath>> alternatives, double toleranceDegrees) {
         ensureActive();
         if (junction == null || !Double.isFinite(junction.x) || !Double.isFinite(junction.y)
                 || alternatives == null || alternatives.size() < 2 || alternatives.size() > 4) {
@@ -74,7 +70,7 @@ final class CorridorJunctionAssignment {
             choices.add(paths);
         }
         // Максимум 8^4 комбинаций. Парные отказы и нижняя граница длины сокращают поиск.
-        Search search = new Search(junction, choices, toleranceDegrees);
+        Search search = new Search(junction, choices);
         search.visit(new ArrayList<>(), 0.0);
         if (search.best == null) return null;
         List<RoutePath> result = new ArrayList<>();
@@ -82,9 +78,9 @@ final class CorridorJunctionAssignment {
         return List.copyOf(result);
     }
 
-    /** Отдельный точный поиск для доводки камер, без смены допуска общего построения. */
+    /** Доводка и первоначальная сборка используют одну нормаль камеры. */
     static List<RoutePath> choosePrecise(Coordinate junction, List<List<RoutePath>> alternatives) {
-        return choose(junction, alternatives, EngineeringRouteEvaluator.ANGLE_EPSILON_DEGREES);
+        return choose(junction, alternatives);
     }
 
     /**
@@ -117,19 +113,15 @@ final class CorridorJunctionAssignment {
         if (endpoint.distance(junction) > POSITION_EPSILON_M) throw new IllegalArgumentException("Path misses junction");
         LineString line = GEOMETRIES.createLineString(coordinates.toArray(new Coordinate[0]));
         if (!line.isSimple() || line.isClosed() || !Double.isFinite(line.getLength()) || line.getLength() <= 0) return null;
-        Coordinate before = null;
-        for (int i = coordinates.size() - 2; i >= 0; i--) {
-            if (coordinates.get(i).distance(endpoint) > POSITION_EPSILON_M) { before = coordinates.get(i); break; }
-        }
-        if (before == null) return null;
-        double length = before.distance(endpoint);
-        return new Approach(path, line, (before.x - endpoint.x) / length, (before.y - endpoint.y) / length,
-                before.x - endpoint.x, before.y - endpoint.y);
+        ExpertChamberGeometryRules.PolylineSummary summary = ExpertChamberGeometryRules.summarize(coordinates.stream()
+                .map(c -> new RouteCoordinate(c.x, c.y)).collect(java.util.stream.Collectors.toList()));
+        if (summary == null || summary.hasInvalidBendAngle() || summary.hasShortBendSpacing()
+                || summary.getLastBendDistanceM() + 1e-7 < ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M) return null;
+        return new Approach(path, line, -summary.getLastDx(), -summary.getLastDy());
     }
 
-    private static boolean compatible(Coordinate junction, Approach a, Approach b, double orthogonalCosine, double oppositeCosine) {
-        double cosine = a.x * b.x + a.y * b.y;
-        if (Math.abs(cosine) > orthogonalCosine + 1e-9 && cosine > oppositeCosine + 1e-9) return false;
+    private static boolean compatible(Coordinate junction, Approach a, Approach b) {
+        if (!ExpertChamberGeometryRules.compatibleRays(a.dx, a.dy, b.dx, b.dy)) return false;
         Geometry intersection = a.line.intersection(b.line);
         return intersection.isEmpty() || intersection instanceof Point
                 && intersection.getCoordinate().distance(junction) <= POSITION_EPSILON_M;
@@ -142,16 +134,12 @@ final class CorridorJunctionAssignment {
     private static final class Search {
         private final Coordinate junction;
         private final List<List<Approach>> choices;
-        private final double orthogonalCosine;
-        private final double oppositeCosine;
         private List<Approach> best;
         private double bestLength = Double.POSITIVE_INFINITY;
 
-        private Search(Coordinate junction, List<List<Approach>> choices, double toleranceDegrees) {
+        private Search(Coordinate junction, List<List<Approach>> choices) {
             this.junction = junction;
             this.choices = choices;
-            this.orthogonalCosine = Math.sin(Math.toRadians(toleranceDegrees));
-            this.oppositeCosine = -Math.cos(Math.toRadians(toleranceDegrees));
         }
 
         private void visit(List<Approach> accepted, double length) {
@@ -166,8 +154,7 @@ final class CorridorJunctionAssignment {
             }
             for (Approach candidate : choices.get(accepted.size())) {
                 ensureActive();
-                if (accepted.stream().anyMatch(previous -> !compatible(junction, previous, candidate,
-                        orthogonalCosine, oppositeCosine))) continue;
+                if (accepted.stream().anyMatch(previous -> !compatible(junction, previous, candidate))) continue;
                 accepted.add(candidate);
                 visit(accepted, length + candidate.line.getLength());
                 accepted.remove(accepted.size() - 1);
@@ -178,13 +165,11 @@ final class CorridorJunctionAssignment {
     private static final class Approach {
         private final RoutePath path;
         private final LineString line;
-        private final double x;
-        private final double y;
         private final double dx;
         private final double dy;
 
-        private Approach(RoutePath path, LineString line, double x, double y, double dx, double dy) {
-            this.path = path; this.line = line; this.x = x; this.y = y; this.dx = dx; this.dy = dy;
+        private Approach(RoutePath path, LineString line, double dx, double dy) {
+            this.path = path; this.line = line; this.dx = dx; this.dy = dy;
         }
     }
 

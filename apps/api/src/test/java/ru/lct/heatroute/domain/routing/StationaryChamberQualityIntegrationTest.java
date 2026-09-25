@@ -41,12 +41,16 @@ class StationaryChamberQualityIntegrationTest {
             var seed = planner.withEngineeringAssessment(planner.finish("balanced", "engineering",
                     new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, env,
                     TerminalApproachPolicy.PRESERVE_VALID));
-            assertThat(seed.isValid()).isTrue();
+            assertThat(seed.isValid()).isFalse();
+            assertThat(seed.getValidationIssues()).extracting(RouteValidationIssue::getCode)
+                    .containsOnly("EXPERT_CHAMBER_OBLIQUE_ENTRY");
             assertThat(evaluator.evaluate(seed.getEdges()).isCompliant()).isTrue();
             assertThat(evaluator.evaluate(seed.getEdges()).irregularJunctionAngleCount()).isEqualTo(2);
             assertThat(CorridorSupportedChamberRelocations.build(nodes.get(1), seed.getEdges(), Math.toRadians(angle),
                     java.util.Set.of("demand:a", "demand:b"), at -> true)).isEmpty();
-            var roles = new FinishedRouteVariantSelector().select(List.of(seed), depth);
+            var repaired = planner.repairMandatoryChambers(List.of(seed), demands, List.of(), parameters, false, env);
+            assertThat(repaired).isNotEmpty();
+            var roles = new FinishedRouteVariantSelector().select(repaired, depth);
             var result = planner.improveSelectedChamberQuality(roles, demands, List.of(), parameters, false, env).get(0);
             assertThat(evaluator.evaluate(result.getEdges()).irregularJunctionAngleCount()).isZero();
             assertThat(evaluator.evaluate(result.getEdges()).preservesJunctionQualityOf(evaluator.evaluate(seed.getEdges()))).isTrue();

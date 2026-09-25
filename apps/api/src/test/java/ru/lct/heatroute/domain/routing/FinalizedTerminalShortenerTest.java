@@ -313,7 +313,7 @@ class FinalizedTerminalShortenerTest {
     void checksActualEngineeringAndBendCountEvenWithEmptyStoredEngineeringIssues() {
         RouteVariant baseline = control();
         List<RoutePath> rejected = List.of(
-                path(0, 0, 10, 2, 20, 0),
+                path(0, 0, 10, 12, 20, 0),
                 path(0, 0, 4, 0, 4, 3, 8, 3, 8, 6, 12, 6, 12, 0, 20, 0),
                 path(0, 0, 4, 0, 4, 1, 8, 1, 8, 0, 20, 0));
         for (RoutePath path : rejected) {
@@ -336,8 +336,9 @@ class FinalizedTerminalShortenerTest {
     void rejectsActuallyNonCompliantBaselineBeforeLookingForPaths() {
         RouteVariant baseline = control();
         List<RouteEdge> edges = new ArrayList<>(baseline.getEdges());
-        edges.set(1, edge("leaf-1", "camera", "demand-1", 1, path(0, 0, 10, 2, 20, 0)));
+        edges.set(1, edge("leaf-1", "camera", "demand-1", 1, path(0, 0, 10, 12, 20, 0)));
         RouteVariant invalid = withEdges(baseline, edges);
+        assertThat(engineering.evaluate(edges).invalidAngleCount()).isEqualTo(1);
         assertThat(shortener.improve(invalid, false,
                 (current, edge) -> { throw new AssertionError("Unexpected alternatives"); }, this::finish)).isSameAs(invalid);
     }

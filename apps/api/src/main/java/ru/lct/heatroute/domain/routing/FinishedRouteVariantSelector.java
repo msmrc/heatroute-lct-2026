@@ -69,8 +69,7 @@ public final class FinishedRouteVariantSelector {
         // если finish() уже получил полноценную сеть того же охвата без этих нарушений.
         if (!compliantCandidates.isEmpty()) engineeringCandidates = compliantCandidates;
 
-        Candidate qualityBudget = qualityAnchor == null ? null
-                : new Candidate(qualityAnchor, engineering.evaluate(qualityAnchor.getEdges()));
+        Candidate qualityBudget = chamberQualityBudget(qualityAnchor, depthEnabled);
         List<Candidate> balancedCandidates = qualityBudget != null && hasComparableScore(qualityBudget)
                 ? withinChamberBudget(qualityBudget, engineeringCandidates) : engineeringCandidates;
         Candidate balanced = byId(balancedCandidates, "balanced");
@@ -105,6 +104,16 @@ public final class FinishedRouteVariantSelector {
         if (shortest != null) result.add(asRole(shortest.variant, "shortest", "shortest"));
         if (cheapest != null) result.add(asRole(cheapest.variant, "cheapest", "cheapest"));
         return List.copyOf(result);
+    }
+
+    /** Негодный черновик не задаёт ценовой предел обязательному исправлению геометрии. */
+    private Candidate chamberQualityBudget(RouteVariant anchor, boolean depthEnabled) {
+        if (anchor == null || !anchor.isValid() || !anchor.getSizingIssues().isEmpty()
+                || !anchor.getEngineeringIssues().isEmpty()
+                || depthEnabled && !hasValidDepthProfiles(anchor)
+                || !chambers.validate(anchor.getNodes(), anchor.getEdges()).isEmpty()) return null;
+        EngineeringRouteEvaluator.Evaluation geometry = engineering.evaluate(anchor.getEdges());
+        return geometry.isCompliant() ? new Candidate(anchor, geometry) : null;
     }
 
     /** Сравнивает всех претендентов с одним исходным balanced: коридор 5% не накапливается. */

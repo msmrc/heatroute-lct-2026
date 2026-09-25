@@ -62,6 +62,16 @@ final class OfficialRoutingEnvironment {
 
     RouteNode verifiedRootSupport(RouteNode root) { return existingSupport.verified(root); }
 
+    List<Coordinate> existingDirections(RouteNode root) { return existingSupport.existingDirections(root); }
+
+    Set<String> existingNetworkIds(RouteNode root) {
+        if (!root.isRoot()) return Set.of();
+        org.locationtech.jts.geom.Point at = new GeometryFactory().createPoint(root.getCoordinate().toCoordinate());
+        return features.stream().filter(feature -> "heat_network".equals(feature.getObjectType()))
+                .filter(feature -> feature.getMetricGeometry().distance(at) <= OfficialRouteGeometryRules.EPSILON_M)
+                .map(ImportedOfficialFeature::getFeatureId).collect(java.util.stream.Collectors.toSet());
+    }
+
     /** Сохраняет сессию точного экземпляра валидатора только на время этого окружения расчёта. */
     OfficialRouteValidator.ValidationSession validationFor(OfficialRouteValidator validator) {
         return validationSessions.computeIfAbsent(validator, OfficialRouteValidator::forCalculation);

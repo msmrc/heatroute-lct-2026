@@ -56,7 +56,7 @@ class OfficialChamberQualitySafetyTest {
 
         var environment = new OfficialObstacleRouter(rules).prepare(features);
         RouteVariant original = finish(seed(1), features, parameters, environment);
-        assertSafe(original, original, features, parameters);
+        assertRepairableSeed(original, features, parameters);
         assertThat(engineering.evaluate(original.getEdges()).irregularJunctionAngleCount()).isPositive();
         List<RouteVariant> roles = improve(original, 1, features, parameters, environment);
 
@@ -91,7 +91,7 @@ class OfficialChamberQualitySafetyTest {
         var environment = new OfficialObstacleRouter(rules).prepare(features);
         OfficialRoutePlanner.VariantDraft initial = seed(1000);
         RouteVariant original = finish(initial, features, parameters, environment);
-        assertSafe(original, original, features, parameters);
+        assertRepairableSeed(original, features, parameters);
         assertThat(original.getEdges()).extracting(RouteEdge::getDiameter).containsExactly(500, 500, 600);
         assertThat(engineering.evaluate(original.getEdges()).irregularJunctionAngleCount()).isPositive();
         List<RouteVariant> roles = improve(original, 1000, features, parameters, environment);
@@ -115,7 +115,7 @@ class OfficialChamberQualitySafetyTest {
         List<ImportedOfficialFeature> features = List.of(gas, otherGas);
         var planarEnvironment = new OfficialObstacleRouter(rules).prepare(features);
         RouteVariant planarSeed = finish(seed(1), features, planarParameters, planarEnvironment);
-        assertSafe(planarSeed, planarSeed, features, planarParameters);
+        assertRepairableSeed(planarSeed, features, planarParameters);
         List<RouteVariant> planarRoles = improve(planarSeed, 1, features, planarParameters, planarEnvironment);
         assertPortfolio(planarRoles, planarSeed, features, planarParameters);
         RouteVariant planarRepair = planarRoles.get(0);
@@ -132,7 +132,16 @@ class OfficialChamberQualitySafetyTest {
 
         var environment = new OfficialObstacleRouter(rules).prepare(features);
         RouteVariant original = finish(seed(1), features, depthParameters, environment);
-        assertSafe(original, original, features, depthParameters);
+        assertRepairableSeed(original, features, depthParameters);
+        // Независимый положительный свидетель: конечные газопроводы можно обойти снаружи,
+        // сохранив обе нагрузки, нормали камер и минимум 2 м до первых поворотов.
+        RouteVariant witness = finish(new OfficialRoutePlanner.VariantDraft(
+                original.getNodes(), List.of(
+                    edge("backbone", "root", "j", 2, -100, 0, 0, 0),
+                    edge("a", "j", "demand:a", 1, 0, 0, 0, 2.1, -104, 2.1, -104, 25, 30, 25, 30, 20),
+                    edge("b", "j", "demand:b", 1, 0, 0, 2.1, 0, 2.1, -104, 20, -104, 20, 19.999)),
+                original.getConnections()), features, depthParameters, environment);
+        assertSafe(witness, original, features, depthParameters);
         assertThat(engineering.evaluate(original.getEdges()).irregularJunctionAngleCount()).isPositive();
         List<RouteVariant> roles = improve(original, 1, features, depthParameters, environment);
 
@@ -149,7 +158,7 @@ class OfficialChamberQualitySafetyTest {
     private RouteVariant attractiveRelocation(int flow, OfficialRunParameters parameters) {
         var environment = new OfficialObstacleRouter(rules).prepare(List.of());
         RouteVariant original = finish(seed(flow), List.of(), parameters, environment);
-        assertSafe(original, original, List.of(), parameters);
+        assertRepairableSeed(original, List.of(), parameters);
         assertThat(engineering.evaluate(original.getEdges()).irregularJunctionAngleCount()).isPositive();
         List<RouteVariant> roles = improve(original, flow, List.of(), parameters, environment);
         assertPortfolio(roles, original, List.of(), parameters);
@@ -161,7 +170,10 @@ class OfficialChamberQualitySafetyTest {
 
     private List<RouteVariant> improve(RouteVariant original, int flow, List<ImportedOfficialFeature> features,
             OfficialRunParameters parameters, OfficialRoutingEnvironment environment) {
-        List<RouteVariant> selected = new FinishedRouteVariantSelector().select(List.of(original), parameters.isDepthEnabled());
+        List<RouteVariant> repaired = planner.repairMandatoryChambers(List.of(original), demands(flow), features,
+                parameters, false, environment);
+        assertThat(repaired).isNotEmpty();
+        List<RouteVariant> selected = new FinishedRouteVariantSelector().select(repaired, parameters.isDepthEnabled());
         assertThat(selected).extracting(RouteVariant::getId).containsExactly("balanced", "shortest", "cheapest");
         return planner.improveSelectedChamberQuality(selected, demands(flow), features, parameters, false, environment);
     }
@@ -188,9 +200,6 @@ class OfficialChamberQualitySafetyTest {
                         .filter(node -> node.isRoot() || "demand_connection".equals(node.getNodeType())).collect(Collectors.toList()));
         assertThat(result.getEconomics().isComplete()).isTrue();
         assertThat(result.getEconomics().getCalculatedCost()).isPositive();
-        assertThat(result.getTotalLengthM()).isLessThanOrEqualTo(original.getTotalLengthM().multiply(new BigDecimal("1.05")));
-        assertThat(result.getEconomics().getCalculatedCost())
-                .isLessThanOrEqualTo(original.getEconomics().getCalculatedCost().multiply(new BigDecimal("1.05")));
         var recalculated = new OfficialVariantEconomicsCalculator(pipes, new OfficialEconomics()).calculate(
                 result.getNodes(), result.getEdges(), result.getConnections(), result.getReconstruction(), false);
         assertThat(result.getEconomics()).usingRecursiveComparison().isEqualTo(recalculated);
@@ -203,6 +212,19 @@ class OfficialChamberQualitySafetyTest {
                 assertThat(edge.getDepthProfile().getIssues()).isEmpty();
             }
         });
+    }
+
+    private void assertRepairableSeed(RouteVariant original, List<ImportedOfficialFeature> features,
+            OfficialRunParameters parameters) {
+        assertThat(original.isValid()).isFalse();
+        assertThat(original.getValidationIssues()).extracting(RouteValidationIssue::getCode)
+                .containsOnly("EXPERT_CHAMBER_OBLIQUE_ENTRY");
+        assertThat(validator.validate(original.getNodes(), original.getEdges(), features)).isEmpty();
+        assertThat(new ExpertChamberRouteValidator().validate(original.getNodes(), original.getEdges()))
+                .extracting(RouteValidationIssue::getCode).containsOnly("EXPERT_CHAMBER_OBLIQUE_ENTRY");
+        assertThat(ChamberQualityRefinementSearch.repairableSeed(original, parameters.isDepthEnabled())).isTrue();
+        assertThat(original.getConnectedDemandCount()).isEqualTo(2);
+        assertThat(original.getEconomics().isComplete()).isTrue();
     }
 
     private void assertPolygonClearance(RouteVariant role, ImportedOfficialFeature feature, String type) {

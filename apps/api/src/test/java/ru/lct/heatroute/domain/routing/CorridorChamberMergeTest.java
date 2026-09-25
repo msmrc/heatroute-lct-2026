@@ -35,7 +35,7 @@ class CorridorChamberMergeTest {
     void adjacentDegreeThreeCamerasBecomeOneDegreeFourCameraWithEveryConsumerAndFlow() {
         Fixture fixture = fixture(5, 0, 0, 0);
         RouteVariant source = finish(fixture.draft(), fixture);
-        assertFinished(source, fixture);
+        assertFinished(source, fixture, Set.of("EXPERT_CHAMBER_SPACING_TOO_SHORT"));
         assertThat(branches(source)).hasSize(2);
 
         List<RouteVariant> merged = merge(fixture);
@@ -55,7 +55,7 @@ class CorridorChamberMergeTest {
     }
 
     @Test
-    void translationAndRotationPreserveCandidateTopologyGeometryAndFlows() {
+    void translationAndRotationPreserveCandidateTopologyLengthFixedNodesAndFlows() {
         List<RouteVariant> expected = merge(fixture(5, 0, 0, 0));
         assertThat(expected).isNotEmpty();
         for (double angle : new double[] {0, Math.PI / 2, Math.PI, 0.37}) {
@@ -75,14 +75,11 @@ class CorridorChamberMergeTest {
                     assertThat(right.getId()).isEqualTo(left.getId());
                     assertThat(right.getFlowTph()).isEqualByComparingTo(left.getFlowTph());
                     assertThat(right.getDiameter()).isEqualTo(left.getDiameter());
-                    assertThat(right.getCoordinates()).hasSameSizeAs(left.getCoordinates());
-                    for (int point = 0; point < left.getCoordinates().size(); point++) {
-                        Coordinate world = right.getCoordinates().get(point).toCoordinate();
-                        double dx = world.x - 600000, dy = world.y - 6000000;
-                        Coordinate restored = new Coordinate(dx * Math.cos(angle) + dy * Math.sin(angle),
-                                -dx * Math.sin(angle) + dy * Math.cos(angle));
-                        assertThat(restored.distance(left.getCoordinates().get(point).toCoordinate())).isLessThan(0.02);
-                    }
+                    assertRestoredCoordinate(right.getCoordinates().get(0), left.getCoordinates().get(0), angle);
+                    assertRestoredCoordinate(right.getCoordinates().get(right.getCoordinates().size() - 1),
+                            left.getCoordinates().get(left.getCoordinates().size() - 1), angle);
+                    // Равные по длине нормальные ломаные могут иметь разные колена после округления до мм.
+                    assertThat(right.getLengthM().doubleValue()).isCloseTo(left.getLengthM().doubleValue(), within(0.02));
                 }
             }
         }
@@ -97,7 +94,7 @@ class CorridorChamberMergeTest {
                 true, true, 1, "network"));
         fixture.addDemand("west", -100, 0, "a", 4);
         RouteVariant source = finish(fixture.draft(), fixture);
-        assertFinished(source, fixture);
+        assertFinished(source, fixture, Set.of("EXPERT_CHAMBER_SPACING_TOO_SHORT"));
         assertThat(incidentCount(source, "a")).isEqualTo(3);
         assertThat(incidentCount(source, "b")).isEqualTo(3);
 
@@ -115,7 +112,7 @@ class CorridorChamberMergeTest {
                     fixture.addDemand("extra", chamber.equals("a") ? -30 : 35, 60, chamber, 4);
                 }
                 RouteVariant source = finish(fixture.draft(), fixture);
-                assertFinished(source, fixture);
+                assertFinished(source, fixture, Set.of("EXPERT_CHAMBER_SPACING_TOO_SHORT", "EXPERT_CHAMBER_OBLIQUE_ENTRY"));
                 assertThat(incidentCount(source, chamber)).isEqualTo(degree);
                 assertThat(candidates(fixture.draft(), fixture)).as("camera=%s degree=%s", chamber, degree).isEmpty();
             }
@@ -200,7 +197,7 @@ class CorridorChamberMergeTest {
     }
 
     @Test
-    void legacyPrivatePathKeepsDirectDiagonalApproachesAndTwentyMetreLimitWithoutGlobalRuleChanges() throws Exception {
+    void legacyPrivateDiagonalDraftsCannotPassTheStrictChamberValidator() throws Exception {
         Fixture fixture = fixture(20, 0, 0, 0);
         OfficialRoutePlanner.VariantDraft source = fixture.draft();
         List<RouteVariant> before = legacyCandidates(source, fixture).stream()
@@ -209,10 +206,12 @@ class CorridorChamberMergeTest {
         assertThat(before.stream().map(variant -> branches(variant).get(0).getCoordinate().getXM()))
                 .containsExactly(new BigDecimal("0.000"), new BigDecimal("20.000"), new BigDecimal("10.000"));
         for (RouteVariant variant : before) {
-            assertMerged(variant, fixture);
+            assertFinished(variant, fixture, Set.of("EXPERT_CHAMBER_OBLIQUE_ENTRY"));
+            assertThat(variant.isValid()).isFalse();
+            assertThat(branches(variant)).hasSize(1);
             assertThat(variant.getEdges()).allSatisfy(edge -> assertThat(edge.getCoordinates()).hasSize(2));
         }
-        // В контрольном пути сохраняется допустимая диагональ, не прошедшая бы новый фильтр ±5°.
+        // Исторический генератор хранит диагональ только как недопустимый черновик.
         RouteEdge southAtLeft = before.get(0).getEdges().stream()
                 .filter(edge -> edge.getDownstreamNodeId().equals("demand:south")).findFirst().orElseThrow();
         assertThat(southAtLeft.getCoordinates()).usingRecursiveComparison()
@@ -280,6 +279,13 @@ class CorridorChamberMergeTest {
                 new OfficialRunParameters(null, null, false).validated(), false, router.prepare(fixture.features));
     }
 
+    private void assertRestoredCoordinate(RouteCoordinate actual, RouteCoordinate expected, double angle) {
+        double dx = actual.getXM().doubleValue() - 600000, dy = actual.getYM().doubleValue() - 6000000;
+        Coordinate restored = new Coordinate(dx * Math.cos(angle) + dy * Math.sin(angle),
+                -dx * Math.sin(angle) + dy * Math.cos(angle));
+        assertThat(restored.distance(expected.toCoordinate())).isLessThan(0.002);
+    }
+
     private void assertMerged(RouteVariant variant, Fixture fixture) {
         assertFinished(variant, fixture);
         assertThat(branches(variant)).hasSize(1);
@@ -291,10 +297,17 @@ class CorridorChamberMergeTest {
     }
 
     private void assertFinished(RouteVariant variant, Fixture fixture) {
-        assertThat(variant.getValidationIssues()).extracting(RouteValidationIssue::getCode).isEmpty();
+        assertFinished(variant, fixture, Set.of());
+    }
+
+    private void assertFinished(RouteVariant variant, Fixture fixture, Set<String> allowedDraftIssues) {
+        assertThat(variant.getValidationIssues()).allSatisfy(issue -> assertThat(allowedDraftIssues).contains(issue.getCode()));
         assertThat(variant.getSizingIssues()).isEmpty();
-        assertThat(variant.isValid()).isTrue();
+        if (allowedDraftIssues.isEmpty()) assertThat(variant.isValid()).isTrue();
         assertThat(validator.validate(variant.getNodes(), variant.getEdges(), fixture.features)).isEmpty();
+        assertThat(new ExpertChamberRouteValidator().validate(variant.getNodes(), variant.getEdges()))
+                .extracting(RouteValidationIssue::getCode).containsExactlyInAnyOrderElementsOf(variant.getValidationIssues().stream()
+                        .map(RouteValidationIssue::getCode).collect(Collectors.toList()));
         assertThat(variant.getEconomics().isComplete()).as("%s", variant.getEconomics().getIncompleteReasons()).isTrue();
         assertThat(variant.getEconomics().getUnconnectedPenalty()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(variant.getNoRouteDemandCount()).isZero();
@@ -345,7 +358,7 @@ class CorridorChamberMergeTest {
                 double cosine = ((a.x - center.x) * (b.x - center.x) + (a.y - center.y) * (b.y - center.y))
                         / a.distance(center) / b.distance(center);
                 double degrees = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, cosine))));
-                assertThat(Math.min(Math.abs(degrees - 90), Math.abs(degrees - 180))).isLessThanOrEqualTo(5.01);
+                assertThat(Math.min(Math.abs(degrees - 90), Math.abs(degrees - 180))).isLessThanOrEqualTo(0.1);
             }
         }
     }

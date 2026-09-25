@@ -486,7 +486,12 @@ class OfficialSpecialClearanceExportTest {
                     coordinate(0, 0).toCoordinate(), coordinate(100, 0).toCoordinate(), coordinate(100, 6).toCoordinate(),
                     coordinate(0, 6).toCoordinate(), coordinate(0, 0).toCoordinate()}));
         Coordinate source = start.toCoordinate();
-        source.x -= 20;
+        Coordinate next = coordinates.get(1).toCoordinate();
+        double firstLegLength = source.distance(next);
+        // Keep the chamber fixture normal to the existing main so this test isolates export clearance.
+        double dx = next.x - source.x, dy = next.y - source.y;
+        source.x -= 20 * dy / firstLegLength;
+        source.y += 20 * dx / firstLegLength;
         List<ImportedOfficialFeature> inputs = List.of(
                 new ImportedOfficialFeature(id + "-source", "source", mapper.createObjectNode(), geometryFactory.createPoint(source)),
                 new ImportedOfficialFeature(id + "-network", "heat_network", mapper.createObjectNode()

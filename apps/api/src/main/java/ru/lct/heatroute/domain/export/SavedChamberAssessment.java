@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.routing.ExpertChamberRouteValidator;
+import ru.lct.heatroute.domain.routing.ExpertChamberGeometryRules;
+import ru.lct.heatroute.domain.routing.ExpertRouteBendRules;
 import ru.lct.heatroute.domain.routing.OfficialRouteDeflectionRules;
 import ru.lct.heatroute.domain.routing.OfficialRouteValidator;
 import ru.lct.heatroute.domain.routing.RouteCoordinate;
@@ -46,6 +48,8 @@ final class SavedChamberAssessment {
             }
             List<RouteEdge> edges = new ArrayList<>();
             Map<String, Double> measuredLengthsM = new java.util.HashMap<>();
+            Map<String, ExpertChamberGeometryRules.PolylineSummary> originalGeometry = new java.util.HashMap<>();
+            Map<String, ExpertChamberGeometryRules.PolylineSummary> emittedGeometry = new java.util.HashMap<>();
             List<OfficialRouteDeflectionRules.EdgeEndpoints> endpoints = new ArrayList<>();
             Set<String> edgeIds = new HashSet<>();
             long existingRays = 0;
@@ -60,6 +64,8 @@ final class SavedChamberAssessment {
                         nodesById.get(from).getCoordinate(), nodesById.get(to).getCoordinate());
                 endpoints.add(check.endpoints(from, to));
                 measuredLengthsM.put(id, check.getActualLengthM());
+                originalGeometry.put(id, SavedRouteGeometry.chamberSummary(edge, false));
+                emittedGeometry.put(id, SavedRouteGeometry.chamberSummary(edge, true));
                 edges.add(new RouteEdge(id, from, to, edgeLength.doubleValue(), List.of(), List.of(),
                         number(edge, "flow_tph"), integer(edge, "diameter")));
                 length = length.add(edgeLength);
@@ -72,12 +78,14 @@ final class SavedChamberAssessment {
             if (!capacity.isEmpty()) {
                 throw new IllegalArgumentException(capacity.get(0).getCode() + ": " + capacity.get(0).getSubjectId());
             }
-            List<RouteValidationIssue> chamberIssues = new ExpertChamberRouteValidator().validate(
+            List<RouteValidationIssue> chamberIssues = new ExpertChamberRouteValidator().validateMeasuredSections(
                     nodes, edges, edge -> measuredLengthsM.get(edge.getId()));
             if (!chamberIssues.isEmpty()) {
                 RouteValidationIssue issue = chamberIssues.get(0);
                 throw new IllegalArgumentException(issue.getCode() + ": " + issue.getSubjectId());
             }
+            verifyGeometry(nodes, edges, originalGeometry, support);
+            verifyGeometry(nodes, edges, emittedGeometry, support);
             Map<String, Integer> diameters = OfficialChamberSizing.diameters(nodes, edges);
             BigDecimal chamberCost = diameters.values().stream().map(economics::chamberCost)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -92,6 +100,17 @@ final class SavedChamberAssessment {
         } catch (IllegalArgumentException invalid) {
             throw new IllegalStateException("OFFICIAL_EXPORT_INCOMPLETE: recalculate variant "
                     + variant.path("id").asText() + "; " + invalid.getMessage(), invalid);
+        }
+    }
+
+    private static void verifyGeometry(List<RouteNode> nodes, List<RouteEdge> edges,
+            Map<String, ExpertChamberGeometryRules.PolylineSummary> geometry, ExistingNetworkSupportIndex support) {
+        List<RouteValidationIssue> issues = ExpertChamberGeometryRules.validate(nodes, edges,
+                edge -> geometry.get(edge.getId()), support::existingDirections);
+        if (issues.isEmpty()) issues = ExpertRouteBendRules.validate(nodes, edges, edge -> geometry.get(edge.getId()));
+        if (!issues.isEmpty()) {
+            RouteValidationIssue issue = issues.get(0);
+            throw new IllegalArgumentException(issue.getCode() + ": " + issue.getSubjectId());
         }
     }
 

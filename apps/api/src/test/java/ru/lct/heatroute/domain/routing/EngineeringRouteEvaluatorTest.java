@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class EngineeringRouteEvaluatorTest {
     private final EngineeringRouteEvaluator evaluator = new EngineeringRouteEvaluator();
@@ -28,7 +30,7 @@ class EngineeringRouteEvaluatorTest {
         RouteEdge edge = edge(
                 point(0, 0),
                 point(1, 0),
-                point(1.5, 0.2),
+                point(0.5, 0.2),
                 point(3, 2));
 
         EngineeringRouteEvaluator.Evaluation result = evaluator.evaluate(List.of(edge));
@@ -37,6 +39,16 @@ class EngineeringRouteEvaluatorTest {
         assertThat(result.invalidAngleCount()).isPositive();
         assertThat(result.insufficientSpacingCount()).isEqualTo(1);
         assertThat(result.nonCompliantEdgeIds()).containsExactly("edge");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"89,false", "90,true", "120,true", "135,true", "150,true", "179,true", "180,true"})
+    void appliesTheOfficialZeroToNinetyDeflectionRange(double internalAngle, boolean valid) {
+        double turn = Math.toRadians(180 - internalAngle);
+        EngineeringRouteEvaluator.Evaluation result = evaluator.evaluate(List.of(edge(
+                point(0, 0), point(5, 0), point(5 + 5 * Math.cos(turn), 5 * Math.sin(turn)))));
+        assertThat(result.isCompliant()).isEqualTo(valid);
+        assertThat(result.invalidAngleCount()).isEqualTo(valid ? 0 : 1);
     }
 
     @Test

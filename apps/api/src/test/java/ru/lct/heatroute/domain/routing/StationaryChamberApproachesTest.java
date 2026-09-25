@@ -61,29 +61,32 @@ class StationaryChamberApproachesTest {
         var orthogonal = path(degrees, 98, 2, 98, 0, 0, 0);
         var fixed = List.of(List.of(path(degrees, -100, 0, 0, 0)), List.of(path(degrees, 0, 50, 0, 0)),
                 List.of(oblique, orthogonal));
-        assertThat(CorridorJunctionAssignment.choose(point(degrees, 0, 0), fixed).get(2)).isSameAs(oblique);
+        assertThat(CorridorJunctionAssignment.choose(point(degrees, 0, 0), fixed).get(2)).isSameAs(orthogonal);
         assertThat(CorridorJunctionAssignment.choosePrecise(point(degrees, 0, 0), fixed).get(2)).isSameAs(orthogonal);
         assertThat(CorridorJunctionAssignment.choosePrecise(point(degrees, 0, 0),
                 List.of(fixed.get(0), fixed.get(1), List.of(oblique)))).isNull();
     }
 
     @Test
-    void preciseToleranceMatchesBothAdjacentAndOppositeRayBoundaries() {
+    void bothSearchesPermitOnlyCoordinateRoundingAtAdjacentAndOppositeRays() {
         var junction = point(0, 0, 0);
-        for (double delta : new double[] {-0.501, -0.499, 0.499, 0.501}) {
+        for (double delta : new double[] {-0.001, -0.0001, 0.0001, 0.001}) {
             double angle = Math.toRadians(90 + delta);
             var tilted = path(0, 1000 * Math.cos(angle), 1000 * Math.sin(angle), 0, 0);
             var east = path(0, 1000, 0, 0, 0);
             var west = path(0, -1000, 0, 0, 0);
             var choices = List.of(List.of(east), List.of(west), List.of(tilted));
-            assertThat(CorridorJunctionAssignment.choose(junction, choices)).isNotNull();
+            var ordinary = CorridorJunctionAssignment.choose(junction, choices);
             var precise = CorridorJunctionAssignment.choosePrecise(junction, choices);
-            if (Math.abs(delta) < 0.5) assertThat(precise).hasSize(3);
-            else assertThat(precise).isNull();
+            if (Math.abs(delta) < 0.001) {
+                assertThat(precise).hasSize(3); assertThat(ordinary).hasSize(3);
+            } else {
+                assertThat(precise).isNull(); assertThat(ordinary).isNull();
+            }
             double opposite = Math.toRadians(180 + delta);
             var almostWest = path(0, 1000 * Math.cos(opposite), 1000 * Math.sin(opposite), 0, 0);
             var pair = CorridorJunctionAssignment.choosePrecise(junction, List.of(List.of(east), List.of(almostWest)));
-            if (Math.abs(delta) < 0.5) assertThat(pair).hasSize(2);
+            if (Math.abs(delta) < 0.001) assertThat(pair).hasSize(2);
             else assertThat(pair).isNull();
         }
     }

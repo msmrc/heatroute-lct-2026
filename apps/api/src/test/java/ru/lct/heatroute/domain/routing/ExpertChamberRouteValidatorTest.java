@@ -20,8 +20,10 @@ class ExpertChamberRouteValidatorTest {
                 List.of(a.getCoordinate(), b.getCoordinate()), List.of(), null, null);
         List<RouteValidationIssue> issues = validator.validate(List.of(a, b), List.of(edge));
         if (accepted) assertThat(issues).isEmpty();
-        else assertThat(issues).extracting(RouteValidationIssue::getCode)
-                .containsExactly("EXPERT_CHAMBER_SPACING_TOO_SHORT");
+        else if (distanceM == 0) assertThat(issues).extracting(RouteValidationIssue::getCode)
+                .containsExactly("EXPERT_CHAMBER_SPACING_TOO_SHORT", "EXPERT_CHAMBER_GEOMETRY_UNCHECKABLE",
+                        "EXPERT_CHAMBER_GEOMETRY_UNCHECKABLE");
+        else assertThat(issues).extracting(RouteValidationIssue::getCode).containsExactly("EXPERT_CHAMBER_SPACING_TOO_SHORT");
     }
 
     @Test
@@ -83,7 +85,8 @@ class ExpertChamberRouteValidatorTest {
         RouteNode a = chamber("a", 0, 0);
         RouteNode b = chamber("b", 100, 0);
         assertThat(validator.validate(List.of(a, b), List.of(new RouteEdge("e", "a", "b", 100))))
-                .extracting(RouteValidationIssue::getCode).containsExactly("EXPERT_CHAMBER_LENGTH_UNCHECKABLE");
+                .extracting(RouteValidationIssue::getCode).containsExactly("EXPERT_CHAMBER_LENGTH_UNCHECKABLE",
+                        "EXPERT_CHAMBER_GEOMETRY_UNCHECKABLE", "EXPERT_CHAMBER_GEOMETRY_UNCHECKABLE");
     }
 
     @Test

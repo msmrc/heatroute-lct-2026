@@ -27,8 +27,14 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
+import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
+import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.export.OfficialGeoJsonExporter;
+import ru.lct.heatroute.domain.export.OfficialOutputContractValidator;
+import ru.lct.heatroute.domain.input.OfficialGeoJsonInspector;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
+import ru.lct.heatroute.domain.topology.ExistingNetworkIncidence;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 class OfficialCorridorDatasetTest {
@@ -49,27 +55,26 @@ class OfficialCorridorDatasetTest {
         Coordinate center = new Coordinate(demands.values().stream()
                 .mapToDouble(f -> f.getMetricGeometry().getCoordinate().x).average().orElseThrow(),
                 demands.values().stream().mapToDouble(f -> f.getMetricGeometry().getCoordinate().y).average().orElseThrow());
-        List<ImportedOfficialFeature> roots = features.stream().filter(f -> "heat_chamber".equals(f.getObjectType()))
-                .sorted(Comparator.comparingDouble(f -> f.getMetricGeometry().getCoordinate().distance(center)))
+        ExistingNetworkIncidence incidence = new ExistingNetworkIncidence(features);
+        List<RouteNode> roots = features.stream().filter(f -> "heat_chamber".equals(f.getObjectType()))
+                .map(target -> existingRoot(target, incidence))
+                .filter(root -> hasAvailableNormal(root, environment))
+                .sorted(Comparator.comparingDouble(root -> root.getCoordinate().toCoordinate().distance(center)))
                 .limit(2).collect(Collectors.toList());
+        assertThat(roots).as("The input must supply an existing chamber with a free normal approach").isNotEmpty();
         List<Geometry> buildings = features.stream().filter(rules::isBuildingFeature)
                 .map(ImportedOfficialFeature::getMetricGeometry).collect(Collectors.toList());
         List<OrthogonalCorridorNetworkBuilder.Terminal> terminals = demands.values().stream()
                 .map(f -> new OrthogonalCorridorNetworkBuilder.Terminal(f.getFeatureId(), f.getFeatureId(),
                         f.getMetricGeometry().getCoordinate(), new BigDecimal(f.getAttributes().path("flow_tph").asText())))
                 .collect(Collectors.toList());
-        List<RouteVariant> valid = new ArrayList<>();
-        for (ImportedOfficialFeature target : roots) {
-            int incident = (int) features.stream().filter(f -> "heat_network".equals(f.getObjectType()))
-                    .filter(f -> f.getMetricGeometry().distance(target.getMetricGeometry()) <= 0.01).count();
-            Coordinate rootPoint = target.getMetricGeometry().getCoordinate();
-            RouteNode root = new RouteNode("root:" + target.getFeatureId(), "existing_chamber_tie_in",
-                    new RouteCoordinate(rootPoint.x, rootPoint.y), true, true, incident, target.getFeatureId());
+        List<RouteVariant> finalized = new ArrayList<>();
+        for (RouteNode root : roots) {
             List<OrthogonalCorridorNetworkBuilder.Network> candidates = new OrthogonalCorridorNetworkBuilder(
-                    router, new OfficialPipeCatalog()).build(terminals, root, 4 - incident, buildings, environment,
+                    router, new OfficialPipeCatalog()).buildWithTerminalFrame(terminals, root, 4 - root.getBaseIncidentSections(), buildings, environment,
                     (id, junction, diameter, avoidance) -> terminalRoute(router, environment,
                             demands.get(id).getMetricGeometry().getCoordinate(), junction, diameter, avoidance));
-            System.out.println("CORRIDOR target=" + target.getFeatureId() + " candidates=" + candidates.size());
+            System.out.println("CORRIDOR target=" + root.getTargetId() + " candidates=" + candidates.size());
             for (OrthogonalCorridorNetworkBuilder.Network candidate : candidates) {
                 List<RouteValidationIssue> issues = validator.validate(candidate.nodes(), candidate.edges(), features);
                 double length = candidate.edges().stream().mapToDouble(e -> e.getLengthM().doubleValue()).sum();
@@ -80,10 +85,10 @@ class OfficialCorridorDatasetTest {
                         + " issues=" + issues.stream().map(i -> i.getCode() + ":" + i.getSubjectId() + ":" + i.getMessage()).collect(Collectors.toList()));
                 if (!issues.isEmpty()) continue;
                 RouteVariant variant = finish
-                        ? planner.finish("corridor-" + valid.size(), "engineering",
+                        ? planner.finish("corridor-" + finalized.size(), "engineering",
                                 new OfficialRoutePlanner.VariantDraft(candidate.nodes(), candidate.edges(), candidate.connections()),
                                 features, parameters, false, environment)
-                        : new RouteVariant("corridor-" + valid.size(), "engineering", candidate.nodes(),
+                        : new RouteVariant("corridor-" + finalized.size(), "engineering", candidate.nodes(),
                                 candidate.edges(), candidate.connections(), BigDecimal.valueOf(length), issues, List.of(), null, null, null);
                 variant = planner.withEngineeringAssessment(variant);
                 EngineeringRouteEvaluator.Evaluation finalGeometry = new EngineeringRouteEvaluator().evaluate(variant.getEdges());
@@ -98,16 +103,26 @@ class OfficialCorridorDatasetTest {
                         + " complete_depth=" + completeDepth
                         + " cost=" + (variant.getEconomics() == null ? null : variant.getEconomics().getCalculatedCost())
                         + " issues=" + variant.getValidationIssues().stream().map(RouteValidationIssue::getCode).collect(Collectors.toList()));
-                // Как и production selector, при включённой глубине не допускаем неполный профиль.
-                if (variant.isValid() && completeDepth) valid.add(variant);
+                finalized.add(variant);
             }
         }
+        List<OfficialRoutePlanner.Demand> mergeDemands = demands.values().stream()
+                .map(feature -> new OfficialRoutePlanner.Demand(feature.getFeatureId(), feature.getFeatureId(),
+                        feature.getMetricGeometry().getCoordinate(),
+                        new BigDecimal(feature.getAttributes().path("flow_tph").asText()), null))
+                .collect(Collectors.toList());
+        if (finish) finalized.addAll(planner.repairMandatoryChambers(finalized, mergeDemands, features,
+                parameters, false, environment));
+        // Как в production, исправимые черновики проходят обязательную доводку до финального допуска.
+        List<RouteVariant> valid = finalized.stream().filter(RouteVariant::isValid)
+                .filter(variant -> variant.getEngineeringIssues().isEmpty())
+                .filter(variant -> new ExpertChamberRouteValidator().validate(variant.getNodes(), variant.getEdges(),
+                        environment::existingDirections).isEmpty())
+                .filter(variant -> ExpertRouteBendRules.validate(variant.getNodes(), variant.getEdges()).isEmpty())
+                .filter(variant -> !finish || variant.getEdges().stream().allMatch(edge -> edge.getDepthProfile() != null
+                        && edge.getDepthProfile().isComplete() && edge.getDepthProfile().getIssues().isEmpty()))
+                .collect(Collectors.toCollection(ArrayList::new));
         if (finish && Boolean.getBoolean("heatroute.corridor.merge")) {
-            List<OfficialRoutePlanner.Demand> mergeDemands = demands.values().stream()
-                    .map(feature -> new OfficialRoutePlanner.Demand(feature.getFeatureId(), feature.getFeatureId(),
-                            feature.getMetricGeometry().getCoordinate(),
-                            new BigDecimal(feature.getAttributes().path("flow_tph").asText()), null))
-                    .collect(Collectors.toList());
             List<RouteVariant> refined = planner.refineCorridorVariants(valid, mergeDemands, features,
                     parameters, false, environment);
             for (RouteVariant candidate : refined) {
@@ -129,7 +144,14 @@ class OfficialCorridorDatasetTest {
                     "demand_count", demands.size(), "variants", valid)));
         }
         assertThat(valid).as("At least one data-derived corridor must connect all demands and satisfy official geometry").isNotEmpty();
-        assertThat(valid).allSatisfy(v -> assertThat(v.getConnectedDemandCount()).isEqualTo(demands.size()));
+        assertThat(demands).hasSize(17);
+        assertThat(valid).allSatisfy(variant -> {
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(demands.size());
+            assertThat(validator.validate(variant.getNodes(), variant.getEdges(), features)).isEmpty();
+            assertThat(new ExpertChamberRouteValidator().validate(variant.getNodes(), variant.getEdges(),
+                    environment::existingDirections)).isEmpty();
+            assertThat(ExpertRouteBendRules.validate(variant.getNodes(), variant.getEdges())).isEmpty();
+        });
         if (finish) assertThat(valid).allSatisfy(variant -> {
             assertThat(variant.getSizingIssues()).isEmpty();
             assertThat(variant.getEconomics().isComplete()).isTrue();
@@ -138,7 +160,30 @@ class OfficialCorridorDatasetTest {
                 assertThat(edge.getDepthProfile().isComplete()).isTrue();
                 assertThat(edge.getDepthProfile().getIssues()).isEmpty();
             });
+            ObjectMapper mapper = new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+            OfficialPipeCatalog catalog = new OfficialPipeCatalog();
+            OfficialEconomics economics = new OfficialEconomics();
+            new OfficialGeoJsonExporter(mapper, catalog, economics, new OfficialOutputContractValidator(),
+                    new OfficialVariantEconomicsCalculator(catalog, economics)).validate(mapper.valueToTree(
+                            new OfficialCalculationResult(OfficialRoutePlanner.ALGORITHM_VERSION,
+                                    OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE, demands.size(),
+                                    List.of(variant.withRank(1)), variant.getId())), features);
         });
+    }
+
+    static RouteNode existingRoot(ImportedOfficialFeature target, ExistingNetworkIncidence incidence) {
+        Coordinate at = target.getMetricGeometry().getCoordinate();
+        return new RouteNode("root:" + target.getFeatureId(), "existing_chamber_tie_in",
+                new RouteCoordinate(at.x, at.y), true, true, incidence.countAt(at), target.getFeatureId());
+    }
+
+    private boolean hasAvailableNormal(RouteNode root, OfficialRoutingEnvironment environment) {
+        List<Coordinate> rays = environment.existingDirections(root);
+        if (root.getBaseIncidentSections() < 1 || root.getBaseIncidentSections() >= 4 || rays.isEmpty()) return false;
+        for (int i = 0; i < rays.size(); i++) for (int j = i + 1; j < rays.size(); j++) {
+            if (!ExpertChamberGeometryRules.compatibleRays(rays.get(i).x, rays.get(i).y, rays.get(j).x, rays.get(j).y)) return false;
+        }
+        return !new ChamberApproachCandidates().build(root.getCoordinate().toCoordinate(), rays, 2.01, 0.1).isEmpty();
     }
 
     @ParameterizedTest

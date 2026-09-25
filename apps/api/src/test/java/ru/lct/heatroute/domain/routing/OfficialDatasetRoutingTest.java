@@ -87,14 +87,19 @@ class OfficialDatasetRoutingTest {
                 .filter(variant -> "shortest".equals(variant.getId())).findFirst().orElseThrow();
         RouteVariant cheapest = result.getVariants().stream()
                 .filter(variant -> "cheapest".equals(variant.getId())).findFirst().orElseThrow();
+        OfficialRoutingEnvironment verificationEnvironment = new OfficialObstacleRouter(new OfficialRouteGeometryRules(
+                new OfficialConstraintCatalog(), new OfficialCrossingGeometry())).prepare(features);
         // Экономическая роль не должна незаметно вернуть плохие углы после finish/переноса камер.
         // Проверяем и опубликованную диагностику, и фактические полилинии всех трёх ролей.
         assertThat(result.getVariants()).allSatisfy(variant -> {
             assertThat(variant.getEngineeringIssues()).as(engineeringDiagnostics(variant)).isEmpty();
             assertThat(new EngineeringRouteEvaluator().evaluate(variant.getEdges()).isCompliant())
                     .as("Final engineering geometry: " + variant.getId()).isTrue();
-            assertThat(new ExpertChamberRouteValidator().validate(variant.getNodes(), variant.getEdges()))
+            assertThat(new ExpertChamberRouteValidator().validate(variant.getNodes(), variant.getEdges(),
+                    verificationEnvironment::existingDirections))
                     .as("Final chamber sections and OKS origins: " + variant.getId()).isEmpty();
+            assertThat(ExpertRouteBendRules.validate(variant.getNodes(), variant.getEdges()))
+                    .as("Final bends and continuous 2 m spacing: " + variant.getId()).isEmpty();
         });
         assertThat(shortest.getTotalLengthM()).isLessThanOrEqualTo(engineering.getTotalLengthM());
         assertThat(result.getVariants()).allSatisfy(variant ->

@@ -410,7 +410,7 @@ class FinishedRouteVariantSelectorTest {
                 new RouteVariant[] {starVariant("balanced", 0, 90, 150), starVariant("candidate", 0, 95, 175)},
                 new RouteVariant[] {pathVariant("balanced", anglePath(30, 80, 112.5)),
                         pathVariant("candidate", anglePath(30, 70, 90))},
-                new RouteVariant[] {pathVariant("balanced", anglePath(30, 90, 135)),
+                new RouteVariant[] {pathVariant("balanced", anglePath(30, 90, 150)),
                         pathVariant("candidate", anglePath(30, 112.5, 112.5))},
                 new RouteVariant[] {starVariant("balanced", 0, 95, 175), starVariant("candidate", 0, 100, 170)});
         for (int metric = 0; metric < pairs.size(); metric++) {
@@ -428,7 +428,16 @@ class FinishedRouteVariantSelectorTest {
             }
             assertThat(candidate.getEconomics().getScore()).isLessThan(baseline.getEconomics().getScore());
             assertThat(candidate.getTotalLengthM()).isLessThanOrEqualTo(baseline.getTotalLengthM().multiply(new BigDecimal("1.05")));
-            assertSource(role(selector.select(List.of(baseline, candidate)), "balanced"), baseline);
+            if (metric == 3 || metric == 6) {
+                // Обе старые звезды нарушают теперь обязательные нормали; метрики по-прежнему
+                // сравниваем, но роль должен получить полноценный ортогональный контроль.
+                RouteVariant strict = withOfficialCost(starVariant("strict-control", 0, 90, 180), 120_000_000);
+                List<RouteVariant> selected = selector.select(List.of(baseline, candidate, strict));
+                assertRoles(selected);
+                selected.forEach(result -> assertSource(result, strict));
+            } else {
+                assertSource(role(selector.select(List.of(baseline, candidate)), "balanced"), baseline);
+            }
         }
     }
 

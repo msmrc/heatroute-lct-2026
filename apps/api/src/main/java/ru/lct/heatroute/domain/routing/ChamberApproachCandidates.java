@@ -6,15 +6,15 @@ import java.util.List;
 import org.locationtech.jts.geom.Coordinate;
 
 /**
- * Предлагает точки короткого подхода к камере с допустимыми углами нового луча.
+ * Предлагает точки нормального подхода к камере: новый луч образует только 90° или 180° с занятыми.
  * Существующие лучи задаются векторами от камеры, а не абсолютными координатами;
  * проверка препятствий и окончательная допустимость сети остаются у вызывающего кода.
  */
 public final class ChamberApproachCandidates {
     private static final double ANGLE_EPSILON_DEGREES = 1e-9;
     private static final double FULL_TURN_DEGREES = 360.0;
-    private static final double[] ROTATIONS_DEGREES = {-135, -90, -45, 45, 90, 135, 180};
-    private static final double[] ALLOWED_ANGLES_DEGREES = {45, 90, 135, 180};
+    private static final double[] ROTATIONS_DEGREES = {-90, 90, 180};
+    private static final double[] ALLOWED_ANGLES_DEGREES = {90, 180};
 
     /**
      * Возвращает точки на расстоянии approachLengthM от камеры, по углу от оси +X в диапазоне [0, 360).
@@ -27,8 +27,8 @@ public final class ChamberApproachCandidates {
         if (existingOutwardRays == null) {
             throw new IllegalArgumentException("existing outward rays are required");
         }
-        if (!Double.isFinite(approachLengthM) || approachLengthM <= 0) {
-            throw new IllegalArgumentException("approach length must be finite and positive");
+        if (!Double.isFinite(approachLengthM) || approachLengthM < ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M) {
+            throw new IllegalArgumentException("approach length must be finite and at least two metres");
         }
         if (!Double.isFinite(toleranceDegrees) || toleranceDegrees < 0) {
             throw new IllegalArgumentException("angle tolerance must be finite and non-negative");
@@ -49,7 +49,8 @@ public final class ChamberApproachCandidates {
         for (double existing : existingAngles) {
             for (double rotation : ROTATIONS_DEGREES) {
                 double direction = normalizedDegrees(existing + rotation);
-                if (allowedAgainstEveryRay(direction, existingAngles, toleranceDegrees)) {
+                if (allowedAgainstEveryRay(direction, existingAngles, toleranceDegrees)
+                        && normalAgainstEveryRay(direction, approachLengthM, existingOutwardRays)) {
                     directions.add(direction);
                 }
             }
@@ -62,7 +63,7 @@ public final class ChamberApproachCandidates {
             }
         }
 
-        // Не более 7 * 3 направлений. Усечение по абсолютному азимуту нарушило бы инвариантность поворота.
+        // Не более 3 * 3 направлений. Усечение по абсолютному азимуту нарушило бы инвариантность поворота.
         List<Coordinate> result = new ArrayList<>();
         for (double direction : distinct) {
             double radians = Math.toRadians(direction);
@@ -77,6 +78,15 @@ public final class ChamberApproachCandidates {
             }
         }
         return List.copyOf(result);
+    }
+
+    private boolean normalAgainstEveryRay(double direction, double length, List<Coordinate> rays) {
+        double radians = Math.toRadians(direction);
+        for (Coordinate ray : rays) {
+            if (!ExpertChamberGeometryRules.compatibleRays(length * Math.cos(radians), length * Math.sin(radians),
+                    ray.x, ray.y)) return false;
+        }
+        return true;
     }
 
     private boolean allowedAgainstEveryRay(double direction, List<Double> existingAngles, double toleranceDegrees) {

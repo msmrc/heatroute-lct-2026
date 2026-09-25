@@ -10,9 +10,13 @@ Full90 больше не выполняется:1631cases/1compactFAIL/3skip,2:1
 Source92 завершён как отдельное correctness-изменение: [PRIMARY_ROUTING_92.md](PRIMARY_ROUTING_92.md),
 focused90PASS, final frozen fast1728PASS/0fail/error/3skip,28,642с; web36+37/lint/typecheckPASS.
 13reflection errors первого общего прогона устранены2d513b1, затем общий набор зелёный.
-Правила строгих нормалей камер/2м/дорог90–100 ещё открыты. Смысл2м (ровно/минимум)
-запрошен пользователю; не выдавать предположение за согласованное требование.
-Production ready подтверждён read-only; SHA/deploy/Compose не подтверждены, нужен SSH-доступ.
+[Результат source93](PRIMARY_ROUTING_93.md): нормальный вход в камеру и ближайший поворот
+минимум через 2 м реализованы в генераторе, независимой проверке и экспорте. Приоритет ТЗ:
+повороты 0–90°, дорога >=45°. Свежий официальный расчёт: все три роли 17/17 и strict export PASS;
+shortest/cheapest 2039,856 м, balanced 2082,343 м. Fast1855PASS/0fail/error/3skip,
+долгие dataset/corridor6PASS, web36+37/lint/typecheckPASS. Старый compact <1860 м остаётся FAIL,
+его порог не ослаблен. Production smoke source93 ожидает развёртывания; R/G не закрыты.
+Соседняя задача ранее развернула source92 (`aa359f1`); не путать с source93.
 Готовые правки соседней задачи по СП согласованы; Git-операции выполняет одна задача.
 Далее исторические checkpoint и handles, а не текущий реестр живых работ.
 

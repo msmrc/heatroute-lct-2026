@@ -54,7 +54,8 @@ class SavedChamberIncidenceTest {
         List<RouteNode> nodes = new ArrayList<>(List.of(root));
         List<RouteEdge> edges = new ArrayList<>();
         for (int i = 0; i < newBranches; i++) {
-            RouteNode demand = new RouteNode("d" + i, "demand_connection", new RouteCoordinate((i - 1) * 20, 20),
+            // Два новых примыкания занимают свободные нормали к существующей оси восток–запад.
+            RouteNode demand = new RouteNode("d" + i, "demand_connection", new RouteCoordinate(i < 2 ? 0 : 20, i == 1 ? -20 : 20),
                     false, false, 0, null);
             nodes.add(demand);
             edges.add(new RouteEdge("e" + i, "root", demand.getId(),

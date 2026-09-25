@@ -37,14 +37,17 @@ class ChamberQualityRefinementSearchTest {
     }
 
     @Test
-    void stopsAfterThreeStrictImprovementsEvenWhenAnotherRepairExists() {
+    void internalRepairProgressIsBoundedAndIsNotPublishedWhileAnotherChamberRemainsInvalid() {
         RouteVariant seed = compound(0, 4);
         AtomicInteger expansions = new AtomicInteger();
-        RouteVariant result = ChamberQualityRefinementSearch.improve(seed, true,
+        RouteVariant result = ChamberQualityRefinementSearch.advanceRepair(seed, true,
                 current -> List.of(compound(expansions.incrementAndGet(), 4)));
         assertThat(expansions.get()).isEqualTo(3);
         assertThat(engineering.evaluate(result.getEdges()).irregularJunctionAngleCount()).isEqualTo(1);
         assertThat(result.getConnectedDemandCount()).isEqualTo(8);
+        AtomicInteger publishedSteps = new AtomicInteger();
+        assertThat(ChamberQualityRefinementSearch.alternatives(seed, true,
+                current -> List.of(compound(publishedSteps.incrementAndGet(), 4)))).isEmpty();
     }
 
     @Test
@@ -59,43 +62,40 @@ class ChamberQualityRefinementSearchTest {
     }
 
     @Test
-    void fivePercentPriceBudgetNeverAccumulatesAcrossPasses() {
+    void mandatoryRepairCanExceedTheFormerFivePercentBudgetAcrossBoundedPasses() {
         RouteVariant seed = priced(compound(0), "1000");
         RouteVariant first = priced(compound(1), "1040");
         RouteVariant second = priced(compound(2), "1080");
+        RouteVariant third = priced(compound(3), "1120");
         AtomicInteger expansions = new AtomicInteger();
         RouteVariant result = ChamberQualityRefinementSearch.improve(seed, true,
-                current -> List.of(expansions.getAndIncrement() == 0 ? first : second));
-        assertThat(result).isSameAs(first);
-        assertThat(expansions.get()).isEqualTo(2);
+                current -> List.of(List.of(first, second, third).get(expansions.getAndIncrement())));
+        assertThat(result).isSameAs(third);
+        assertThat(expansions.get()).isEqualTo(3);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"1050", "1050.01"})
-    void fivePercentPriceIncludesTheBoundaryButNotAnotherKopeck(String cost) {
+    void mandatoryNormalRepairIsNotRejectedAtTheOldPriceBoundary(String cost) {
         RouteVariant seed = priced(fixture.variant("seed", 0, false, false, false), "1000");
         RouteVariant repair = priced(fixture.variant("repair", 0, true, false, false), cost);
         assertThat(ChamberQualityRefinementSearch.improve(seed, true, current -> List.of(repair)))
-                .isSameAs("1050".equals(cost) ? repair : seed);
+                .isSameAs(repair);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"105", "105.001"})
-    void fivePercentLengthIncludesTheBoundaryButNotAnotherMillimetre(String length) {
+    void mandatoryNormalRepairIsNotRejectedAtTheOldLengthBoundary(String length) {
         RouteVariant seed = withLength(fixture.variant("seed", 0, false, false, false), "100");
         RouteVariant repair = withLength(fixture.variant("repair", 0, true, false, false), length);
         assertThat(ChamberQualityRefinementSearch.improve(seed, true, current -> List.of(repair)))
-                .isSameAs("105".equals(length) ? repair : seed);
+                .isSameAs(repair);
     }
 
     @Test
-    void lengthBudgetDoesNotAccumulateAndCandidateOrderingIsDeterministic() {
-        RouteVariant seed = withLength(compound(0), "100");
-        RouteVariant first = withLength(compound(1), "104");
-        RouteVariant second = withLength(compound(2), "108");
-        AtomicInteger expansions = new AtomicInteger();
-        assertThat(ChamberQualityRefinementSearch.improve(seed, true,
-                current -> List.of(expansions.getAndIncrement() == 0 ? first : second))).isSameAs(first);
+    void completedRepairOrderingIsDeterministicEvenWhenAnExpensiveAlternativeIsOfferedFirst() {
+        RouteVariant seed = withLength(fixture.variant("seed", 0, false, false, false), "100");
+        RouteVariant first = withLength(fixture.variant("repair", 0, true, false, false), "108");
         RouteVariant expensive = priced(first, "999999999");
         for (List<RouteVariant> order : List.of(List.of(first, expensive), List.of(expensive, first))) {
             assertThat(ChamberQualityRefinementSearch.improve(seed, true, current -> order)).isSameAs(first);

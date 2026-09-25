@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.stream.Collectors;
 import org.locationtech.jts.geom.Coordinate;
@@ -20,9 +21,30 @@ final class CorridorLinkApproaches {
 
     static List<RoutePath> build(RouteEdge edge, RouteNode outer, Coordinate junction, double angle,
             OfficialObstacleRouter router, OfficialRoutingEnvironment environment) {
+        return build(edge, outer, junction, angle, router, environment, List.of());
+    }
+
+    /** Занятые лучи внешней камеры не включают заменяемое ребро; у корня берутся из исходной сети. */
+    static List<RoutePath> build(RouteEdge edge, RouteNode outer, Coordinate junction, double angle,
+            OfficialObstacleRouter router, OfficialRoutingEnvironment environment, List<Coordinate> fixedOuterRays) {
+        return build(edge, outer, junction, angle, router, environment, fixedOuterRays, Set.of());
+    }
+
+    /** У перенастраиваемого корня снимается только локальный контакт с указанными существующими участками. */
+    static List<RoutePath> build(RouteEdge edge, RouteNode outer, Coordinate junction, double angle,
+            OfficialObstacleRouter router, OfficialRoutingEnvironment environment, List<Coordinate> fixedOuterRays,
+            Set<String> junctionTargets) {
+        return build(edge, outer, junction, angle, router, environment, fixedOuterRays, junctionTargets, false);
+    }
+
+    /** Внутренний ремонт может сохранить уже дефектный ввод соседней камеры до её отдельного исправления. */
+    static List<RoutePath> build(RouteEdge edge, RouteNode outer, Coordinate junction, double angle,
+            OfficialObstacleRouter router, OfficialRoutingEnvironment environment, List<Coordinate> fixedOuterRays,
+            Set<String> junctionTargets, boolean preserveInvalidOuterApproach) {
         if (Thread.currentThread().isInterrupted()) throw new CancellationException("Corridor approach cancelled");
         if (edge == null || outer == null || router == null || environment == null || edge.getDiameter() == null
-                || !Double.isFinite(angle) || junction == null || !Double.isFinite(junction.x) || !Double.isFinite(junction.y)) {
+                || fixedOuterRays == null || junctionTargets == null || !Double.isFinite(angle) || junction == null
+                || !Double.isFinite(junction.x) || !Double.isFinite(junction.y)) {
             throw new IllegalArgumentException("Finite orientation and junction required");
         }
         if (!edge.getUpstreamNodeId().equals(outer.getId()) && !edge.getDownstreamNodeId().equals(outer.getId())) {
@@ -49,7 +71,7 @@ final class CorridorLinkApproaches {
             if (!start.equals2D(new RouteCoordinate(junction.x, junction.y).toCoordinate())) {
                 direct.add(new Coordinate(junction));
             }
-            addCheckedPath(paths, direct, edge, outer, junction, router, environment, traversal);
+            addCheckedPath(paths, direct, edge, outer, junction, router, environment, traversal, angle, fixedOuterRays, junctionTargets, preserveInvalidOuterApproach);
             List<Coordinate> approaches = new ArrayList<>(List.of(junction));
             for (double length : new double[] {2.1, 5.0}) {
                 for (int direction = 0; direction < 4; direction++) {
@@ -65,9 +87,12 @@ final class CorridorLinkApproaches {
                     Coordinate elbow = new Coordinate(start.x + x * projection, start.y + y * projection);
                     List<Coordinate> coordinates = new ArrayList<>(source.subList(0, cut + 1));
                     append(coordinates, elbow); append(coordinates, approach); append(coordinates, junction);
-                    addCheckedPath(paths, coordinates, edge, outer, junction, router, environment, traversal);
+                    addCheckedPath(paths, coordinates, edge, outer, junction, router, environment, traversal, angle, fixedOuterRays, junctionTargets, preserveInvalidOuterApproach);
                 }
             }
+        }
+        if (!fixedOuterRays.isEmpty() || paths.isEmpty()) {
+            addDoubleEndedPaths(paths, edge, outer, junction, angle, router, environment, traversal, fixedOuterRays, junctionTargets, preserveInvalidOuterApproach);
         }
         paths.sort(Comparator.comparingDouble(RoutePath::lengthM));
         List<RoutePath> result = new ArrayList<>();
@@ -83,16 +108,70 @@ final class CorridorLinkApproaches {
         return List.copyOf(result);
     }
 
+    private static void addDoubleEndedPaths(List<RoutePath> paths, RouteEdge edge, RouteNode outer,
+            Coordinate junction, double angle, OfficialObstacleRouter router, OfficialRoutingEnvironment environment,
+            RouteTraversal traversal, List<Coordinate> fixedOuterRays, Set<String> junctionTargets, boolean preserveInvalidOuterApproach) {
+        Coordinate origin = outer.getCoordinate().toCoordinate();
+        List<Coordinate> outerApproaches = new ArrayList<>();
+        for (double length : new double[] {2.1, 5.0}) {
+            if (!fixedOuterRays.isEmpty()) {
+                outerApproaches.addAll(new ChamberApproachCandidates().build(origin, fixedOuterRays, length, 180));
+            } else {
+                for (int direction = 0; direction < 4; direction++) outerApproaches.add(
+                        along(origin, angle + direction * Math.PI / 2, length));
+            }
+        }
+        for (Coordinate first : outerApproaches) {
+            for (double length : new double[] {2.1, 5.0}) {
+                for (int direction = 0; direction < 4; direction++) {
+                    Coordinate last = along(junction, angle + direction * Math.PI / 2, length);
+                    for (int connector = 0; connector < 3; connector++) {
+                        List<Coordinate> points = new ArrayList<>(List.of(origin, first));
+                        if (connector != 0) {
+                            double bearing = angle + (connector - 1) * Math.PI / 2;
+                            double x = Math.cos(bearing), y = Math.sin(bearing);
+                            double distance = (last.x - first.x) * x + (last.y - first.y) * y;
+                            append(points, new Coordinate(first.x + distance * x, first.y + distance * y));
+                        }
+                        append(points, last); append(points, junction);
+                        addCheckedPath(paths, points, edge, outer, junction, router, environment, traversal, angle, fixedOuterRays, junctionTargets, preserveInvalidOuterApproach);
+                    }
+                }
+            }
+        }
+    }
+
+    private static Coordinate along(Coordinate origin, double angle, double length) {
+        return new Coordinate(origin.x + length * Math.cos(angle), origin.y + length * Math.sin(angle));
+    }
+
     /** Один допуск для прямых и L-хвостов, включая сохранённый префикс и направление потока. */
     private static void addCheckedPath(List<RoutePath> paths, List<Coordinate> coordinates,
             RouteEdge edge, RouteNode outer, Coordinate junction, OfficialObstacleRouter router,
-            OfficialRoutingEnvironment environment, RouteTraversal traversal) {
+            OfficialRoutingEnvironment environment, RouteTraversal traversal, double angle, List<Coordinate> fixedOuterRays,
+            Set<String> junctionTargets, boolean preserveInvalidOuterApproach) {
         if (Thread.currentThread().isInterrupted()) throw new CancellationException("Corridor approach cancelled");
         if (coordinates.size() < 2) return;
+        ExpertChamberGeometryRules.PolylineSummary summary = ExpertChamberGeometryRules.summarize(coordinates.stream()
+                .map(c -> new RouteCoordinate(c.x, c.y)).collect(Collectors.toList()));
+        if (summary == null || summary.hasInvalidBendAngle() || summary.hasShortBendSpacing()
+                || summary.getLastBendDistanceM() + 1e-7 < ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M
+                || !alignedWithFrame(summary.getLastDx(), summary.getLastDy(), angle)) return;
+        if (outer.isChamber()) {
+            if (summary.getActualLengthM() + 1e-7 < ExpertChamberRouteValidator.MIN_CHAMBER_SECTION_LENGTH_M) return;
+            boolean normal = fixedOuterRays.isEmpty()
+                    ? alignedWithFrame(summary.getFirstDx(), summary.getFirstDy(), angle)
+                    : fixedOuterRays.stream().allMatch(ray -> ExpertChamberGeometryRules.compatibleRays(
+                            summary.getFirstDx(), summary.getFirstDy(), ray.x, ray.y));
+            boolean longEnough = summary.getFirstBendDistanceM() + 1e-7 >= ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M;
+            if ((!normal || !longEnough) && !(preserveInvalidOuterApproach && !outer.isRoot()
+                    && preservesOuterPrefix(edge, outer, coordinates))) return;
+        }
         Envelope bounds = new Envelope();
         coordinates.forEach(bounds::expandToInclude);
         PreparedCorridor checks = router.prepareCorridor(edge.getDiameter(), environment, bounds,
-                outer.getCoordinate().toCoordinate(), outer.isRoot() ? outer.getTargetId() : null, traversal);
+                outer.getCoordinate().toCoordinate(), outer.isRoot() ? outer.getTargetId() : null, traversal,
+                junctionTargets, junction);
         // Поиск всегда outer→камера, но вход в дорогу и special проверяем по потоку.
         // Исключение выхода из setback предназначено существующему корню, не новой камере.
         if (!checks.pointAllowed(junction)
@@ -100,6 +179,33 @@ final class CorridorLinkApproaches {
         RoutePath path = checks.path(coordinates);
         if (path == null || !engineeringCompliant(path)) return;
         if (paths.stream().noneMatch(previous -> same(previous, path))) paths.add(path);
+    }
+
+    /** Сохраняет первый старый поворот с выходящим участком; прямая сохраняет первые 2 м. */
+    private static boolean preservesOuterPrefix(RouteEdge edge, RouteNode outer, List<Coordinate> candidate) {
+        List<RouteCoordinate> source = new ArrayList<>(edge.getCoordinates());
+        if (!edge.getUpstreamNodeId().equals(outer.getId())) Collections.reverse(source);
+        ExpertChamberGeometryRules.PolylineSummary original = ExpertChamberGeometryRules.summarize(source);
+        if (original == null) return false;
+        List<RouteCoordinate> rounded = candidate.stream().map(c -> new RouteCoordinate(c.x, c.y)).collect(Collectors.toList());
+        ExpertChamberGeometryRules.PolylineSummary replacement = ExpertChamberGeometryRules.summarize(rounded);
+        if (replacement == null || !ExpertChamberGeometryRules.straightDirections(original.getFirstDx(), original.getFirstDy(),
+                replacement.getFirstDx(), replacement.getFirstDy())) return false;
+        double prefix = Math.min(original.getActualLengthM(), ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M
+                + (Double.isFinite(original.getFirstBendDistanceM()) ? original.getFirstBendDistanceM() : 0));
+        if (replacement.getActualLengthM() + 1e-7 < prefix) return false;
+        GeometryFactory geometries = new GeometryFactory();
+        LineString before = geometries.createLineString(source.stream().map(RouteCoordinate::toCoordinate).toArray(Coordinate[]::new));
+        LineString after = geometries.createLineString(rounded.stream().map(RouteCoordinate::toCoordinate).toArray(Coordinate[]::new));
+        org.locationtech.jts.geom.Geometry expected = new org.locationtech.jts.linearref.LengthIndexedLine(before).extractLine(0, prefix);
+        org.locationtech.jts.geom.Geometry actual = new org.locationtech.jts.linearref.LengthIndexedLine(after).extractLine(0, prefix);
+        return org.locationtech.jts.algorithm.distance.DiscreteHausdorffDistance.distance(expected, actual) <= 0.001;
+    }
+
+    private static boolean alignedWithFrame(double dx, double dy, double angle) {
+        double length = Math.hypot(dx, dy), x = length * Math.cos(angle), y = length * Math.sin(angle);
+        return ExpertChamberGeometryRules.compatibleRays(dx, dy, x, y)
+                || ExpertChamberGeometryRules.compatibleRays(dx, dy, -y, x);
     }
 
     private static void append(List<Coordinate> coordinates, Coordinate point) {

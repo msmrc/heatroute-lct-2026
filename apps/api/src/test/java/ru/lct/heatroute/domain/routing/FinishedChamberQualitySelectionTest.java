@@ -19,7 +19,7 @@ import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
 
-/** Предпочтение геометрии balanced, не новая обязательная норма углов камеры. */
+/** Обязательные нормали проверяются до назначения ролей; экономические предпочтения действуют среди допустимых сетей. */
 class FinishedChamberQualitySelectionTest {
     private final EngineeringRouteEvaluator engineering = new EngineeringRouteEvaluator();
     private final FinishedRouteVariantSelector selector = new FinishedRouteVariantSelector();
@@ -29,7 +29,8 @@ class FinishedChamberQualitySelectionTest {
     void cheaperShorterNetworkMayAddLegalBendsToSeparateCameraRays(double rotation) {
         RouteVariant before = variant("balanced", rotation, false, false, false);
         RouteVariant after = variant("camera-quality", rotation, true, false, false);
-        assertWholeGeometry(before);
+        assertThat(new ExpertChamberRouteValidator().validate(before.getNodes(), before.getEdges()))
+                .extracting(RouteValidationIssue::getCode).contains("EXPERT_CHAMBER_OBLIQUE_ENTRY");
         assertWholeGeometry(after);
         assertThat(after.getTotalLengthM()).isLessThan(before.getTotalLengthM());
         assertThat(after.getEconomics().getCalculatedCost()).isLessThan(before.getEconomics().getCalculatedCost());
@@ -50,23 +51,26 @@ class FinishedChamberQualitySelectionTest {
 
     @Test
     void extraBendsWithoutBetterCameraRaysStillCannotReplaceBalanced() {
-        RouteVariant before = variant("balanced", 0, false, false, false);
-        RouteVariant after = variant("camera-quality", 0, true, true, false);
+        RouteVariant before = priced(variant("balanced", 0, true, false, false), "100000000");
+        RouteVariant after = priced(extraBends(variant("camera-quality", 0, true, false, false)), "50000000");
         assertWholeGeometry(after);
         assertThat(after.getEconomics().getScore()).isLessThan(before.getEconomics().getScore());
         assertThat(engineering.evaluate(after.getEdges()).bendCount())
                 .isGreaterThan(engineering.evaluate(before.getEdges()).bendCount());
         assertThat(engineering.evaluate(after.getEdges()).irregularJunctionAngleCount())
                 .isEqualTo(engineering.evaluate(before.getEdges()).irregularJunctionAngleCount());
+        assertThat(after.getTotalLengthM()).isLessThan(before.getTotalLengthM().multiply(new BigDecimal("1.05")));
         assertThat(balanced(selector.select(List.of(before, after), true)).getEdges())
                 .containsExactlyElementsOf(before.getEdges());
     }
 
     @Test
     void betterCameraCannotExcuseInsufficientSpacingBetweenNewBends() {
-        RouteVariant before = variant("balanced", 0, false, false, false);
+        RouteVariant before = variant("balanced", 0, true, false, false);
         RouteVariant after = variant("camera-quality", 0, true, false, true);
-        assertWholeGeometry(after);
+        assertWholeGeometry(before);
+        assertThat(new ExpertChamberRouteValidator().validate(after.getNodes(), after.getEdges()))
+                .extracting(RouteValidationIssue::getCode).contains("EXPERT_CHAMBER_BEND_TOO_CLOSE");
         assertThat(engineering.evaluate(after.getEdges()).irregularJunctionAngleCount()).isZero();
         assertThat(engineering.evaluate(after.getEdges()).insufficientSpacingCount()).isPositive();
         assertThat(balanced(selector.select(List.of(before, after), true)).getEdges())
@@ -75,24 +79,44 @@ class FinishedChamberQualitySelectionTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"1040", "1050", "1050.01"})
-    void balancedMayPayAtMostFivePercentForStrictlyBetterRaysButCheapestKeepsItsPrice(String cost) {
-        RouteVariant before = priced(variant("balanced", 0, false, false, false), "1000");
+    void validNormalControlDoesNotPayMoreForUnchangedRaysAtTheFormerBudgetBoundary(String cost) {
+        RouteVariant before = priced(variant("balanced", 0, true, false, false), "1000");
         RouteVariant after = priced(variant("camera-quality", 0, true, false, false), cost);
         List<RouteVariant> selected = selector.selectChamberQuality(List.of(before, after), true, before);
-        assertThat(balanced(selected).getEdges()).containsExactlyElementsOf(
-                new BigDecimal(cost).compareTo(new BigDecimal("1050")) <= 0 ? after.getEdges() : before.getEdges());
+        assertThat(balanced(selected).getEdges()).containsExactlyElementsOf(before.getEdges());
         assertThat(selected.stream().filter(v -> "cheapest".equals(v.getId())).findFirst().orElseThrow()
                 .getEconomics().getCalculatedCost()).isEqualByComparingTo("1000");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"1040", "1050", "1050.01"})
+    void invalidChamberCannotWinAnyRoleEvenWhenItsRepairCostsMore(String cost) {
+        RouteVariant invalid = priced(variant("balanced", 0, false, false, false), "1000");
+        RouteVariant repair = priced(variant("camera-quality", 0, true, false, false), cost);
+        List<RouteVariant> selected = selector.select(List.of(invalid, repair), true);
+        assertThat(selected).extracting(RouteVariant::getId).containsExactly("balanced", "shortest", "cheapest");
+        selected.forEach(result -> assertThat(result.getEdges()).containsExactlyElementsOf(repair.getEdges()));
+    }
+
     @Test
     void payingForAnUnchangedCameraOrIllegalNewBendsIsNeverAQualityTradeoff() {
-        RouteVariant before = priced(variant("balanced", 0, false, false, false), "1000");
+        RouteVariant before = priced(variant("balanced", 0, true, false, false), "1000");
         for (RouteVariant candidate : List.of(variant("same-rays", 0, true, true, false),
                 variant("illegal-bends", 0, true, false, true))) {
             assertThat(balanced(selector.selectChamberQuality(List.of(before, priced(candidate, "1001")), true, before)).getEdges())
                     .containsExactlyElementsOf(before.getEdges());
         }
+    }
+
+    private RouteVariant extraBends(RouteVariant source) {
+        List<RouteEdge> edges = new ArrayList<>(source.getEdges());
+        edges.set(0, edge("root-edge", "root", "camera",
+                path(0, -100, 0, -90, 0, -90, 2, -10, 2, -10, 0, 0, 0), 100, 2));
+        var costs = new OfficialVariantEconomicsCalculator(new OfficialPipeCatalog(), new OfficialEconomics())
+                .calculate(source.getNodes(), edges, source.getConnections(), source.getReconstruction(), false);
+        return new RouteVariant(source.getId(), source.getStrategy(), source.getNodes(), edges, source.getConnections(),
+                edges.stream().map(RouteEdge::getLengthM).reduce(BigDecimal.ZERO, BigDecimal::add),
+                List.of(), List.of(), List.of(), source.getReconstruction(), costs, null);
     }
 
     /** Синтетические суммы изолируют границу политики; реальные тарифы проверяет первый тест. */
@@ -128,12 +152,13 @@ class FinishedChamberQualitySelectionTest {
         else if (unchangedRays) first = path(rotation, 0, 0, 5, 0, 5, 5, 15, 5, 15, 0, 20, 0);
         else if (closeBends) first = path(rotation, 0, 0, 0, 1, 1, 1, 1, 0, 20, 0);
         else first = path(rotation, 0, 0, 0, 10, 10, 10, 10, 0, 20, 0);
-        List<RouteCoordinate> second = path(rotation, 0, 0, 20, -0.1);
+        List<RouteCoordinate> second = improved && !unchangedRays
+                ? path(rotation, 0, 0, 0, -10, 20, -10, 20, -0.1) : path(rotation, 0, 0, 20, -0.1);
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", root.get(0), true, true, 1, null, 100),
                 new RouteNode("camera", "new_branch_chamber", first.get(0), true, false, 0, null),
                 new RouteNode("demand:a", "demand_connection", first.get(first.size() - 1), false, false, 0, "a"),
-                new RouteNode("demand:b", "demand_connection", second.get(1), false, false, 0, "b"));
+                new RouteNode("demand:b", "demand_connection", second.get(second.size() - 1), false, false, 0, "b"));
         List<RouteEdge> edges = List.of(edge("root-edge", "root", "camera", root, 100, 2),
                 edge("input-a", "camera", "demand:a", first, 50, 1),
                 edge("input-b", "camera", "demand:b", second, 50, 1));

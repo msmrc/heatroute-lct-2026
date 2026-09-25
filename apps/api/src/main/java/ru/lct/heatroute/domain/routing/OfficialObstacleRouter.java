@@ -76,6 +76,13 @@ public class OfficialObstacleRouter {
         return new PreparedCorridor(rules, environment.corridorConstraints(diameter, bounds), root, targetId, traversal);
     }
 
+    PreparedCorridor prepareCorridor(int diameter, OfficialRoutingEnvironment environment,
+            Envelope bounds, Coordinate root, String targetId, RouteTraversal traversal,
+            Set<String> junctionTargets, Coordinate junction) {
+        return new PreparedCorridor(rules, rules.localTieInConstraints(environment.corridorConstraints(diameter, bounds),
+                junctionTargets, junction, junction), root, targetId, traversal);
+    }
+
     /**
      * Завершает секции уже проверенных звеньев, не строя неиспользуемые запрещённые буферы заново.
      * Не является проверкой отступов: проверки звеньев, вводов и финальной сети обязательны отдельно.
@@ -489,6 +496,86 @@ public class OfficialObstacleRouter {
                 && rules.lineAllowed(rules.line(coordinates), index);
     }
 
+    /** Обход глубины сохраняет оба направления камер и локальный ввод ОКС в направлении upstream→downstream. */
+    RoutePath findDepthDetourPreservingChambers(RouteEdge edge, Map<String, RouteNode> nodes,
+            OfficialRoutingEnvironment environment, Set<String> exemptions, Set<String> failedUtilityIds,
+            List<RouteEdge> acceptedEdges) {
+        return DepthChamberApproaches.find(edge, nodes, this, environment, exemptions, failedUtilityIds, acceptedEdges);
+    }
+
+    /** Путь камера→потребитель с фиксированным лучом камеры и локальным нормальным вводом ОКС. */
+    RoutePath findChamberTerminalApproach(Coordinate chamber, Coordinate approach, Coordinate target, int diameter,
+            OfficialRoutingEnvironment environment, RouteAvoidance avoidance,
+            OfficialRouteGeometryRules.NormalEgress egress, java.util.function.Predicate<RoutePath> completedAllowed) {
+        return findDepthDetourBetweenHeadings(chamber, approach, egress == null ? target : egress.exit(),
+                egress == null ? null : target, diameter, environment, Set.of(), Set.of(), avoidance, egress, completedAllowed);
+    }
+
+    /** Отдельный поиск с двумя фиксированными продолжениями; общие кеши прежних запросов не используются. */
+    RoutePath findDepthDetourBetweenHeadings(Coordinate previous, Coordinate start, Coordinate end, Coordinate following,
+            int diameter, OfficialRoutingEnvironment environment, Set<String> exemptions, Set<String> failedUtilityIds,
+            RouteAvoidance avoidance, OfficialRouteGeometryRules.NormalEgress egress,
+            java.util.function.Predicate<RoutePath> completedAllowed) {
+        if (previous != null) requireHeading(previous, start);
+        if (following != null) requireHeading(end, following);
+        List<Constraint> depth = environment.depthAvoidanceConstraints(failedUtilityIds);
+        ConstraintIndex depthIndex = rules.index(depth);
+        List<Constraint> routeAvoidance = avoidance.hasSharedJunction() ? avoidance.constraints()
+                : rules.routeAvoidanceConstraints(avoidance.routes());
+        List<Constraint> base = searchConstraints(start, end, previous, diameter, environment, exemptions);
+        List<Constraint> constraints = new ArrayList<>(base);
+        constraints.addAll(routeAvoidance);
+        constraints.addAll(depth);
+        ConstraintIndex index = rules.index(constraints);
+        if (rules.pointInsideForbiddenClearance(start, index) || rules.pointInsideForbiddenClearance(end, index)) return null;
+        NavigationObstaclePreparation preparation = new NavigationObstaclePreparation(NAVIGATION_MARGIN_M, this::navigationCoordinates);
+        for (double expansion : CORRIDOR_EXPANSIONS) {
+            List<Coordinate> nodes = navigationNodes(start, end, index, expansion, true, preparation);
+            nodes = depthDetourNavigationNodes(nodes, depth, start, end, expansion);
+            if (previous != null) nodes = headingNavigationNodes(nodes, previous, start, end);
+            if (following != null) nodes = headingNavigationNodes(nodes, following, end, start);
+            SegmentVisibilityMemo visibility = new SegmentVisibilityMemo(index.hasRoadCrossings());
+            SearchResult search = shortestPath(nodes, index, RoutePreference.SHORTEST, start, end, previous,
+                    visibility, index, null, null, visibility, null, following, ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M);
+            environment.recordVisibilitySearch(nodes.size(), expansion, search.evaluatedPairCount, search.rejectedTurns);
+            if (search.coordinates.isEmpty()) continue;
+            for (List<Coordinate> middle : List.of(normalize(search.coordinates, index, previous), search.coordinates)) {
+                List<Coordinate> complete = new ArrayList<>();
+                if (previous != null) complete.add(previous);
+                complete.addAll(middle);
+                if (following != null) complete.add(following);
+                Envelope bounds = new Envelope();
+                complete.forEach(bounds::expandToInclude);
+                List<Constraint> actual = environment.corridorConstraints(diameter, bounds);
+                RoutePath candidate = path(complete, actual);
+                LineString line = rules.line(candidate.coordinates());
+                if (!line.isSimple() || !turnsAllowed(candidate.coordinates(), null)
+                        || !rules.lineAllowed(line, depthIndex) || !completedAllowed.test(candidate)) continue;
+                List<Constraint> completeConstraints = new ArrayList<>(rules.applicableConstraints(actual, exemptions,
+                        candidate.coordinates().get(0), candidate.coordinates().get(candidate.coordinates().size() - 1)));
+                completeConstraints.addAll(routeAvoidance);
+                boolean valid = egress == null ? rules.lineAllowed(line, rules.index(completeConstraints))
+                        : terminalRouteAllowed(candidate.coordinates(), diameter, environment, exemptions, avoidance, egress);
+                if (valid) return candidate;
+            }
+        }
+        return null;
+    }
+
+    /** Четыре угла опорного прямоугольника позволяют обойти конец трубы без частых поворотов ближе 2м. */
+    private List<Coordinate> depthDetourNavigationNodes(List<Coordinate> nodes, List<Constraint> depth,
+            Coordinate start, Coordinate end, double expansion) {
+        List<Coordinate> result = new ArrayList<>(nodes);
+        LineString direct = rules.line(List.of(start, end));
+        for (Constraint constraint : depth) {
+            if (!constraint.blocked().isWithinDistance(direct, expansion)) continue;
+            Geometry rectangle = new MinimumDiameter(constraint.blocked().buffer(NAVIGATION_MARGIN_M, 2))
+                    .getMinimumRectangle();
+            for (Coordinate corner : rectangle.getCoordinates()) result.add(new Coordinate(corner));
+        }
+        return deduplicate(result);
+    }
+
     RoutePath findAvoidingDepthConflicts(
             Coordinate start,
             Coordinate end,
@@ -507,6 +594,13 @@ public class OfficialObstacleRouter {
                 RoutePreference.SHORTEST,
                 acceptedRoutes,
                 additional);
+    }
+
+    RoutePath findAvoidingDepthConflicts(Coordinate start, Coordinate end, int diameter,
+            OfficialRoutingEnvironment environment, Set<String> exemptions, Set<String> failedUtilityIds,
+            List<LineString> acceptedRoutes, RouteTraversal traversal) {
+        return findUncached(start, end, diameter, environment, exemptions, RoutePreference.SHORTEST,
+                acceptedRoutes, environment.depthAvoidanceConstraints(failedUtilityIds), null, null, traversal);
     }
 
     /** Восстановительный поиск глубины тоже начинает с обязательного направления ввода. */
@@ -766,7 +860,7 @@ public class OfficialObstacleRouter {
     }
 
     /**
-     * Tries a single constructible elbow before entering the visibility graph. A legal 90..135
+     * Tries a single constructible elbow before entering the visibility graph. A legal 90..180
      * degree dogleg is preferable to an obstacle-hugging path that overshoots the destination and
      * returns through a near-zero-degree hairpin.
      */
@@ -1214,8 +1308,17 @@ public class OfficialObstacleRouter {
             SegmentVisibilityMemo sharedVisibility, ConstraintIndex baseConstraints,
             ConstraintIndex crossingConstraints, ConstraintIndex dynamicConstraints,
             SegmentVisibilityMemo baseVisibility, SegmentVisibilityMemo crossingVisibility) {
+        return shortestPath(nodes, constraints, preference, start, end, previous, sharedVisibility, baseConstraints,
+                crossingConstraints, dynamicConstraints, baseVisibility, crossingVisibility, null, 0.0);
+    }
+
+    private SearchResult shortestPath(List<Coordinate> nodes, ConstraintIndex constraints,
+            RoutePreference preference, Coordinate start, Coordinate end, Coordinate previous,
+            SegmentVisibilityMemo sharedVisibility, ConstraintIndex baseConstraints,
+            ConstraintIndex crossingConstraints, ConstraintIndex dynamicConstraints,
+            SegmentVisibilityMemo baseVisibility, SegmentVisibilityMemo crossingVisibility, Coordinate following, double minimumSegmentM) {
         ensureNotCancelled();
-        if (previous != null) {
+        if (previous != null || following != null) {
             // Видимость должна проверять ту же миллиметровую геометрию, что попадёт в экспорт.
             // Иначе все повторные поиски снова выбирают более дешёвое, но недопустимое после округления ребро.
             nodes = nodes.stream().map(p -> new RouteCoordinate(p.x, p.y).toCoordinate())
@@ -1271,6 +1374,12 @@ public class OfficialObstacleRouter {
                 continue;
             }
             if (state.node == 1) {
+                Coordinate before = state.previous < 0 ? previous : nodes.get(state.previous);
+                if (following != null && before != null && (!roundedTurnAllowed(before, nodes.get(1), following)
+                        || !rules.specialTurnAllowed(before, nodes.get(1), following, constraints))) {
+                    rejectedTurns++;
+                    continue;
+                }
                 targetState = state;
                 break;
             }
@@ -1285,6 +1394,11 @@ public class OfficialObstacleRouter {
                     continue;
                 }
                 Coordinate target = nodes.get(next);
+                // Для обхода глубины оставляем 2м между поворотами. Полный граф видимости
+                // позволяет пропустить лишние коллинеарные точки вместо коротких звеньев.
+                boolean freeTerminalLink = state.node == 0 && previous == null || next == 1 && following == null;
+                if (minimumSegmentM > 0 && !freeTerminalLink
+                        && current.distance(target) + 1e-7 < minimumSegmentM) continue;
                 if ((state.previous >= 0 || previous != null) && !OfficialRouteDeflectionRules.allowsTurn(
                         incomingX, incomingY,
                         (millimetresX[next] - millimetresX[state.node]) / 1000.0,
@@ -1390,9 +1504,8 @@ public class OfficialObstacleRouter {
             return 1.0;
         }
         if (preference == RoutePreference.ENGINEERING) {
-            // Expert constructability rule: an internal bend angle must be 90..135 degrees,
-            // equivalently a 45..90 degree deflection. This remains a search preference here;
-            // the portfolio evaluator applies it as a hard admission rule to two variants.
+            // TZ permits internal angles 90..180 degrees (deflections 0..90).
+            // This cost is a preference; independent geometry validation enforces the range.
             if (angle >= EngineeringRouteEvaluator.MIN_INTERNAL_ANGLE_DEGREES
                     && angle <= EngineeringRouteEvaluator.MAX_INTERNAL_ANGLE_DEGREES) {
                 return 1.001;

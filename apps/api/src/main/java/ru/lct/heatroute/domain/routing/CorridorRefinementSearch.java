@@ -51,7 +51,7 @@ final class CorridorRefinementSearch {
                         next.add(candidate);
                         // Слишком близкие камеры ещё можно объединить на следующем уровне,
                         // но промежуточную сеть с нарушением не возвращаем как готовую.
-                        if (candidate.getEngineeringIssues().isEmpty() && firstVisit(candidate, returned)) {
+                        if (candidate.isValid() && candidate.getEngineeringIssues().isEmpty() && firstVisit(candidate, returned)) {
                             result.add(candidate);
                         }
                     }
@@ -91,7 +91,9 @@ final class CorridorRefinementSearch {
     }
 
     private static boolean admitted(RouteVariant variant, boolean depthEnabled) {
-        return variant != null && variant.isValid() && !variant.getEdges().isEmpty()
+        return variant != null && variant.getSizingIssues().isEmpty() && !variant.getEdges().isEmpty()
+                && variant.getValidationIssues().stream()
+                        .allMatch(issue -> "EXPERT_CHAMBER_SPACING_TOO_SHORT".equals(issue.getCode()))
                 && variant.getEngineeringIssues().stream()
                         .allMatch(issue -> "EXPERT_CHAMBER_SPACING_TOO_SHORT".equals(issue.getCode()))
                 && variant.getEconomics() != null

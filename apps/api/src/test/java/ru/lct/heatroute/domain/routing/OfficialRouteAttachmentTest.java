@@ -87,9 +87,9 @@ class OfficialRouteAttachmentTest {
     private OfficialRoutePlanner.VariantDraft draft(boolean fullNearest) {
         List<RouteNode> nodes = new ArrayList<>(List.of(
                 node("root", 0, 0, true, true), node("a", 100, 0, true, false),
-                node("b", 200, 0, true, false), node("demand:one", 100, -100, false, false),
-                node("demand:two", 200, -100, false, false),
-                node("demand:three", 300, 0, false, false)));
+                node("b", 125, 0, true, false), node("demand:one", 100, -100, false, false),
+                node("demand:two", 125, -100, false, false),
+                node("demand:three", 225, 0, false, false)));
         List<RouteEdge> edges = new ArrayList<>(List.of(
                 edge(nodes.get(0), nodes.get(1)), edge(nodes.get(1), nodes.get(2)),
                 edge(nodes.get(1), nodes.get(3)), edge(nodes.get(2), nodes.get(4)),

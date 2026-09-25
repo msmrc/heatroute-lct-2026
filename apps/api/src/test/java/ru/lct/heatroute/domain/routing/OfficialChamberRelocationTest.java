@@ -73,7 +73,7 @@ class OfficialChamberRelocationTest {
     }
 
     @Test
-    void lateCheapestWinnerReceivesEngineeringRepairBeforeRoleSelection() {
+    void legalShallowLateWinnerDoesNotRequireEngineeringRepair() {
         OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", p(0, 0), true, true, 2, "support"),
@@ -89,7 +89,10 @@ class OfficialChamberRelocationTest {
             RouteVariant lateWinner = planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest",
                     new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
             assertThat(lateWinner.isValid()).isTrue();
-            assertThat(new EngineeringRouteEvaluator().evaluate(lateWinner.getEdges()).invalidAngleCount()).isEqualTo(1);
+            assertThat(new EngineeringRouteEvaluator().evaluate(lateWinner.getEdges()).invalidAngleCount()).isZero();
+            RouteVariant repair = ReflectionTestUtils.invokeMethod(planner, "repairLateEconomicWinner",
+                    List.of(lateWinner), demands, List.of(), parameters, false, environment);
+            assertThat(repair).isNull();
 
             List<RouteVariant> roles = planner.relocateSelectedVariants(List.of(lateWinner), demands,
                     List.of(), parameters, false, environment);
@@ -98,22 +101,23 @@ class OfficialChamberRelocationTest {
             assertThat(roles).allSatisfy(role -> {
                 assertThat(role.isValid()).isTrue();
                 assertThat(role.getEngineeringIssues()).isEmpty();
-                assertThat(role.getTotalLengthM()).isEqualByComparingTo("40");
+                assertThat(role.getTotalLengthM()).isEqualByComparingTo(lateWinner.getTotalLengthM());
+                assertThat(role.getEdges()).usingRecursiveComparison().isEqualTo(lateWinner.getEdges());
                 assertThat(role.getConnectedDemandCount()).isEqualTo(1);
-                assertThat(role.getEconomics().getCalculatedCost()).isLessThan(lateWinner.getEconomics().getCalculatedCost());
+                assertThat(role.getEconomics().getCalculatedCost()).isEqualByComparingTo(lateWinner.getEconomics().getCalculatedCost());
                 assertThat(new OfficialRouteValidator(rules).validate(role.getNodes(), role.getEdges(), List.of())).isEmpty();
                 if (depth) assertThat(role.getEdges()).allSatisfy(e -> {
                     assertThat(e.getDepthProfile().isComplete()).isTrue();
                     assertThat(e.getDepthProfile().getIssues()).isEmpty();
                 });
             });
-            assertThat(new EngineeringRouteEvaluator().evaluate(lateWinner.getEdges()).invalidAngleCount()).isEqualTo(1);
+            assertThat(new EngineeringRouteEvaluator().evaluate(lateWinner.getEdges()).invalidAngleCount()).isZero();
             assertThat(lateWinner.getTotalLengthM()).isGreaterThan(new BigDecimal("40"));
         }
     }
 
     @Test
-    void longerAndMoreExpensiveLateRepairDoesNotReplaceTheOriginalEconomicRole() {
+    void legalShallowObstacleDetourIsNotReplacedByUnnecessaryRepair() {
         OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature("park", "restriction",
                 new ObjectMapper().createObjectNode().put("restriction_type", "park"),
@@ -131,7 +135,7 @@ class OfficialChamberRelocationTest {
                 new OfficialRoutePlanner.VariantDraft(nodes, List.of(edge("edge", "root", "demand:one",
                         List.of(c(0, 0), c(20, 6), c(40, 0)), 1)), connections), features, parameters, false, environment));
         assertThat(original.isValid()).isTrue();
-        assertThat(original.getEngineeringIssues()).isNotEmpty();
+        assertThat(original.getEngineeringIssues()).isEmpty();
         OfficialRoutePlanner.VariantDraft repaired = ReflectionTestUtils.invokeMethod(planner,
                 "regularizeEngineeringDraft", new OfficialRoutePlanner.VariantDraft(original.getNodes(),
                         original.getEdges(), original.getConnections()), demands, environment, false);
@@ -139,18 +143,25 @@ class OfficialChamberRelocationTest {
                 repaired, features, parameters, false, environment));
         assertThat(uncheckedAlternative.isValid()).isTrue();
         assertThat(uncheckedAlternative.getEngineeringIssues()).isEmpty();
-        assertThat(uncheckedAlternative.getTotalLengthM()).isGreaterThan(original.getTotalLengthM());
-        assertThat(uncheckedAlternative.getEconomics().getCalculatedCost()).isGreaterThan(original.getEconomics().getCalculatedCost());
+        assertThat(uncheckedAlternative.getEdges()).usingRecursiveComparison().isEqualTo(original.getEdges());
+        assertThat(uncheckedAlternative.getTotalLengthM()).isEqualByComparingTo(original.getTotalLengthM());
+        assertThat(uncheckedAlternative.getEconomics().getCalculatedCost()).isEqualByComparingTo(original.getEconomics().getCalculatedCost());
 
         List<RouteVariant> result = planner.relocateSelectedVariants(List.of(original), demands,
                 features, parameters, false, environment);
 
-        assertThat(result).singleElement().satisfies(variant ->
-                assertThat(variant).usingRecursiveComparison().isEqualTo(original));
+        assertThat(result).extracting(RouteVariant::getId).containsExactly("balanced", "shortest", "cheapest");
+        assertThat(result).allSatisfy(variant -> {
+            assertThat(variant.isValid()).isTrue();
+            assertThat(variant.getEngineeringIssues()).isEmpty();
+            assertThat(variant.getEdges()).usingRecursiveComparison().isEqualTo(original.getEdges());
+            assertThat(variant.getTotalLengthM()).isEqualByComparingTo(original.getTotalLengthM());
+            assertThat(variant.getEconomics().getCalculatedCost()).isEqualByComparingTo(original.getEconomics().getCalculatedCost());
+        });
     }
 
     @Test
-    void lateRepairDoesNotDisplaceOriginalChamberRelocationOpportunities() {
+    void legalLateEconomicCandidateDoesNotDisplaceOriginalChamberRelocationOpportunities() {
         OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
         // Большой существующий ДУ делает вариант с новой корневой камерой дороже двух готовых врезок.
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature("support", "heat_network",
@@ -187,15 +198,14 @@ class OfficialChamberRelocationTest {
         assertThat(baseline.isValid()).isTrue();
         assertThat(baseline.getTotalLengthM()).isEqualByComparingTo("80");
         assertThat(late.isValid()).isTrue();
-        assertThat(late.getEngineeringIssues()).isNotEmpty();
+        assertThat(late.getEngineeringIssues()).isEmpty();
         assertThat(late.getEconomics().getCalculatedCost()).isLessThan(baseline.getEconomics().getCalculatedCost());
         RouteVariant originalRelocation = planner.relocateFinishedChambers(baseline, demands,
                 features, parameters, false, environment);
         assertThat(originalRelocation.getTotalLengthM()).isEqualByComparingTo("70");
         RouteVariant lateRepair = ReflectionTestUtils.invokeMethod(planner, "repairLateEconomicWinner",
                 List.of(late), demands, features, parameters, false, environment);
-        assertThat(lateRepair).isNotNull();
-        assertThat(lateRepair.getTotalLengthM()).isEqualByComparingTo("75");
+        assertThat(lateRepair).isNull();
         RouteVariant shortest = new FinishedRouteVariantSelector().select(List.of(baseline), true).stream()
                 .filter(v -> "shortest".equals(v.getId())).findFirst().orElseThrow();
 

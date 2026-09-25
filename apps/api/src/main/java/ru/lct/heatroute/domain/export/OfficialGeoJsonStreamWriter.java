@@ -19,12 +19,13 @@ public final class OfficialGeoJsonStreamWriter {
             OutputStream outputStream,
             Consumer<Consumer<ObjectNode>> featureProducer) throws IOException {
         try (JsonGenerator generator = objectMapper.getFactory().createGenerator(outputStream)) {
-            generator.writeStartObject();
-            generator.writeStringField("type", "FeatureCollection");
-            generator.writeArrayFieldStart("features");
+            boolean[] started = {false};
             try {
                 featureProducer.accept(feature -> {
                     try {
+                        // Производитель проверяет геометрию до первой feature; при отказе даже
+                        // закрытие JsonGenerator не должно выдавать заголовок незавершённого экспорта.
+                        if (!started[0]) { startCollection(generator); started[0] = true; }
                         generator.writeTree(feature);
                     } catch (IOException exception) {
                         throw new UncheckedIOException(exception);
@@ -33,8 +34,15 @@ public final class OfficialGeoJsonStreamWriter {
             } catch (UncheckedIOException exception) {
                 throw exception.getCause();
             }
+            if (!started[0]) startCollection(generator);
             generator.writeEndArray();
             generator.writeEndObject();
         }
+    }
+
+    private void startCollection(JsonGenerator generator) throws IOException {
+        generator.writeStartObject();
+        generator.writeStringField("type", "FeatureCollection");
+        generator.writeArrayFieldStart("features");
     }
 }

@@ -1,5 +1,14 @@
 # Current implementation progress
 
+## 2026-09-25 — source93: нормали и 2 м прошли свежий официальный расчёт
+
+[Результат source93](PRIMARY_ROUTING_93.md): нормальный вход в камеру и ближайший поворот
+минимум через 2 м реализованы в генераторе, независимой проверке и экспорте. Приоритет ТЗ:
+повороты 0–90°, дорога >=45°. Свежий официальный расчёт: все три роли 17/17 и strict export PASS;
+shortest/cheapest 2039,856 м, balanced 2082,343 м. Fast1855PASS/0fail/error/3skip,
+долгие dataset/corridor6PASS, web36+37/lint/typecheckPASS. Старый compact <1860 м остаётся FAIL,
+его порог не ослаблен. Production smoke source93 ожидает развёртывания; R/G не закрыты.
+
 ## 2026-09-25 — live VPS deploy актуального master
 
 VPS `/opt/heatroute` обновлён fast-forward с `a180525` до `2e90356` строго по
@@ -26,7 +35,7 @@ dataset/control-класса исключены явно; web36+37/lint/typechec
 выявил13ошибок неоднозначного reflection helper после merge; имя memo-helper отделено
 в2d513b1, прежние21preparation/priority cases и общий набор теперь зелёные.
 Исходная геометрия отсутствует — прежняя compatibility сохраняется, strict support-presence
-не заявляем. Нормали камер/камера→поворот2м/дороги90–100, полный dataset/compact, Compose,
+не заявляем. Нормали камер/камера→поворот2м при официальном road>=45°, полный dataset/compact, Compose,
 deploy/scale/R/G остаются открыты. SSH и уточнение смысла2м запрошены пользователю.
 
 ## 2026-09-25 — единый master: слияние проверено

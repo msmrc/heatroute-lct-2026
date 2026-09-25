@@ -9,11 +9,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
+import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Проверяет уточнение Евгения от 25.09.2026: ввод ОКС начинается в камере,
- * а между последовательными камерами требуется 10 м по фактической полилинии EPSG:32637.
+ * между последовательными камерами требуется 10 м по фактической полилинии EPSG:32637,
+ * примыкания лежат на перпендикулярных осях, ближайший поворот удалён минимум на 2 м.
  * Это отдельное экспертное правило, не правило организатора о переиспользовании камеры у врезки.
  */
 public final class ExpertChamberRouteValidator {
@@ -23,14 +26,24 @@ public final class ExpertChamberRouteValidator {
 
     /** Обходит лес за O(V + E + число координат); технические вершины не обнуляют длину участка. */
     public List<RouteValidationIssue> validate(List<RouteNode> nodes, List<RouteEdge> edges) {
-        return validate(nodes, edges, this::actualLengthM);
+        return validate(nodes, edges, node -> List.<Coordinate>of());
+    }
+
+    /** Учитывает реальные направления существующей сети в исходных камерах. */
+    public List<RouteValidationIssue> validate(List<RouteNode> nodes, List<RouteEdge> edges,
+            Function<RouteNode, List<Coordinate>> existingDirections) {
+        List<RouteValidationIssue> issues = new ArrayList<>(validateMeasuredSections(nodes, edges, this::actualLengthM));
+        if (issues.stream().noneMatch(issue -> "EXPERT_CHAMBER_TOPOLOGY_UNCHECKABLE".equals(issue.getCode()))) {
+            issues.addAll(ExpertChamberGeometryRules.validate(nodes, edges, existingDirections));
+        }
+        return List.copyOf(issues);
     }
 
     /**
      * Принимает измеренные по фактическим полилиниям EPSG:32637 длины из потокового адаптера.
      * Provider не должен подставлять заявленную length_m; непроверяемой геометрии соответствует NaN.
      */
-    public List<RouteValidationIssue> validate(List<RouteNode> nodes, List<RouteEdge> edges,
+    public List<RouteValidationIssue> validateMeasuredSections(List<RouteNode> nodes, List<RouteEdge> edges,
             ToDoubleFunction<RouteEdge> measuredLengthM) {
         Objects.requireNonNull(measuredLengthM, "Measured geometry length provider is required");
         Map<String, RouteNode> byId = new LinkedHashMap<>();

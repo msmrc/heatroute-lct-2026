@@ -7,6 +7,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.CancellationException;
 import org.locationtech.jts.geom.Coordinate;
 import ru.lct.heatroute.domain.routing.OfficialRouteDeflectionRules;
+import ru.lct.heatroute.domain.routing.ExpertChamberGeometryRules;
 import ru.lct.heatroute.domain.routing.RouteCoordinate;
 
 /** Потоково сопоставляет фактически экспортируемые секции с проверенным ребром. */
@@ -30,6 +31,14 @@ final class SavedRouteGeometry {
                 ? originalCheck : check(id, emitted);
         equivalent(original, emitted, upstream.toCoordinate(), downstream.toCoordinate());
         return actualCheck;
+    }
+
+    /** Ограниченная сводка для независимой проверки камер до выдачи первого байта экспорта. */
+    static ExpertChamberGeometryRules.PolylineSummary chamberSummary(JsonNode edge, boolean emitted) {
+        JsonNode sections = edge.path("sections");
+        Iterable<RouteCoordinate> coordinates = emitted && sections.isArray() && !sections.isEmpty()
+                ? () -> new SectionIterator(sections) : points(edge.path("coordinates"));
+        return ExpertChamberGeometryRules.summarize(coordinates);
     }
 
     private static OfficialRouteDeflectionRules.PolylineCheck check(String id, Iterable<RouteCoordinate> points) {

@@ -20,8 +20,8 @@ class ChamberApproachCandidatesTest {
         List<Coordinate> rays = List.of(ray(0), ray(90), ray(180));
         List<Coordinate> result = builder.build(junction, rays, 4, 7.5);
 
-        assertThat(result).hasSize(5);
-        double[] expectedDirections = {45, 135, 225, 270, 315};
+        assertThat(result).hasSize(1);
+        double[] expectedDirections = {270};
         for (int index = 0; index < expectedDirections.length; index++) {
             assertThat(result.get(index).distance(point(junction, expectedDirections[index], 4))).isLessThan(1e-8);
         }
@@ -41,11 +41,11 @@ class ChamberApproachCandidatesTest {
     }
 
     @Test
-    void keepsAllDistinctLegalDirectionsForSlightlyNonOrthogonalExistingRays() {
+    void requiresRepairOfNonOrthogonalExistingRaysBeforeAddingAnotherPort() {
         List<Coordinate> rays = List.of(ray(0), ray(89), ray(181));
         List<Coordinate> result = builder.build(junction, rays, 4, 7.5);
 
-        assertThat(result).hasSize(15).hasSizeLessThanOrEqualTo(21);
+        assertThat(result).isEmpty();
         assertGeometry(result, junction, rays, 4, 7.5);
     }
 
@@ -70,8 +70,8 @@ class ChamberApproachCandidatesTest {
     @Test
     void includesToleranceBoundaryAndRejectsJustOutsideIt() {
         Coordinate south = point(junction, 270, 4);
-        List<Coordinate> exact = builder.build(junction, List.of(ray(0), ray(82.5), ray(180)), 4, 7.5);
-        List<Coordinate> outside = builder.build(junction, List.of(ray(0), ray(82.499), ray(180)), 4, 7.5);
+        List<Coordinate> exact = builder.build(junction, List.of(ray(0), ray(89.95), ray(180)), 4, 0.05);
+        List<Coordinate> outside = builder.build(junction, List.of(ray(0), ray(89.949), ray(180)), 4, 0.05);
 
         assertThat(exact).anySatisfy(point -> assertThat(point.distance(south)).isLessThan(1e-8));
         assertThat(outside).allSatisfy(point -> assertThat(point.distance(south)).isGreaterThan(1e-8));
@@ -101,7 +101,7 @@ class ChamberApproachCandidatesTest {
         assertThat(builder.build(junction, List.of(ray(0), ray(30), ray(180)), 4, 7.5)).isEmpty();
         List<Coordinate> rays = List.of(ray(0), ray(90), ray(180));
         List<Coordinate> exact = builder.build(junction, rays, 4, 0);
-        assertThat(exact).hasSize(5);
+        assertThat(exact).hasSize(1);
         assertGeometry(exact, junction, rays, 4, 0);
     }
 
@@ -116,7 +116,7 @@ class ChamberApproachCandidatesTest {
         assertThatThrownBy(() -> builder.build(new Coordinate(Double.NaN, 0), List.of(ray(0)), 4, 7.5))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> builder.build(junction, null, 4, 7.5)).isInstanceOf(IllegalArgumentException.class);
-        for (double length : new double[] {0, -4, Double.NaN, Double.POSITIVE_INFINITY}) {
+        for (double length : new double[] {0, -4, 1.999, Double.NaN, Double.POSITIVE_INFINITY}) {
             assertThatThrownBy(() -> builder.build(junction, List.of(ray(0)), length, 7.5))
                     .isInstanceOf(IllegalArgumentException.class);
         }
@@ -131,7 +131,7 @@ class ChamberApproachCandidatesTest {
         Coordinate origin = new Coordinate(junction);
         Coordinate existing = ray(0);
         List<Coordinate> first = builder.build(origin, List.of(existing), 4, 7.5);
-        assertThat(first).hasSize(7);
+        assertThat(first).hasSize(3);
         first.get(0).x = -1000;
         assertThat(origin.equals2D(junction)).isTrue();
         assertThat(existing.equals2D(ray(0))).isTrue();
@@ -152,7 +152,7 @@ class ChamberApproachCandidatesTest {
                 double separation = Math.toDegrees(Math.abs(Math.IEEEremainder(direction - existing, Math.PI * 2)));
                 assertThat(separation).isGreaterThan(1e-7);
                 double closest = Double.POSITIVE_INFINITY;
-                for (double standard : new double[] {45, 90, 135, 180}) closest = Math.min(closest, Math.abs(separation - standard));
+                for (double standard : new double[] {90, 180}) closest = Math.min(closest, Math.abs(separation - standard));
                 assertThat(closest).isLessThanOrEqualTo(tolerance + 1e-7);
             }
         }

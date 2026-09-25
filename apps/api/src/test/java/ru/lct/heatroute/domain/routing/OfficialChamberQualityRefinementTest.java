@@ -43,10 +43,13 @@ class OfficialChamberQualityRefinementTest {
             var seed = planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest",
                     new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false,
                     environment, TerminalApproachPolicy.PRESERVE_VALID));
-            assertThat(seed.isValid()).isTrue();
-            assertThat(seed.getEngineeringIssues()).isEmpty();
+            assertThat(seed.isValid()).isFalse();
+            assertThat(seed.getValidationIssues()).extracting(RouteValidationIssue::getCode)
+                    .containsOnly("EXPERT_CHAMBER_OBLIQUE_ENTRY");
             assertThat(engineering.evaluate(seed.getEdges()).irregularJunctionAngleCount()).isPositive();
-            var originalRoles = new FinishedRouteVariantSelector().select(List.of(seed), depth);
+            var repaired = planner.repairMandatoryChambers(List.of(seed), demands, List.of(), parameters, false, environment);
+            assertThat(repaired).isNotEmpty();
+            var originalRoles = new FinishedRouteVariantSelector().select(repaired, depth);
             var roles = planner.improveSelectedChamberQuality(originalRoles, demands, List.of(), parameters, false, environment);
             assertThat(roles).extracting(RouteVariant::getId).containsExactly("balanced", "shortest", "cheapest");
             RouteVariant result = roles.get(0);
@@ -66,7 +69,8 @@ class OfficialChamberQualityRefinementTest {
             assertThat(engineering.evaluate(seed.getEdges()).irregularJunctionAngleCount()).isPositive();
             // Регулярный cheapest не должен отключать ремонт другой, ещё плохой роли balanced.
             var mixed = List.of(asRole(seed, "balanced"), asRole(result, "shortest"), asRole(result, "cheapest"));
-            var second = planner.improveSelectedChamberQuality(mixed, demands, List.of(), parameters, false, environment);
+            var repairedMixed = planner.repairMandatoryChambers(mixed, demands, List.of(), parameters, false, environment);
+            var second = new FinishedRouteVariantSelector().select(repairedMixed, depth);
             assertThat(engineering.evaluate(second.get(0).getEdges()).irregularJunctionAngleCount()).isZero();
         }
     }

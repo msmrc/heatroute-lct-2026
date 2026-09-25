@@ -2,6 +2,7 @@ package ru.lct.heatroute.domain.topology;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.LineSegment;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.index.strtree.STRtree;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
@@ -91,6 +93,36 @@ public final class ExistingNetworkSupportIndex {
             throw new IllegalArgumentException("Existing support diameter differs from the import: " + node.getId());
         }
         return node.withExistingIncidentDiameter(resolved);
+    }
+
+    /** Векторы существующих примыканий направлены от исходной камеры; проходящая линия даёт два луча. */
+    public List<Coordinate> existingDirections(RouteNode node) {
+        if (!node.isRoot() || !node.isChamber()) return List.of();
+        Coordinate at = node.getCoordinate().toCoordinate();
+        Envelope window = new Envelope(at);
+        window.expandBy(TOLERANCE_M);
+        @SuppressWarnings("unchecked")
+        List<Segment> nearby = index.query(window);
+        List<Coordinate> directions = new ArrayList<>();
+        for (Segment segment : nearby) {
+            ensureActive();
+            LineString line = segment.line;
+            if (line.distance(line.getFactory().createPoint(at)) > TOLERANCE_M) continue;
+            for (int i = 1; i < line.getNumPoints(); i++) {
+                Coordinate before = line.getCoordinateN(i - 1), after = line.getCoordinateN(i);
+                if (before.equals2D(after)) continue;
+                boolean starts = before.distance(at) <= TOLERANCE_M;
+                boolean ends = after.distance(at) <= TOLERANCE_M;
+                if (starts && ends) continue;
+                if (starts) directions.add(new Coordinate(after.x - before.x, after.y - before.y));
+                else if (ends) directions.add(new Coordinate(before.x - after.x, before.y - after.y));
+                else if (new LineSegment(before, after).distance(at) <= TOLERANCE_M) {
+                    directions.add(new Coordinate(before.x - after.x, before.y - after.y));
+                    directions.add(new Coordinate(after.x - before.x, after.y - before.y));
+                }
+            }
+        }
+        return List.copyOf(directions);
     }
 
     private int diameter(Segment segment) {

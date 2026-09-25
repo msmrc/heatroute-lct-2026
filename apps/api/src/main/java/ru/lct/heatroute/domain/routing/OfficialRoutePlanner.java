@@ -2320,10 +2320,12 @@ public class OfficialRoutePlanner {
         List<RouteVariant> alternatives = new ArrayList<>(selected);
         RouteVariant repaired = repairLateEconomicWinner(selected, demands, features, parameters,
                 reconstructionRequired, environment);
-        List<RouteVariant> relocationSeeds = selected;
+        List<RouteVariant> relocationSeeds = new ArrayList<>(selected);
         if (repaired != null) {
             alternatives.add(repaired);
-            relocationSeeds = new FinishedRouteVariantSelector().select(alternatives, parameters.isDepthEnabled());
+            // Лучший до переноса вариант не обязательно лучший после него. Не теряем
+            // прежние попытки: максимум три исходные роли плюс один новый repair-кандидат.
+            relocationSeeds.add(repaired);
         }
         for (RouteVariant original : relocationSeeds) {
             RouteVariant improved = relocateFinishedChambers(original, demands, features,

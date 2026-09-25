@@ -53,12 +53,14 @@ export interface SelectedMapObject {
 
 interface MapLayersState {
   base: boolean;
+  buildingClearance: boolean;
   restrictions: boolean;
   network: boolean;
   route: boolean;
 }
 
 const OVERLAY_LAYERS: Record<Exclude<keyof MapLayersState, "base">, string[]> = {
+  buildingClearance: ["building-clearance-fill", "building-clearance-line"],
   restrictions: ["restriction-fill", "restriction-line"],
   network: ["network-casing", "network-line", "source-points", "chamber-points", "context-points"],
   route: ["reconstruction-casing", "reconstruction-line", "route-casing", "route-line", "reconstruction-nodes", "route-nodes"],
@@ -203,6 +205,8 @@ function addOverlayLayers(map: MapLibreMap, contextData: FeatureCollection, rout
   map.addSource(ROUTE_SOURCE, { type: "geojson", data: routeData });
 
   const layers: LayerSpecification[] = [
+    { id: "building-clearance-fill", type: "fill", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "building_clearance_5m"], paint: { "fill-color": "#ef4444", "fill-opacity": 0.12 } },
+    { id: "building-clearance-line", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "building_clearance_5m"], paint: { "line-color": "#dc2626", "line-opacity": 0.8, "line-width": 1.4, "line-dasharray": [3, 2] } },
     { id: "restriction-fill", type: "fill", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "restriction"], paint: { "fill-color": ["match", ["get", "restriction_type"], "water", "#5794c9", "railway", "#b58a50", "#8b8f96"], "fill-opacity": 0.06 } },
     { id: "restriction-line", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "restriction"], paint: { "line-color": ["match", ["get", "restriction_type"], "water", "#5794c9", "railway", "#b58a50", "#8b8f96"], "line-opacity": 0.58, "line-width": 1.2, "line-dasharray": [4, 4] } },
     { id: "network-casing", type: "line", source: CONTEXT_SOURCE, filter: ["==", ["get", "object_type"], "heat_network"], paint: { "line-color": "rgba(255,255,255,.92)", "line-width": 5 } },
@@ -278,7 +282,9 @@ function selectedObject(feature: MapGeoJSONFeature): SelectedMapObject {
         : undefined;
   if (inferredPointRole) details.push(["Тип точки", pointRoleTitle(inferredPointRole)]);
   if (typeof properties.feature_id === "string" && properties.feature_id) details.push(["ID", properties.feature_id]);
-  const fallback = objectType === "heat_network" ? "Существующая теплосеть" : objectType ?? "Объект карты";
+  const fallback = objectType === "heat_network" ? "Существующая теплосеть"
+    : objectType === "building_clearance_5m" ? "Зона 5 м от здания"
+      : objectType ?? "Объект карты";
   return {
     title: typeof properties.label === "string" ? properties.label : fallback,
     subtitle: layer?.startsWith("calculated") ? "Результат расчёта" : "Исходные данные",
@@ -301,7 +307,7 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
   const targetRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const baseLayerIdsRef = useRef<string[]>([]);
-  const [layers, setLayers] = useState<MapLayersState>({ base: true, restrictions: false, network: true, route: true });
+  const [layers, setLayers] = useState<MapLayersState>({ base: true, buildingClearance: true, restrictions: false, network: true, route: true });
   const [layerMenuOpen, setLayerMenuOpen] = useState(false);
   const [basemapFallback, setBasemapFallback] = useState(false);
   const layerVisibilityRef = useRef(layers);
@@ -441,6 +447,7 @@ export function OfficialRouteMap({ runId, importId, variant, onSelect }: {
             <strong>Слои карты</strong>
             {([
               ["base", "Карта"],
+              ["buildingClearance", "Зона 5 м от зданий"],
               ["network", "Теплосеть"],
               ["restrictions", "Ограничения"],
               ["route", "Маршруты"],

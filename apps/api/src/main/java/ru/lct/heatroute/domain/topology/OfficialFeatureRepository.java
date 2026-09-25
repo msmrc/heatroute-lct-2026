@@ -135,9 +135,21 @@ public class OfficialFeatureRepository {
             double maxLatitude) {
         return jdbcTemplate.queryForObject(
                 "WITH visible AS ("
+                        + "SELECT feature_id, object_type, attributes, geometry_wgs84 FROM ("
                         + "SELECT feature_id, object_type, attributes, geometry_wgs84 "
                         + "FROM official_features "
                         + "WHERE import_id = ? AND geometry_wgs84 && ST_MakeEnvelope(?, ?, ?, ?, 4326) "
+                        + "UNION ALL "
+                        + "SELECT feature_id || ':clearance-5m', 'building_clearance_5m', "
+                        + "jsonb_build_object('source_feature_id', feature_id, 'clearance_m', 5.0, "
+                        + "'label', 'Зона 5 м от здания'), "
+                        + "ST_Transform(ST_Difference(ST_Buffer(geometry_metric, 5.0), geometry_metric), 4326) "
+                        + "FROM official_features "
+                        + "WHERE import_id = ? AND (object_type = 'oks_existing' "
+                        + "OR (object_type = 'restriction' AND attributes->>'restriction_type' = 'oks')) "
+                        + "AND geometry_metric IS NOT NULL AND ST_Dimension(geometry_metric) = 2 "
+                        + "AND geometry_wgs84 && ST_MakeEnvelope(?, ?, ?, ?, 4326)"
+                        + ") candidates "
                         + "ORDER BY feature_id LIMIT 10001"
                         + "), numbered AS ("
                         + "SELECT *, row_number() OVER () AS row_number FROM visible"
@@ -153,6 +165,11 @@ public class OfficialFeatureRepository {
                         + "'truncated', COALESCE(bool_or(row_number > 10000), false)"
                         + ")::text FROM numbered",
                 String.class,
+                importId,
+                minLongitude,
+                minLatitude,
+                maxLongitude,
+                maxLatitude,
                 importId,
                 minLongitude,
                 minLatitude,

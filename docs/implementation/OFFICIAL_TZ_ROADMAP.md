@@ -7,8 +7,10 @@
 **Текущий source86:** [export и сохранение углов камер](PRIMARY_ROUTING_86.md).
 Независимый preflight новых экспертных правил для сохранённого JSON:24casesPASS;
 shortener не ухудшает минимальные углы камер:3RED→GREEN. Fast1338/1335PASS/0fail/0error/3skip.
-Web86:36+37/lint/typecheckPASS, full86 ещё нет. Full84 завершён1292/1288PASS/1compactFAIL/3skip,
-variants структурно равны83; full85/roads83 пока живы. Положительный локальный quality-кандидат
+Web86:36+37/lint/typecheckPASS, full86session43280 выполняется. Full84 завершён1292/1288PASS/1compactFAIL/3skip,
+variants структурно равны83. Full85:1318/1314PASS/1compactFAIL/3skip,3роли17/17/камеры/strict
+exportPASS, минимум20,18388м, но2почти параллельные пары остаются. Roads83 пока жив.
+Положительный локальный quality-кандидат
 с17подключениями/11новыми камерами ещё не автоматически генерируемый production86.
 Правило10м — уточнение Евгения, не новая норма СП; его схема не golden route.
 Runtime61/VPS и статусы R/G/native/Compose/scale не изменены. Ниже исторические checkpoints.

@@ -55,17 +55,33 @@ Evidence: ignored `.tooling/export85-preflight.8ikVYU/EVIDENCE.md`.
   Frozen `.tooling/source86-gates.6VYRoA`; checkout Java source побайтно совпал с snapshot
   после прогона. Reports скопированы в `source86-final-fast-reports/` до следующего запуска.
 - Web86:36 Vitest +37 scripts, lint/typecheck PASS на bundled Node; лог `source86-web.log`.
-- Полный86 ещё не выполнен. `pwsh`/Docker Compose недоступны; native live
+- Полный86 запущен на том же frozen snapshot:session43280, `source86-full.log`,
+  ожидаемый accepted `source86-result.json`, диагностический `source86-diagnostic.json`.
+  `pwsh`/Docker Compose недоступны; native live
   smoke и scale не выполнены. Быстрый набор не включает три тяжёлых dataset-класса.
 
 Full84 завершён:1292 cases/1288 PASS/1 известный compact-control FAIL/3skip.
 Original747,231с и concave6,638с,17/17/strict export PASS по правилам84. Структурно все поля
 `variants`83 и84 равны; различие порядка JSON-ключей не является отличием результата.
-Full85session20838 и roads83session12884 пока продолжаются на собственных frozen targets.
+Full85session20838 завершён: **1318cases/1314PASS/1compact-control FAIL/0errors/3skip**.
+Original772,996с/concave6,693с, все3роли17/17, geometry/sizing/depth/economics, новые правила
+камер и strict exportPASS. Balanced:2090,416м/284948379,08₽/11новыхкамер/23поворота;
+shortest/cheapest:2068,786м/283005451,31₽/11новыхкамер/22поворота. Минимум между камерами
+во всех ролях20,18388м. Две почти параллельные пары остались во всех ролях. Это не закрытие
+полного quality gate. Reports сохранены в `source85-full-reports/`, accepted
+`source85-result.json`, просмотренная картинка `source85-cheapest-comparison/side-by-side.png`.
+Roads83session12884 пока продолжается.
 Roads81 остаётся непринятым15/17; его старые результаты нельзя заменять на69, где повторная
 актуальная проверка обнаруживает нарушения пересечения/отступа дорог.
 
 ## Геометрический кандидат — пока не fresh результат
+
+Дополнительный read-only export replay на бинарных классах86: старый balanced83 отклонён
+именно за короткий межкамерный участок; shortest/cheapest83 и все3роли свежего85 приняты.
+Диагностический quality-кандидат также проходит экспорт после назначения rank=1 **в отдельной
+копии для этой проверки**, без изменения геометрии/сметы/файла. Это не автоматическое rank
+или принятие кандидата в planner. `source86-export-replay-verified.log`; первые два запуска
+probe завершились ошибками его обёртки (формат bundle/rank), сохранены отдельно, не считаются PASS.
 
 Bounded локальный rebuild сохранённого83 устранил обе почти параллельные пары:
 2089,610м /284667513,88₽ /26поворотов /17подключений /11новых узловых камер.

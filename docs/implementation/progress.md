@@ -8,9 +8,13 @@
 прежних денежных assertions. Shortener сохраняет углы каждой камеры:3RED→3GREEN,16контролейPASS.
 Fast1338cases/1335PASS/0fail/0error/3skip,125классов; reports сохранены отдельно,
 Java snapshot `.tooling/source86-gates.6VYRoA` совпал с checkout. Web36+37/lint/typecheckPASS;
-full86 ещё нет.
+full86session43280 запущен на frozen snapshot, `source86-full.log`; его target не менять.
 Full84 завершён1292/1288PASS/1compactFAIL/3skip, original747,231с, strict exportPASS;
-структурно variants83==84. Full85session20838/roads83session12884 пока живы.
+структурно variants83==84. Full85 завершён1318/1314PASS/1compactFAIL/3skip; original772,996с,
+3роли17/17/новые правила камер/strict exportPASS, min20,18388м, по11новыхкамер во всех ролях.
+Две почти параллельные пары остались; это не quality acceptance. Roads83session12884 жив.
+Read-only exporter86 повторно принял все3роли85, отклонил balanced83 за4,5865м; старые данные
+не изменены. Quality-кандидат проверен только в копии с диагностическимrank=1, не выбран planner.
 Локальный rebuild83 убрал обе почти параллельные пары:2089,610м/284667513,88₽/17of17/11новых
 камер, все независимые проверки и exportPASS; +1,007%длины/+0,587%цены. Компактный prototype
 воспроизвёл его за8попыток, но ни генерация, ни tradeoff policy ещё не подключены к production.

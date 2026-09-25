@@ -6,12 +6,16 @@
 и начало ввода в камере по фактическим полилиниям; старые неверные run требуют перерасчёта,
 но остаются читаемыми. Shortener не портит углы камеры.27новыхслучаев, fast1338/1335PASS/3skip,
 0fail/errors; reports `.tooling/intake-20260925/source86-final-fast-reports/`.
-Snapshot86 `.tooling/source86-gates.6VYRoA` побайтно проверен; пока только fast,
-web36+37/lint/typecheckPASS, лог `source86-web.log`.
+Snapshot86 `.tooling/source86-gates.6VYRoA` побайтно проверен; web36+37/lint/typecheckPASS,
+лог `source86-web.log`. Теперь **full86session43280**, target frozen; `source86-full.log`,
+ожидаемый accepted `source86-result.json`, diagnostic `source86-diagnostic.json`.
 Full84 завершён exit1:1288PASS/1compactFAIL/3skip, original747,231с/strict exportPASS;
 его target свободен, отчёты `source84-full-reports/`, accepted `source84-result.json`.
-Живы full85session20838 (`.tooling/source85-gates.QFTwHj/apps/api/target`) и
-roads83session12884 (`.tooling/scenario83.zYg3LZ`); не менять targets и не дублировать jobs.
+Full85session20838 завершён:1318/1314PASS/1compactFAIL/3skip, original772,996с/concave6,693с,
+все3роли17/17/новые правила/strict exportPASS. По11новыхкамер/min20,18388м; обе старые
+почти параллельные пары остались. Reports `source85-full-reports/`, accepted `source85-result.json`,
+просмотренная пара изображений `source85-cheapest-comparison/side-by-side.png`. Target85 свободен.
+Живы full86 и roads83session12884 (`.tooling/scenario83.zYg3LZ`); не менять targets и не дублировать jobs.
 
 Положительный локальный rebuild83:2089,610м/284667513,88₽/26bends/17of17/11новыхкамер,
 без почти параллельных выходов, min20,18388м, independent strict exportPASS. Не fresh86.

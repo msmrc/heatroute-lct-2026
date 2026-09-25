@@ -1,5 +1,9 @@
 # Source80: query-local primitive ordinals вместо сортировки Integer
 
+**Актуализация:** full79session51226 завершён, exact variants79==78; target79 всё ещё занят
+roads79session69123. Full80session59635 продолжается. Основной TOWARD correctness-fix вынесен
+отдельно в [81](PRIMARY_ROUTING_81.md); для80 по-прежнему ожидается exact equivalence с79.
+
 25.09.2026, `codex/routing-63-geometry`, `global-tree-80`. Отдельная behavior-preserving
 оптимизация поверх79, не изменение геометрических норм или результата выбора маршрута.
 **End-to-end ускорение и качество свежего portfolio80 пока не подтверждены.** Runtime61/VPS прежние.

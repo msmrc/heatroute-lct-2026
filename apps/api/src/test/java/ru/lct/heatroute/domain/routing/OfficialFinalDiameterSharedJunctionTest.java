@@ -140,6 +140,49 @@ class OfficialFinalDiameterSharedJunctionTest {
     }
 
     @Test
+    void upstreamPolicyRetainsAValidNetworkAlreadyFollowingItsChosenNormal() throws Exception {
+        assertUpstreamPolicyRetention(new Fixture());
+    }
+
+    @Test
+    void upstreamPolicyRetentionWorksAfterRotationAndTranslation() throws Exception {
+        assertUpstreamPolicyRetention(new Fixture(90, 414000, 6173000));
+    }
+
+    @Test
+    void upstreamPolicyStillExploresADifferentLegalWallWhenItsNormalDiffers() throws Exception {
+        Fixture fixture = new Fixture();
+        List<ImportedOfficialFeature> features = List.of(fixture.rectangle("square", -2, -2, 0, 0));
+        List<RouteNode> nodes = List.of(fixture.node("root", -20, 20, true), fixture.node("demand", -1, -1, false));
+        RouteEdge before = fixture.edge("branch", "root", "demand", 400, List.of(
+                fixture.point(-20, 20), fixture.point(20, 20), fixture.point(20, -1), fixture.point(-1, -1)));
+        assertValid(nodes, List.of(before), features);
+        List<RouteEdge> after = ensure(nodes, List.of(before), features,
+                TerminalApproachPolicy.TOWARD_UPSTREAM);
+        assertValid(nodes, after, features);
+        assertThat(after.get(0)).isNotSameAs(before);
+    }
+
+    private void assertUpstreamPolicyRetention(Fixture fixture) throws Exception {
+        RouteEdge branch = fixture.edge("branch", "root", "demand", 400, List.of(
+                fixture.point(20, 20), fixture.point(40, 20), fixture.point(40, 0),
+                fixture.point(10, 0), fixture.point(-1, 0)));
+        RouteEdge sibling = fixture.edge("sibling", "root", "other", 400, List.of(
+                fixture.point(20, 20), fixture.point(20, 40),
+                fixture.point(40.1, 40), fixture.point(40.1, 0)));
+        List<RouteNode> nodes = List.of(fixture.node("root", 20, 20, true),
+                fixture.node("demand", -1, 0, false), fixture.node("other", 40.1, 0, false));
+        List<RouteEdge> before = List.of(sibling, branch);
+        assertValid(nodes, before, fixture.features);
+
+        List<RouteEdge> after = ensure(nodes, before, fixture.features, TerminalApproachPolicy.TOWARD_UPSTREAM);
+
+        assertValid(nodes, after, fixture.features);
+        assertThat(find(after, "branch")).isSameAs(branch);
+        assertThat(find(after, "sibling")).isSameAs(sibling);
+    }
+
+    @Test
     void realCrossingAwayFromTheSharedNodeStillRequiresRepair() throws Exception {
         Fixture fixture = new Fixture();
         RouteEdge branch = fixture.branch(400);
@@ -353,12 +396,18 @@ class OfficialFinalDiameterSharedJunctionTest {
     @SuppressWarnings("unchecked")
     private List<RouteEdge> ensure(List<RouteNode> nodes, List<RouteEdge> edges,
             List<ImportedOfficialFeature> features) throws Exception {
+        return ensure(nodes, edges, features, TerminalApproachPolicy.PRESERVE_VALID);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<RouteEdge> ensure(List<RouteNode> nodes, List<RouteEdge> edges,
+            List<ImportedOfficialFeature> features, TerminalApproachPolicy policy) throws Exception {
         Method method = OfficialRoutePlanner.class.getDeclaredMethod("ensureMandatoryEgress",
                 List.class, List.class, List.class, OfficialRoutingEnvironment.class, TerminalApproachPolicy.class);
         method.setAccessible(true);
         try {
             List<RouteEdge> result = (List<RouteEdge>) method.invoke(new OfficialDatasetRoutingTest().planner(),
-                    nodes, edges, features, router.prepare(features), TerminalApproachPolicy.PRESERVE_VALID);
+                    nodes, edges, features, router.prepare(features), policy);
             assertThat(result).hasSameSizeAs(edges);
             return result;
         } catch (InvocationTargetException exception) {

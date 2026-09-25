@@ -1,5 +1,10 @@
 # Source79: сохранение целиком проверенной геометрии
 
+**Итог полного прогона:** session51226 завершён1226cases/1222PASS/1compactFAIL/3skip,
+fixture595,410с; `result.variants` точно равны78, cheapest3bad angles сохраняются. Target79
+ещё занят roads79session69123. Основной путь доводки не использовал изменённую политику:
+дальнейшее исправление и trace — в [81](PRIMARY_ROUTING_81.md). Нижние статусы запуска исторические.
+
 25.09.2026, `codex/routing-63-geometry`, `global-tree-79`; отдельный correctness-fix поверх
 `2527e46` (направление terminal в78). **Не объявляет завершённым качество свежего portfolio.**
 

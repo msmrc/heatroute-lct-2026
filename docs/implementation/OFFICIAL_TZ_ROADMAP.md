@@ -4,6 +4,13 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Приоритетная актуализация — source81:** [основной TOWARD preservation](PRIMARY_ROUTING_81.md).
+Full79 завершён, exact variants78/79 и3bad angles у cheapest. В81 исправление valid-network
+preservation распространено на основной режим с сохранением проверки его вводов.3новыхtests,
+clean/fast1230cases/1227PASS/3skip; web36/scripts37/lint/typecheckPASS; bounded saved75 replay
+в TOWARD сохраняет геометрию/0bad angles. Full81/full80/roads79/roads77 ещё работают.
+Свежий quality result81/ускорение/compact/G2/scale/Compose/R/цель не подтверждены; runtime61 прежний.
+
 **Приоритетная актуализация — source80:** [query-local ordinal sort](PRIMARY_ROUTING_80.md).
 Behavior-preserving optimization:5новыхtests/scoped81PASS, clean/fast1227cases/1224PASS/3skip,
 web36/scripts37/lint/typecheckPASS. Full80session59635 и full79/roads79/roads77 ещё выполняются.

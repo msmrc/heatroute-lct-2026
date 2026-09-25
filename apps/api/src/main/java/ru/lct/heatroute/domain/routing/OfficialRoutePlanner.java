@@ -4571,19 +4571,20 @@ public class OfficialRoutePlanner {
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
             OfficialRoutingEnvironment routingEnvironment, TerminalApproachPolicy approachPolicy) {
-        // Поисковый буфер соседней трассы не является дополнительной нормой готовой сети.
-        // Сохраняем только целиком проверенную сеть: после частичного ремонта этот допуск устарел бы.
-        if (approachPolicy == TerminalApproachPolicy.PRESERVE_VALID
-                && hasExplicitFinalGeometry(edges)
-                && routingEnvironment.validationFor(validator).validate(nodes, edges,
-                        featuresForEdges(features, edges, routingEnvironment)).isEmpty()) {
-            return new ArrayList<>(edges);
-        }
         Map<String, RouteNode> nodesById = nodes.stream().collect(Collectors.toMap(
                 RouteNode::getId,
                 node -> node,
                 (left, right) -> left,
                 LinkedHashMap::new));
+        // Поисковый буфер соседней трассы не является дополнительной нормой готовой сети.
+        // Сохраняем только целиком проверенную сеть: после частичного ремонта этот допуск устарел бы.
+        if (hasExplicitFinalGeometry(edges)
+                && (approachPolicy == TerminalApproachPolicy.PRESERVE_VALID
+                        || alreadySatisfiesUpstreamEgress(edges, nodesById, routingEnvironment))
+                && routingEnvironment.validationFor(validator).validate(nodes, edges,
+                        featuresForEdges(features, edges, routingEnvironment)).isEmpty()) {
+            return new ArrayList<>(edges);
+        }
         List<RouteEdge> result = new ArrayList<>();
         for (RouteEdge edge : edges) {
             RouteNode upstream = nodesById.get(edge.getUpstreamNodeId());
@@ -4656,6 +4657,22 @@ public class OfficialRoutePlanner {
             result.add(finalEdge);
         }
         return result;
+    }
+
+    /** Тот же предикат ввода, что в старом TOWARD_UPSTREAM; другую допустимую ось не скрываем. */
+    private boolean alreadySatisfiesUpstreamEgress(List<RouteEdge> edges,
+            Map<String, RouteNode> nodesById, OfficialRoutingEnvironment environment) {
+        for (RouteEdge edge : edges) {
+            RouteNode upstream = nodesById.get(edge.getUpstreamNodeId());
+            RouteNode downstream = nodesById.get(edge.getDownstreamNodeId());
+            if (upstream == null || downstream == null) return false;
+            if (!"demand_connection".equals(downstream.getNodeType())) continue;
+            OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgressTowards(
+                    edge.getDiameter(), downstream.getCoordinate().toCoordinate(),
+                    upstream.getCoordinate().toCoordinate(), RouteTraversal.REVERSED).orElse(null);
+            if (egress != null && !hasMandatoryEgress(edge, egress)) return false;
+        }
+        return true;
     }
 
     /** Не допускает fast path для черновиков без ДУ/полилинии или с вырожденным первым сегментом. */

@@ -1,5 +1,17 @@
 # Current implementation progress
 
+## 2026-09-25 — correctness81: preservation в основном TOWARD
+
+Full79:1226cases/1222PASS/1compactFAIL/3skip;595,410с, exact variants79==78, cheapest3bad angles.
+Выяснено: основной pipeline использует TOWARD, тогда как79 изменил только PRESERVE для
+переноса камер. Bounded TOWARD79 trace на saved75:две допустимые ветви меняются из-за avoidance,
+при уже подходящем вводе; badAngles0→2. В81 такой случай сохраняет сеть после полного независимого
+допуска, а другая ось ввода остаётся альтернативой.3tests/2RED80→GREEN81,scoped62PASS;
+clean/fast1230cases/1227PASS/0fail/0error/3skip,web36/scripts37/lint/typecheckPASS. TOWARD81 replay
+saved75 теперь exact/0bad angles; это не fresh plan. Full81session87519 запущен; full80session59635/
+roads79session69123/roads77session2599 живы. Target79 остаётся занят после full79. Runtime61/VPS
+не менялись,1%лимита, исходники и продолжение в [81](PRIMARY_ROUTING_81.md) сохраняются в Git.
+
 ## 2026-09-25 — performance80: query-local primitive ordinals
 
 [Source80](PRIMARY_ROUTING_80.md): заменена boxed comparator sort при том же STRtree и исходном

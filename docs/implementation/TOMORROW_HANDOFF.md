@@ -1,5 +1,18 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source81 — preservation подключён к основному режиму
+
+Сначала [PRIMARY_ROUTING_81.md](PRIMARY_ROUTING_81.md). Full79 завершён1226cases/1222PASS/
+1compactFAIL/3skip,fixture595,410с; exact variants79==78, cheapest3bad angles остаются.
+Причина узкого эффекта79: основной finish использует TOWARD, PRESERVE — лишь альтернативу
+переноса камер. В81 whole-network fast path работает и в TOWARD, только если все вводы уже
+проходят прежний предикат и вся сеть независимо допустима. Альтернатива другой оси сохранена.
+3новыхtests/2RED80→GREEN81; scoped62PASS; clean/fast1230cases/1227PASS/0fail/0error/3skip;
+web36/scripts37/lint/typecheckPASS. Bounded TOWARD replay saved75: exact edges/0bad angles,
+в отличие от79. **Это не fresh81.** Full81session87519 на `.tooling/source81-build.Ndryzg` запущен.
+Также живы full80session59635/roads79session69123/roads77session2599. Target79 не очищать,
+несмотря на завершение full79. Runtime61/VPS прежние; около1%лимита, checkpoint в Git.
+
 ## Актуально: source80 — оптимизация сортировки препятствий
 
 Сначала [PRIMARY_ROUTING_80.md](PRIMARY_ROUTING_80.md). Query-local primitive ordinals сохраняют

@@ -13,6 +13,9 @@ import org.locationtech.jts.geom.Coordinate;
  */
 final class NormalCorridorTransitions {
     private static final double MAX_TURN_COSINE = Math.sqrt(0.5);
+    // Погрешность аналитического пересечения лучей в UTM, не ослабление финальных 2 м.
+    // Без неё ровно минимальное смещение пропадает после поворота/переноса координат.
+    private static final double INTERSECTION_LENGTH_EPSILON_M = 1e-8;
 
     private NormalCorridorTransitions() { }
 
@@ -61,10 +64,10 @@ final class NormalCorridorTransitions {
                         if (s < minimumLegM) continue;
                         Coordinate elbow2 = new Coordinate(port.x + rx * s, port.y + ry * s);
                         double t = cross(elbow2.x - start.x, elbow2.y - start.y, wx, wy) / denominator;
-                        if (t < required + minimumLegM || t > reach) continue;
+                        if (t < required + minimumLegM - INTERSECTION_LENGTH_EPSILON_M || t > reach) continue;
                         Coordinate elbow1 = new Coordinate(start.x + nx * t, start.y + ny * t);
                         double q = (elbow2.x - elbow1.x) * wx + (elbow2.y - elbow1.y) * wy;
-                        if (q < minimumLegM || q > reach) continue;
+                        if (q < minimumLegM - INTERSECTION_LENGTH_EPSILON_M || q > reach) continue;
                         candidates.add(List.of(new Coordinate(exit), elbow1, elbow2, new Coordinate(port)));
                     }
                 }

@@ -13,6 +13,31 @@ import org.locationtech.jts.geom.GeometryFactory;
 
 class NormalCorridorTransitionsTest {
     @Test
+    void minimumOffsetTransitionSurvivesRotationsAtUtmMagnitude() {
+        for (double degrees : new double[] {0, 13, 71, 117, 203, 289}) {
+            double angle = Math.toRadians(degrees);
+            for (Coordinate shift : List.of(new Coordinate(), new Coordinate(14000.125, 173000.375))) {
+                java.util.function.UnaryOperator<Coordinate> move = point -> {
+                    Coordinate result = transform(point, angle);
+                    return new Coordinate(result.x + shift.x, result.y + shift.y);
+                };
+                Coordinate start = move.apply(new Coordinate(2, 8));
+                Coordinate exit = move.apply(new Coordinate(-5.45, 8));
+                Coordinate port = move.apply(new Coordinate(-5.45, 28.335));
+                var expected = List.of(exit, move.apply(new Coordinate(-7.47, 8)),
+                        move.apply(new Coordinate(-7.47, 28.335)), port);
+                var paths = NormalCorridorTransitions.build(start, exit, port, angle, 2.02);
+                assertThat(paths).as("minimum-offset candidate at %s degrees", degrees).anySatisfy(path -> {
+                    assertThat(path).hasSize(expected.size());
+                    for (int i = 0; i < path.size(); i++) {
+                        assertThat(path.get(i).distance(expected.get(i))).isLessThan(1e-7);
+                    }
+                });
+            }
+        }
+    }
+
+    @Test
     void alignedNormalsRetainOnlyAxialTransitionsUnderRotation() {
         for (double angle : new double[] {0, 0.2, 1.1, 3.9}) {
             Coordinate start = transform(new Coordinate(), angle);

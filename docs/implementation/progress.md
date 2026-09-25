@@ -17,6 +17,10 @@ Full83 завершён1284cases/1280PASS/1compactFAIL/3skip, accepted17/17/stri
 не принят. Живы full84/roads83; frozen targets не менять. Runtime61/VPS прежние, R/G открыты.
 Ниже исторические записи; их live-статусы заменены этим checkpoint.
 
+Отдельный test-only audit на84: два corridor callback переведены в физическое REVERSED,
+3RED→3GREEN/dataset4PASS; compactFAIL сохраняется, все68кандидатов exact до/после.
+Минимум2003,405м/13камер против внутреннего бюджета<1860м. Пороги не ослаблены; evidence в85.
+
 ## 2026-09-25 — source84: исправление направления подходов; отсеяна неэффективная эвристика
 
 [Source84](PRIMARY_ROUTING_84.md): `CorridorLinkApproaches` оценивает дорожный вход/special

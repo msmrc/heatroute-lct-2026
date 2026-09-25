@@ -6,7 +6,6 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -47,17 +46,8 @@ class OfficialCorridorControlRecoveryTest {
 
         List<OrthogonalCorridorNetworkBuilder.Network> candidates = new OrthogonalCorridorNetworkBuilder(
                 router, new OfficialPipeCatalog()).buildWithTerminalFrame(terminals, root, 4 - incident,
-                buildings, environment, (id, port, diameter, avoidance) -> {
-                    Coordinate point = demands.get(id).getMetricGeometry().getCoordinate();
-                    OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgressTowards(diameter,
-                            point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM()).orElse(null);
-                    RoutePath path = egress == null
-                            ? router.find(point, port, diameter, environment, Set.of(), RoutePreference.ENGINEERING, avoidance)
-                            : router.findAfter(egress.start(), egress.exit(), port, diameter,
-                                    environment, Set.of(), RoutePreference.ENGINEERING, avoidance);
-                    return path == null || egress == null ? path
-                            : router.withCheckedTerminalPrefix(egress, path, diameter, environment, Set.of(), avoidance);
-                });
+                buildings, environment, (id, port, diameter, avoidance) -> OfficialCorridorDatasetTest.terminalRoute(
+                        router, environment, demands.get(id).getMetricGeometry().getCoordinate(), port, diameter, avoidance));
 
         OfficialRouteValidator validator = new OfficialRouteValidator(rules);
         assertThat(candidates).anySatisfy(candidate -> {

@@ -18,8 +18,11 @@ Full83session54670 завершён1284/1280PASS/1compactFAIL/3skip; reports в
 Roads81session30394 завершёнexit1:15/17/2роли/31–32badangles. Targets83full/81 свободны.
 Живы **full84session30650** (`.tooling/source84-gates.l7r4V8/apps/api/target`) и
 **roads83session12884** (`.tooling/scenario83.zYg3LZ`): frozen targets не менять и jobs не дублировать.
-Агент Ohm отдельно проверяет callback двух corridor dataset tests, не production;
-его незавершённую работу не объявлять прошедшей.
+Callback двух corridor dataset tests исправлены и проверены отдельно на production84:
+3RED→3GREEN, dataset4PASS, compactFAIL. Все68кандидатов compact до/после совпали побайтно;
+минимум2003,405м/13камер, а не<1860м. Это не объяснение compact failure. Агент завершён,
+его targets свободны; evidence `.tooling/corridor-harness-fixed.PZUnyB/README.md`.
+Полный85 snapshot содержит эти тесты и побайтно совпадает с checkout.
 
 Открыто: полный85, независимый new-rule preflight сохранённого export JSON, совместные выходы
 камер, roads17/17, compact, скорость/native/Compose/scale. Не уменьшать 10м и не ослаблять

@@ -15,7 +15,9 @@ focused90PASS, final frozen fast1728PASS/0fail/error/3skip,28,642с; web36+37/li
 повороты 0–90°, дорога >=45°. Свежий официальный расчёт: все три роли 17/17 и strict export PASS;
 shortest/cheapest 2039,856 м, balanced 2082,343 м. Fast1855PASS/0fail/error/3skip,
 долгие dataset/corridor6PASS, web36+37/lint/typecheckPASS. Старый compact <1860 м остаётся FAIL,
-его порог не ослаблен. Production smoke source93 ожидает развёртывания; R/G не закрыты.
+его порог не ослаблен. Production93 (`3f561c1`) прошёл реальный import/run/export:17/17,2047,508м,945,777с;
+все4сервиса healthy. Разнообразие итогов, social_area own-egress, roads fixture и компактность
+остаются в активной работе; R/G не закрыты.
 Соседняя задача ранее развернула source92 (`aa359f1`); не путать с source93.
 Готовые правки соседней задачи по СП согласованы; Git-операции выполняет одна задача.
 Далее исторические checkpoint и handles, а не текущий реестр живых работ.

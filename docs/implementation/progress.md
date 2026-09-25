@@ -7,7 +7,9 @@
 повороты 0–90°, дорога >=45°. Свежий официальный расчёт: все три роли 17/17 и strict export PASS;
 shortest/cheapest 2039,856 м, balanced 2082,343 м. Fast1855PASS/0fail/error/3skip,
 долгие dataset/corridor6PASS, web36+37/lint/typecheckPASS. Старый compact <1860 м остаётся FAIL,
-его порог не ослаблен. Production smoke source93 ожидает развёртывания; R/G не закрыты.
+его порог не ослаблен. Production93 (`3f561c1`) прошёл реальный import/run/export:17/17,2047,508м,945,777с;
+все4сервиса healthy. Разнообразие итогов, social_area own-egress, roads fixture и компактность
+остаются в активной работе; R/G не закрыты.
 
 ## 2026-09-25 — live VPS deploy актуального master
 

@@ -89,7 +89,10 @@ public class OfficialObstacleRouter {
         return find(start, end, diameter, prepare(features), exemptFeatureIds, preference);
     }
 
-    /** Ищет наружную часть маршрута с учётом направления обязательного ввода previous → start. */
+    /**
+     * Ищет наружную часть после реального ввода previous → start, включая его в road/tram special.
+     * Результат требует withCheckedTerminalPrefix: льгота своего ОКС здесь ещё не проверена.
+     */
     RoutePath findAfter(Coordinate previous, Coordinate start, Coordinate end, int diameter,
             OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
             RoutePreference preference, List<LineString> acceptedRoutes) {
@@ -183,9 +186,12 @@ public class OfficialObstacleRouter {
         List<Constraint> outsideConstraints = new ArrayList<>(rules.applicableConstraints(constraints,
                 exemptions, rounded.get(1), end));
         outsideConstraints.addAll(avoidance);
+        ConstraintIndex terminalIndex = rules.index(terminalConstraints);
         return line.isSimple() && turnsAllowed(candidate.coordinates(), null)
-                && rules.lineAllowed(rules.line(rounded.subList(0, 2)), rules.index(terminalConstraints))
-                && rules.lineAllowed(rules.line(rounded.subList(1, rounded.size())), rules.index(outsideConstraints))
+                && rules.provisionalSegmentsAllowed(rules.line(rounded.subList(0, 2)), terminalIndex)
+                && rules.provisionalSegmentsAllowed(rules.line(rounded.subList(1, rounded.size())),
+                        rules.index(outsideConstraints))
+                && rules.completeRoadCrossingsAllowed(line, terminalIndex)
                 ? candidate : null;
     }
 
@@ -349,8 +355,8 @@ public class OfficialObstacleRouter {
             Set<String> exemptFeatureIds, RoutePreference preference, List<LineString> acceptedRoutes,
             List<Constraint> additionalConstraints, Coordinate previous) {
         ensureNotCancelled();
-        List<Constraint> constraints = new ArrayList<>(environment.constraints(
-                diameter, exemptFeatureIds, start, end));
+        List<Constraint> constraints = searchConstraints(
+                start, end, previous, diameter, environment, exemptFeatureIds);
         constraints.addAll(rules.applicableConstraints(
                 rules.routeAvoidanceConstraints(acceptedRoutes),
                 Collections.emptySet(),
@@ -376,11 +382,8 @@ public class OfficialObstacleRouter {
                 return dogleg;
             }
         }
-        RoutePath specialCrossing = directSpecialCrossing(start, end, constraintIndex, constraints);
-        if (specialCrossing != null) {
-            RoutePath checked = headingCheckedPath(specialCrossing.coordinates(), constraints, constraintIndex, previous);
-            if (checked != null) return checked;
-        }
+        RoutePath specialCrossing = directSpecialCrossing(start, end, constraintIndex, constraints, previous);
+        if (specialCrossing != null) return specialCrossing;
         // Карманы восстанавливают отсутствующий путь, но не заменяют уже допустимый hull-маршрут:
         // обычный коридор 200/600 м имеет приоритет над карманом в коридоре 75 м.
         List<List<Coordinate>> ordinaryGraphs = new ArrayList<>(CORRIDOR_EXPANSIONS.length);
@@ -405,11 +408,8 @@ public class OfficialObstacleRouter {
                     List<Coordinate> normalized = normalize(search.coordinates, constraintIndex, previous);
                     List<Coordinate> constructible = snapConstructibleCorners(
                             normalized, constraintIndex, preference, previous);
-                    LineString line = rules.line(constructible);
-                    if (rules.lineAllowed(line, constraintIndex)) {
-                        RoutePath checked = headingCheckedPath(constructible, constraints, constraintIndex, previous);
-                        if (checked != null) return checked;
-                    }
+                    RoutePath checked = headingCheckedPath(constructible, constraints, constraintIndex, previous);
+                    if (checked != null) return checked;
                     // Не теряем найденный допустимый путь, если округление нового shortcut его испортило.
                     RoutePath control = headingCheckedPath(search.coordinates, constraints, constraintIndex, previous);
                     if (control != null) return control;
@@ -428,7 +428,8 @@ public class OfficialObstacleRouter {
             Coordinate start,
             Coordinate end,
             ConstraintIndex constraintIndex,
-            List<Constraint> constraints) {
+            List<Constraint> constraints,
+            Coordinate previous) {
         LineString directLine = rules.line(List.of(start, end));
         Envelope corridor = directLine.getEnvelopeInternal();
         List<Coordinate> portals = new ArrayList<>();
@@ -457,10 +458,7 @@ public class OfficialObstacleRouter {
             }
         }
         candidate.add(new Coordinate(end));
-        LineString line = rules.line(candidate);
-        return line.isSimple() && rules.lineAllowed(line, constraintIndex)
-                ? path(candidate, constraints)
-                : null;
+        return headingCheckedPath(candidate, constraints, constraintIndex, previous);
     }
 
     /** Точное сравнение без округления; порядок сохраняет индексы и разрешение равенств поиска. */
@@ -606,8 +604,8 @@ public class OfficialObstacleRouter {
         if (previous != null) requireHeading(previous, coordinates.get(0));
         Coordinate start = coordinates.get(0);
         Coordinate end = coordinates.get(coordinates.size() - 1);
-        List<Constraint> constraints = new ArrayList<>(environment.constraints(
-                diameter, exemptFeatureIds, start, end));
+        List<Constraint> constraints = searchConstraints(
+                start, end, previous, diameter, environment, exemptFeatureIds);
         constraints.addAll(rules.applicableConstraints(
                 rules.routeAvoidanceConstraints(acceptedRoutes),
                 Collections.emptySet(),
@@ -617,9 +615,17 @@ public class OfficialObstacleRouter {
         List<Coordinate> normalized = normalize(coordinates, constraintIndex, previous);
         List<Coordinate> constructible = snapConstructibleCorners(
                 normalized, constraintIndex, RoutePreference.ENGINEERING, previous);
-        LineString line = rules.line(constructible);
-        return rules.lineAllowed(line, constraintIndex)
-                ? headingCheckedPath(constructible, constraints, constraintIndex, previous) : null;
+        return headingCheckedPath(constructible, constraints, constraintIndex, previous);
+    }
+
+    /** Пространственное окно включает реальный ввод; льготы концов применяются только к наружной части. */
+    private List<Constraint> searchConstraints(Coordinate start, Coordinate end, Coordinate previous,
+            int diameter, OfficialRoutingEnvironment environment, Set<String> exemptions) {
+        if (previous == null) return new ArrayList<>(environment.constraints(diameter, exemptions, start, end));
+        Envelope bounds = new Envelope(start, end);
+        bounds.expandToInclude(previous);
+        return new ArrayList<>(rules.applicableConstraints(
+                environment.corridorConstraints(diameter, bounds), exemptions, start, end));
     }
 
     private void requireHeading(Coordinate previous, Coordinate start) {
@@ -635,9 +641,16 @@ public class OfficialObstacleRouter {
             ConstraintIndex index, Coordinate previous) {
         RoutePath candidate = path(coordinates, constraints);
         LineString line = rules.line(candidate.coordinates());
-        return (previous == null || turnsAllowed(candidate.coordinates(), previous))
-                && line.isSimple() && rules.lineAllowed(line, index)
-                ? candidate : null;
+        if (!line.isSimple()) return null;
+        if (previous == null) return rules.lineAllowed(line, index) ? candidate : null;
+        if (!rules.provisionalSegmentsAllowed(line, index)) return null;
+        Coordinate roundedPrevious = new RouteCoordinate(previous.x, previous.y).toCoordinate();
+        if (!turnsAllowed(candidate.coordinates(), roundedPrevious)) return null;
+        List<Coordinate> complete = new ArrayList<>();
+        complete.add(roundedPrevious);
+        complete.addAll(candidate.coordinates());
+        LineString completeLine = rules.line(complete);
+        return completeLine.isSimple() && rules.completeRoadCrossingsAllowed(completeLine, index) ? candidate : null;
     }
 
     private boolean turnsAllowed(List<Coordinate> points, Coordinate previous) {

@@ -4,6 +4,13 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Приоритетная актуализация — source73 WIP:** [непрерывный road/tram ввод](PRIMARY_ROUTING_73.md).
+157focusedPASS и web36/scripts37/lint/typecheckPASS; fast Maven73 в отдельном snapshot завершён:
+1076cases/1073PASS/0fail/0error/3scale skip. Full72:1053cases/1049PASS/1compact failure/0errors/3scale skip;
+fresh521,534с/17of17/strict export3ролей PASS, значения variants как71. Roads72 ещё работает,
+основной target не перезаписывать. Ни full/fresh73, ни G2/compact/native/Compose/scale не закрыты.
+Ниже — история предыдущих checkpoint, а не текущие статусы запущенных процессов.
+
 **Текущий source72, WIP:** [G2 road/tram/atomic sections](PRIMARY_ROUTING_72.md).
 После focused263PASS исправлены3review findings и округление oblique секций.
 Финальный быстрый Maven1049cases/1046PASS/0fail/0error/3skip (исключены3долгих класса),

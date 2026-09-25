@@ -73,13 +73,10 @@ final class CorridorTerminalRouter {
             // Допуск осевого подхода 0,5°: sin(2θ) имеет период 90°. Это фильтр кандидата,
             // а не ослабление официальной проверки или округление геометрии для красоты.
             if (Math.abs(Math.sin(2 * (angle - orientation))) > PORT_AXIS_TOLERANCE) continue;
-            Envelope bounds = new Envelope(exit, port);
-            bounds.expandToInclude(elbow);
-            PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, exit, null);
             List<Coordinate> coordinates = new ArrayList<>(List.of(exit));
             if (elbow.distance(exit) > 0.001 && elbow.distance(port) > 0.001) coordinates.add(elbow);
             coordinates.add(port);
-            RoutePath outside = checks.path(coordinates);
+            RoutePath outside = checkedOutside(coordinates, egress, diameter);
             if (outside == null) continue;
             RoutePath candidate = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment);
             if (candidate == null) {
@@ -240,7 +237,7 @@ final class CorridorTerminalRouter {
         ensureActive();
         for (Coordinate coordinate : coordinates) if (!finiteMetric(coordinate)) return null;
         if (!axisAligned(coordinates.get(coordinates.size() - 2), coordinates.get(coordinates.size() - 1))) return null;
-        RoutePath outside = checkedOutside(coordinates, egress.exit(), diameter);
+        RoutePath outside = checkedOutside(coordinates, egress, diameter);
         if (outside == null) return null;
         RoutePath full = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment);
         if (!soundGeometry(full, diameter)) return null;
@@ -259,11 +256,13 @@ final class CorridorTerminalRouter {
         return new EngineeringRouteEvaluator().evaluate(List.of(edge)).bendCount() == 0 ? path : null;
     }
 
-    private RoutePath checkedOutside(List<Coordinate> coordinates, Coordinate root, int diameter) {
+    private RoutePath checkedOutside(List<Coordinate> coordinates,
+            OfficialRouteGeometryRules.NormalEgress egress, int diameter) {
         Envelope bounds = new Envelope();
         coordinates.forEach(bounds::expandToInclude);
-        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, root, null);
-        return checks.path(coordinates);
+        bounds.expandToInclude(egress.start());
+        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, egress.exit(), null);
+        return checks.pathAfter(egress.start(), coordinates);
     }
 
     /** Старый fallback остаётся доступен через route(); в список нельзя включить непроверенный результат. */
@@ -281,7 +280,7 @@ final class CorridorTerminalRouter {
             Coordinate exit = egress.exit();
             Coordinate roundedExit = new RouteCoordinate(exit.x, exit.y).toCoordinate();
             if (!points.get(1).equals2D(roundedExit)) continue;
-            RoutePath outside = checkedOutside(points.subList(1, points.size()), exit, diameter);
+            RoutePath outside = checkedOutside(points.subList(1, points.size()), egress, diameter);
             if (outside == null) continue;
             RoutePath checked = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment);
             if (soundGeometry(checked, diameter) && sameGeometry(original, checked)) return checked;

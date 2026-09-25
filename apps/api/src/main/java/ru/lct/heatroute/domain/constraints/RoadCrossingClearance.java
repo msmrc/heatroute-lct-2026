@@ -127,6 +127,42 @@ public final class RoadCrossingClearance {
         return true;
     }
 
+    /** Кандидат прямого ввода: возможен незавершённый выход, но начало защиты не достраивается назад. */
+    public boolean terminalPrefixAllowed(LineString prefix, Geometry source, double clearanceM,
+            double minimumAngleDegrees, double extensionM) {
+        ensureActive();
+        if (farEnough(prefix, source, clearanceM)) return true;
+        if (source.getDimension() != 2 || prefix.getNumPoints() != 2) return false;
+        Coordinate a = prefix.getCoordinateN(0), b = prefix.getCoordinateN(1);
+        double length = prefix.getLength();
+        if (length <= EPSILON_M) return false;
+        LengthIndexedLine indexed = new LengthIndexedLine(prefix);
+        // До следующего входа возможна незавершённая защитная часть, в том числе
+        // после уже законченного crossing. Позади реального начала продолжения нет.
+        LineString forward = prefix.getFactory().createLineString(new Coordinate[] {a,
+                new Coordinate(b.x + (b.x - a.x) * extensionM / length,
+                        b.y + (b.y - a.y) * extensionM / length)});
+        List<Interval> spans = crossings(forward, source, new LengthIndexedLine(forward));
+        double cursor = 0;
+        for (Interval crossing : spans) {
+            // Не навязываем ещё не пересечённый объект, если фактический хвост уже допустим.
+            if (crossing.startM >= length - EPSILON_M && (cursor >= length - EPSILON_M
+                    || farEnough(indexed.extractLine(cursor, length), source, clearanceM))) return true;
+            // Начало ввода уже фиксировано: наружное продолжение может завершить выход,
+            // но не добавить отсутствующий защитный отрезок позади подключения.
+            if (crossing.startM < extensionM - EPSILON_M) return false;
+            Coordinate hit = new Coordinate(a.x + (b.x - a.x) * crossing.startM / length,
+                    a.y + (b.y - a.y) * crossing.startM / length);
+            if (boundaryAngle(source, hit, a, b) + ANGLE_EPSILON_DEGREES < minimumAngleDegrees) return false;
+            double start = Math.min(length, Math.max(0, crossing.startM - extensionM));
+            if (start > cursor + EPSILON_M && !farEnough(indexed.extractLine(cursor, start), source, clearanceM)) {
+                return false;
+            }
+            cursor = Math.max(cursor, Math.min(length, crossing.endM + extensionM));
+        }
+        return cursor >= length - EPSILON_M || farEnough(indexed.extractLine(cursor, length), source, clearanceM);
+    }
+
     /** Поворот запрещён внутри полигона или защитного прямого отрезка, включая короткие звенья. */
     public boolean turnAllowed(Coordinate before, Coordinate at, Coordinate after, Geometry source,
             double extensionM) {

@@ -288,7 +288,7 @@ class OfficialObstacleRouterPreparationTest {
             RoutePath direct = call("headingCheckedPath", List.of(start, end), constraints, index, previous);
             if (direct != null) return direct;
         }
-        RoutePath crossing = call("directSpecialCrossing", start, end, index, constraints);
+        RoutePath crossing = call("directSpecialCrossing", start, end, index, constraints, (Coordinate) null);
         if (crossing != null) {
             RoutePath checked = call("headingCheckedPath", crossing.coordinates(), constraints, index, previous);
             if (checked != null) return checked;

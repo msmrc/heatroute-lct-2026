@@ -250,6 +250,11 @@ public class OfficialRouteGeometryRules {
                 if (bounds.intersects(leg.getEnvelopeInternal())
                         && (leg.intersects(source)
                             || leg.distance(source) < clearance - CLEARANCE_BOUNDARY_EPSILON_M)) return false;
+            } else if (RoadCrossingClearance.supports(type)) {
+                // Точка выхода из ОКС — не конец теплопровода; начало при этом уже фиксировано.
+                if (!roadCrossings.terminalPrefixAllowed(leg, source, constraint.clearanceM,
+                        rule.getMinimumCrossingAngleDegrees().doubleValue(),
+                        rule.getSpecialExtensionM().doubleValue())) return false;
             } else if (!lineAllowed(leg, index(List.of(constraint)))) {
                 return false;
             }
@@ -528,11 +533,21 @@ public class OfficialRouteGeometryRules {
     }
 
     boolean lineAllowed(LineString line, ConstraintIndex constraints) {
+        return provisionalSegmentsAllowed(line, constraints) && completeRoadCrossingsAllowed(line, constraints);
+    }
+
+    /** Только локальная видимость; не допускает готовый маршрут без полной проверки special. */
+    boolean provisionalSegmentsAllowed(LineString line, ConstraintIndex constraints) {
         for (int index = 0; index < line.getNumPoints() - 1; index++) {
             if (!segmentAllowed(line.getCoordinateN(index), line.getCoordinateN(index + 1), constraints)) {
                 return false;
             }
         }
+        return true;
+    }
+
+    /** Проверяет road/tram на всей физической полилинии, включая обязательный ввод. */
+    boolean completeRoadCrossingsAllowed(LineString line, ConstraintIndex constraints) {
         for (Constraint constraint : constraints.query(line.getEnvelopeInternal())) {
             if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)
                     && !roadAssessment(line, constraint).isAllowed()) {

@@ -122,6 +122,7 @@ final class CorridorRetainedTerminalApproaches {
         }
         Envelope bounds = new Envelope();
         tails.forEach(points -> points.forEach(bounds::expandToInclude));
+        if (egress != null) bounds.expandToInclude(egress.start());
         PreparedCorridor checks = router.prepareCorridor(edge.getDiameter(), environment, bounds, outside.get(0), null);
         List<RoutePath> paths = new ArrayList<>();
         Set<List<Coordinate>> checkedTails = new HashSet<>();
@@ -132,7 +133,7 @@ final class CorridorRetainedTerminalApproaches {
             // path() проверяет миллиметровые координаты. Первый такой хвост сохраняет порядок;
             // сырые точки выше проверяем ДО ключа: их допуск может отличаться внутри одного мм.
             if (!checkedTails.add(roundedTailKey(points))) continue;
-            RoutePath path = checks.path(points);
+            RoutePath path = egress == null ? checks.path(points) : checks.pathAfter(egress.start(), points);
             if (path == null) continue;
             if (egress == null && path.coordinates().stream().anyMatch(point -> !checks.pointAllowed(point))) continue;
             if (egress != null) path = router.withCheckedTerminalPrefix(egress, path, edge.getDiameter(), environment);

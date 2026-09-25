@@ -1,5 +1,15 @@
 # Current implementation progress
 
+## 2026-09-25 — full72 завершён; техническая граница ввода исправлена в73
+
+Full72:1053cases/1049PASS/1compact failure/0errors/3scale skip. Fresh521,534с,17/17,
+geometry/ДУ/depth/economics/strict export3ролей PASS; значения всех variants совпали с71.
+Snapshot/accepted/PNG72 сохранены. Roads72session19058 ещё работает, основнойtarget заморожен.
+[Source73](PRIMARY_ROUTING_73.md): genuine RED→GREEN на поиске, сборке и коридорных подходах;
+157focusedPASS, web36/scripts37/lint/typecheckPASS. Fast Maven73 завершён в отдельном snapshot:
+1076cases/1073PASS/0fail/0error/3scale skip; это не full/fresh. Final-DU retention, логические crossing chains, compact и runtime
+остаются открытыми. Runtime61/VPS не менялись, G2/R/цель не закрываются.
+
 ## 2026-09-25 — source72 отправлен; clean/full запущен
 
 `a410259` pushed,remote SHA проверен. Clean/full без исключений запущенsession53894,

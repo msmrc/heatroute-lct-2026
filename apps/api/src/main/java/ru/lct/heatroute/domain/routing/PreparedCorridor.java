@@ -150,7 +150,13 @@ final class PreparedCorridor {
     }
 
     RoutePath path(List<Coordinate> coordinates) {
+        return pathAfter(null, coordinates);
+    }
+
+    /** Наружный кандидат после реального ввода; окончательный допуск — только после сборки префикса. */
+    RoutePath pathAfter(Coordinate previous, List<Coordinate> coordinates) {
         if (coordinates.size() < 2) return null;
+        if (previous != null) requireFinite(previous);
         coordinates.forEach(PreparedCorridor::requireFinite);
         List<Coordinate> rounded = coordinates.stream()
                 .map(point -> new RouteCoordinate(point.x, point.y).toCoordinate()).collect(Collectors.toList());
@@ -162,7 +168,17 @@ final class PreparedCorridor {
         LineString line = rules.line(rounded);
         boolean atRoot = isRoot(rounded.get(0)) || isRoot(rounded.get(rounded.size() - 1));
         // Видимость звена допускает часть crossing; готовый путь обязан содержать весь special.
-        if (!rules.lineAllowed(line, atRoot ? rootIndex : strictIndex)) return null;
+        ConstraintIndex index = atRoot ? rootIndex : strictIndex;
+        if (previous == null) {
+            if (!rules.lineAllowed(line, index)) return null;
+        } else {
+            if (!rules.provisionalSegmentsAllowed(line, index)) return null;
+            List<Coordinate> complete = new ArrayList<>();
+            complete.add(new RouteCoordinate(previous.x, previous.y).toCoordinate());
+            complete.addAll(rounded);
+            LineString fullLine = rules.line(complete);
+            if (!rules.completeRoadCrossingsAllowed(fullLine, index)) return null;
+        }
         return new RoutePath(rounded, rules.sections(line, atRoot ? rootConstraints : constraints), line.getLength());
     }
 

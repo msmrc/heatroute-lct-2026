@@ -1,12 +1,20 @@
 # Correctness72: отступы road/tram и локальные special-секции
 
 Дата25.09.2026. Ветка `codex/routing-63-geometry`. **Work in progress, не acceptance G2**.
-Последняя полностью прогнанная база — [source71](PRIMARY_ROUTING_71.md); runtime остаётся61.
+Clean/full72 завершён; runtime остаётся61. Следующий patch — [source73](PRIMARY_ROUTING_73.md).
 Fetch origin повторён:master по-прежнему `28c7059`, новых изменений Артёма нет.
 Код `a410259` отправлен, remote SHA `a410259e580740ae8b2995fc169dacceb724b099` проверен.
-Clean/full72 **без исключённых тестов** запущен отдельно (`source72-full.log`,session53894).
-Target занят compiled72: до завершения не запускать Maven/не перезаписывать классы.
-Accepted output `source72-result.json` появится только после fixture assertions; diagnostic отдельно.
+Clean/full72 **без исключённых тестов** завершён (`source72-full.log`,session53894):
+1053cases/1049PASS/1failure(compact-control)/0errors/3scale skipped,109классов.
+Snapshot `source72-surefire-reports/`; accepted `source72-result.json`, diagnostic отдельно.
+Fresh official fixture521,534с;17/17,geometry/ДУ/depth/economics/strict export всех3ролей PASS.
+Short/cheap2068,786м/11новых камер/22поворота/283006479,92₽; balanced2192,523м/14/25.
+Значения всех полей вариантов точно совпали с71 (порядок ключей JSON отличается).
+PNG `source72-cheapest-comparison/side-by-side.png` создан и просмотрен; геометрия не сглажена.
+Параллельно был запущен roads72, поэтому521,534с не изолированный benchmark/SLA.
+Fresh roads72 **ещё выполняется** вsession19058 (`source72-roads.log`), target остаётся
+compiled72: НЕ перезаписывать до завершения roads. Проба239features/17demands проверяет
+новую генерацию, не старый результат. Fast73 выполняется в отдельном snapshot.
 
 ## Основание и реальные RED
 

@@ -1,5 +1,23 @@
 # Handoff — Артём / PM / developer
 
+## Приоритетная актуализация: source73 / full72 завершён
+
+Сначала [PRIMARY_ROUTING_73.md](PRIMARY_ROUTING_73.md). Код73 пока checkpoint WIP,
+157focusedPASS/web36/scripts37/lint/typecheckPASS. Fast73session46340 завершена:
+1076cases/1073PASS/0fail/0error/3scale skip. Отдельный snapshot `.tooling/source73-build.6qc6Dq/apps/api`;
+`source73-fast-final-reports/` сохранён, не смешивать с target72.
+
+Full72session53894 ЗАВЕРШЁН:1053cases/1049PASS/1compact failure/0errors/3scale skip.
+Fresh521,534с/17of17/strict export3ролей PASS; accepted72/snapshot72/PNG72 сохранены,
+variants по значениям точно совпали с71. Runtime61 не менялся.
+
+Roads72session19058 **ЕЩЁ ЖИВ**: `.tooling/intake-20260925/source72-roads.log`, цель
+`source72-roads-result.json`, before-assertions diagnostic отдельно. Основной
+`apps/api/target` НЕ перезаписывать до его завершения! Не перезапускать эту пробу с нуля.
+После fast73 — full/fresh73 в отдельном snapshot либо после завершенияroads72.
+Final-DU retention и crossing через отдельные логические рёбра остаются открытыми.
+Старые блоки ниже — история, не действующие указания о живых сессиях.
+
 ## Следующий checkpoint72: road/tram + atomic special sections
 
 Код **`a410259` pushed**,remote SHA проверен. Теперь работает **clean/full72 session53894**,

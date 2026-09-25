@@ -62,6 +62,7 @@ public class OfficialRoutePlanner {
     private static final int MAX_COVERAGE_RECOVERY_ATTEMPTS = 12;
     private static final int MAX_COVERAGE_RECOVERY_PASSES = 2;
     private static final int MAX_COVERAGE_RECOVERY_JUNCTIONS = 4;
+    private static final int MAX_QUALITY_CHAMBERS_PER_PASS = 4;
     private static final double EXCESSIVE_DETOUR_RATIO = 1.35;
     private static final double CHAMBER_APPROACH_LENGTH_M = 4.0;
     private static final int MAX_ADDITIONAL_CHAMBER_APPROACHES = 3;
@@ -286,6 +287,8 @@ public class OfficialRoutePlanner {
         variants = relocateSelectedVariants(variants, demands, features, validatedParameters,
                 reconstructionRequired, routingEnvironment);
         variants = shortenSelectedTerminals(variants, demands, features, validatedParameters,
+                reconstructionRequired, routingEnvironment);
+        variants = improveSelectedChamberQuality(variants, demands, features, validatedParameters,
                 reconstructionRequired, routingEnvironment);
         routingEnvironment.logVisibilitySummary("finalized_portfolio");
         for (RouteVariant variant : variants) {
@@ -2456,6 +2459,109 @@ public class OfficialRoutePlanner {
         return terminal.localAlternatives(demand.id, demand.coordinate,
                 upstream.getCoordinate().toCoordinate(), edge.getDiameter()).stream()
                 .map(RoutePath::reversed).collect(Collectors.toList());
+    }
+
+    /**
+     * Доводит balanced и cheapest после укорачивания вводов, одинаковые сети обрабатывает один раз.
+     * Исходные сети сохраняются; selector ограничивает цену/длину улучшенного balanced одним бюджетом.
+     */
+    List<RouteVariant> improveSelectedChamberQuality(List<RouteVariant> selected, List<Demand> demands,
+            List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
+            boolean reconstructionRequired, OfficialRoutingEnvironment environment) {
+        List<RouteVariant> seeds = selected.stream().filter(variant -> "balanced".equals(variant.getId())
+                        || "cheapest".equals(variant.getId()))
+                .sorted(Comparator.comparing(variant -> !"balanced".equals(variant.getId())))
+                .collect(Collectors.toList());
+        if (seeds.isEmpty()) return selected;
+        Map<String, Demand> demandsByNode = demands.stream().collect(Collectors.toMap(
+                demand -> "demand:" + demand.id, demand -> demand));
+        int[] nextId = {0};
+        Set<String> processed = new HashSet<>();
+        List<RouteVariant> improved = new ArrayList<>();
+        for (RouteVariant seed : seeds) {
+            ensureCoverageRecoveryActive();
+            // Единственное различие ролей одинаковой сети — strategy. Остальные поля ключ учитывает точно.
+            RouteVariant normalized = new RouteVariant(seed.getId(), "engineering", seed.getNodes(), seed.getEdges(),
+                    seed.getConnections(), seed.getTotalLengthM(), seed.getValidationIssues(), seed.getEngineeringIssues(),
+                    seed.getSizingIssues(), seed.getReconstruction(), seed.getEconomics(), null);
+            java.util.Optional<String> identity = CorridorNetworkIdentity.of(normalized);
+            if (identity.isPresent() && !processed.add(identity.get())) continue;
+            improved.addAll(ChamberQualityRefinementSearch.alternatives(seed, parameters.isDepthEnabled(), current -> {
+                List<VariantDraft> drafts = chamberQualityDrafts(current, demandsByNode, environment);
+                List<RouteVariant> completed = new ArrayList<>();
+                for (VariantDraft draft : drafts) {
+                    ensureCoverageRecoveryActive();
+                    completed.add(withEngineeringAssessment(finish("chamber-quality-" + nextId[0]++, "engineering",
+                            draft, features, parameters, reconstructionRequired, environment, TerminalApproachPolicy.PRESERVE_VALID)));
+                }
+                return completed;
+            }));
+        }
+        if (improved.isEmpty()) return selected;
+        List<RouteVariant> alternatives = new ArrayList<>(selected);
+        alternatives.addAll(improved);
+        RouteVariant anchor = seeds.get(0);
+        LOGGER.info("Chamber quality refinement accepted={} anchor_length_m={} anchor_cost={}",
+                improved.size(), anchor.getTotalLengthM(), anchor.getEconomics().getCalculatedCost());
+        return new FinishedRouteVariantSelector().selectChamberQuality(alternatives, parameters.isDepthEnabled(), anchor);
+    }
+
+    /** До 4 камер × 4 позиции; не более двух проверенных черновиков для дорогого finish. */
+    private List<VariantDraft> chamberQualityDrafts(RouteVariant current, Map<String, Demand> demandsByNode,
+            OfficialRoutingEnvironment environment) {
+        VariantDraft source = new VariantDraft(current.getNodes(), current.getEdges(), current.getConnections());
+        Map<String, List<RouteEdge>> incident = new HashMap<>();
+        for (RouteEdge edge : current.getEdges()) {
+            incident.computeIfAbsent(edge.getUpstreamNodeId(), ignored -> new ArrayList<>()).add(edge);
+            incident.computeIfAbsent(edge.getDownstreamNodeId(), ignored -> new ArrayList<>()).add(edge);
+        }
+        Map<String, EngineeringRouteEvaluator.Evaluation> cameraGeometry = new HashMap<>();
+        List<RouteNode> cameras = new ArrayList<>();
+        for (RouteNode node : current.getNodes()) {
+            List<RouteEdge> edges = incident.getOrDefault(node.getId(), List.of());
+            if (!mergeableBranchChamber(node) || edges.size() < 3 || edges.size() > 4) continue;
+            EngineeringRouteEvaluator.Evaluation geometry = engineeringEvaluator.evaluate(edges);
+            if (geometry.irregularJunctionAngleCount() == 0) continue;
+            cameras.add(node);
+            cameraGeometry.put(node.getId(), geometry);
+        }
+        cameras.sort(Comparator.comparingDouble((RouteNode node) -> cameraGeometry.get(node.getId()).totalJunctionAngleDeviation())
+                .reversed().thenComparing(RouteNode::getId));
+        EngineeringRouteEvaluator.Evaluation before = engineeringEvaluator.evaluate(current.getEdges());
+        Map<String, AssessedRouteDraft> candidates = new LinkedHashMap<>();
+        Map<VariantDraft, EngineeringRouteEvaluator.Evaluation> candidateGeometry = new HashMap<>();
+        for (RouteNode camera : cameras.subList(0, Math.min(MAX_QUALITY_CHAMBERS_PER_PASS, cameras.size()))) {
+            ensureCoverageRecoveryActive();
+            List<RouteEdge> edges = incident.get(camera.getId()).stream().sorted(Comparator.comparing(RouteEdge::getId))
+                    .collect(Collectors.toList());
+            int diameter = edges.stream().mapToInt(RouteEdge::getDiameter).max().orElseThrow();
+            org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope(camera.getCoordinate().toCoordinate());
+            bounds.expandBy(40.001);
+            java.util.function.Predicate<Coordinate> blocked = environment.preparePointClearance(diameter, bounds);
+            for (Coordinate point : CorridorSupportedChamberRelocations.build(camera, edges, corridorEdgeOrientation(edges),
+                    demandsByNode.keySet(), at -> !blocked.test(at) && source.nodes.values().stream()
+                            .noneMatch(node -> node.getCoordinate().toCoordinate().distance(at) <= 0.01))) {
+                VariantDraft draft = rebuildBranchJunction(source, Set.of(camera.getId()), Set.of(), camera.getId(), "",
+                        edges, point, demandsByNode, environment, true, true);
+                if (draft == null) continue;
+                EngineeringRouteEvaluator.Evaluation geometry = engineeringEvaluator.evaluate(draft.edges);
+                if (!ChamberQualityRefinementSearch.improvesRays(before, geometry)
+                        || !chamberValidator.validate(new ArrayList<>(draft.nodes.values()), draft.edges).isEmpty()
+                        || !isFinalGeometryValid(draft, environment)) continue;
+                BigDecimal score = draftScore(draft);
+                if (score == null) continue;
+                candidates.putIfAbsent(draftGeometrySignature(draft),
+                        new AssessedRouteDraft(draft, score, totalRouteLength(draft), geometry.bendCount()));
+                candidateGeometry.put(draft, geometry);
+            }
+        }
+        return candidates.values().stream().sorted(Comparator
+                .comparingInt((AssessedRouteDraft item) -> candidateGeometry.get(item.draft()).irregularJunctionAngleCount())
+                .thenComparingDouble(item -> candidateGeometry.get(item.draft()).totalJunctionAngleDeviation())
+                .thenComparing(AssessedRouteDraft::score).thenComparingDouble(AssessedRouteDraft::lengthM)
+                .thenComparing(item -> draftGeometrySignature(item.draft())))
+                .limit(ChamberQualityRefinementSearch.MAX_FINISHED_NEIGHBOURS).map(AssessedRouteDraft::draft)
+                .collect(Collectors.toList());
     }
 
     /** Улучшает только три выбранные роли, сохраняя исходные сети для повторного итогового отбора. */

@@ -76,13 +76,13 @@ class FinalizedTerminalShortenerTest {
         RouteVariant seed = control();
         List<RouteNode> nodes = new ArrayList<>(seed.getNodes());
         RouteNode root = nodes.get(0);
-        nodes.set(0, new RouteNode(root.getId(), root.getNodeType(), new RouteCoordinate(-20, 20),
+        nodes.set(0, new RouteNode(root.getId(), root.getNodeType(), new RouteCoordinate(0, 20),
                 true, true, root.getBaseIncidentSections(), root.getTargetId(), root.getExistingIncidentDiameter()));
         nodes.set(3, new RouteNode("demand-2", "demand_connection", new RouteCoordinate(20, -0.02),
                 false, false, 0, "point-2"));
         List<RouteEdge> edges = List.of(
-                edge("trunk", "root", "camera", 2, path(-20, 20, 0, 0)),
-                edge("leaf-1", "camera", "demand-1", 1, path(0, 0, 2.929, 7.071, 20, 0)),
+                edge("trunk", "root", "camera", 2, path(0, 20, 0, 0)),
+                edge("leaf-1", "camera", "demand-1", 1, path(0, 0, 10, 10, 20, 0)),
                 edge("leaf-2", "camera", "demand-2", 1, path(0, 0, 20, -0.02)));
         RouteVariant baseline = evaluated(nodes, edges, seed.getConnections());
         assertThat(baseline.isValid()).isTrue();

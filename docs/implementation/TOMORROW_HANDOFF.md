@@ -1,5 +1,33 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source88 проверен быстрым набором, full88 в работе
+
+Начать с [PRIMARY_ROUTING_88.md](PRIMARY_ROUTING_88.md). Main snapshot:
+`.tooling/source88-gates.pO5we3`, локальный replay `.tooling/source88-replay.6GPOgt`.
+Переносы, ограниченный поиск и balanced-компромисс интегрированы; исходные сети сохранены.
+Предпочтение 90°/180° и per-node guard приняты от Arendt. Dewey проверил бюджет/промежуточные
+кандидаты: 4 новых межкомпонентных теста, обход лимита длины 1 RED→GREEN. Оба агента закрыты.
+Итоговый fast88session78747 **завершён exit0**: 1505 случаев / 1502 PASS / 0 fail/error / 3 skip;
+отчёты `.tooling/intake-20260925/source88-final-fast-reports/`, web36+37/lint/typecheckPASS.
+Saved86 stage replay95547 завершён exit0: balanced 2111,240 м / 286610441,65 ₽, пары4→2,
+shortest2090,406 м /284980245,83 ₽, cheapest2090,416 м /284948379,08 ₽, 17/17/export3rolesPASS.
+Это проверка нового этапа за3,044с, не fresh plan/общее ускорение; остаются плохие пары камер.
+
+**Сейчас full88session92736** использует snapshot/target `.tooling/source88-gates.pO5we3`:
+НЕ менять его исходники/classes и НЕ запускать второй Maven в нём до завершения.
+Лог `.tooling/intake-20260925/source88-full.log`; ожидаемый принятый `source88-result.json`,
+диагностика `source88-diagnostic.json`. Snapshot сверён с checkout; после fast изменены только
+два JavaDoc, full перекомпилирует их. Первый отдельный full87 пропущен, full88 проверяет87+88.
+Full86session43280 и roads83session12884 **завершились exit1**, не ждать и не перезапускать их.
+Full86 принял исходный набор/экспорт, но compact FAIL; roads83 только 15/17 и не принят.
+После завершения full88 сохранить Surefire-отчёты отдельно, проверить все роли/экспорт/охват,
+измерить реальные камеры/углы/цену/время и сравнить с86. Только затем рисовать fresh-сравнение.
+Следом проверить дороги с direct-tail/recovery87, не считать15/17 принятым результатом.
+Compact, качество всех ролей, скорость и native/Compose/scale/R/G остаются открыты; runtime61/VPS прежние.
+Правила источников: ТЗ допускает произвольный поворот 0–90°; экспертный документ — перпендикулярное
+присоединение камеры. Async-вопрос пользователю закрыт сверкой первоисточников, не ждать ответа.
+Все статусы работающих сессий ниже — история; актуален только этот реестр.
+
 ## Актуально: source87 — direct tail и coverage recovery
 
 [PRIMARY_ROUTING_87.md](PRIMARY_ROUTING_87.md):57новыхdirect-tail cases/139scopedPASS,

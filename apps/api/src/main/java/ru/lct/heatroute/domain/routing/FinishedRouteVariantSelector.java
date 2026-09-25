@@ -12,8 +12,9 @@ import java.util.stream.Collectors;
  * Назначает роли уже завершённым вариантам по фактической длине и стоимости, не меняя их геометрию.
  * Все роли сохраняют максимальный охват среди допустимых вариантов; ранги назначает вызывающий код.
  * При наличии сети без экспертных нарушений инженерные роли выбираются только среди таких сетей.
- * Между сетями этого пула balanced заменяется только при лучшем score без инженерных ухудшений
- * и с ростом длины не более 5%.
+ * Обычный balanced улучшает score без роста цены; лишние колена требуют лучшей геометрии камер.
+ * Только явный selectChamberQuality допускает рост цены до 5% с одним бюджетом цены/длины. Это
+ * инженерное предпочтение; cheapest и официальная формула score остаются экономическими.
  */
 public final class FinishedRouteVariantSelector {
     private static final BigDecimal BALANCED_LENGTH_LIMIT = new BigDecimal("1.05");
@@ -35,6 +36,16 @@ public final class FinishedRouteVariantSelector {
      * без ошибок. Отсев выполняется до сравнения охвата, чтобы негодный 3D-вариант не вытеснил обход.
      */
     public List<RouteVariant> select(List<RouteVariant> finalized, boolean depthEnabled) {
+        return select(finalized, depthEnabled, null);
+    }
+
+    /** Только финальная доводка камер: один явный anchor сохраняет бюджет при повторном отборе. */
+    List<RouteVariant> selectChamberQuality(List<RouteVariant> finalized, boolean depthEnabled, RouteVariant anchor) {
+        if (anchor == null) throw new IllegalArgumentException("Original chamber-quality budget anchor is required");
+        return select(finalized, depthEnabled, anchor);
+    }
+
+    private List<RouteVariant> select(List<RouteVariant> finalized, boolean depthEnabled, RouteVariant qualityAnchor) {
         List<RouteVariant> inputs = List.copyOf(finalized);
         requireUniqueIds(inputs);
         List<Candidate> valid = inputs.stream().filter(RouteVariant::isValid)
@@ -58,14 +69,21 @@ public final class FinishedRouteVariantSelector {
         // если finish() уже получил полноценную сеть того же охвата без этих нарушений.
         if (!compliantCandidates.isEmpty()) engineeringCandidates = compliantCandidates;
 
-        Candidate balanced = byId(engineeringCandidates, "balanced");
+        Candidate qualityBudget = qualityAnchor == null ? null
+                : new Candidate(qualityAnchor, engineering.evaluate(qualityAnchor.getEdges()));
+        List<Candidate> balancedCandidates = qualityBudget != null && hasComparableScore(qualityBudget)
+                ? withinChamberBudget(qualityBudget, engineeringCandidates) : engineeringCandidates;
+        Candidate balanced = byId(balancedCandidates, "balanced");
         if (balanced == null) {
-            balanced = engineeringCandidates.stream().min(Comparator
+            balanced = balancedCandidates.stream().min(Comparator
                     .comparing((Candidate candidate) -> !candidate.evaluation.isCompliant())
                     .thenComparing(candidate -> !"engineering".equals(candidate.variant.getStrategy()))
                     .thenComparing(candidate -> candidate.variant.getId())).orElse(null);
         } else {
-            balanced = improveBalanced(balanced, engineeringCandidates);
+            balanced = improveBalanced(balanced, balancedCandidates);
+        }
+        if (balanced != null && qualityBudget != null && hasComparableScore(qualityBudget)) {
+            balanced = preferChamberQuality(qualityBudget, balanced, balancedCandidates);
         }
 
         Candidate originalShortest = byId(valid, "shortest");
@@ -100,7 +118,7 @@ public final class FinishedRouteVariantSelector {
                 .filter(candidate -> candidate.variant.getEconomics().getCalculatedCost()
                         .compareTo(baseline.variant.getEconomics().getCalculatedCost()) <= 0)
                 .filter(candidate -> candidate.variant.getTotalLengthM().compareTo(lengthLimit) <= 0)
-                .filter(candidate -> noBalancedEngineeringRegression(candidate, baseline))
+                .filter(candidate -> admissibleBalancedGeometry(candidate, baseline))
                 .min(Comparator.comparing((Candidate candidate) -> candidate.variant.getEconomics().getScore())
                         .thenComparing(candidate -> candidate.variant.getEconomics().getCalculatedCost())
                         .thenComparing(candidate -> candidate.variant.getTotalLengthM())
@@ -108,21 +126,52 @@ public final class FinishedRouteVariantSelector {
                 .orElse(baseline);
     }
 
+    /** Бюджеты привязаны к исходному balanced, а не растут вслед за перебором кандидатов. */
+    private List<Candidate> withinChamberBudget(Candidate baseline, List<Candidate> candidates) {
+        BigDecimal costLimit = baseline.variant.getEconomics().getCalculatedCost().multiply(BALANCED_LENGTH_LIMIT);
+        BigDecimal lengthLimit = baseline.variant.getTotalLengthM().multiply(BALANCED_LENGTH_LIMIT);
+        return candidates.stream().filter(this::hasComparableScore)
+                .filter(candidate -> candidate.variant.getEconomics().getCalculatedCost().signum() >= 0)
+                .filter(candidate -> candidate.variant.getEconomics().getCalculatedCost().compareTo(costLimit) <= 0)
+                .filter(candidate -> candidate.variant.getTotalLengthM().compareTo(lengthLimit) <= 0)
+                .collect(Collectors.toList());
+    }
+
+    private Candidate preferChamberQuality(Candidate baseline, Candidate economicImprovement, List<Candidate> candidates) {
+        return candidates.stream()
+                .filter(candidate -> ChamberQualityRefinementSearch.improvesRays(
+                        economicImprovement.evaluation, candidate.evaluation))
+                .filter(candidate -> admissibleBalancedGeometry(candidate, baseline))
+                .min(Comparator.comparingInt((Candidate candidate) -> candidate.evaluation.irregularJunctionAngleCount())
+                        .thenComparingDouble(candidate -> candidate.evaluation.totalJunctionAngleDeviation())
+                        .thenComparing(candidate -> candidate.variant.getEconomics().getScore())
+                        .thenComparing(candidate -> candidate.variant.getEconomics().getCalculatedCost())
+                        .thenComparing(candidate -> candidate.variant.getTotalLengthM())
+                        .thenComparing(candidate -> candidate.variant.getId()))
+                .orElse(economicImprovement);
+    }
+
     private boolean hasComparableScore(Candidate candidate) {
         return fullyCosted(candidate) && candidate.variant.getEconomics().getScore() != null;
     }
 
-    private boolean noBalancedEngineeringRegression(Candidate candidate, Candidate baseline) {
+    private boolean admissibleBalancedGeometry(Candidate candidate, Candidate baseline) {
         EngineeringRouteEvaluator.Evaluation current = candidate.evaluation;
         EngineeringRouteEvaluator.Evaluation control = baseline.evaluation;
+        // Лишнее колено само по себе не улучшение. Но исправление камеры может потребовать
+        // колен для разделения выходов камеры: обязательные углы/интервалы и все лучи сохраняем.
+        boolean repairedJunctions = current.isCompliant()
+                && current.irregularJunctionAngleCount() < control.irregularJunctionAngleCount()
+                && current.preservesJunctionQualityOf(control);
         return current.invalidAngleCount() <= control.invalidAngleCount()
                 && current.insufficientSpacingCount() <= control.insufficientSpacingCount()
-                && current.bendCount() <= control.bendCount()
+                && (current.bendCount() <= control.bendCount() || repairedJunctions)
                 && current.irregularJunctionAngleCount() <= control.irregularJunctionAngleCount()
                 // Нулевой счётчик уже учитывает штатный допуск evaluator 0,5° после округления координат.
                 && (current.invalidAngleCount() == 0
                         || noAngularRegression(current.totalAngleDeviation(), control.totalAngleDeviation()))
-                && noAngularRegression(current.preferredAngleDeviation(), control.preferredAngleDeviation())
+                && (noAngularRegression(current.preferredAngleDeviation(), control.preferredAngleDeviation())
+                        || repairedJunctions)
                 && noAngularRegression(current.totalJunctionAngleDeviation(), control.totalJunctionAngleDeviation())
                 && candidate.newChamberCount <= baseline.newChamberCount;
     }

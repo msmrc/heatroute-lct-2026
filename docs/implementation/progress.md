@@ -1,5 +1,20 @@
 # Current implementation progress
 
+## 2026-09-25 — source65: двухповоротные переходы наклонных вводов
+
+Код `aff1dcf` отправлен в origin и remote SHA проверен. [PRIMARY_ROUTING_65.md](PRIMARY_ROUTING_65.md)
+содержит scope, RED→GREEN и результаты. Прежние прямоугольные контроли сохранены; наклонная
+нормаль может соединяться с осью коридора диагональным средним звеном. Правила не ослаблялись.
+Широкий Java906:903PASS/0failures/0errors/3skip (включая corridor dataset), затем3dataset:
+2PASS/1failure/0errors. Вместе весь набор909:905PASS/1failure/0errors/3skip, не один clean-run.
+Compact-control FAIL с прежними порогами. Fresh443,775с,17/17/ДУ/глубина/экономика/strict
+export всех3вариантов PASS. Balanced/shortest остался2192,523м/14камер/25поворотов/0expert.
+Cheapest2080,633м/13узловых+1новая корневая камера/37поворотов/4неподходящих угла;
+289824529,03₽, score14,356985813. Цена ниже64, но длина иscore хуже — не no-loss улучшение.
+Web36/scripts37/lint/typecheck PASS. Runtime61/readinessUP сохранён; quality/native/Compose/
+scale gates открыты. Подтверждён синтетический дефект anchors по общемуДУ вместо учёта
+индивидуального ввода: следующий RED/fix; код и точные координаты примера — в отчёте65.
+
 ## 2026-09-25 — source64: интеграция нормалей, полный quality gate ещё не пройден
 
 Финальный код `0270971`, экспортный fix `2de2ceb` отправлены; remote проверен.

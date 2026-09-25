@@ -5,11 +5,15 @@
 **Последнее обновление:** 25 сентября 2026 года
 
 **Приоритетная актуализация — source77:** [shared-junction repair](PRIMARY_ROUTING_77.md).
+Full77 завершён1170cases/1166PASS/1compactFAIL/3skip;17/17/strict exportPASS, но **регрессия
+engineering cheapest:3плохих угла**, shortest стал длиннее. Не обновлять runtime на77.
+Roads75 завершён2838,622с/16of17,exact variants72; новый roads77session2599 использует
+frozen snapshot77target. Terminal-direction78 в работе, не завершённый quality gate.
 Соседнее принятое ребро не блокирует собственную камеру; только подтверждённая node identity
 и начальный прямой контакт, без ослабления отступов/запретов.29новых regression tests,
 111focusedPASS,65independentPASS. Конечный clean/fast Maven1166cases/1163PASS/0fail/0error/
-3scale skip;web36/scripts37/lint/typecheckPASS. Full/fresh77session79101 ещё работает;
-accepted77 нет. Roads75session70338 всё ещё использует отдельный snapshot75target.
+3scale skip;web36/scripts37/lint/typecheckPASS. Fixture-accepted77 не подтверждает качество
+cheapest: этот assertion отсутствовал; подробный полный итог и открытый дефект выше.
 Направление terminal road entry — следующий отдельный defect, не исправлено77.
 Compact/G2/native/Compose/scale/R и цель открыты; runtime61/VPS прежние.
 Ниже исторические checkpoint; текущие handles указаны в77 и handoff.

@@ -2,14 +2,22 @@
 
 ## 2026-09-25 — source77: shared-junction repair
 
+**Итог full77:**1170cases/1166PASS/1compactFAIL/0errors/3skip;fixture526,533с/17of17/
+depth/economics/strict exportPASS. Но quality regression: cheapest2073,965м/11камер/3плохих
+угла вместо75 2068,786м/11/0;shortest2192,300м/14камер. Не считать fixture-accepted77
+приёмкой качества всех ролей: cheapest engineering не входил в assertions. Runtime61 сохранён.
+Roads75session70338 завершён:2838,622с/16of17,exact variants72,accepted отсутствует.
+Новый roads77 **session2599** читает frozen snapshot77target; full77 уже завершён.
+В checkout отдельно разрабатывается terminal-direction78; первые99focusedPASS,
+полного78 gate нет. Гипотеза ускорения query-sort пока только micro/audit, не production.
+
 [Source77](PRIMARY_ROUTING_77.md): ранее принятая ветвь больше не блокирует собственный общий
 узел при final-ДУ repair. Точная node identity, только локальный прямой контакт; overlap,
 повторный вход и пересечения вдали запрещены. UTM overlay исправлен без расширения допусков;
 whole-line guards не позволяют сделать общий узел внутренней точкой при склейке ввода.
 29 новых постоянных tests; 111 focused PASS, independent65/65 (48 rotated/translated).
 Конечный clean/fast Maven1166cases/1163PASS/0fail/0error/3scale skipped; web36/scripts37/
-lint/typecheckPASS. Full/fresh77session79101 выполняется на отдельном snapshot77; accepted77
-ещё нет. Roads75session70338 продолжает использовать замороженный snapshot75target.
+lint/typecheckPASS. Full/fresh77 и roads75 завершены с ограничениями выше.
 Ограниченный final-ДУ replay75 не заменяет fresh/sizing/depth/economics и не доказывает ускорения.
 Следующий отдельный дефект — направление road entry после обращения terminal route.
 Runtime61/VPS прежние; compact/G2/native/Compose/scale/R и полная цель не закрыты.

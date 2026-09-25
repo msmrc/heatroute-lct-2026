@@ -1,16 +1,25 @@
 # Handoff — Артём / PM / developer
 
-## Приоритетная актуализация: source77 / полный прогон идёт
+## Приоритетная актуализация: full77 завершён, quality regression открыт
+
+Full77:1170cases/1166PASS/1compactFAIL/3skip;fixture526,533с/17of17/strict exportPASS.
+Однако cheapest2073,965м/11камер/3плохих угла, shortest2192,300м/14камер: хуже75.
+Не обновлять runtime и не считать существующий fixture достаточным quality gate всех ролей.
+Roads75 завершён2838,622с/16of17,exact variants72,толькоdiagnostic. Snapshot75target свободен.
+**Живой roads77session2599** использует `.tooling/source77-build.FeShm8/apps/api/target`,
+runner `.tooling/scenario77.iPcahu`, `source77-roads.log`. Snapshot77target снова заморожен.
+В checkout WIP78 направления ввода (99focusedPASS после incoming-normal fix); полный gate
+не закончен. Параллельно bounded audit77 выясняет причину ухудшения retention/portfolio.
 
 Сначала [PRIMARY_ROUTING_77.md](PRIMARY_ROUTING_77.md). Исправлен shared-junction self-blocking
 в final-ДУ repair: локальное исключение по node identity, не исключение целого соседа.
 29новых tests,111focusedPASS,65independentPASS; конечный clean/fast1166cases/1163PASS/
-0fail/0error/3scale skip и web36/scripts37/lint/typecheckPASS. Полного accepted77 пока нет.
+0fail/0error/3scale skip и web36/scripts37/lint/typecheckPASS. Полный итог выше.
 
-- **Full77session79101**: `.tooling/source77-build.FeShm8/apps/api`, `source77-full.log`,
+- **Full77session79101 завершён**: `.tooling/source77-build.FeShm8/apps/api`, `source77-full.log`,
   accepted `source77-result.json`, diagnostic `source77-diagnostic.json`. Target заморожен.
-- **Roads75session70338**: `.tooling/scenario75.VxnM8P`, `source75-roads.log`, frozen
-  `.tooling/source75-build.9a8BDz/apps/api/target`. Не перезаписывать до terminal outcome.
+- **Roads75session70338 завершён exit1**: `.tooling/scenario75.VxnM8P`, `source75-roads.log`,
+  `.tooling/source75-build.9a8BDz/apps/api/target` больше не занят.
 
 Логи/результаты — `.tooling/intake-20260925/`; fast77 reports сохранены отдельно. Сначала
 дождаться текущих процессов, не дублировать fresh calculation из-за тихого лога. После77

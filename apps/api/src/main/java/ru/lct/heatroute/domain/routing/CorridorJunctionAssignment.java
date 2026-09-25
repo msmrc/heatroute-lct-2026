@@ -25,8 +25,6 @@ import org.locationtech.jts.geom.Point;
 final class CorridorJunctionAssignment {
     private static final GeometryFactory GEOMETRIES = new GeometryFactory();
     private static final double POSITION_EPSILON_M = 0.01;
-    private static final double ORTHOGONAL_COSINE = Math.sin(Math.toRadians(5));
-    private static final double OPPOSITE_COSINE = -Math.cos(Math.toRadians(5));
     private static final int MAX_PORT_ASSIGNMENTS = 128;
 
     private CorridorJunctionAssignment() { }
@@ -53,6 +51,10 @@ final class CorridorJunctionAssignment {
 
     /** Пути направлены внешний узел → камера; ответ сохраняет порядок внешних узлов. */
     static List<RoutePath> choose(Coordinate junction, List<List<RoutePath>> alternatives) {
+        return choose(junction, alternatives, 5.0);
+    }
+
+    private static List<RoutePath> choose(Coordinate junction, List<List<RoutePath>> alternatives, double toleranceDegrees) {
         ensureActive();
         if (junction == null || !Double.isFinite(junction.x) || !Double.isFinite(junction.y)
                 || alternatives == null || alternatives.size() < 2 || alternatives.size() > 4) {
@@ -72,12 +74,17 @@ final class CorridorJunctionAssignment {
             choices.add(paths);
         }
         // Максимум 8^4 комбинаций. Парные отказы и нижняя граница длины сокращают поиск.
-        Search search = new Search(junction, choices);
+        Search search = new Search(junction, choices, toleranceDegrees);
         search.visit(new ArrayList<>(), 0.0);
         if (search.best == null) return null;
         List<RoutePath> result = new ArrayList<>();
         for (Approach approach : search.best) result.add(approach.path);
         return List.copyOf(result);
+    }
+
+    /** Отдельный точный поиск для доводки камер, без смены допуска общего построения. */
+    static List<RoutePath> choosePrecise(Coordinate junction, List<List<RoutePath>> alternatives) {
+        return choose(junction, alternatives, EngineeringRouteEvaluator.ANGLE_EPSILON_DEGREES);
     }
 
     /**
@@ -120,9 +127,9 @@ final class CorridorJunctionAssignment {
                 before.x - endpoint.x, before.y - endpoint.y);
     }
 
-    private static boolean compatible(Coordinate junction, Approach a, Approach b) {
+    private static boolean compatible(Coordinate junction, Approach a, Approach b, double orthogonalCosine, double oppositeCosine) {
         double cosine = a.x * b.x + a.y * b.y;
-        if (Math.abs(cosine) > ORTHOGONAL_COSINE + 1e-9 && cosine > OPPOSITE_COSINE + 1e-9) return false;
+        if (Math.abs(cosine) > orthogonalCosine + 1e-9 && cosine > oppositeCosine + 1e-9) return false;
         Geometry intersection = a.line.intersection(b.line);
         return intersection.isEmpty() || intersection instanceof Point
                 && intersection.getCoordinate().distance(junction) <= POSITION_EPSILON_M;
@@ -135,12 +142,16 @@ final class CorridorJunctionAssignment {
     private static final class Search {
         private final Coordinate junction;
         private final List<List<Approach>> choices;
+        private final double orthogonalCosine;
+        private final double oppositeCosine;
         private List<Approach> best;
         private double bestLength = Double.POSITIVE_INFINITY;
 
-        private Search(Coordinate junction, List<List<Approach>> choices) {
+        private Search(Coordinate junction, List<List<Approach>> choices, double toleranceDegrees) {
             this.junction = junction;
             this.choices = choices;
+            this.orthogonalCosine = Math.sin(Math.toRadians(toleranceDegrees));
+            this.oppositeCosine = -Math.cos(Math.toRadians(toleranceDegrees));
         }
 
         private void visit(List<Approach> accepted, double length) {
@@ -155,7 +166,8 @@ final class CorridorJunctionAssignment {
             }
             for (Approach candidate : choices.get(accepted.size())) {
                 ensureActive();
-                if (accepted.stream().anyMatch(previous -> !compatible(junction, previous, candidate))) continue;
+                if (accepted.stream().anyMatch(previous -> !compatible(junction, previous, candidate,
+                        orthogonalCosine, oppositeCosine))) continue;
                 accepted.add(candidate);
                 visit(accepted, length + candidate.line.getLength());
                 accepted.remove(accepted.size() - 1);

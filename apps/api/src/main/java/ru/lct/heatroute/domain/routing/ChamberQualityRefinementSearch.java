@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
  * Итоговый selector отдельно решает, улучшает ли найденная сеть пользовательскую роль.
  */
 final class ChamberQualityRefinementSearch {
-    static final int MAX_PASSES = 2;
+    static final int MAX_PASSES = 3;
     static final int MAX_FINISHED_NEIGHBOURS = 2;
     private static final BigDecimal REPAIR_LIMIT = new BigDecimal("1.05");
     private static final EngineeringRouteEvaluator ENGINEERING = new EngineeringRouteEvaluator();
@@ -28,7 +28,7 @@ final class ChamberQualityRefinementSearch {
         return search(seed, depthEnabled, expand).best;
     }
 
-    /** Сохраняет до четырёх допущенных соседей, в том числе промежуточные варианты для других ролей. */
+    /** Сохраняет до шести допущенных соседей, в том числе промежуточные варианты для других ролей. */
     static List<RouteVariant> alternatives(RouteVariant seed, boolean depthEnabled,
             Function<RouteVariant, List<RouteVariant>> expand) {
         return search(seed, depthEnabled, expand).alternatives;
@@ -126,7 +126,7 @@ final class ChamberQualityRefinementSearch {
 
     private static Comparator<RouteVariant> order() {
         return Comparator.comparingInt((RouteVariant variant) -> ENGINEERING.evaluate(variant.getEdges()).irregularJunctionAngleCount())
-                .thenComparingDouble(variant -> ENGINEERING.evaluate(variant.getEdges()).totalJunctionAngleDeviation())
+                .thenComparingDouble(variant -> ENGINEERING.evaluate(variant.getEdges()).excessJunctionAngleDeviation())
                 .thenComparing(variant -> variant.getEconomics().getCalculatedCost())
                 .thenComparing(RouteVariant::getTotalLengthM).thenComparing(RouteVariant::getId);
     }

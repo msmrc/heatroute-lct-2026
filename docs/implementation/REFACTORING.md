@@ -361,6 +361,15 @@ focused/интеграционные/scale-проверки по риску. Э�
 
 ## 7. Evidence на момент создания документа
 
+Актуализация B-10 от 2026-09-25 (source88/89): дефект endpoint-отступа подтверждён двумя
+красными случаями для новой камеры и фактических ДУ500/600. Воспроизводящий fixture и evidence:
+`.tooling/chamber-safety.jBjWz5/endpoint-reproducer/OfficialChamberQualitySafetyTest.java`,
+`.tooling/chamber-safety.jBjWz5/EVIDENCE.md`; см. [scope89](PRIMARY_ROUTING_89.md).
+Зелёные 5 safety cases проверяют отдельные interior-отступы/препятствия/глубину и не закрывают
+B-10. Следующий correctness gate: ограничить исключение реальным локальным подходом
+существующей врезки и подтвердить нормальные вводы ОКС. Production-исправления B-10 ещё нет.
+Ниже сохранена исходная evidence на дату создания документа.
+
 - Аудит Java был статическим: 100 production Java-файлов, около 11,6 тыс. строк;
   29 Java test/helper-файлов и 138 методов `@Test` в исходниках. Это не отчёт покрытия/прохождения.
 - В сессии аудита прошли web lint/typecheck, 18 Vitest-тестов на совместимом Node 24.19.0 и

@@ -37,13 +37,24 @@ class ChamberQualityRefinementSearchTest {
     }
 
     @Test
-    void stopsAfterTwoStrictImprovementsEvenWhenAnotherRepairExists() {
+    void stopsAfterThreeStrictImprovementsEvenWhenAnotherRepairExists() {
+        RouteVariant seed = compound(0, 4);
+        AtomicInteger expansions = new AtomicInteger();
+        RouteVariant result = ChamberQualityRefinementSearch.improve(seed, true,
+                current -> List.of(compound(expansions.incrementAndGet(), 4)));
+        assertThat(expansions.get()).isEqualTo(3);
+        assertThat(engineering.evaluate(result.getEdges()).irregularJunctionAngleCount()).isEqualTo(1);
+        assertThat(result.getConnectedDemandCount()).isEqualTo(8);
+    }
+
+    @Test
+    void thirdStrictRepairCanFinishThreeDistinctChambersWithinTheOriginalBudget() {
         RouteVariant seed = compound(0);
         AtomicInteger expansions = new AtomicInteger();
         RouteVariant result = ChamberQualityRefinementSearch.improve(seed, true,
                 current -> List.of(compound(expansions.incrementAndGet())));
-        assertThat(expansions.get()).isEqualTo(2);
-        assertThat(engineering.evaluate(result.getEdges()).irregularJunctionAngleCount()).isEqualTo(1);
+        assertThat(expansions.get()).isEqualTo(3);
+        assertThat(engineering.evaluate(result.getEdges()).irregularJunctionAngleCount()).isZero();
         assertThat(result.getConnectedDemandCount()).isEqualTo(6);
     }
 
@@ -165,11 +176,15 @@ class ChamberQualityRefinementSearchTest {
     }
 
     private RouteVariant compound(int repaired) {
+        return compound(repaired, 3);
+    }
+
+    private RouteVariant compound(int repaired, int chamberCount) {
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
         List<RouteConnection> connections = new ArrayList<>();
         BigDecimal cost = BigDecimal.ZERO;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < chamberCount; i++) {
             RouteVariant piece = fixture.variant("part", 0, i < repaired, false, false);
             String suffix = ":" + i;
             double y = i * 1000;

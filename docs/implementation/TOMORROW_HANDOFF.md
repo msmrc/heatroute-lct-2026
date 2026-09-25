@@ -1,5 +1,35 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source89 fast готов, следующий correctness — B-10
+
+Начать с [PRIMARY_ROUTING_89.md](PRIMARY_ROUTING_89.md) и [REFACTORING](REFACTORING.md).
+Snapshot89 `.tooling/source89-gates.jsf4wz` совпал с checkout перед финальным fast;
+fast67366 завершён exit0:1526cases/1523PASS/0fail/error/3skip,136классов. Отчёты сохранены:
+`.tooling/intake-20260925/source89-fast-reports/`. Web54346 exit0:36+37/lint/typecheckPASS.
+Final replay15870 завершён exit0: `source89-final2-from86.json/log`, non-inlined version89,
+balanced2113,249м/286789420,37₽/4→0pairs/17of17/strict3rolesPASS, этап5,832с.
+Это bounded saved-input witness, не fresh89 и не productioncache. Другие роли ещё с4парами;
+официальный rank/UIpreferred не менялся и может показывать cheapest первым.
+
+**По-прежнему жив full88session92736** на frozen `.tooling/source88-gates.pO5we3`:
+его исходники/target не менять и не запускать дубликат. Compact-control FAIL; официальный
+dataset-тест выполняется. Лог `source88-full.log`, ожидаемые `source88-result.json` и
+`source88-diagnostic.json` в `.tooling/intake-20260925/`. Нужны завершение/отчёты/охват/метрики;
+не считать промежуточные corridor-логи готовыми ролями. **Full89 ещё не запущен**, target89 свободен.
+
+Darwin завершён/закрыт; его единственный тест интегрирован и прошёл на89. Evidence:
+`.tooling/chamber-safety.jBjWz5/EVIDENCE.md`. Он же сохранил **B-10 RED**:
+`.tooling/chamber-safety.jBjWz5/endpoint-reproducer/OfficialChamberQualitySafetyTest.java`.
+Новая камера рядом с building получает ошибочное снятие буфера от `applicableConstraints`.
+Сначала вынести focused regression и исправить независимый допуск/локальное исключение врезки,
+сохранив нормальные вводы и реальные исходные данные. Interior-сценарии зелёного safety-набора
+не закрывают этот дефект. Правила требования и источники проверять перед изменением исключения.
+
+Далее fresh89/последующей исправленной версии, дороги17/17, компактность и общее время;
+картинки строить по фактическому принятому fresh-результату с честной версией. Runtime61/VPS
+не трогались. Доступность live UI не означает, что он работает на89. Native/Compose/scale/R/G
+не приняты. Все live-статусы ниже исторические; актуален этот реестр.
+
 ## Актуально: source88 проверен быстрым набором, full88 в работе
 
 Начать с [PRIMARY_ROUTING_88.md](PRIMARY_ROUTING_88.md). Main snapshot:

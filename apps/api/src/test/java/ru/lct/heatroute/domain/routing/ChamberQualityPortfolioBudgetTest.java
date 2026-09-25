@@ -109,11 +109,15 @@ class ChamberQualityPortfolioBudgetTest {
             AtomicInteger expansions = new AtomicInteger();
             List<RouteVariant> pool = ChamberQualityRefinementSearch.alternatives(seed, depth, current -> {
                 int pass = expansions.getAndIncrement();
-                assertThat(pass).isLessThan(2);
+                assertThat(pass).isLessThan(3);
+                if (pass == 2) {
+                    assertThat(current).isSameAs(finalWinner);
+                    return List.of();
+                }
                 assertThat(current).isSameAs(pass == 0 ? seed : intermediate);
                 return List.of(pass == 0 ? intermediate : finalWinner);
             });
-            assertThat(expansions.get()).isEqualTo(2);
+            assertThat(expansions.get()).isEqualTo(3);
             assertThat(pool).containsExactlyInAnyOrder(intermediate, finalWinner);
 
             List<RouteVariant> originals = List.of(anchor, shortest, seed);
@@ -135,12 +139,14 @@ class ChamberQualityPortfolioBudgetTest {
     }
 
     @Test
-    void retainsAllFourAdmittedNeighboursPerSeedAndChoosesDeterministicallyAcrossTheirOrder() {
-        RouteVariant anchor = compound("balanced", 0, "100", "110");
-        RouteVariant first = compound("a-first", 1, "101", "108");
-        RouteVariant firstTie = compound("b-first", 1, "101", "108");
-        RouteVariant second = compound("a-second", 2, "102", "107");
-        RouteVariant secondTie = compound("b-second", 2, "102", "107");
+    void retainsAllSixAdmittedNeighboursPerSeedAndChoosesDeterministicallyAcrossTheirOrder() {
+        RouteVariant anchor = compound("balanced", 0, "100", "110", 4);
+        RouteVariant first = compound("a-first", 1, "101", "108", 4);
+        RouteVariant firstTie = compound("b-first", 1, "101", "108", 4);
+        RouteVariant second = compound("a-second", 2, "102", "107", 4);
+        RouteVariant secondTie = compound("b-second", 2, "102", "107", 4);
+        RouteVariant third = compound("a-third", 3, "103", "106", 4);
+        RouteVariant thirdTie = compound("b-third", 3, "103", "106", 4);
         assertStrictRepair(anchor, first);
         assertStrictRepair(first, second);
 
@@ -149,19 +155,20 @@ class ChamberQualityPortfolioBudgetTest {
                 AtomicInteger expansions = new AtomicInteger();
                 List<RouteVariant> pool = ChamberQualityRefinementSearch.alternatives(anchor, true, current -> {
                     int pass = expansions.getAndIncrement();
-                    assertThat(pass).isLessThan(2);
-                    assertThat(current).isSameAs(pass == 0 ? anchor : first);
-                    return pass == 0 ? ordered(reverseFirst, first, firstTie) : ordered(reverseSecond, second, secondTie);
+                    assertThat(pass).isLessThan(3);
+                    assertThat(current).isSameAs(pass == 0 ? anchor : pass == 1 ? first : second);
+                    return pass == 0 ? ordered(reverseFirst, first, firstTie)
+                            : pass == 1 ? ordered(reverseSecond, second, secondTie) : ordered(reverseFirst, third, thirdTie);
                 });
-                assertThat(expansions.get()).isEqualTo(2);
-                assertThat(pool).hasSize(4).containsExactlyInAnyOrder(first, firstTie, second, secondTie);
-                // Ещё одна нерегулярная камера остаётся: остановка вызвана бюджетом двух проходов.
-                assertThat(engineering.evaluate(second.getEdges()).irregularJunctionAngleCount()).isPositive();
+                assertThat(expansions.get()).isEqualTo(3);
+                assertThat(pool).hasSize(6).containsExactlyInAnyOrder(first, firstTie, second, secondTie, third, thirdTie);
+                // Ещё одна нерегулярная камера остаётся: остановка вызвана бюджетом трёх проходов.
+                assertThat(engineering.evaluate(third.getEdges()).irregularJunctionAngleCount()).isPositive();
                 List<RouteVariant> portfolio = new ArrayList<>(pool);
                 portfolio.add(anchor);
-                assertSource(role(selector.selectChamberQuality(portfolio, true, anchor), "balanced"), second);
+                assertSource(role(selector.selectChamberQuality(portfolio, true, anchor), "balanced"), third);
                 Collections.reverse(portfolio);
-                assertSource(role(selector.selectChamberQuality(portfolio, true, anchor), "balanced"), second);
+                assertSource(role(selector.selectChamberQuality(portfolio, true, anchor), "balanced"), third);
             }
         }
     }
@@ -191,10 +198,14 @@ class ChamberQualityPortfolioBudgetTest {
 
     /** Три разнесённых дерева сохраняют ID/координаты корней и потребителей при ремонте камер. */
     private RouteVariant compound(String id, int repaired, String costValue, String lengthValue) {
+        return compound(id, repaired, costValue, lengthValue, 3);
+    }
+
+    private RouteVariant compound(String id, int repaired, String costValue, String lengthValue, int chamberCount) {
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
         List<RouteConnection> connections = new ArrayList<>();
-        for (int index = 0; index < 3; index++) {
+        for (int index = 0; index < chamberCount; index++) {
             RouteVariant piece = fixture.variant("part", 0, index < repaired, false, false);
             String suffix = ":" + index;
             double offsetY = index * 1000;
@@ -221,9 +232,9 @@ class ChamberQualityPortfolioBudgetTest {
         RouteVariant result = new RouteVariant(id, strategy, nodes, edges, connections, length,
                 List.of(), List.of(), List.of(), ExistingNetworkReconstructionResult.empty(), economics, null);
         assertThat(engineering.evaluate(edges).isCompliant()).isTrue();
-        assertThat(engineering.evaluate(edges).irregularJunctionAngleCount()).isEqualTo(3 - repaired);
+        assertThat(engineering.evaluate(edges).irregularJunctionAngleCount()).isEqualTo(chamberCount - repaired);
         assertThat(new ExpertChamberRouteValidator().validate(nodes, edges)).isEmpty();
-        assertThat(result.getConnectedDemandCount()).isEqualTo(6);
+        assertThat(result.getConnectedDemandCount()).isEqualTo(2 * chamberCount);
         return result;
     }
 

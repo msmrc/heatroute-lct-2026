@@ -143,7 +143,7 @@ public final class FinishedRouteVariantSelector {
                         economicImprovement.evaluation, candidate.evaluation))
                 .filter(candidate -> admissibleBalancedGeometry(candidate, baseline))
                 .min(Comparator.comparingInt((Candidate candidate) -> candidate.evaluation.irregularJunctionAngleCount())
-                        .thenComparingDouble(candidate -> candidate.evaluation.totalJunctionAngleDeviation())
+                        .thenComparingDouble(candidate -> candidate.evaluation.excessJunctionAngleDeviation())
                         .thenComparing(candidate -> candidate.variant.getEconomics().getScore())
                         .thenComparing(candidate -> candidate.variant.getEconomics().getCalculatedCost())
                         .thenComparing(candidate -> candidate.variant.getTotalLengthM())

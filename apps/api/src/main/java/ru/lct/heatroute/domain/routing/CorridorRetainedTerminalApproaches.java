@@ -18,7 +18,8 @@ import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.NormalEgress;
 
 /**
  * Сохраняет перепроверенный нормальный ввод и меняет лишь хвост у объединяемой камеры.
- * Не запускает глобальный поиск: два места среза, до 38 хвостов, не более восьми итоговых путей.
+ * Не запускает глобальный поиск: два места среза, до 38 новых хвостов и сохранённый исходный путь,
+ * не более восьми итоговых путей. Дополнительная доводка неподвижного конца включается явно.
  * Окончательный допуск сети, ДУ и глубины остаётся у planner.finish.
  */
 final class CorridorRetainedTerminalApproaches {
@@ -31,10 +32,23 @@ final class CorridorRetainedTerminalApproaches {
 
     private CorridorRetainedTerminalApproaches() { }
 
+    /** Доводка может менять хвост и при неизменной камере; нормальный ввод остаётся проверяемым. */
+    static List<RoutePath> buildForChamberQuality(RouteEdge edge, RouteNode terminal, Coordinate junction, double orientation,
+            OfficialObstacleRouter router, OfficialRoutingEnvironment environment,
+            List<RoutePath> fresh, List<RouteEdge> retained) {
+        return build(edge, terminal, junction, orientation, router, environment, fresh, retained, true);
+    }
+
     /** fresh — уже проверенные варианты CorridorTerminalRouter; фильтруем пересечения до лимита. */
     static List<RoutePath> build(RouteEdge edge, RouteNode terminal, Coordinate junction, double orientation,
             OfficialObstacleRouter router, OfficialRoutingEnvironment environment,
             List<RoutePath> fresh, List<RouteEdge> retained) {
+        return build(edge, terminal, junction, orientation, router, environment, fresh, retained, false);
+    }
+
+    private static List<RoutePath> build(RouteEdge edge, RouteNode terminal, Coordinate junction, double orientation,
+            OfficialObstacleRouter router, OfficialRoutingEnvironment environment,
+            List<RoutePath> fresh, List<RouteEdge> retained, boolean refineStationary) {
         ensureActive();
         Objects.requireNonNull(edge); Objects.requireNonNull(terminal);
         Objects.requireNonNull(router); Objects.requireNonNull(environment);
@@ -50,7 +64,7 @@ final class CorridorRetainedTerminalApproaches {
             ensureActive();
             if (CorridorJunctionAssignment.clearsRetained(path, terminal.getId(), retained)) addDistinct(current, path);
         }
-        List<RoutePath> preserved = retainedPaths(edge, terminal, rounded(junction), orientation, router, environment, retained);
+        List<RoutePath> preserved = retainedPaths(edge, terminal, rounded(junction), orientation, router, environment, retained, refineStationary);
         List<RoutePath> candidates = new ArrayList<>(current);
         preserved.forEach(path -> addDistinct(candidates, path));
         candidates.sort(Comparator.comparingDouble(RoutePath::lengthM).thenComparing(CorridorRetainedTerminalApproaches::key));
@@ -73,7 +87,8 @@ final class CorridorRetainedTerminalApproaches {
     }
 
     private static List<RoutePath> retainedPaths(RouteEdge edge, RouteNode terminal, Coordinate junction,
-            double orientation, OfficialObstacleRouter router, OfficialRoutingEnvironment environment, List<RouteEdge> retained) {
+            double orientation, OfficialObstacleRouter router, OfficialRoutingEnvironment environment,
+            List<RouteEdge> retained, boolean refineStationary) {
         if (edge.getCoordinates().size() < 2 || edge.getCoordinates().size() > MAX_SOURCE_POINTS) return List.of();
         List<Coordinate> source = edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate).collect(Collectors.toList());
         RouteTraversal traversal = terminal.getId().equals(edge.getUpstreamNodeId())
@@ -95,11 +110,15 @@ final class CorridorRetainedTerminalApproaches {
             if (outside == null) return List.of();
         }
         List<List<Coordinate>> tails = new ArrayList<>();
-        if (source.get(source.size() - 1).equals2D(junction)) {
+        boolean stationary = source.get(source.size() - 1).equals2D(junction);
+        if (stationary) {
             tails.add(outside);
-        } else {
-            // Не режем произвольный дальний префикс: только старый конец и предыдущую вершину.
-            for (int cut = outside.size() - 1; cut >= Math.max(0, outside.size() - 2); cut--) {
+        }
+        if (!stationary || refineStationary) {
+            // Два места среза. При неподвижной камере её старый конец не служит префиксом:
+            // иначе новые хвосты возвращались бы в уже пройденную камеру и давали петлю.
+            int lastCut = outside.size() - (stationary ? 2 : 1);
+            for (int cut = lastCut; cut >= Math.max(0, lastCut - 1); cut--) {
                 ensureActive();
                 List<Coordinate> prefix = outside.subList(0, cut + 1);
                 addTail(tails, prefix, List.of(junction));

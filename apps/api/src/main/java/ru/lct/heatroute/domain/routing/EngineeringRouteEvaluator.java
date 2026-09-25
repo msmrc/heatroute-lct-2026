@@ -18,7 +18,7 @@ final class EngineeringRouteEvaluator {
     static final double MIN_INTERNAL_ANGLE_DEGREES = 90.0;
     static final double MAX_INTERNAL_ANGLE_DEGREES = 135.0;
     static final double MIN_BEND_SPACING_M = 2.0;
-    private static final double ANGLE_EPSILON_DEGREES = 0.5;
+    static final double ANGLE_EPSILON_DEGREES = 0.5;
     private static final double LENGTH_EPSILON_M = 0.01;
 
     Evaluation evaluate(List<RouteEdge> edges) {
@@ -379,6 +379,10 @@ final class EngineeringRouteEvaluator {
         double preferredAngleDeviation() { return preferredAngleDeviation; }
         int irregularJunctionAngleCount() { return irregularJunctionAngleCount; }
         double totalJunctionAngleDeviation() { return totalJunctionAngleDeviation; }
+        /** Для предпочтения кандидатов не покупаем точность внутри допуска округления. */
+        double excessJunctionAngleDeviation() {
+            return junctionPreferences.values().stream().mapToDouble(value -> value.excessDeviation).sum();
+        }
         /**
          * Сохраняем минимум, число нерегулярных пар и сумму превышений допуска по каждому узлу:
          * улучшение другой камеры не компенсирует локальную регрессию. Превышение max(0, deviation − 0,5°)

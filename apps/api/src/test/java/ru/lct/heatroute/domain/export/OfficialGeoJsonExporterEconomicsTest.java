@@ -80,6 +80,32 @@ class OfficialGeoJsonExporterEconomicsTest {
                 .hasMessageContaining("exported construction components disagree with saved economics");
     }
 
+    @Test
+    void costOfMillimetreCoordinatesIsInvariantUnderLargeUtmTranslation() {
+        BigDecimal control = null;
+        for (double[] origin : new double[][] {{0, 0}, {400000.179, 6000000.382}}) {
+            for (boolean depthEnabled : new boolean[] {false, true}) {
+                var coordinates = List.of(new RouteCoordinate(origin[0], origin[1]),
+                        new RouteCoordinate(origin[0] - 8.470, origin[1] + 3.399),
+                        new RouteCoordinate(origin[0] - 8.312, origin[1] + 3.791),
+                        new RouteCoordinate(origin[0] - 5.420, origin[1] + 10.998));
+                var profile = depthEnabled ? new DepthProfileResult(true,
+                        List.of(point("0", "3"), point("17.315", "3")), List.of(), List.of(),
+                        new BigDecimal("17.315"), new BigDecimal("17.315")) : null;
+                var edge = new RouteEdge("edge", "start", "end", 17.315, coordinates,
+                        List.of(new RouteSection("base", null, null, coordinates, 17.315, null)),
+                        BigDecimal.ONE, 125, profile);
+                ObjectNode calculation = calculation(edge);
+                BigDecimal expected = calculation.path("variants").path(0).path("economics")
+                        .path("construction_cost").decimalValue();
+                if (control == null) control = expected;
+                assertThat(expected).isEqualByComparingTo(control);
+                exporter.validate(calculation, List.of());
+                assertExportedCost(calculation, expected);
+            }
+        }
+    }
+
     private void assertExportedCost(ObjectNode calculation, BigDecimal expected) {
         JsonNode output = exporter.export(calculation, List.of());
         BigDecimal physical = StreamSupport.stream(output.path("features").spliterator(), false)
@@ -103,9 +129,15 @@ class OfficialGeoJsonExporterEconomicsTest {
                 List.of(), List.of(), BigDecimal.valueOf(length), BigDecimal.valueOf(length)) : null;
         RouteEdge edge = new RouteEdge("edge", "start", "end", length, coordinates, sections,
                 BigDecimal.ONE, 300, profile);
+        return calculation(edge);
+    }
+
+    private ObjectNode calculation(RouteEdge edge) {
+        List<RouteCoordinate> coordinates = edge.getCoordinates();
         List<RouteNode> nodes = List.of(
                 new RouteNode("start", "technical_node", coordinates.get(0), false, true, 0, null),
-                new RouteNode("end", "demand_connection", coordinates.get(2), false, false, 0, null));
+                new RouteNode("end", "demand_connection", coordinates.get(coordinates.size() - 1),
+                        false, false, 0, null));
         List<RouteConnection> connections = List.of(new RouteConnection("demand", "end", BigDecimal.ONE, "connected", null));
         VariantEconomics costs = calculator.calculate(nodes, List.of(edge), connections, ExistingNetworkReconstructionResult.empty());
         RouteVariant variant = new RouteVariant("cheapest", "cheapest", nodes, List.of(edge), connections,

@@ -824,9 +824,11 @@ public class OfficialGeoJsonExporter {
     }
 
     private double coordinateDistance(JsonNode left, JsonNode right) {
+        // Вычитаем метрические координаты до перехода к double, как в калькуляторе сметы.
+        // Иначе перенос в UTM меняет доли длины и округление цены на границе полкопейки.
         return Math.hypot(
-                right.path("xm").asDouble() - left.path("xm").asDouble(),
-                right.path("ym").asDouble() - left.path("ym").asDouble());
+                right.path("xm").decimalValue().subtract(left.path("xm").decimalValue()).doubleValue(),
+                right.path("ym").decimalValue().subtract(left.path("ym").decimalValue()).doubleValue());
     }
 
     private static final class ExportPieceMeasure {

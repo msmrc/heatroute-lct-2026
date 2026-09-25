@@ -86,6 +86,12 @@ public class OfficialRouteValidator {
         }
         Map<String, RouteNode> nodesById = new HashMap<>();
         nodes.forEach(node -> nodesById.put(node.getId(), node));
+        Map<String, Coordinate> sourceDemandPoints = new HashMap<>();
+        features.stream().filter(feature -> "oks_connection_point".equals(feature.getObjectType()))
+                .filter(feature -> feature.getMetricGeometry() instanceof Point)
+                .filter(feature -> !feature.getMetricGeometry().isEmpty())
+                .forEach(feature -> sourceDemandPoints.put(
+                        feature.getFeatureId(), feature.getMetricGeometry().getCoordinate()));
         // Один набор буферов на фактический ДУ в рамках этой независимой проверки.
         // Исключения и подходы к endpoints применяются отдельно, исходные ограничения не меняются.
         Map<Integer, List<OfficialRouteGeometryRules.Constraint>> constraintsByDiameter = new HashMap<>();
@@ -120,7 +126,18 @@ public class OfficialRouteValidator {
                 exemptions.add(downstream.getTargetId());
             }
             int diameter = edge.getDiameter() == null ? 50 : edge.getDiameter();
-            issues.addAll(geometryRules.validateMandatoryEgress(edge, route, features, diameter));
+            // Принадлежность ОКС определяется исходным подключением: округлённый узел на стене
+            // может оказаться снаружи, но это не превращает обязательный ввод в свободную точку.
+            Coordinate connectionPoint = downstream.getCoordinate().toCoordinate();
+            if ("demand_connection".equals(downstream.getNodeType())) {
+                connectionPoint = sourceDemandPoints.getOrDefault(downstream.getTargetId(), connectionPoint);
+                if (connectionPoint.distance(downstream.getCoordinate().toCoordinate()) > TOLERANCE_M) {
+                    issues.add(issue("DEMAND_CONNECTION_COORDINATE_MISMATCH", downstream.getId(),
+                            "Demand node must coincide with its original input connection point"));
+                }
+            }
+            issues.addAll(geometryRules.validateMandatoryEgress(
+                    edge, route, features, diameter, connectionPoint));
             List<OfficialRouteGeometryRules.Constraint> baseConstraints = constraintsByDiameter.computeIfAbsent(
                     diameter, value -> geometryRules.baseConstraints(features, value));
             List<OfficialRouteGeometryRules.Constraint> allConstraints = geometryRules.applicableConstraints(
@@ -132,7 +149,7 @@ public class OfficialRouteValidator {
                     ? geometryRules.normalEgressTowards(
                                     features,
                                     diameter,
-                                    downstream.getCoordinate().toCoordinate(),
+                                    connectionPoint,
                                     route.getCoordinateN(route.getNumPoints() - 2))
                             .orElse(null)
                     : null;
@@ -146,18 +163,16 @@ public class OfficialRouteValidator {
                     .collect(java.util.stream.Collectors.toList());
             issues.addAll(geometryRules.validate(edge, route, outsideConstraints));
 
-            // Only the terminal approach may enter the demand's own OKS. Its clearance is waived
-            // locally, while the independently checked prefix must still avoid the footprint.
+            // Только последний полный прямой ввод освобождён от собственного отступа.
+            // Остальная линия не получает льготу ни вдоль стены, ни у её углов.
             if (route.getNumPoints() > 2) {
                 Coordinate[] outsideCoordinates = new Coordinate[route.getNumPoints() - 1];
                 for (int index = 0; index < outsideCoordinates.length; index++) {
                     outsideCoordinates[index] = route.getCoordinateN(index);
                 }
                 LineString outsideRoute = geometryFactory.createLineString(outsideCoordinates);
-                List<OfficialRouteGeometryRules.Constraint> ownTerminalTerritories =
-                        geometryRules.ownTerminalFootprintConstraints(
-                                allConstraints, egress);
-                issues.addAll(geometryRules.validateForbidden(edge, outsideRoute, ownTerminalTerritories));
+                issues.addAll(geometryRules.validateOwnTerminalClearance(
+                        edge, outsideRoute, baseConstraints, egress, diameter));
             }
         }
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)

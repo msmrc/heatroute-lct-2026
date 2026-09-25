@@ -254,7 +254,7 @@ public class OfficialRoutePlanner {
         List<RouteVariant> finalized = new ArrayList<>(List.of(
                 withEngineeringAssessment(engineering),
                 withEngineeringAssessment(shortest),
-                cheapest));
+                withEngineeringAssessment(cheapest)));
         List<RouteVariant> finishedCorridors = new ArrayList<>();
         // Уже регуляризованные коридорные победители также участвуют в bounded-объединении:
         // их исходный portfolio draft мог ещё содержать исправляемый неудобный ввод.
@@ -3476,6 +3476,20 @@ public class OfficialRoutePlanner {
         List<RoutePath> replacements = new ArrayList<>();
         Demand terminal = demandsByNode.get(downstream.getId());
         if (terminal != null) {
+            List<RouteEdge> supporting = source.edges.stream()
+                    .filter(existing -> !existing.getId().equals(edge.getId()))
+                    .filter(existing -> existing.getUpstreamNodeId().equals(upstream.getId())
+                            || existing.getDownstreamNodeId().equals(upstream.getId()))
+                    .collect(Collectors.toList());
+            // Общий поиск видит только наружную часть и может оставить малый угол на нормали.
+            // Предлагаем также реальные осевые подходы относительно уже выбранного ствола.
+            if (!supporting.isEmpty()) {
+                CorridorTerminalRouter approaches = new CorridorTerminalRouter(obstacleRouter, routingEnvironment,
+                        (id, port, du, avoidance) -> null, corridorEdgeOrientation(supporting));
+                replacements.addAll(approaches.localAlternatives(terminal.id, terminal.coordinate,
+                        upstream.getCoordinate().toCoordinate(), diameter).stream()
+                        .map(RoutePath::reversed).collect(Collectors.toList()));
+            }
             replacements.addAll(routeDemandEngineeringAlternatives(
                     terminal,
                     upstream.getCoordinate().toCoordinate(),
@@ -3517,7 +3531,9 @@ public class OfficialRoutePlanner {
                     break;
                 }
             }
-            if (!withinEngineeringRepairCorridor(source, candidate)) {
+            if (!withinEngineeringRepairCorridor(source, candidate)
+                    || !isStructurallyValid(candidate)
+                    || !isFinalGeometryValid(candidate, routingEnvironment)) {
                 continue;
             }
             EngineeringRouteEvaluator.Evaluation candidateEvaluation =

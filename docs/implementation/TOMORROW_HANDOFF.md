@@ -1,6 +1,29 @@
 # Handoff — Артём / PM / developer
 
-## Source63 в разработке: не выдавать за принятый runtime
+## Текущий source64: строгие вводы, не принятый runtime
+
+Сначала [PRIMARY_ROUTING_64.md](PRIMARY_ROUTING_64.md). Рабочая ветка по-прежнему
+`codex/routing-63-geometry`; source64 — единственный основной алгоритм этой ветки.
+`master=28c7059`, работающий API/JAR61 не менялся. Нельзя переносить исторический зелёный
+full63 на новый код64: изменились нормали, отступы и достижимые порты.
+
+Локальные safety-регрессии нормалей/actual-leg/округления/сжатия исправлены. R+W/2 включён
+только для forbidden; G2 special/depth/existing-DU ещё открыт. Последний fast900/0/0/3skip
+и web36/scripts37/lint/typecheck PASS. Reviewed dataset дал17/17,2192,523м/14камер/25поворотов,
+0экспертных нарушений balanced/shortest, но strict export остановился на1копейке.
+UTM rounding fix `2de2ceb` устранил причину: strict export replay3вариантов/568features PASS.
+Одиночный concave fixture теперь также PASS. Это не fresh final plan; последний clean
+whole-suite — `source64-final-full.log` (результат проверять отдельно). Не поднимать
+compact-control пороги вслепую и не убирать quality assertions.
+
+Следующий приоритет: конкретные оставшиеся вводы/порты и завершение общего дерева с нулём
+экспертных нарушений, затем полный независимый экспорт и сравнение. Проверить гипотезу
+несогласованности aggregate-DU anchors и actual-DU spurs. Не расширять перебор без диагностики.
+Далее закончить G2 и fresh roads+kindergarten сценарий. 0,25м — безопасный поисковый запас,
+не новое требование ТЗ; принадлежность ОКС нельзя определять только по rounded endpoint.
+G1/G2/G4/G5/G6, R-этапы, native64/Compose/scale и общая цель остаются открыты.
+
+## Предыдущий source63: технический gate не является приёмкой64
 
 Рабочая ветка `codex/routing-63-geometry`; `master` оставлен на `28c7059`.
 Экспортный rounding fix — `3d9b3b0`, основной routing checkpoint — `d4d6ef5`; оба отправлены,

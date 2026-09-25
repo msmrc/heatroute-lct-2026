@@ -25,9 +25,10 @@ class OfficialRoutingEnvironmentPreparationTest {
         Coordinate outside = new Coordinate(-20, 10);
         Coordinate end = new Coordinate(40, 10);
         Constraint ordinary = environment.constraints(100, Set.of(), outside, end).get(0);
-        Constraint equivalentDiameter = environment.constraints(400, Set.of(), outside, end).get(0);
-        assertThat(equivalentDiameter).isSameAs(ordinary);
-        assertThat(rules.preparedFeatures).isEqualTo(1);
+        Constraint widerDiameter = environment.constraints(400, Set.of(), outside, end).get(0);
+        assertThat(widerDiameter).isNotSameAs(ordinary);
+        assertThat(widerDiameter.blocked().getArea()).isGreaterThan(ordinary.blocked().getArea());
+        assertThat(rules.preparedFeatures).isEqualTo(2);
         Constraint approach = environment.constraints(100, Set.of(), new Coordinate(-2, 10), end).get(0);
         assertThat(approach.blocked().equalsExact(approach.source())).isTrue();
         assertThat(ordinary.blocked().getArea()).isGreaterThan(ordinary.source().getArea());
@@ -39,7 +40,7 @@ class OfficialRoutingEnvironmentPreparationTest {
         source.features.clear();
         assertThat(environment.constraints(100, Set.of(), outside, end)).isEmpty();
         assertThat(source.queries).isEqualTo(8);
-        assertThat(rules.preparedFeatures).isEqualTo(1);
+        assertThat(rules.preparedFeatures).isEqualTo(2);
     }
 
     @Test

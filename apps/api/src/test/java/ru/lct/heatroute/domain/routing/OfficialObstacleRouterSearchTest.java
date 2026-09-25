@@ -274,7 +274,7 @@ class OfficialObstacleRouterSearchTest {
         ConstraintIndex index = rules.index(constraints);
         Coordinate start = new Coordinate(0, 0);
         Coordinate boundary = new Coordinate(constraints.get(0).blocked().getEnvelopeInternal().getMinX(), 0);
-        Coordinate publishedClearance = new Coordinate(39, 0);
+        Coordinate publishedClearance = new Coordinate(38.745, 0); // 40 - R1 - W100/2.
 
         assertThat(rules.pointInsideForbiddenClearance(boundary, index)).isTrue();
         assertThat(rules.segmentAllowed(start, boundary, index)).isFalse();

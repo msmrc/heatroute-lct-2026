@@ -1,5 +1,27 @@
 # Current implementation progress
 
+## 2026-09-25 — source64: интеграция нормалей, полный quality gate ещё не пройден
+
+[PRIMARY_ROUTING_64.md](PRIMARY_ROUTING_64.md): включены фактические нормали ближайших
+допустимых стен и R+W/2 для forbidden-ограничений; полный собственный ввод и предыдущая
+линия проверяются раздельно. Закрыты reentry в другой компонент ОКС, обратный луч, пропуск
+отсутствующего выхода, обход через округление demand, ошибочный обязательный запас0,25м
+и ложный отказ projected cut. Сжатие не срезает миллиметровые изгибы; коридор пробует
+достижимые порты и локальные переходы до fallback. Предупреждение cheapest не теряется.
+
+Последний fast Java900/0/0/3skip PASS (897выполнены), включая ownership/cut и экспортный
+UTM rounding fix `2de2ceb`. Web36+scripts37/lint/typecheck PASS. Повтор dataset snapshot
+дошёл до17/17,2192,523м/14камер/25поворотов,0экспертных нарушений balanced/shortest;
+cheapest1983,620м/14/28 с6нарушениями. Fresh all-demand436,170с, ускорения нет.
+Но dataset gate4/2failures/1error: компактность, projected cut одиночногоОКС8 и1копейка
+экспорта. Последние два дефекта исправлены: свежий concave focused PASS и strict export
+replay всех3вариантов/568features PASS. Это не новый fresh final plan. Финальный clean
+whole-suite запущен в `source64-final-full.log`; не путать эти срезы.
+
+Рабочая ветка `codex/routing-63-geometry`, `master=28c7059`, runtime61 не обновлялся.
+G1/G2/G4/G5/G6 и R-этапы открыты. Новые нормы social_area/2vs3м не объявлены согласованными.
+Ускорение, native64, Compose и scale не подтверждены; checkpoints не означают deploy/приёмку.
+
 ## 2026-09-25 — source63 в работе: направление ввода и совместные подходы
 
 Git checkpoint: ветка `codex/routing-63-geometry`, commits `3d9b3b0` и `d4d6ef5` отправлены,

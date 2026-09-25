@@ -53,8 +53,9 @@ final class CorridorTerminalRouter {
         RoutePath best = null;
         RoutePath straightAlternative = null;
         double rejectedShortestM = Double.POSITIVE_INFINITY;
-        for (OfficialRouteGeometryRules.NormalEgress egress : environment.normalEgressCandidates(
-                diameter, point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM())) {
+        List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
+                diameter, point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM());
+        for (OfficialRouteGeometryRules.NormalEgress egress : egresses) {
             if (Thread.currentThread().isInterrupted()) throw new CancellationException("Corridor terminal cancelled");
             Coordinate exit = egress.exit();
             double required = point.distance(exit);
@@ -93,6 +94,12 @@ final class CorridorTerminalRouter {
         // Сохраняем контрольную геометрию дерева; прямой вариант также доступен совместному
         // выбору через alternatives(), а здесь заменяет только отсутствующий допустимый L-ввод.
         if (best == null) best = straightAlternative;
+        // Нормали реальных фасадов могут быть повёрнуты относительно общей сетки.
+        // Проверенный переход должен участвовать уже в первичном выборе порта.
+        if (best == null && !egresses.isEmpty()) {
+            best = localAlternatives(id, point, port, diameter).stream()
+                    .min(Comparator.comparingDouble(RoutePath::lengthM)).orElse(null);
+        }
         if (best != null) axialPaths++;
         RoutePath path = best == null ? fallback.route(id, port, diameter, List.of()) : best;
         return new Choice(path, redirectedControl);
@@ -308,7 +315,9 @@ final class CorridorTerminalRouter {
                     candidate.sections(), null, null);
             bends.put(candidate, new EngineeringRouteEvaluator().evaluate(List.of(edge)).bendCount());
         }
-        candidates.sort(Comparator.comparingDouble(RoutePath::lengthM)
+        // До пяти округлённых отрезков дают миллиметровую погрешность суммарной длины.
+        // Среди равноценных по сантиметру форм выбираем в системе коридора, а не по мировому X/Y.
+        candidates.sort(Comparator.comparingLong((RoutePath path) -> Math.round(path.lengthM() * 100))
                 .thenComparingInt(bends::get).thenComparing(this::geometryKey));
         Map<Integer, ArrayDeque<RoutePath>> byRay = new TreeMap<>();
         for (RoutePath candidate : candidates) {
@@ -359,7 +368,13 @@ final class CorridorTerminalRouter {
 
     private String geometryKey(RoutePath path) {
         StringBuilder key = new StringBuilder();
-        path.coordinates().forEach(p -> key.append(p.x).append(',').append(p.y).append(';'));
+        Coordinate origin = path.coordinates().get(0);
+        double c = Math.cos(orientation), s = Math.sin(orientation);
+        path.coordinates().forEach(p -> {
+            double dx = p.x - origin.x, dy = p.y - origin.y;
+            key.append(Math.round((dx * c + dy * s) * 100)).append(',')
+                    .append(Math.round((-dx * s + dy * c) * 100)).append(';');
+        });
         return key.toString();
     }
 

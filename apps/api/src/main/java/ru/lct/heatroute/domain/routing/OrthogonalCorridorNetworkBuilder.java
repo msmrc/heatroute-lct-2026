@@ -110,7 +110,7 @@ final class OrthogonalCorridorNetworkBuilder {
                         terminal.point.y + 200 * Math.sin(angle));
                 Coordinate anchor = environment.normalEgressTowards(diameter, terminal.point, target,
                                 RoutePlannerTuning.stable().getEngineeringEgressExtraM())
-                        .map(egress -> outsideBuffer(egress, clearance)).orElse(terminal.point);
+                        .map(OfficialRouteGeometryRules.NormalEgress::exit).orElse(terminal.point);
                 if (exits.stream().noneMatch(existing -> existing.distance(anchor) < 0.01)) exits.add(anchor);
             }
             terminalAnchors.add(exits);
@@ -230,6 +230,25 @@ final class OrthogonalCorridorNetworkBuilder {
                 links.add(new int[] {leaf, port});
                 // Координаты графа ещё не округлены до миллиметра, а маршрут уже округлён.
                 lengths.add(Math.max(path.lengthM(), points.get(leaf).distance(points.get(port))));
+            }
+            // Ближайший геометрически порт может лежать позади обязательного ввода.
+            // Добавляем до четырёх ближайших достижимых портов; исходные варианты сохраняются.
+            int feasiblePorts = 0;
+            for (Coordinate anchor : anchors.get(i)) {
+                for (int port : grid.portsNear(anchor, 48)) {
+                    ensureActive();
+                    if (feasiblePorts >= 4) break;
+                    if (options.containsKey(port)) continue;
+                    if (terminal.point.distance(grid.points().get(port)) <= 0.01) continue;
+                    RoutePath path = spurs.localAlternatives(terminal.id, terminal.point,
+                            grid.points().get(port), diameter(terminal.flow)).stream()
+                            .min(Comparator.comparingDouble(RoutePath::lengthM)).orElse(null);
+                    if (path == null || path.lengthM() <= 0.01) continue;
+                    options.put(port, new Port(terminal, port, path.reversed()));
+                    links.add(new int[] {leaf, port});
+                    lengths.add(Math.max(path.lengthM(), points.get(leaf).distance(points.get(port))));
+                    feasiblePorts++;
+                }
             }
             if (options.isEmpty()) return List.of();
             alternatives.put(leaf, options);
@@ -373,15 +392,6 @@ final class OrthogonalCorridorNetworkBuilder {
         return port.jointPaths;
     }
 
-    private Coordinate outsideBuffer(OfficialRouteGeometryRules.NormalEgress egress, double clearance) {
-        Coordinate start = egress.start(), exit = egress.exit();
-        double length = start.distance(exit);
-        if (length < 0.01) return exit;
-        double offset = clearance + 0.5;
-        return new Coordinate(exit.x + (exit.x - start.x) / length * offset,
-                exit.y + (exit.y - start.y) / length * offset);
-    }
-
     private Network compress(List<int[]> tree, OrthogonalCorridorGrid grid, List<Port> ports,
             RouteNode root, PreparedCorridor checks) {
         Map<Integer, List<Piece>> incident = new HashMap<>();
@@ -489,7 +499,9 @@ final class OrthogonalCorridorNetworkBuilder {
         for (Coordinate point : points) {
             while (result.size() > 1) {
                 Coordinate a = result.get(result.size() - 2), b = result.get(result.size() - 1);
-                if (a.distance(b) + b.distance(point) - a.distance(point) > 1e-7) break;
+                // Малое изменение длины не означает одинаковую геометрию:
+                // срезание миллиметрового изгиба может создать пересечение с соседней веткой.
+                if (!sameRoundedStraightLine(a, b, point)) break;
                 result.remove(result.size() - 1);
             }
             result.add(point);
@@ -499,6 +511,15 @@ final class OrthogonalCorridorNetworkBuilder {
         List<RouteCoordinate> rounded = result.stream().map(p -> new RouteCoordinate(p.x, p.y)).collect(Collectors.toList());
         return OfficialRouteDeflectionRules.validatePolyline("corridor-compression", rounded).getIssues().isEmpty()
                 ? result : new ArrayList<>(points);
+    }
+
+    private boolean sameRoundedStraightLine(Coordinate a, Coordinate b, Coordinate c) {
+        RouteCoordinate first = new RouteCoordinate(a.x, a.y), middle = new RouteCoordinate(b.x, b.y);
+        RouteCoordinate last = new RouteCoordinate(c.x, c.y);
+        BigDecimal ax = middle.getXM().subtract(first.getXM()), ay = middle.getYM().subtract(first.getYM());
+        BigDecimal bx = last.getXM().subtract(middle.getXM()), by = last.getYM().subtract(middle.getYM());
+        return ax.multiply(by).compareTo(ay.multiply(bx)) == 0
+                && ax.multiply(bx).add(ay.multiply(by)).signum() >= 0;
     }
 
     private Integer diameter(BigDecimal flow) {

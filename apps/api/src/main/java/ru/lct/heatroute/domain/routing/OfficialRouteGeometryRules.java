@@ -15,12 +15,13 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineSegment;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.linearref.LengthIndexedLine;
-import org.locationtech.jts.operation.distance.DistanceOp;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
+import ru.lct.heatroute.domain.constraints.OfficialAxisClearance;
+import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.constraints.SpatialConstraintRule;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
@@ -29,8 +30,6 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 public class OfficialRouteGeometryRules {
     static final double EPSILON_M = 0.01;
     static final double NORMAL_EGRESS_MARGIN_M = 0.25;
-    private static final double MAX_ALTERNATIVE_EGRESS_EXTRA_M = 60.0;
-    private static final double MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR = 3.0;
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
     private static final Comparator<Constraint> CONSTRAINT_ORDER = Comparator
             .comparing((Constraint item) -> item.type)
@@ -38,6 +37,8 @@ public class OfficialRouteGeometryRules {
 
     private final OfficialConstraintCatalog catalog;
     private final OfficialCrossingGeometry crossingGeometry;
+    private final OfficialAxisClearance axisClearance;
+    private final BuildingWallNormals wallNormals = new BuildingWallNormals();
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     public OfficialRouteGeometryRules(
@@ -45,6 +46,7 @@ public class OfficialRouteGeometryRules {
             OfficialCrossingGeometry crossingGeometry) {
         this.catalog = catalog;
         this.crossingGeometry = crossingGeometry;
+        this.axisClearance = new OfficialAxisClearance(new OfficialPipeCatalog(), catalog);
     }
 
     List<Constraint> constraints(
@@ -91,9 +93,7 @@ public class OfficialRouteGeometryRules {
         if (rule == null || !rule.isForbidden()) {
             return null;
         }
-        return "oks".equals(type)
-                ? catalog.existingBuildingClearanceM(diameter)
-                : rule.getHorizontalClearanceM();
+        return axisClearance.axisClearanceM(type, diameter, null);
     }
 
     void sortConstraints(List<Constraint> constraints) {
@@ -138,262 +138,158 @@ public class OfficialRouteGeometryRules {
         return result;
     }
 
-    /**
-     * Возвращает короткий финальный подход от ближайшей границы своего ОКС к точке
-     * подключения. Отступ от своего здания на этом финальном отрезке не требуется.
-     */
+    /** Ближайший допустимый прямой выход по нормали с полным наружным отступом до поворота. */
     Optional<NormalEgress> normalEgress(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Coordinate connectionPoint) {
-        return extendAcrossContainingSocialAreas(
-                features,
-                diameter,
-                normalEgressFromContainingOks(
-                        containingOksFeatures(features, diameter, connectionPoint), connectionPoint));
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
+        return nearestLegalNormalEgresses(features, diameter, connectionPoint).stream()
+                .map(egress -> withNavigationMargin(egress, features, diameter)).findFirst();
     }
 
-    /** Отбирает только исходные ОКС: выход не использует буферы отступов остальных объектов. */
-    private List<ImportedOfficialFeature> containingOksFeatures(
+    /** Цель разрешает только равенство расстояний до стен, не подменяя нормаль лучом на камеру. */
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint, Coordinate target) {
+        return normalEgressCandidates(features, diameter, connectionPoint, target, 0).stream().findFirst();
+    }
+
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, double maximumAlternativeEgressExtraM) {
+        return normalEgressTowards(features, diameter, connectionPoint, target);
+    }
+
+    /** Дальняя стена доступна только если все более близкие полные вводы перекрыты препятствиями. */
+    List<NormalEgress> normalEgressCandidates(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, double maximumAlternativeEgressExtraM) {
+        List<NormalEgress> result = nearestLegalNormalEgresses(features, diameter, connectionPoint).stream()
+                .map(egress -> withNavigationMargin(egress, features, diameter))
+                .collect(Collectors.toCollection(ArrayList::new));
+        result.sort(Comparator.comparingDouble((NormalEgress exit) -> exit.exit().distance(target))
+                .thenComparing(NormalEgress::oksId)
+                .thenComparingDouble(exit -> exit.exit().x).thenComparingDouble(exit -> exit.exit().y));
+        return result;
+    }
+
+    private List<NormalEgress> nearestLegalNormalEgresses(
             List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
-        SpatialConstraintRule rule = catalog.find("oks").orElse(null);
-        if (rule == null) {
-            return List.of();
-        }
-        Geometry point = geometryFactory.createPoint(connectionPoint);
-        List<ImportedOfficialFeature> result = new ArrayList<>();
-        for (ImportedOfficialFeature feature : features) {
-            if (!"oks".equals(constraintType(feature))) {
-                continue;
+        List<ImportedOfficialFeature> containing = containingOksFeatures(features, diameter, connectionPoint);
+        if (containing.isEmpty()) return List.of();
+        double clearance = axisClearance.axisClearanceM("oks", diameter, null).doubleValue();
+        List<WallEgress> candidates = new ArrayList<>();
+        for (ImportedOfficialFeature feature : containing) {
+            for (BuildingWallNormals.Exit exit : wallNormals.candidates(
+                    feature.getMetricGeometry(), connectionPoint, clearance)) {
+                candidates.add(new WallEgress(new NormalEgress(feature.getFeatureId(), connectionPoint, exit.point()),
+                        exit.wallDistanceM()));
             }
+        }
+        candidates.sort(Comparator.comparingDouble((WallEgress exit) -> exit.wallDistanceM)
+                .thenComparing(exit -> exit.egress.oksId())
+                .thenComparingDouble(exit -> exit.egress.exit().x)
+                .thenComparingDouble(exit -> exit.egress.exit().y));
+        List<NormalEgress> result = new ArrayList<>();
+        double nearestLegalDistance = Double.POSITIVE_INFINITY;
+        for (WallEgress wall : candidates) {
+            if (wall.wallDistanceM > nearestLegalDistance + EPSILON_M) break;
+            NormalEgress extended = extendAcrossContainingSocialAreas(
+                    features, diameter, Optional.of(wall.egress)).orElseThrow();
+            if (!terminalLegAllowed(extended, features, diameter)) continue;
+            nearestLegalDistance = Math.min(nearestLegalDistance, wall.wallDistanceM);
+            addDistinctEgress(result, extended);
+        }
+        return result;
+    }
+
+    /** Запас помогает поиску и округлению, но не отменяет допустимую ближайшую стену. */
+    private NormalEgress withNavigationMargin(
+            NormalEgress required, List<ImportedOfficialFeature> features, int diameter) {
+        double length = required.start.distance(required.exit);
+        double factor = (length + NORMAL_EGRESS_MARGIN_M) / length;
+        Coordinate exit = new Coordinate(
+                required.start.x + (required.exit.x - required.start.x) * factor,
+                required.start.y + (required.exit.y - required.start.y) * factor);
+        NormalEgress preferred = new NormalEgress(required.oksId, required.start, exit,
+                required.socialAreaIds);
+        return terminalLegAllowed(preferred, features, diameter) ? preferred : required;
+    }
+
+    /** Проверяет весь ввод без полигональной аппроксимации чужих запрещённых отступов. */
+    private boolean terminalLegAllowed(NormalEgress egress, List<ImportedOfficialFeature> features, int diameter) {
+        LineString leg = line(List.of(egress.start(), egress.exit()));
+        for (ImportedOfficialFeature feature : features) {
+            String type = constraintType(feature);
+            SpatialConstraintRule rule = type == null ? null : catalog.find(type).orElse(null);
             Geometry source = feature.getMetricGeometry();
-            if (source == null || source.isEmpty()) {
+            if (rule == null || source == null || source.isEmpty()) continue;
+            Constraint constraint = new Constraint(feature.getFeatureId(), type, source, null, rule);
+            if (egress.exempts(constraint)) {
+                if ("oks".equals(type) && !ownApproachAllowed(egress, leg, source, diameter)) return false;
                 continue;
             }
             if (rule.isForbidden()) {
-                // Сохраняем прежний отказ для неподдерживаемого ДУ, даже если ОКС далеко от точки.
-                catalog.existingBuildingClearanceM(diameter);
+                double clearance = preparationClearanceM(type, diameter).doubleValue();
+                org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope(
+                        source.getEnvelopeInternal());
+                bounds.expandBy(clearance);
+                if (bounds.intersects(leg.getEnvelopeInternal())
+                        && (leg.intersects(source)
+                            || leg.distance(source) < clearance - CLEARANCE_BOUNDARY_EPSILON_M)) return false;
+            } else if (!lineAllowed(leg, index(List.of(constraint)))) {
+                return false;
             }
-            if (source.getEnvelopeInternal().contains(connectionPoint) && source.covers(point)) {
-                result.add(feature);
+        }
+        return true;
+    }
+
+    /** Льгота своего ОКС заканчивается на первом полном выходе, а не на конце произвольного луча. */
+    private boolean ownApproachAllowed(NormalEgress expected, LineString leg, Geometry footprint, int diameter) {
+        Coordinate endpoint = leg.getCoordinateN(0);
+        Coordinate adjacent = leg.getCoordinateN(1);
+        Coordinate farthestIntersection = endpoint;
+        for (Coordinate intersection : leg.intersection(footprint).getCoordinates()) {
+            if (intersection.distance(endpoint) > farthestIntersection.distance(endpoint)) {
+                farthestIntersection = intersection;
             }
+        }
+        // Проверяется фактический участок, включая возможное возвращение в другой компонент.
+        double roundingAllowance = Math.min(EPSILON_M, endpoint.distance(expected.start));
+        if (line(List.of(endpoint, farthestIntersection)).difference(footprint).getLength()
+                > roundingAllowance + CLEARANCE_BOUNDARY_EPSILON_M) return false;
+        double length = leg.getLength();
+        if (length <= CLEARANCE_BOUNDARY_EPSILON_M) return false;
+        double clearance = axisClearance.axisClearanceM("oks", diameter, null).doubleValue();
+        Coordinate exteriorStart = wallNormals.firstClearancePoint(
+                footprint, farthestIntersection, adjacent, clearance);
+        if (exteriorStart == null || endpoint.distance(exteriorStart) > length + CLEARANCE_BOUNDARY_EPSILON_M) {
+            return false;
+        }
+        LineString extension = line(List.of(exteriorStart, adjacent));
+        return extension.distance(footprint) + CLEARANCE_BOUNDARY_EPSILON_M >= clearance;
+    }
+
+    private List<ImportedOfficialFeature> containingOksFeatures(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
+        Geometry point = geometryFactory.createPoint(connectionPoint);
+        List<ImportedOfficialFeature> result = new ArrayList<>();
+        for (ImportedOfficialFeature feature : features) {
+            if (!"oks".equals(constraintType(feature))) continue;
+            Geometry source = feature.getMetricGeometry();
+            if (source == null || source.isEmpty()) continue;
+            catalog.existingBuildingClearanceM(diameter);
+            if (source.getEnvelopeInternal().contains(connectionPoint) && source.covers(point)) result.add(feature);
         }
         result.sort(Comparator.comparing(ImportedOfficialFeature::getFeatureId));
         return result;
     }
 
-    private Optional<NormalEgress> normalEgressFromContainingOks(
-            List<ImportedOfficialFeature> containingOks, Coordinate connectionPoint) {
-        Geometry point = geometryFactory.createPoint(connectionPoint);
-        ImportedOfficialFeature nearest = null;
-        Coordinate boundaryPoint = null;
-        double nearestDistance = Double.POSITIVE_INFINITY;
-        for (ImportedOfficialFeature feature : containingOks) {
-            Geometry boundary = feature.getMetricGeometry().getBoundary();
-            if (boundary.isEmpty()) {
-                continue;
-            }
-            Coordinate candidate = DistanceOp.nearestPoints(point, boundary)[1];
-            double distance = connectionPoint.distance(candidate);
-            if (distance < nearestDistance - EPSILON_M
-                    || (Math.abs(distance - nearestDistance) <= EPSILON_M
-                            && (nearest == null || feature.getFeatureId().compareTo(nearest.getFeatureId()) < 0))) {
-                nearest = feature;
-                boundaryPoint = candidate;
-                nearestDistance = distance;
-            }
-        }
-        if (nearest == null || boundaryPoint == null || nearestDistance <= EPSILON_M) {
-            return Optional.empty();
-        }
-        double directionX = (boundaryPoint.x - connectionPoint.x) / nearestDistance;
-        double directionY = (boundaryPoint.y - connectionPoint.y) / nearestDistance;
-        double exitDistance = nearestDistance + NORMAL_EGRESS_MARGIN_M;
-        Coordinate exit = new Coordinate(
-                connectionPoint.x + directionX * exitDistance,
-                connectionPoint.y + directionY * exitDistance);
-        return Optional.of(new NormalEgress(nearest.getFeatureId(), new Coordinate(connectionPoint), exit));
-    }
+    private static final class WallEgress {
+        private final NormalEgress egress;
+        private final double wallDistanceM;
 
-    /**
-     * Выбирает сторону подхода к точке подключения по направлению к цели. Это не даёт
-     * ближайшей границе на противоположной стороне создать круговой обход своего ОКС.
-     */
-    Optional<NormalEgress> normalEgressTowards(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Coordinate connectionPoint,
-            Coordinate target) {
-        return normalEgressTowards(
-                features, diameter, connectionPoint, target, MAX_ALTERNATIVE_EGRESS_EXTRA_M);
-    }
-
-    Optional<NormalEgress> normalEgressTowards(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Coordinate connectionPoint,
-            Coordinate target,
-            double maximumAlternativeEgressExtraM) {
-        List<ImportedOfficialFeature> containingOks = containingOksFeatures(features, diameter, connectionPoint);
-        Optional<NormalEgress> nearest = normalEgressFromContainingOks(containingOks, connectionPoint);
-        return extendAcrossContainingSocialAreas(
-                features,
-                diameter,
-                normalEgressTowardsContainingOks(
-                        containingOks, connectionPoint, target, maximumAlternativeEgressExtraM, nearest));
-    }
-
-    private Optional<NormalEgress> normalEgressTowardsContainingOks(
-            List<ImportedOfficialFeature> containingOks,
-            Coordinate connectionPoint,
-            Coordinate target,
-            double maximumAlternativeEgressExtraM,
-            Optional<NormalEgress> nearest) {
-        double targetDistance = connectionPoint.distance(target);
-        if (targetDistance <= EPSILON_M || nearest.isEmpty()) {
-            return nearest;
+        private WallEgress(NormalEgress egress, double wallDistanceM) {
+            this.egress = egress;
+            this.wallDistanceM = wallDistanceM;
         }
-        double nearestApproachDistance = connectionPoint.distance(nearest.get().exit());
-        double maximumApproachDistance = Math.min(
-                nearestApproachDistance + maximumAlternativeEgressExtraM,
-                nearestApproachDistance * MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR);
-        double directionX = (target.x - connectionPoint.x) / targetDistance;
-        double directionY = (target.y - connectionPoint.y) / targetDistance;
-        NormalEgress best = null;
-        double bestDistance = Double.POSITIVE_INFINITY;
-        for (ImportedOfficialFeature feature : containingOks) {
-            Geometry source = feature.getMetricGeometry();
-            double rayLength = Math.max(
-                    targetDistance,
-                    Math.hypot(
-                            source.getEnvelopeInternal().getWidth(),
-                            source.getEnvelopeInternal().getHeight()) * 2.0);
-            Coordinate rayEnd = new Coordinate(
-                    connectionPoint.x + directionX * rayLength,
-                    connectionPoint.y + directionY * rayLength);
-            Geometry intersections = geometryFactory
-                    .createLineString(new Coordinate[] {connectionPoint, rayEnd})
-                    .intersection(source.getBoundary());
-            for (Coordinate intersection : intersections.getCoordinates()) {
-                double projection = (intersection.x - connectionPoint.x) * directionX
-                        + (intersection.y - connectionPoint.y) * directionY;
-                if (projection <= EPSILON_M
-                        || projection + NORMAL_EGRESS_MARGIN_M > maximumApproachDistance
-                        || projection >= bestDistance) {
-                    continue;
-                }
-                Coordinate exit = new Coordinate(
-                        connectionPoint.x + directionX * (projection + NORMAL_EGRESS_MARGIN_M),
-                        connectionPoint.y + directionY * (projection + NORMAL_EGRESS_MARGIN_M));
-                if (source.covers(geometryFactory.createPoint(exit))) {
-                    continue;
-                }
-                bestDistance = projection;
-                best = new NormalEgress(feature.getFeatureId(), connectionPoint, exit);
-            }
-        }
-        return best == null ? nearest : Optional.of(best);
-    }
-
-    /**
-     * Returns a bounded set of constructible exits from the OKS. Besides the nearest and
-     * target-facing exits, the set contains exits normal to the dominant rectangle sides of the
-     * building. This lets the engineering portfolio rebuild a complete terminal branch instead of
-     * preserving a locally short exit that forces a long or irregular obstacle detour.
-     */
-    List<NormalEgress> normalEgressCandidates(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Coordinate connectionPoint,
-            Coordinate target,
-            double maximumAlternativeEgressExtraM) {
-        List<ImportedOfficialFeature> containingOks = containingOksFeatures(features, diameter, connectionPoint);
-        Optional<NormalEgress> nearest = normalEgressFromContainingOks(containingOks, connectionPoint);
-        if (nearest.isEmpty()) {
-            return List.of();
-        }
-        double nearestApproachDistance = connectionPoint.distance(nearest.get().exit());
-        double maximumApproachDistance = Math.min(
-                nearestApproachDistance + maximumAlternativeEgressExtraM,
-                nearestApproachDistance * MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR);
-        List<NormalEgress> result = new ArrayList<>();
-        extendAcrossContainingSocialAreas(features, diameter, nearest)
-                .ifPresent(candidate -> addDistinctEgress(result, candidate));
-        normalEgressTowardsContainingOks(
-                containingOks, connectionPoint, target, maximumAlternativeEgressExtraM, nearest)
-                .flatMap(candidate -> extendAcrossContainingSocialAreas(
-                        features, diameter, Optional.of(candidate)))
-                .ifPresent(candidate -> addDistinctEgress(result, candidate));
-
-        for (ImportedOfficialFeature feature : containingOks) {
-            Geometry rectangle = new MinimumDiameter(feature.getMetricGeometry()).getMinimumRectangle();
-            Coordinate[] rectangleCoordinates = rectangle.getCoordinates();
-            for (int index = 0; index + 1 < rectangleCoordinates.length; index++) {
-                double edgeX = rectangleCoordinates[index + 1].x - rectangleCoordinates[index].x;
-                double edgeY = rectangleCoordinates[index + 1].y - rectangleCoordinates[index].y;
-                double edgeLength = Math.hypot(edgeX, edgeY);
-                if (edgeLength <= EPSILON_M) {
-                    continue;
-                }
-                double normalX = -edgeY / edgeLength;
-                double normalY = edgeX / edgeLength;
-                normalEgressAlongDirection(
-                        feature, connectionPoint, normalX, normalY, maximumApproachDistance)
-                        .flatMap(candidate -> extendAcrossContainingSocialAreas(
-                                features, diameter, Optional.of(candidate)))
-                        .ifPresent(candidate -> addDistinctEgress(result, candidate));
-                normalEgressAlongDirection(
-                        feature, connectionPoint, -normalX, -normalY, maximumApproachDistance)
-                        .flatMap(candidate -> extendAcrossContainingSocialAreas(
-                                features, diameter, Optional.of(candidate)))
-                        .ifPresent(candidate -> addDistinctEgress(result, candidate));
-            }
-        }
-        result.sort(Comparator
-                .comparingDouble((NormalEgress candidate) ->
-                        connectionPoint.distance(candidate.exit()) + candidate.exit().distance(target))
-                .thenComparingDouble(candidate -> candidate.exit().x)
-                .thenComparingDouble(candidate -> candidate.exit().y));
-        return result;
-    }
-
-    private Optional<NormalEgress> normalEgressAlongDirection(
-            ImportedOfficialFeature feature,
-            Coordinate connectionPoint,
-            double directionX,
-            double directionY,
-            double maximumApproachDistance) {
-        Geometry source = feature.getMetricGeometry();
-        double rayLength = Math.max(
-                maximumApproachDistance + NORMAL_EGRESS_MARGIN_M,
-                Math.hypot(
-                        source.getEnvelopeInternal().getWidth(),
-                        source.getEnvelopeInternal().getHeight()) * 2.0);
-        Coordinate rayEnd = new Coordinate(
-                connectionPoint.x + directionX * rayLength,
-                connectionPoint.y + directionY * rayLength);
-        Geometry intersections = geometryFactory
-                .createLineString(new Coordinate[] {connectionPoint, rayEnd})
-                .intersection(source.getBoundary());
-        double bestProjection = Double.POSITIVE_INFINITY;
-        for (Coordinate intersection : intersections.getCoordinates()) {
-            double projection = (intersection.x - connectionPoint.x) * directionX
-                    + (intersection.y - connectionPoint.y) * directionY;
-            if (projection > EPSILON_M && projection < bestProjection) {
-                bestProjection = projection;
-            }
-        }
-        if (!Double.isFinite(bestProjection)
-                || bestProjection + NORMAL_EGRESS_MARGIN_M > maximumApproachDistance) {
-            return Optional.empty();
-        }
-        Coordinate exit = new Coordinate(
-                connectionPoint.x + directionX * (bestProjection + NORMAL_EGRESS_MARGIN_M),
-                connectionPoint.y + directionY * (bestProjection + NORMAL_EGRESS_MARGIN_M));
-        if (source.covers(geometryFactory.createPoint(exit))) {
-            return Optional.empty();
-        }
-        return Optional.of(new NormalEgress(feature.getFeatureId(), connectionPoint, exit));
     }
 
     /**
@@ -454,7 +350,7 @@ public class OfficialRouteGeometryRules {
             if (Double.isFinite(farthestProjection) && farthestProjection > EPSILON_M) {
                 requiredDistance = Math.max(
                         requiredDistance,
-                        farthestProjection + socialClearance + NORMAL_EGRESS_MARGIN_M);
+                        farthestProjection + socialClearance);
                 socialAreaIds.add(feature.getFeatureId());
             }
         }
@@ -475,10 +371,17 @@ public class OfficialRouteGeometryRules {
             LineString route,
             List<ImportedOfficialFeature> features,
             int diameter) {
+        return validateMandatoryEgress(edge, route, features, diameter,
+                route.getCoordinateN(route.getNumPoints() - 1));
+    }
+
+    List<RouteValidationIssue> validateMandatoryEgress(
+            RouteEdge edge, LineString route, List<ImportedOfficialFeature> features,
+            int diameter, Coordinate connectionPoint) {
         List<RouteValidationIssue> issues = new ArrayList<>();
         // Route edges are directed from the existing-network root towards demand. Only the demand
         // endpoint must leave its containing OKS; a tie-in may legitimately lie near another OKS.
-        validateEndpointEgress(edge, route, features, diameter, false, issues);
+        validateEndpointEgress(edge, route, features, diameter, connectionPoint, issues);
         return issues;
     }
 
@@ -487,31 +390,39 @@ public class OfficialRouteGeometryRules {
             LineString route,
             List<ImportedOfficialFeature> features,
             int diameter,
-            boolean fromStart,
+            Coordinate connectionPoint,
             List<RouteValidationIssue> issues) {
-        int endpointIndex = fromStart ? 0 : route.getNumPoints() - 1;
-        int adjacentIndex = fromStart ? 1 : route.getNumPoints() - 2;
-        Coordinate endpoint = route.getCoordinateN(endpointIndex);
-        Coordinate adjacent = route.getCoordinateN(adjacentIndex);
-        NormalEgress expected = normalEgressTowards(features, diameter, endpoint, adjacent).orElse(null);
-        if (expected == null) {
-            return;
+        Coordinate endpoint = route.getCoordinateN(route.getNumPoints() - 1);
+        Coordinate adjacent = route.getCoordinateN(route.getNumPoints() - 2);
+        List<ImportedOfficialFeature> containing = containingOksFeatures(features, diameter, connectionPoint);
+        if (containing.isEmpty()) return;
+        List<NormalEgress> expected = nearestLegalNormalEgresses(features, diameter, connectionPoint);
+        LineString actualLeg = line(List.of(endpoint, adjacent));
+        boolean valid = expected.stream().anyMatch(egress -> followsNormal(endpoint, adjacent, egress)
+                && containing.stream().filter(feature -> feature.getFeatureId().equals(egress.oksId))
+                        .allMatch(feature -> ownApproachAllowed(
+                                egress, actualLeg, feature.getMetricGeometry(), diameter)));
+        if (!valid) {
+            issues.add(issue(
+                    "OKS_NORMAL_EGRESS_VIOLATION",
+                    edge.getId(),
+                    "Route must use a nearest legal wall normal with the complete exterior approach"));
         }
-        double requiredLength = endpoint.distance(expected.exit);
+    }
+
+    private boolean followsNormal(Coordinate endpoint, Coordinate adjacent, NormalEgress expected) {
+        double requiredLength = expected.start.distance(expected.exit);
         double actualLength = endpoint.distance(adjacent);
-        double normalX = expected.exit.x - endpoint.x;
-        double normalY = expected.exit.y - endpoint.y;
+        double normalX = expected.exit.x - expected.start.x;
+        double normalY = expected.exit.y - expected.start.y;
         double actualX = adjacent.x - endpoint.x;
         double actualY = adjacent.y - endpoint.y;
         double cross = Math.abs(normalX * actualY - normalY * actualX);
         double alignmentTolerance = Math.max(
                 2 * EPSILON_M * actualLength, requiredLength * actualLength * 1e-4);
-        if (actualLength + 2 * EPSILON_M < requiredLength || cross > alignmentTolerance) {
-            issues.add(issue(
-                    "OKS_NORMAL_EGRESS_VIOLATION",
-                    edge.getId(),
-                    "Route must reach the connection point through one boundary of its containing OKS"));
-        }
+        return actualLength + 2 * EPSILON_M >= requiredLength
+                && normalX * actualX + normalY * actualY > 0
+                && cross <= alignmentTolerance;
     }
 
     List<Constraint> routeAvoidanceConstraints(List<LineString> routes) {
@@ -756,6 +667,24 @@ public class OfficialRouteGeometryRules {
                         constraint.source,
                         constraint.rule))
                 .collect(Collectors.toList());
+    }
+
+    /** Льгота ввода действует только на последнем прямом звене, не на остальной трассе. */
+    List<RouteValidationIssue> validateOwnTerminalClearance(RouteEdge edge, LineString outside,
+            List<Constraint> constraints, NormalEgress egress, int diameter) {
+        List<RouteValidationIssue> issues = new ArrayList<>();
+        for (Constraint constraint : constraints) {
+            if (!egress.exempts(constraint)) continue;
+            double clearance = "oks".equals(constraint.type)
+                    ? axisClearance.axisClearanceM("oks", diameter, null).doubleValue()
+                    : preparationClearanceM(constraint.type, diameter).doubleValue();
+            // Точное расстояние не пропускает срезание угла полигонального buffer.
+            if (outside.distance(constraint.source) < clearance - CLEARANCE_BOUNDARY_EPSILON_M) {
+                issues.add(issue("FORBIDDEN_CLEARANCE_VIOLATION", edge.getId(),
+                        "Route violates own " + constraint.type + " clearance outside terminal approach at " + constraint.id));
+            }
+        }
+        return issues;
     }
 
     LineString line(List<Coordinate> coordinates) {

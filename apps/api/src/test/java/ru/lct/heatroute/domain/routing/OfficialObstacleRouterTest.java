@@ -1,6 +1,7 @@
 package ru.lct.heatroute.domain.routing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,7 +68,7 @@ class OfficialObstacleRouterTest {
             assertThat(route.lengthM()).as(type).isGreaterThan(100.0);
             LineString line = rules.line(route.coordinates());
             assertThat(line.distance(obstacle.getMetricGeometry())).as(type)
-                    .isGreaterThanOrEqualTo(1.0 - 0.01);
+                    .isGreaterThanOrEqualTo(1.0 + 0.400 / 2 - 0.01);
         }
     }
 
@@ -87,13 +88,13 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void appliesDynamicFiveSevenNineMetreOksClearance() throws Exception {
+    void appliesDynamicOksClearanceIncludingHalfPairWidth() throws Exception {
         ImportedOfficialFeature building = restriction(
                 "oks", "building", "POLYGON ((40 -2, 60 -2, 60 2, 40 2, 40 -2))");
 
-        assertClearance(building, 400, 5.0);
-        assertClearance(building, 500, 7.0);
-        assertClearance(building, 900, 9.0);
+        assertClearance(building, 400, 5.0 + 1.370 / 2);
+        assertClearance(building, 500, 7.0 + 1.670 / 2);
+        assertClearance(building, 900, 9.0 + 2.450 / 2);
     }
 
     @Test
@@ -116,28 +117,28 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void normalEgressStopsJustOutsideTheOwnOksBoundary() throws Exception {
+    void normalEgressIncludesBuildingClearanceHalfPairWidthAndExteriorMargin() throws Exception {
         ImportedOfficialFeature building = restriction(
                 "oks", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))");
 
         OfficialRouteGeometryRules.NormalEgress egress = router.normalEgress(
                 List.of(building), 500, new Coordinate(100, 0)).orElseThrow();
 
-        assertThat(egress.exit().distance(new Coordinate(100, 0)))
-                .isCloseTo(10.25, org.assertj.core.data.Offset.offset(0.02));
+        // ДУ500: R = 7 м, W = 1.670 м; до первого поворота нужно ещё 0.25 м.
+        assertRectangularWallNormal(egress, building, new Coordinate(100, 0),
+                new Coordinate(90, 0), 7.0 + 1.670 / 2 + 0.25);
     }
 
     @Test
-    void directionalEgressCanUseANearbySideFacingTheNetwork() throws Exception {
+    void directionalEgressKeepsTheNearestWallDespiteAnObliqueTargetAcrossTheBuilding() throws Exception {
         ImportedOfficialFeature building = restriction(
                 "oks", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))");
 
         OfficialRouteGeometryRules.NormalEgress egress = rules.normalEgressTowards(
-                List.of(building), 100, new Coordinate(104, 0), new Coordinate(0, 0)).orElseThrow();
+                List.of(building), 100, new Coordinate(104, 0), new Coordinate(0, 3)).orElseThrow();
 
-        assertThat(egress.exit().x).isCloseTo(89.75, org.assertj.core.data.Offset.offset(0.02));
-        assertThat(egress.exit().distance(new Coordinate(104, 0)))
-                .isLessThanOrEqualTo(16.25);
+        assertRectangularWallNormal(egress, building, new Coordinate(104, 0),
+                new Coordinate(110, 0), 5.0 + 0.510 / 2 + 0.25);
     }
 
     @Test
@@ -148,11 +149,12 @@ class OfficialObstacleRouterTest {
         OfficialRouteGeometryRules.NormalEgress egress = rules.normalEgressTowards(
                 List.of(building), 100, new Coordinate(108, 0), new Coordinate(0, 0)).orElseThrow();
 
-        assertThat(egress.exit().x).isCloseTo(110.25, org.assertj.core.data.Offset.offset(0.02));
+        assertRectangularWallNormal(egress, building, new Coordinate(108, 0),
+                new Coordinate(110, 0), 5.0 + 0.510 / 2 + 0.25);
     }
 
     @Test
-    void engineeringEgressCandidatesCoverSeveralNormalBuildingSides() throws Exception {
+    void engineeringEgressCandidatesIncludeAllAndOnlyEquallyNearestPermittedWallNormals() throws Exception {
         ImportedOfficialFeature building = restriction(
                 "oks", "own-oks", "POLYGON ((90 -10, 110 -10, 110 10, 90 10, 90 -10))");
 
@@ -163,12 +165,23 @@ class OfficialObstacleRouterTest {
                 new Coordinate(0, 0),
                 60.0);
 
-        assertThat(candidates).hasSizeGreaterThanOrEqualTo(3);
-        assertThat(candidates).anySatisfy(candidate ->
-                assertThat(candidate.exit().x).isCloseTo(89.75, org.assertj.core.data.Offset.offset(0.02)));
-        assertThat(candidates).anySatisfy(candidate ->
-                assertThat(Math.abs(candidate.exit().y)).isCloseTo(
-                        10.25, org.assertj.core.data.Offset.offset(0.02)));
+        double exteriorLength = 5.0 + 0.510 / 2 + 0.25;
+        Coordinate start = new Coordinate(100, 0);
+        List<Coordinate> walls = List.of(new Coordinate(90, 0), new Coordinate(100, -10),
+                new Coordinate(100, 10), new Coordinate(110, 0));
+        assertThat(candidates).hasSize(4);
+        for (Coordinate wall : walls) {
+            assertThat(candidates).anySatisfy(candidate ->
+                    assertRectangularWallNormal(candidate, building, start, wall, exteriorLength));
+        }
+        assertRectangularWallNormal(candidates.get(0), building, start, walls.get(0), exteriorLength);
+
+        // Бюджет альтернатив не разрешает дальние стены при единственной ближайшей нормали.
+        List<OfficialRouteGeometryRules.NormalEgress> offCenter = rules.normalEgressCandidates(
+                List.of(building), 100, new Coordinate(104, 0), new Coordinate(0, 3), 60.0);
+        assertThat(offCenter).singleElement().satisfies(candidate ->
+                assertRectangularWallNormal(candidate, building, new Coordinate(104, 0),
+                        new Coordinate(110, 0), exteriorLength));
     }
 
     @Test
@@ -338,7 +351,7 @@ class OfficialObstacleRouterTest {
 
         assertThat(route).isNotNull();
         assertThat(rules.line(route.coordinates()).distance(park.getMetricGeometry()))
-                .isGreaterThanOrEqualTo(1.0 - OfficialRouteGeometryRules.EPSILON_M);
+                .isGreaterThanOrEqualTo(1.0 + 0.510 / 2 - OfficialRouteGeometryRules.EPSILON_M);
         assertThat(route.sections())
                 .filteredOn(section -> "road".equals(section.getRestrictionType()))
                 .singleElement()
@@ -497,6 +510,24 @@ class OfficialObstacleRouterTest {
 
         assertThat(route).isNotNull();
         assertThat(rules.line(route.coordinates()).disjoint(obstacle.getMetricGeometry())).isTrue();
+    }
+
+    private void assertRectangularWallNormal(OfficialRouteGeometryRules.NormalEgress egress,
+            ImportedOfficialFeature building, Coordinate start, Coordinate wall, double exteriorLength) {
+        double wallDistance = start.distance(wall);
+        Coordinate expectedExit = new Coordinate(
+                wall.x + (wall.x - start.x) / wallDistance * exteriorLength,
+                wall.y + (wall.y - start.y) / wallDistance * exteriorLength);
+        assertThat(egress.oksId()).isEqualTo(building.getFeatureId());
+        assertThat(egress.start().distance(start)).isCloseTo(0, offset(1e-8));
+        assertThat(egress.exit().distance(expectedExit)).isCloseTo(0, offset(1e-8));
+        assertThat(building.getMetricGeometry().distance(
+                building.getMetricGeometry().getFactory().createPoint(egress.exit())))
+                .as("full exterior distance from the actual wall")
+                .isCloseTo(exteriorLength, offset(1e-8));
+        assertThat(rules.line(List.of(start, egress.exit())).intersection(building.getMetricGeometry()).getLength())
+                .as("only the normal from the demand to its selected wall lies inside the building")
+                .isCloseTo(wallDistance, offset(1e-8));
     }
 
     private void assertClearance(ImportedOfficialFeature building, int diameter, double expected) {

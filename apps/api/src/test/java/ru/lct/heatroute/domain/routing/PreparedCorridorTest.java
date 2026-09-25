@@ -214,7 +214,9 @@ class PreparedCorridorTest {
                 "POLYGON ((0.0006 0,20.0006 0,20.0006 20,0.0006 20,0.0006 0))");
         PreparedCorridor corridor = new PreparedCorridor(rules, rules.baseConstraints(List.of(obstacle), 100),
                 new Coordinate(-20, -20), null);
-        Coordinate a = new Coordinate(-4.99945, 3), b = new Coordinate(-4.99945, 17);
+        // ДУ100: 5 м + половина пары 0,255 м. До округления отступ 5,25505 м;
+        // округление X к -5,254 уменьшает его до 5,2546 м и должно быть отклонено.
+        Coordinate a = new Coordinate(-5.25445, 3), b = new Coordinate(-5.25445, 17);
         assertThat(corridor.edgeAllowed(a, b)).isTrue();
         assertThat(corridor.pointAllowed(new RouteCoordinate(a.x, a.y).toCoordinate())).isFalse();
         assertThat(corridor.path(List.of(a, b))).isNull();

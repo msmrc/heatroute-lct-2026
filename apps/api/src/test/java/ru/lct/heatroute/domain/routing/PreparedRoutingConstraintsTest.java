@@ -34,7 +34,7 @@ class PreparedRoutingConstraintsTest {
     private final WKTReader reader = new WKTReader();
 
     @Test
-    void matchesFreshPreparationForEveryOfficialDiameterAndReusesOnlyThreeOksClearances() throws Exception {
+    void matchesFreshPreparationForEveryOfficialDiameterWithoutReusingNarrowerClearance() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("z", "park", "POLYGON ((0 0, 8 0, 8 8, 0 8, 0 0))"),
                 feature("b", "oks", "POLYGON ((20 20, 24 20, 24 24, 20 24, 20 20))"),
@@ -45,8 +45,9 @@ class PreparedRoutingConstraintsTest {
             assertEquivalent(reference.baseConstraints(features, diameter), prepared.prepare(features, diameter));
         }
 
-        assertThat(rules.compilations).isEqualTo(6);
-        assertThat(prepared.retainedEntryCount()).isEqualTo(6);
+        // Два запрещённых объекта ×18 разных ширин; специальный проход пока не зависит от ДУ.
+        assertThat(rules.compilations).isEqualTo(38);
+        assertThat(prepared.retainedEntryCount()).isEqualTo(38);
     }
 
     @Test
@@ -174,11 +175,13 @@ class PreparedRoutingConstraintsTest {
         assertThatThrownBy(() -> prepared.prepare(List.of(building), 101))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage("new-network diameter must be an official DU");
         List<ImportedOfficialFeature> ignoredOrIndependent = List.of(
-                feature("road", "road", "POINT (0 0)"), feature("park", "park", "POINT (0 0)"),
+                feature("road", "road", "POINT (0 0)"),
                 feature("empty", "oks", "POLYGON EMPTY"), feature("unknown", "unknown", "POINT (0 0)"),
                 new ImportedOfficialFeature("null", "oks_existing", null, null),
                 new ImportedOfficialFeature("consumer", "consumer", null, reader.read("POINT (0 0)")));
         for (int diameter : new int[] {0, 101, -1}) {
+            assertThatThrownBy(() -> prepared.prepare(List.of(feature("park", "park", "POINT (0 0)")), diameter))
+                    .isInstanceOf(IllegalArgumentException.class);
             assertEquivalent(reference.baseConstraints(ignoredOrIndependent, diameter),
                     prepared.prepare(ignoredOrIndependent, diameter));
         }
@@ -354,7 +357,7 @@ class PreparedRoutingConstraintsTest {
                         .isEqualTo(reference.pointInsideForbiddenClearance(start, reference.index(expected)));
             }
         }
-        assertThat(rules.compilations).isEqualTo(5);
+        assertThat(rules.compilations).isEqualTo(7);
     }
 
     private ImportedOfficialFeature feature(String id, String type, String wkt) throws Exception {

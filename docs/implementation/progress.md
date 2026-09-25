@@ -10,8 +10,15 @@ Isolated86/86PASS, включая11новых exact-equivalence/real-buffer/owne
 relocation68. Код `63b0072` отправлен, web36/scripts37/lint/typecheckPASS. Compiled67
 завершён:924cases/920PASS/1failure(compact-control)/3skip. Fresh640,761с/17of17/strict export
 всех3ролей PASS. Shortest/cheapest2090,416м/11новых камер/23поворота/0expert; balanced прежний.
-Snapshot и новое PNG67/Evgeny сохранены, изображение просмотрено/показано. Clean/fresh69
-запущен отдельно, результата пока нет. Runtime61 сохранён, ускорение/релиз не заявлены.
+Snapshot и новое PNG67/Evgeny сохранены, изображение просмотрено/показано. Clean69 завершён:
+936cases/932PASS/1failure(compact-control)/0errors/3skip. Fresh660,385с/17of17/strict export
+всех3ролей PASS; все variants точно совпадают с67. PNG69/Evgeny отрендерен/просмотрен.
+Ускорения нет: профиль и bounded-probe выявили thrashing подготовки между ДУ при100k
+координатах. Следующий spatial-подход требует сохранения исключений/реальных buffer bounds;
+review/синтетический quality-контрпример записаны в69, не реализованы. Исправлен только
+устаревший комментарий о зависимости forbidden отДУ, без изменения поведения.
+Теперь отдельно выполняется fresh roads+kindergarten239features (`source69-roads.log`).
+Runtime61 сохранён, native/Compose/scale/релиз и R-этапы не закрываются.
 
 ## 2026-09-25 — source68: сохранение исходных relocation-контролей
 

@@ -7,8 +7,15 @@
 реального RED, isolated86/86PASS, код `63b0072` отправлен; web36/scripts37/lint/typecheckPASS.
 Compiled67 завершён:924cases/920PASS/1failure(compact-control)/3skip; fresh640,761с/17of17/
 strict exportPASS, shortest/cheapest11камер/2090,416м/23поворота/0expert. Snapshot/PNG сохранены.
-Clean/fresh69 выполняется без конкурирующего Maven; после него roads+kindergarten. Не использовать старые
-isolated planner68-классы впереди нового target69. Runtime61 пока сохранён.
+Clean69 завершён:936cases/932PASS/1failure(compact-control)/0errors/3skip. Fresh660,385с/
+17of17/strict exportPASS, все variants точно совпали с67. Полный snapshot69 и PNG сохранены.
+Ускорения нет:117constraints/~35kкоординат наДУ,100kбюджет вытесняется на цикле7–8ДУ.
+Следующий безопасный пространственный отбор и80→60м quality-проба описаны в69; НЕ реализованы.
+Сейчас отдельно выполняется roads+kindergarten через ignored `ScenarioRoutingProbe`,
+лог `source69-roads.log`, цель `source69-roads-result.json`. Не перезапускать без проверки
+живого процесса и не выдавать before_assertions diagnostic за accepted bundle. Проверить
+17/17/3роли/depth/strict export, затем графику. Это не HTTP/PostGIS/scale проверка.
+Не использовать старые isolated planner68-классы впереди target69. Runtime61 пока сохранён.
 
 ## Предыдущий source68: контрольные relocation-ветви сохранены
 

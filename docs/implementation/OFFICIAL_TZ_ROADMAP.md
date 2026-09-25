@@ -8,22 +8,24 @@
 JFR67 показал повторные JTS buffers внутри validation. Сессия расчёта удерживает только
 bounded-подготовку; геометрия проверяется заново, standalone/export не менялись.
 Код `63b0072`, isolated86/86PASS, subclass-hook сохранён после RED; web36/scripts37/lint/typecheckPASS.
-Clean/fresh69 выполняется. Compiled67 завершён:924cases/920PASS/1failure(compact-control)/3skip;
-fresh640,761с/17of17/strict export3ролей PASS, shortest/cheapest11камер/2090,416м/23поворота/
-0expert. Runtime61 сохранён, ускорение/R-gates не заявляются.
+Clean69 завершён:936cases/932PASS/1failure(compact-control)/0errors/3skip; fresh660,385с/
+17of17/strict export3ролей PASS. Все variants точно совпадают с67, shortest/cheapest11камер/
+2090,416м/23поворота/0expert. Ускорения нет: подготовка вытесняется при смене ДУ;
+следующий spatial-подход пока только review. Fresh roads+kindergarten запущен отдельно.
+Runtime61 сохранён, native/Compose/scale и R-gates открыты.
 
 **Предыдущий source68, WIP:** [сохранение исходных relocation-контролей](PRIMARY_ROUTING_68.md).
 Код `ae452a7`,79focusedPASS. Исправлена обнаруженная review потеря ещё не выполненного
-переноса у исходного кандидата (RED75м вместо70м). Full compiled67 ещё выполняется,
-full/fresh68 не получен; runtime61 сохранён. No-loss/performance/R-gates открыты.
+переноса у исходного кандидата (RED75м вместо70м). Исправление включено в полный69 gate;
+отдельного full/fresh68 не было. Runtime61 сохранён, общий quality/R-gate открыт.
 
 **Предыдущий source67, WIP:** [поздняя доводка и подготовка препятствий](PRIMARY_ROUTING_67.md).
 Код `ff1a4c1`/`da44a56` отправлен. Replay66 даёт11новых камер/2090,416м/23поворота/0expert/
 strict exportPASS; исправлено отсутствие этого этапа у позднего победителя portfolio.
 Отдельная search-local подготовка контуров сохраняет точные результаты;80router PASS,
-repair77focused/4guardsPASS. Web36/scripts37/lint/typecheckPASS; clean924/fresh67 выполняется,
-runtime61 сохранён.
-Ускорение всего расчёта, release/R-этапы и fresh67 пока не подтверждены.
+repair77focused/4guardsPASS. Web36/scripts37/lint/typecheckPASS; clean924:920PASS/1failure/
+0errors/3skip; fresh640,761с/17of17/strict exportPASS. Все роли0expert, shortest/cheapest
+11камер/2090,416м. Runtime61 сохранён; ускорение/release/R-этапы не подтверждены.
 
 **Предыдущий source66, WIP:** [индивидуальные вводы и сохранение контрольной сетки](PRIMARY_ROUTING_66.md).
 Код `8d58875` / `3c50437` в origin. Исправлены локальный mismatch ДУ anchors и численная

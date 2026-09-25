@@ -63,8 +63,8 @@ final class PreparedRoutingConstraints {
             if (source == null || source.isEmpty()) {
                 continue;
             }
-            // Resolving the published clearance here also preserves DU validation on hits.
-            // Only a nonempty OKS validates DU; other types are diameter-independent.
+            // Проверяем ДУ и при повторном использовании: осевой отступ всех forbidden-типов
+            // включает половину ширины пары. Special-типы не зависят от ДУ в этой подготовке.
             Key key = new Key(feature.getFeatureId(), type, rules.preparationClearanceM(type, diameter));
             Entry entry = retained.get(key);
             if (entry != null && sameGeometry(entry.constraint.source(), source)) {

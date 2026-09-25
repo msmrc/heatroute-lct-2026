@@ -3,7 +3,8 @@
 **Текущий этап:** [source69: подготовка геометрии для повторной валидации](PRIMARY_ROUTING_69.md).
 Свежий67 подтвердил11новых камер/2090,416м/23поворота/0expert у shortest/cheapest,
 17/17 и strict export всех3ролей. Это не завершённый общий gate: compact-control красный,
-новый roads+kindergarten пока не рассчитан, source69 проходит отдельный clean/fresh прогон.
+source69 завершил clean936/1failure/3skip, fresh660,385с/17of17/strict exportPASS,
+все variants точно совпали с67. Ускорения нет; fresh roads+kindergarten выполняется отдельно.
 Ниже сохранены исходный intake и история компонентного этапа; утверждения «не подключено»
 относятся к нему. Сейчас нормали и forbidden R+W/2 включены в WIP-ветку, но полный quality
 gate не принят и runtime61 не заменён. G1/G2/G4/G5/G6 по-прежнему открыты.

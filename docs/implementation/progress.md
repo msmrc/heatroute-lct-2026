@@ -1,5 +1,20 @@
 # Current implementation progress
 
+## 2026-09-25 — source90: отступы endpoint и сохранённого экспорта
+
+[Исправление и evidence](PRIMARY_ROUTING_90.md). Перепроверенные §2.2/§2.4 и разъяснения3/11
+не разрешают building-setback exception даже существующей камере. Удалено произвольное
+снятие буфера; собственный финальный ввод сохранён. Export preflight проверяет исходную
+и выдаваемую геометрию с фактическим ДУ по общим правилам, до первой feature любого варианта.
+98новыхслучаев;9старыхклассов актуализированы по источникам без удаления тестов. Clean fast:
+1624случая/1621PASS/0fail/0error/3scale skip,24,599с, web36+37/lint/typecheckPASS.
+Snapshot `.tooling/source90-gates.dl98EW`, отчёты `source90-fast-final-reports/`.
+Read-only replay6ролей88/89 проходит новый validator/export90; лог `source90-setback-replay-final.log`.
+Fresh90session90073 запущен на этом frozen target, `source90-full.log`; результата пока нет.
+Full88 завершён exit1:1508PASS/1compactFAIL/3skip, исходный dataset738,313с/17of17/3роли.
+Fresh90, roads17/17, compact, все роли/UIpreferred, скорость и native/Compose/scale/R/G ещё
+не подтверждены. Runtime61/VPS прежние; live-статусы ниже исторические.
+
 ## 2026-09-25 — source89: stationary подходы и ось по магистрали
 
 [Изменения/evidence/открытый дефект](PRIMARY_ROUTING_89.md). Неподвижная камера теперь также

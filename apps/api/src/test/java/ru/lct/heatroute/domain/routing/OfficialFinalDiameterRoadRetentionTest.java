@@ -215,13 +215,20 @@ class OfficialFinalDiameterRoadRetentionTest {
         RouteEdge edge = edge(List.of(root, c(20, 20), c(20, 8), c(5.505, 8), egress.exit(), connection),
                 100, features);
         List<Coordinate> body = points(edge).subList(0, edge.getCoordinates().size() - 1);
-        // Обе старые проверки видят техническую точку в отступе чужого ОКС как endpoint-льготу.
-        assertThat(router.lineAllowed(body, 100, environment, Set.of(), List.of())).isTrue();
+        // Техническое разбиение не разрешает отступ чужого ОКС ни одной из половин маршрута.
+        assertThat(router.lineAllowed(body, 100, environment, Set.of(), List.of())).isFalse();
         assertThat(router.terminalApproachAllowed(egress.exit(), connection, 100, environment,
-                Set.of(), List.of(), egress)).isTrue();
+                Set.of(), List.of(), egress)).isFalse();
         assertThat(codes(edge, features)).contains("FORBIDDEN_CLEARANCE_VIOLATION");
         assertThat(router.terminalRouteAllowed(points(edge), 100, environment,
                 Set.of(), List.of(), egress)).isFalse();
+
+        assertThat(router.lineAllowed(body, 100, originalEnvironment, Set.of(), List.of())).isTrue();
+        assertThat(router.terminalApproachAllowed(egress.exit(), connection, 100, originalEnvironment,
+                Set.of(), List.of(), egress)).isTrue();
+        assertValid(edge, List.of(own));
+        assertThat(router.terminalRouteAllowed(points(edge), 100, originalEnvironment,
+                Set.of(), List.of(), egress)).isTrue();
     }
 
     @Test

@@ -131,33 +131,18 @@ public class OfficialRouteGeometryRules {
         return traversal == RouteTraversal.AS_GIVEN ? index(constraints) : new ConstraintIndex(constraints, traversal);
     }
 
+    /**
+     * Применяет только явно переданные исключения. Само положение конца в отступе ОКС
+     * не снимает буфер (§2.2 и разъяснение3); собственный финальный ввод проверяется отдельно.
+     */
     List<Constraint> applicableConstraints(
             List<Constraint> base,
             Set<String> exemptFeatureIds,
             Coordinate start,
             Coordinate end) {
-        Geometry startPoint = geometryFactory.createPoint(start);
-        Geometry endPoint = geometryFactory.createPoint(end);
         List<Constraint> result = new ArrayList<>();
         for (Constraint constraint : base) {
             if (exemptFeatureIds.contains(constraint.id)) {
-                continue;
-            }
-            if ("oks".equals(constraint.type)
-                    && constraint.rule.isForbidden()
-                    && (constraint.blocked.covers(startPoint) || constraint.blocked.covers(endPoint))
-                    && !constraint.source.covers(startPoint)
-                    && !constraint.source.covers(endPoint)) {
-                // A tie-in on an existing network may already be located inside the published
-                // building setback. Permit the local approach to that endpoint, but keep the
-                // building footprint itself as a hard obstacle. The former implementation
-                // omitted the complete OKS constraint and could therefore route through a house.
-                result.add(new Constraint(
-                        constraint.id,
-                        constraint.type,
-                        constraint.source,
-                        constraint.source,
-                        constraint.rule));
                 continue;
             }
             result.add(constraint);
@@ -487,8 +472,8 @@ public class OfficialRouteGeometryRules {
             RouteEdge edge, LineString route, List<ImportedOfficialFeature> features,
             int diameter, Coordinate connectionPoint) {
         List<RouteValidationIssue> issues = new ArrayList<>();
-        // Route edges are directed from the existing-network root towards demand. Only the demand
-        // endpoint must leave its containing OKS; a tie-in may legitimately lie near another OKS.
+        // Рёбра направлены от врезки к потребителю. Финальный ввод проверяется отдельно;
+        // близость врезки к чужому ОКС не освобождает её от проверки отступа.
         validateEndpointEgress(edge, route, features, diameter, connectionPoint, issues);
         return issues;
     }

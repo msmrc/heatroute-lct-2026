@@ -137,10 +137,12 @@ public class OfficialGeoJsonExporter {
         ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex support =
                 new ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex(inputFeatures);
         Map<JsonNode, Map<String, Integer>> chamberDiameters = new java.util.IdentityHashMap<>();
+        SavedForbiddenClearanceAssessment spatial = new SavedForbiddenClearanceAssessment(inputFeatures);
         // Проверяем все выбранные варианты до передачи первой feature потребителю потока.
         for (JsonNode variant : variants) {
             chamberDiameters.put(variant, SavedChamberAssessment.verify(variant, support, economics));
             SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog);
+            spatial.verify(variant);
         }
         for (JsonNode variant : variants) {
             appendVariant(output, variant, inputById, allowMissingTieInDiameter, chamberDiameters.get(variant));

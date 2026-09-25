@@ -178,21 +178,30 @@ class CorridorTrunkAdmissionTest {
     }
 
     @Test
-    void rootSetbackExceptionAllowsLocalExitButNotTravelAlongFacade() throws Exception {
+    void rootInsideSetbackCannotExitOrFollowFacadeButLegalBoundaryRootCanConnect() throws Exception {
         Coordinate root = UTM.point(-2, 10), port = UTM.point(-20, 10), demand = UTM.point(-30, 10);
         Fixture fixture = new Fixture(UTM, root,
                 List.of(feature("building", "oks", UTM.rectangle(0, 0, 20, 20))));
         OrthogonalCorridorGrid grid = fixture.grid(List.of(port));
         assertThat(fixture.checks.pointAllowed(root)).isFalse();
-        assertThat(fixture.checks.edgeAllowed(root, port)).isTrue();
-        assertNetwork(compress(tree(grid, port), grid, port, checkedSpur(fixture, port, demand), fixture, FLOW),
-                fixture, demand, 28);
+        assertThat(fixture.checks.edgeAllowed(root, port)).isFalse();
+        assertThat(compress(linksAlong(grid, List.of(root, port)), grid, port,
+                checkedSpur(fixture, port, demand), fixture, FLOW)).isNull();
 
         Coordinate unsafePort = UTM.point(-2, 30), unsafeDemand = UTM.point(-2, 40);
         OrthogonalCorridorGrid unsafeGrid = fixture.grid(List.of(unsafePort));
         assertThat(fixture.checks.edgeAllowed(root, unsafePort)).isFalse();
         assertThat(compress(linksAlong(unsafeGrid, List.of(root, unsafePort)), unsafeGrid, unsafePort,
                 checkedSpur(fixture, unsafePort, unsafeDemand), fixture, FLOW)).isNull();
+
+        // ДУ100: ровно 5 + 0,510/2 м до стены; обычный законный корень сохраняет связность.
+        Coordinate legalRoot = UTM.point(-5.255, 10);
+        Fixture legal = new Fixture(UTM, legalRoot, fixture.features);
+        OrthogonalCorridorGrid legalGrid = legal.grid(List.of(port));
+        assertThat(legal.checks.pointAllowed(legalRoot)).isTrue();
+        assertThat(legal.checks.edgeAllowed(legalRoot, port)).isTrue();
+        assertNetwork(compress(tree(legalGrid, port), legalGrid, port,
+                checkedSpur(legal, port, demand), legal, FLOW), legal, demand, 24.745);
     }
 
     @Test

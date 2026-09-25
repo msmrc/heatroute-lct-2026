@@ -4,6 +4,15 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Checkpoint source90:** [отступы и независимый экспорт](PRIMARY_ROUTING_90.md).
+Удалено неподтверждённое исключение ОКС у endpoint; существующая камера тоже обязана соблюдать
+отступ. Собственный финальный ввод сохранён. Общий export preflight проверяет исходную и
+выдаваемую линии до первой feature. Fast1621PASS/0fail/error/3scale skip,98новыхслучаев,
+web36+37/lint/typecheckPASS. Full88 завершён:1508PASS/1compactFAIL/3skip, dataset17of17.
+Все6сохранённыхролей88/89 проходят новый export90; fresh90session90073 выполняется отдельно.
+Fresh90/roads17of17/compact/все роли/UIpreferred/скорость/native/Compose/scale/R/G не приняты.
+Ниже исторические checkpoints, включая прежнюю неверную гипотезу исключения существующей врезки.
+
 **Checkpoint source89:** [неподвижная камера и магистральная ось](PRIMARY_ROUTING_89.md).
 Fast1523PASS/0fail/error/3scale skip, web36+37/lint/typecheckPASS. Saved86 доводится до balanced
 с0нерегулярныхпар/17of17/exportPASS за5,832с; это не fresh-расчёт и не качество всех ролей.

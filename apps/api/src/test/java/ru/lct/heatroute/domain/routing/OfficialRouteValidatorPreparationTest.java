@@ -100,7 +100,7 @@ class OfficialRouteValidatorPreparationTest {
     }
 
     @Test
-    void rootTargetIdCannotExemptAnOksWhileLocalEndpointSetbackRelaxationRemains() throws Exception {
+    void rootTargetIdCannotExemptAnOksFootprintOrEndpointSetback() throws Exception {
         List<ImportedOfficialFeature> features = List.of(feature("own", "oks", BUILDING));
         RouteEdge crossing = edge(100, "LINESTRING (-30 0, 30 0)");
         // ID врезки не разрешает пересечение одноимённого здания насквозь.
@@ -109,7 +109,13 @@ class OfficialRouteValidatorPreparationTest {
         assertThat(assertEquivalent(nodes(crossing, null, false), List.of(crossing), features))
                 .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");
         RouteEdge approach = edge(100, "LINESTRING (-8 0, -30 0)");
-        assertThat(assertEquivalent(nodes(approach, null, false), List.of(approach), features)).isEmpty();
+        assertThat(assertEquivalent(nodes(approach, null, false), List.of(approach), features))
+                .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");
+        assertThat(assertEquivalent(nodes(approach, "own", false), List.of(approach), features))
+                .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");
+        RouteEdge boundary = edge(100, "LINESTRING (-10.255 0, -30 0)");
+        assertThat(assertEquivalent(nodes(boundary, null, false), List.of(boundary), features)).isEmpty();
+        assertThat(assertEquivalent(nodes(boundary, "own", false), List.of(boundary), features)).isEmpty();
         RouteEdge alongside = edge(100, "LINESTRING (-8 -30, -8 30)");
         assertThat(assertEquivalent(nodes(alongside, null, false), List.of(alongside), features))
                 .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");

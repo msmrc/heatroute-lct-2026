@@ -172,13 +172,16 @@ class OfficialObstacleRouterPreparationTest {
     }
 
     @Test
-    void keysByConstraintIdentityIncludingSameIdRootTransformations() throws Exception {
-        Constraint original = rules.baseConstraints(List.of(feature("same", "oks", read(BLOCK))), 100).get(0);
-        Constraint transformed = rules.applicableConstraints(List.of(original), Set.of(),
-                new Coordinate(0, 0), new Coordinate(62, 0)).get(0);
+    void keysByConstraintIdentityIncludingSameIdOwnTerminalTransformations() throws Exception {
+        ImportedOfficialFeature own = feature("same", "oks", read(BLOCK));
+        Constraint original = rules.baseConstraints(List.of(own), 100).get(0);
+        var egress = rules.normalEgress(List.of(own), 100, new Coordinate(50, 0)).orElseThrow();
+        // Законное преобразование относится к собственному вводу, не к произвольному endpoint.
+        Constraint transformed = rules.ownTerminalFootprintConstraints(List.of(original), egress).get(0);
         Constraint other = rules.baseConstraints(List.of(feature("same", "oks", read(COURTYARD))), 100).get(0);
         assertThat(transformed).isNotSameAs(original);
         assertThat(transformed.blocked()).isSameAs(transformed.source());
+        assertThat(original.blocked().getArea()).isGreaterThan(transformed.blocked().getArea());
         NavigationObstaclePreparation preparation = preparation();
         for (Constraint constraint : List.of(original, transformed, other)) {
             NavigationObstaclePreparation.Obstacle prepared = preparation.prepare(constraint);
@@ -186,6 +189,8 @@ class OfficialObstacleRouterPreparationTest {
             assertThat(prepared.bufferedBoundary().equalsExact(constraint.blocked().buffer(0.25, 2))).isTrue();
             assertThat(prepared.hull().equalsExact(constraint.blocked().buffer(0.25, 2).convexHull())).isTrue();
         }
+        assertThat(preparation.prepare(transformed)).isNotSameAs(preparation.prepare(original));
+        assertThat(preparation.prepare(other)).isNotSameAs(preparation.prepare(original));
         assertThat(retained(preparation)).hasSize(3);
     }
 

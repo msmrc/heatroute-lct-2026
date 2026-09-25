@@ -15,30 +15,34 @@ import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
-/** Проверяет область исключения корня и фактическую округлённую геометрию перед сборкой сети. */
+/** Проверяет отступы без льготы корня, локальный контакт теплосети и округлённую геометрию перед сборкой сети. */
 class PreparedCorridorTest {
     private final OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
 
     @Test
-    void shortRootApproachIsAllowedButRemoteEdgesKeepTheWholeBuildingSetback() throws Exception {
+    void shortRootApproachAndRemoteEdgesBothKeepTheWholeBuildingSetback() throws Exception {
         Coordinate root = new Coordinate(-2, 10);
         PreparedCorridor corridor = buildingCorridor(root);
         Coordinate exit = new Coordinate(-8, 10);
         assertThat(corridor.pointAllowed(root)).isFalse();
-        assertThat(corridor.edgeAllowed(root, exit)).isTrue();
-        assertThat(corridor.edgeAllowed(exit, root)).isTrue();
+        assertSymmetric(corridor, root, exit, false);
         Coordinate remoteA = new Coordinate(-2, 15), remoteB = new Coordinate(-2, 19);
         assertThat(corridor.pointAllowed(remoteA)).isFalse();
         assertThat(corridor.edgeAllowed(remoteA, remoteB)).isFalse();
         assertThat(corridor.path(List.of(root, exit, new Coordinate(-8, 18), remoteB))).isNull();
+        Coordinate boundary = new Coordinate(-5.255, 10);
+        PreparedCorridor legal = buildingCorridor(boundary);
+        assertThat(legal.pointAllowed(boundary)).isTrue();
+        assertSymmetric(legal, boundary, exit, true);
+        assertThat(legal.edgeAllowed(remoteA, remoteB)).isFalse();
     }
 
     @Test
     void rootApproachCannotFollowTheWholeFacadeInsideItsSetback() throws Exception {
         Coordinate root = new Coordinate(-2, 2);
         PreparedCorridor corridor = buildingCorridor(root);
-        // Ребро проходит вдоль всего фасада внутри 5 м отступа, а не коротко выходит из зоны корня.
+        // Весь фасад, включая корневой конец, защищён полным осевым отступом ДУ100.
         assertThat(corridor.edgeAllowed(root, new Coordinate(-2, 30))).isFalse();
         assertThat(corridor.path(List.of(root, new Coordinate(-2, 30)))).isNull();
     }
@@ -103,7 +107,7 @@ class PreparedCorridorTest {
     }
 
     @Test
-    void localExitContractRotatesAndTranslatesWithTheFootprint() throws Exception {
+    void endpointSetbackRejectionRotatesAndTranslatesWithTheFootprint() throws Exception {
         Geometry original = new WKTReader().read("POLYGON ((0 0,20 0,20 20,0 20,0 0))");
         for (double degrees : new double[] {13, 71, 117, 203, 289}) {
             double angle = Math.toRadians(degrees), c = Math.cos(angle), s = Math.sin(angle);
@@ -113,44 +117,68 @@ class PreparedCorridorTest {
             List<Constraint> constraints = rules.baseConstraints(List.of(building), 100);
             Coordinate wallRoot = transform.transform(new Coordinate(-2, 10), new Coordinate());
             PreparedCorridor wall = new PreparedCorridor(rules, constraints, wallRoot, null);
-            assertSymmetric(wall, wallRoot, transform.transform(new Coordinate(-8, 10), new Coordinate()), true);
+            assertSymmetric(wall, wallRoot, transform.transform(new Coordinate(-8, 10), new Coordinate()), false);
             assertSymmetric(wall, wallRoot, transform.transform(new Coordinate(-2, 30), new Coordinate()), false);
             Coordinate cornerRoot = transform.transform(new Coordinate(-2, -2), new Coordinate());
             PreparedCorridor corner = new PreparedCorridor(rules, constraints, cornerRoot, null);
-            assertSymmetric(corner, cornerRoot, transform.transform(new Coordinate(-8, -8), new Coordinate()), true);
+            assertSymmetric(corner, cornerRoot, transform.transform(new Coordinate(-8, -8), new Coordinate()), false);
             assertSymmetric(corner, cornerRoot, transform.transform(new Coordinate(-8, 4), new Coordinate()), false);
+            // 1 мм снаружи границы оставляет место для округления произвольно повёрнутых XY.
+            Coordinate legalRoot = transform.transform(new Coordinate(-5.256, 10), new Coordinate());
+            PreparedCorridor legal = new PreparedCorridor(rules, constraints, legalRoot, null);
+            assertSymmetric(legal, legalRoot, transform.transform(new Coordinate(-8, 10), new Coordinate()), true);
+            Coordinate legalCorner = transform.transform(new Coordinate(-5.256, -5.256), new Coordinate());
+            assertSymmetric(new PreparedCorridor(rules, constraints, legalCorner, null), legalCorner,
+                    transform.transform(new Coordinate(-8, -8), new Coordinate()), true);
         }
     }
 
     @Test
-    void acceptsNormalAndFortyFiveDegreeExitButRejectsAnAlmostTangentialExit() throws Exception {
+    void outwardAngleAndLengthCannotExemptARootInsideTheSetback() throws Exception {
         Coordinate root = new Coordinate(-2, 10);
         PreparedCorridor corridor = buildingCorridor(root);
-        assertSymmetric(corridor, root, new Coordinate(-8, 10), true);
-        assertSymmetric(corridor, root, new Coordinate(-8, 16), true);
+        assertSymmetric(corridor, root, new Coordinate(-8, 10), false);
+        assertSymmetric(corridor, root, new Coordinate(-8, 16), false);
         assertSymmetric(corridor, root, new Coordinate(-3, 30), false);
-        // Ограничена именно часть внутри setback, не полная длина безопасного наружного ребра.
-        assertSymmetric(corridor, root, new Coordinate(-200, 10), true);
+        assertSymmetric(corridor, root, new Coordinate(-200, 10), false);
         assertSymmetric(corridor, root, new Coordinate(-3, 10), false);
+        Coordinate boundary = new Coordinate(-5.255, 10);
+        PreparedCorridor legal = buildingCorridor(boundary);
+        for (Coordinate end : List.of(new Coordinate(-8, 10), new Coordinate(-11.255, 16),
+                new Coordinate(-6.255, 30), new Coordinate(-200, 10))) {
+            assertSymmetric(legal, boundary, end, true);
+        }
+        assertSymmetric(legal, boundary, new Coordinate(-3, 10), false);
     }
 
     @Test
-    void usesCornerNormalForBothOrthogonalAndDiagonalOutwardExits() throws Exception {
+    void cornerEndpointsRequireFullClearanceForOrthogonalAndDiagonalExits() throws Exception {
         Coordinate root = new Coordinate(-2, -2);
         PreparedCorridor corridor = buildingCorridor(root);
-        assertSymmetric(corridor, root, new Coordinate(-8, -2), true);
-        assertSymmetric(corridor, root, new Coordinate(-2, -8), true);
-        assertSymmetric(corridor, root, new Coordinate(-8, -8), true);
+        assertSymmetric(corridor, root, new Coordinate(-8, -2), false);
+        assertSymmetric(corridor, root, new Coordinate(-2, -8), false);
+        assertSymmetric(corridor, root, new Coordinate(-8, -8), false);
         assertSymmetric(corridor, root, new Coordinate(-8, 4), false);
+        // 3–4–5: расстояние от угла до корня ровно 5,255 м.
+        Coordinate boundary = new Coordinate(-3.153, -4.204);
+        PreparedCorridor legal = buildingCorridor(boundary);
+        assertSymmetric(legal, boundary, new Coordinate(-8, -4.204), true);
+        assertSymmetric(legal, boundary, new Coordinate(-3.153, -8), true);
+        assertSymmetric(legal, boundary, new Coordinate(-8, -8), true);
+        assertSymmetric(legal, boundary, new Coordinate(-8, 4), false);
     }
 
     @Test
-    void cornerExitRemainsValidAfterMillimetreRoundingInBothDirections() throws Exception {
+    void roundedCornerEndpointsKeepIllegalAndLegalExitsSeparateInBothDirections() throws Exception {
         Coordinate root = new Coordinate(-2.00049, -2.00049);
         PreparedCorridor corridor = buildingCorridor(root);
-        assertSymmetric(corridor, root, new Coordinate(-8.00049, -2.00049), true);
-        assertSymmetric(corridor, root, new Coordinate(-2.00049, -8.00049), true);
+        assertSymmetric(corridor, root, new Coordinate(-8.00049, -2.00049), false);
+        assertSymmetric(corridor, root, new Coordinate(-2.00049, -8.00049), false);
         assertSymmetric(corridor, root, new Coordinate(-8.00049, 4.00049), false);
+        Coordinate legalRoot = new Coordinate(-5.25549, -5.25549);
+        PreparedCorridor legal = buildingCorridor(legalRoot);
+        assertSymmetric(legal, legalRoot, new Coordinate(-8.00049, -5.25549), true);
+        assertSymmetric(legal, legalRoot, new Coordinate(-5.25549, -8.00049), true);
     }
 
     @Test
@@ -158,21 +186,31 @@ class PreparedCorridorTest {
         Coordinate root = new Coordinate(-0.00049, 10);
         PreparedCorridor corridor = buildingCorridor(root);
         Coordinate exit = new Coordinate(-8, 10);
-        assertThat(corridor.edgeAllowed(root, exit)).isTrue();
+        assertThat(root.x).isLessThan(0);
+        assertThat(new RouteCoordinate(root.x, root.y).toCoordinate().x).isZero();
+        assertThat(corridor.edgeAllowed(root, exit)).isFalse();
         assertThat(corridor.path(List.of(root, exit))).isNull();
         assertThat(corridor.path(List.of(exit, root))).isNull();
     }
 
     @Test
-    void capsTravelWithinAMergedSetbackEvenWhenTheInitialDirectionIsOutward() throws Exception {
+    void mergedSetbacksBlockRootEscapeAndInteriorTravelWithoutFootprintIntersection() throws Exception {
         ImportedOfficialFeature building = feature("multipart", "oks", "MULTIPOLYGON ("
                 + "((0 0,20 0,20 20,0 20,0 0)),((-12 12,-8 12,-8 20,-12 20,-12 12)))");
         Coordinate root = new Coordinate(-2, 10), end = new Coordinate(-30, 10);
         List<Constraint> constraints = rules.baseConstraints(List.of(building), 100);
-        assertThat(rules.segmentAllowed(root, end, rules.applicableConstraints(constraints, Set.of(), root, root))).isTrue();
+        assertThat(rules.segmentAllowed(root, end, rules.applicableConstraints(constraints, Set.of(), root, root))).isFalse();
         assertThat(rules.line(List.of(root, end)).intersection(constraints.get(0).blocked()).getNumGeometries()).isEqualTo(1);
         PreparedCorridor corridor = new PreparedCorridor(rules, constraints, root, null);
         assertSymmetric(corridor, root, end, false);
+        Coordinate before = new Coordinate(-4, -20), after = new Coordinate(-4, 40);
+        assertThat(corridor.pointAllowed(before)).isTrue();
+        assertThat(corridor.pointAllowed(after)).isTrue();
+        Geometry interior = rules.line(List.of(before, after));
+        assertThat(interior.intersects(building.getMetricGeometry())).isFalse();
+        assertThat(interior.intersection(constraints.get(0).blocked()).getNumGeometries()).isEqualTo(1);
+        assertSymmetric(corridor, before, after, false);
+        assertSymmetric(corridor, new Coordinate(-30, -20), new Coordinate(-30, 40), true);
     }
 
     @Test
@@ -181,14 +219,22 @@ class PreparedCorridorTest {
                 + "((0 0,20 0,20 20,0 20,0 0)),((-22 12,-14 12,-14 20,-22 20,-22 12)))");
         Coordinate root = new Coordinate(-2, 10), end = new Coordinate(-40, 10);
         List<Constraint> constraints = rules.baseConstraints(List.of(building), 100);
-        assertThat(rules.segmentAllowed(root, end, rules.applicableConstraints(constraints, Set.of(), root, root))).isTrue();
+        assertThat(rules.segmentAllowed(root, end, rules.applicableConstraints(constraints, Set.of(), root, root))).isFalse();
         assertThat(rules.line(List.of(root, end)).intersection(constraints.get(0).blocked()).getNumGeometries()).isGreaterThan(1);
         PreparedCorridor corridor = new PreparedCorridor(rules, constraints, root, null);
         assertSymmetric(corridor, root, end, false);
+        Coordinate before = new Coordinate(-40, 22), after = new Coordinate(40, 22);
+        assertThat(corridor.pointAllowed(before)).isTrue();
+        assertThat(corridor.pointAllowed(after)).isTrue();
+        Geometry reentry = rules.line(List.of(before, after));
+        assertThat(reentry.intersects(building.getMetricGeometry())).isFalse();
+        assertThat(reentry.intersection(constraints.get(0).blocked()).getNumGeometries()).isGreaterThan(1);
+        assertSymmetric(corridor, before, after, false);
+        assertSymmetric(corridor, new Coordinate(-40, 25.255), new Coordinate(40, 25.255), true);
     }
 
     @Test
-    void everyOverlappingRootSetbackMustPermitTheExitRegardlessOfInputOrder() throws Exception {
+    void overlappingBuildingSetbacksRejectRootRegardlessOfInputOrder() throws Exception {
         ImportedOfficialFeature right = feature("right", "oks", "POLYGON ((0 0,20 0,20 20,0 20,0 0))");
         ImportedOfficialFeature left = feature("left", "oks", "POLYGON ((-28 0,-8 0,-8 20,-28 20,-28 0))");
         Coordinate root = new Coordinate(-4, 10);
@@ -199,13 +245,14 @@ class PreparedCorridorTest {
     }
 
     @Test
-    void rootApproachExceptionCannotBeReactivatedInTheMiddleOfAPath() throws Exception {
-        Coordinate root = new Coordinate(-2, 10), a = new Coordinate(-10, 5), b = new Coordinate(-10, 15);
+    void aLegalRootStillCannotBeRevisitedInTheMiddleOfAPath() throws Exception {
+        Coordinate root = new Coordinate(-8, 10), a = new Coordinate(-10, 5), b = new Coordinate(-10, 15);
         PreparedCorridor corridor = buildingCorridor(root);
         assertThat(corridor.edgeAllowed(root, a)).isTrue();
         assertThat(corridor.edgeAllowed(root, b)).isTrue();
         assertThat(corridor.path(List.of(a, root, b))).isNull();
         assertThat(corridor.path(List.of(b, root, a))).isNull();
+        assertThat(corridor.path(List.of(a, new Coordinate(-10, 10), b))).isNotNull();
     }
 
     @Test
@@ -240,13 +287,15 @@ class PreparedCorridorTest {
     }
 
     @Test
-    void roundedRootStillReceivesOnlyItsOwnLocalApproachException() throws Exception {
-        Coordinate root = new Coordinate(-2.00049, 10.00049);
+    void roundedLegalRootStaysOnBoundaryWhileInsideEndpointsRemainForbidden() throws Exception {
+        Coordinate root = new Coordinate(-5.25549, 10.00049);
         PreparedCorridor corridor = buildingCorridor(root);
         RoutePath path = corridor.path(List.of(root, new Coordinate(-8.00049, 10.00049)));
         assertThat(path).isNotNull();
-        assertThat(path.coordinates().get(0).distance(new Coordinate(-2, 10))).isZero();
+        assertThat(path.coordinates().get(0).distance(new Coordinate(-5.255, 10))).isZero();
         assertThat(corridor.edgeAllowed(new Coordinate(-2, 15), new Coordinate(-2, 18))).isFalse();
+        Coordinate illegalRoot = new Coordinate(-5.25449, 10.00049);
+        assertSymmetric(buildingCorridor(illegalRoot), illegalRoot, new Coordinate(-8.00049, 10.00049), false);
     }
 
     @Test

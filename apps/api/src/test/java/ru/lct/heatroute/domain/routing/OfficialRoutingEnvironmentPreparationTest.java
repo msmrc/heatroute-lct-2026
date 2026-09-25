@@ -17,7 +17,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 class OfficialRoutingEnvironmentPreparationTest {
     @Test
-    void reusesOnlyPreparationWhileRequeryingWindowsAndReapplyingEndpointExceptions() throws Exception {
+    void reusesPreparationAndRequeriesWindowsWithoutRelaxingEndpointSetbacks() throws Exception {
         CountingRules rules = new CountingRules();
         WindowSource source = new WindowSource();
         source.features.add(building());
@@ -30,7 +30,9 @@ class OfficialRoutingEnvironmentPreparationTest {
         assertThat(widerDiameter.blocked().getArea()).isGreaterThan(ordinary.blocked().getArea());
         assertThat(rules.preparedFeatures).isEqualTo(2);
         Constraint approach = environment.constraints(100, Set.of(), new Coordinate(-2, 10), end).get(0);
-        assertThat(approach.blocked().equalsExact(approach.source())).isTrue();
+        assertThat(approach).isSameAs(ordinary);
+        assertThat(rules.segmentAllowed(new Coordinate(-2, 10), outside, List.of(approach))).isFalse();
+        assertThat(rules.segmentAllowed(new Coordinate(-5.255, 10), outside, List.of(approach))).isTrue();
         assertThat(ordinary.blocked().getArea()).isGreaterThan(ordinary.source().getArea());
         assertThat(environment.constraints(100, Set.of("building"), outside, end)).isEmpty();
         assertThat(environment.constraints(100, Set.of(), outside, end).get(0)).isSameAs(ordinary);

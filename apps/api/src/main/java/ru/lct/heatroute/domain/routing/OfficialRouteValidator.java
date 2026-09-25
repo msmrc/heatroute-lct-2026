@@ -121,6 +121,41 @@ public class OfficialRouteValidator {
         if (geometryRules == null) {
             return issues;
         }
+        issues.addAll(validateSpatialConstraints(nodes, edges, features, preparedConstraints, false));
+        issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
+                .thenComparing(issue -> issue.getSubjectId() == null ? "" : issue.getSubjectId()));
+        return issues;
+    }
+
+    /**
+     * Создаёт независимую проверку запрещённых препятствий и вводов ОКС по исходному импорту.
+     * Сессия держит только подготовку препятствий; рёбра можно подавать по одному после проверки топологии.
+     */
+    public ForbiddenClearanceSession forForbiddenClearanceValidation(List<ImportedOfficialFeature> features) {
+        if (geometryRules == null) throw new IllegalStateException("Spatial validation requires geometry rules");
+        return new ForbiddenClearanceSession(features);
+    }
+
+    public final class ForbiddenClearanceSession {
+        private final List<ImportedOfficialFeature> features;
+        private final PreparedValidationConstraints prepared;
+
+        private ForbiddenClearanceSession(List<ImportedOfficialFeature> features) {
+            this.features = features;
+            PreparedValidationConstraints candidate = new PreparedValidationConstraints(geometryRules);
+            this.prepared = candidate.supports(features) ? candidate : null;
+        }
+
+        /** Связность, разрешённые специальные пересечения и их разметку проверяет вызывающая сторона. */
+        public List<RouteValidationIssue> validate(RouteNode upstream, RouteNode downstream, RouteEdge edge) {
+            return validateSpatialConstraints(List.of(upstream, downstream), List.of(edge), features, prepared, true);
+        }
+    }
+
+    private List<RouteValidationIssue> validateSpatialConstraints(
+            List<RouteNode> nodes, List<RouteEdge> edges, List<ImportedOfficialFeature> features,
+            PreparedValidationConstraints preparedConstraints, boolean forbiddenOnly) {
+        List<RouteValidationIssue> issues = new ArrayList<>();
         Map<String, RouteNode> nodesById = new HashMap<>();
         nodes.forEach(node -> nodesById.put(node.getId(), node));
         Map<String, Coordinate> sourceDemandPoints = new HashMap<>();
@@ -178,6 +213,10 @@ public class OfficialRouteValidator {
             List<OfficialRouteGeometryRules.Constraint> baseConstraints = preparedConstraints == null
                     ? constraintsByDiameter.computeIfAbsent(diameter, value -> geometryRules.baseConstraints(features, value))
                     : preparedConstraints.prepareIntersecting(features, diameter, route.getEnvelopeInternal());
+            if (forbiddenOnly) {
+                baseConstraints = baseConstraints.stream().filter(constraint -> constraint.rule().isForbidden())
+                        .collect(java.util.stream.Collectors.toList());
+            }
             List<OfficialRouteGeometryRules.Constraint> allConstraints = geometryRules.applicableConstraints(
                     geometryRules.localTieInConstraints(baseConstraints, exemptions,
                             route.getCoordinateN(0), route.getCoordinateN(route.getNumPoints() - 1)),

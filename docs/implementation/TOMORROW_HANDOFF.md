@@ -1,5 +1,31 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source90 — B-10 исправлен в коде, быстрые проверки зелёные
+
+Начать с [PRIMARY_ROUTING_90.md](PRIMARY_ROUTING_90.md). Snapshot
+`.tooling/source90-gates.dl98EW` совпал с checkout src. Clean fast57015 завершён exit0:
+1624cases/1621PASS/0fail/error/3skip,24,599с; `source90-fast-final-reports/` сохранены отдельно.
+Web3961 завершён exit0:36+37/lint/typecheckPASS. Kant завершён и закрыт;9старых routing
+tests проверены/интегрированы; новый exporter test расширен main до73cases, routing25cases.
+
+Нельзя возвращать исключение отступа ОКС для существующего root: источники его не дают.
+Законно только финальное прямое подключение собственного ОКС. Сохранённый export проверяет
+исходную и выдаваемую геометрию, до первой feature; special-checker работает отдельно.
+Подробности RED/границ/округления/отмены/собственного ввода — в scope90.
+
+Full88session92736 **завершён exit1**, target88 свободен; не ждать и не перезапускать.
+1512cases/1508PASS/1compactFAIL/3skip, original738,313с/concave6,852с,3роли17/17.
+Принятый файл `source88-result.json`, отчёты `source88-full-reports/`; оба в intake20260925.
+Далее fresh90, затем roads/kindergarten17/17, compact и общее время. Source89 отдельно full
+не запускался. Runtime61/VPS не менялись; R/G/native/Compose/scale и вся цель не приняты.
+**Живой full90session90073** на `.tooling/source90-gates.dl98EW`: не менять src/target и
+не запускать здесь второй Maven до завершения. Лог `source90-full.log`, ожидаемый accepted
+`source90-result.json`, diagnostic `source90-diagnostic.json`. Нужны final reports и метрики
+каждой роли. Только после фактического допуска строить свежие картинки/сравнение.
+Read-only replay85175 завершён exit0: все3роли88 и все3роли89-witness прошли direct/prepared
+geometry и новый exporter90 (`source90-setback-replay-final.log`), без изменения/перепланирования.
+Это не fresh90. Остальных живых Maven handles этого этапа нет.
+
 ## Актуально: source89 fast готов, следующий correctness — B-10
 
 Начать с [PRIMARY_ROUTING_89.md](PRIMARY_ROUTING_89.md) и [REFACTORING](REFACTORING.md).

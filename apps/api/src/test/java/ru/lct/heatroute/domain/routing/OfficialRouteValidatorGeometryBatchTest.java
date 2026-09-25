@@ -71,7 +71,7 @@ class OfficialRouteValidatorGeometryBatchTest {
     }
 
     @Test
-    void keepsTypedRootContactsAndEndpointSetbackRelaxationSeparatePerEdge() throws Exception {
+    void rootTargetAndEndpointPositionCannotExemptBuildingSetbacksInABatch() throws Exception {
         List<ImportedOfficialFeature> features = List.of(oks("own", "POLYGON ((0 0, 20 0, 20 20, 0 20, 0 0))"));
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
@@ -79,10 +79,12 @@ class OfficialRouteValidatorGeometryBatchTest {
         addEdge(nodes, edges, "not-exempt", 100, null, false, "LINESTRING (-20 12, 40 12)");
         addEdge(nodes, edges, "endpoint-in-setback", 100, null, false, "LINESTRING (-3 18, -30 18)");
         addEdge(nodes, edges, "no-relaxation", 100, null, false, "LINESTRING (-3 -20, -3 40)");
+        addEdge(nodes, edges, "legal-boundary", 100, "own", false, "LINESTRING (-5.255 6, -30 6)");
+        addEdge(nodes, edges, "exact-wall-boundary", 100, null, false, "LINESTRING (-5.255 8, -30 8)");
         List<RouteValidationIssue> actual = assertEquivalent(nodes, edges, features);
         assertThat(actual.stream().filter(issue -> "FORBIDDEN_CLEARANCE_VIOLATION".equals(issue.getCode()))
                 .map(RouteValidationIssue::getSubjectId).collect(Collectors.toList()))
-                .containsExactly("exempt", "no-relaxation", "not-exempt");
+                .containsExactly("endpoint-in-setback", "exempt", "no-relaxation", "not-exempt");
     }
 
     @Test

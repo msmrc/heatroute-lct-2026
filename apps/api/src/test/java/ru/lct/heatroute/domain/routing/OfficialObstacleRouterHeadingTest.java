@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -118,7 +120,7 @@ class OfficialObstacleRouterHeadingTest {
     }
 
     @Test
-    void prefixCheckPreservesTheExistingTieInEndpointExceptionButNotForeignFootprints() throws Exception {
+    void prefixCheckRejectsForeignEndpointSetbackAndFootprintButAcceptsLegalBoundary() throws Exception {
         var own = new ImportedOfficialFeature("own", "oks_existing", new ObjectMapper().createObjectNode(),
                 new WKTReader().read("POLYGON ((0 0,10 0,10 10,0 10,0 0))"));
         var foreign = new ImportedOfficialFeature("other", "oks_existing", new ObjectMapper().createObjectNode(),
@@ -127,24 +129,42 @@ class OfficialObstacleRouterHeadingTest {
         var egress = environment.normalEgress(50, point(1, 5)).orElseThrow();
         RoutePath outside = router.findAfter(egress.start(), egress.exit(), point(-20, 8), 50,
                 environment, Set.of(), RoutePreference.SHORTEST, List.of());
-        assertThat(outside).isNotNull();
-        assertThat(router.withCheckedTerminalPrefix(egress, outside, 50, environment)).isNotNull();
+        assertThat(outside).isNull();
+        RoutePath insideSetback = new RoutePath(List.of(egress.exit(), point(-20, 8)), List.of(),
+                egress.exit().distance(point(-20, 8)));
+        assertThat(rules.line(insideSetback.coordinates()).intersects(foreign.getMetricGeometry())).isFalse();
+        assertThat(router.withCheckedTerminalPrefix(egress, insideSetback, 50, environment)).isNull();
+        RoutePath boundary = router.findAfter(egress.start(), egress.exit(), point(-20, 4.8), 50,
+                environment, Set.of(), RoutePreference.SHORTEST, List.of());
+        assertThat(boundary).isNotNull();
+        assertThat(router.withCheckedTerminalPrefix(egress, boundary, 50, environment)).isNotNull();
         RoutePath crossingForeign = new RoutePath(List.of(egress.exit(), point(-20, 15)), List.of(), 30);
         assertThat(router.withCheckedTerminalPrefix(egress, crossingForeign, 50, environment)).isNull();
     }
 
     @Test
-    void terminalLegRetainsTheSameTieInClearancePolicyAsTheFullValidator() throws Exception {
+    void ownTerminalLegKeepsForeignSetbackInBothPrefixAndFullValidator() throws Exception {
         var own = new ImportedOfficialFeature("own", "oks_existing", new ObjectMapper().createObjectNode(),
                 new WKTReader().read("POLYGON ((0 0,10 0,10 10,0 10,0 0))"));
         var foreign = new ImportedOfficialFeature("other", "oks_existing", new ObjectMapper().createObjectNode(),
-                new WKTReader().read("POLYGON ((-8 3,-5 3,-5 7,-8 7,-8 3))"));
-        var environment = router.prepare(List.of(own, foreign));
-        var egress = environment.normalEgress(50, point(1, 5)).orElseThrow();
-        RoutePath outside = router.findAfter(egress.start(), egress.exit(), point(-0.25, 6), 50,
-                environment, Set.of(), RoutePreference.SHORTEST, List.of());
+                new WKTReader().read("POLYGON ((-4 8,-2 8,-2 10,-4 10,-4 8))"));
+        var ownEnvironment = router.prepare(List.of(own));
+        var egress = ownEnvironment.normalEgress(50, point(1, 5)).orElseThrow();
+        RoutePath outside = router.findAfter(egress.start(), egress.exit(), point(-20, 5), 50,
+                ownEnvironment, Set.of(), RoutePreference.SHORTEST, List.of());
         assertThat(outside).isNotNull();
-        assertThat(router.withCheckedTerminalPrefix(egress, outside, 50, environment)).isNotNull();
+        RoutePath complete = router.withCheckedTerminalPrefix(egress, outside, 50, ownEnvironment);
+        assertThat(complete).isNotNull();
+        assertThat(rules.line(complete.coordinates()).intersects(foreign.getMetricGeometry())).isFalse();
+        assertThat(validateReversedPrefix(complete, List.of(own))).isEmpty();
+        assertThat(router.withCheckedTerminalPrefix(egress, outside, 50, router.prepare(List.of(own, foreign)))).isNull();
+        assertThat(validateReversedPrefix(complete, List.of(own, foreign)))
+                .extracting(RouteValidationIssue::getCode).contains("FORBIDDEN_CLEARANCE_VIOLATION");
+
+        var boundary = new ImportedOfficialFeature("other", "oks_existing", new ObjectMapper().createObjectNode(),
+                new WKTReader().read("POLYGON ((-4 10.2,-2 10.2,-2 12.2,-4 12.2,-4 10.2))"));
+        assertThat(router.withCheckedTerminalPrefix(egress, outside, 50, router.prepare(List.of(own, boundary)))).isNotNull();
+        assertThat(validateReversedPrefix(complete, List.of(own, boundary))).isEmpty();
     }
 
     @Test
@@ -175,6 +195,17 @@ class OfficialObstacleRouterHeadingTest {
     private Coordinate transform(double x, double y, double angle) {
         return point(414000.123 + x * Math.cos(angle) - y * Math.sin(angle),
                 6173000.456 + x * Math.sin(angle) + y * Math.cos(angle));
+    }
+
+    private List<RouteValidationIssue> validateReversedPrefix(RoutePath outward, List<ImportedOfficialFeature> features) {
+        List<RouteCoordinate> points = outward.coordinates().stream()
+                .map(point -> new RouteCoordinate(point.x, point.y)).collect(Collectors.toList());
+        Collections.reverse(points);
+        List<RouteNode> nodes = List.of(
+                new RouteNode("root", "existing_chamber_tie_in", points.get(0), true, true, 1, null),
+                new RouteNode("demand", "demand_connection", points.get(points.size() - 1), false, false, 0, null));
+        RouteEdge edge = new RouteEdge("input", "root", "demand", outward.lengthM(), points, List.of(), BigDecimal.ONE, 50);
+        return new OfficialRouteValidator(rules).validate(nodes, List.of(edge), features);
     }
 
     private void assertLegal(Coordinate previous, RoutePath path) {

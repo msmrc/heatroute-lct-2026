@@ -98,11 +98,11 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void keepsTheOksFootprintBlockedWhenTheTargetFallsInsideItsClearance() throws Exception {
+    void rejectsTargetInsideOksSetbackButRoutesAroundFootprintToTheExactLegalBoundary() throws Exception {
         ImportedOfficialFeature foreignBuilding = restriction(
                 "oks", "foreign-building", "POLYGON ((40 -10, 60 -10, 60 10, 40 10, 40 -10))");
 
-        RoutePath route = router.find(
+        RoutePath illegal = router.find(
                 new Coordinate(0, 0),
                 new Coordinate(62, 0),
                 100,
@@ -110,8 +110,14 @@ class OfficialObstacleRouterTest {
                 Collections.emptySet(),
                 RoutePreference.SHORTEST);
 
+        assertThat(illegal).isNull();
+        // ДУ100: 60 + 5 + 0,510/2; путь всё ещё должен обойти лежащий между концами дом.
+        RoutePath route = router.find(new Coordinate(0, 0), new Coordinate(65.255, 0), 100,
+                List.of(foreignBuilding), Collections.emptySet(), RoutePreference.SHORTEST);
         assertThat(route).isNotNull();
         assertThat(route.coordinates()).hasSizeGreaterThan(2);
+        assertThat(rules.line(route.coordinates()).distance(foreignBuilding.getMetricGeometry()))
+                .isCloseTo(5.255, offset(1e-6));
         assertThat(rules.line(route.coordinates()).intersection(foreignBuilding.getMetricGeometry()).getLength())
                 .isLessThanOrEqualTo(OfficialRouteGeometryRules.EPSILON_M);
     }

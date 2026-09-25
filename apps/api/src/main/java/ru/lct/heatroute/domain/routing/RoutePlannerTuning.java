@@ -4,7 +4,7 @@ package ru.lct.heatroute.domain.routing;
  * Фиксирует версию и ограниченные поисковые бюджеты единственного основного планировщика.
  */
 public final class RoutePlannerTuning {
-    public static final String STABLE_ALGORITHM_VERSION = "global-tree-64";
+    public static final String STABLE_ALGORITHM_VERSION = "global-tree-65";
     /** Совместимое имя константы; отдельного экспериментального алгоритма больше нет. */
     @Deprecated
     public static final String EXPERIMENTAL_ALGORITHM_VERSION = STABLE_ALGORITHM_VERSION;

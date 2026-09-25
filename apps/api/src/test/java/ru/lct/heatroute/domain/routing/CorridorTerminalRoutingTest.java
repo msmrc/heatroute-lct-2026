@@ -186,12 +186,14 @@ class CorridorTerminalRoutingTest {
     }
 
     @Test
-    void incompatiblePortAxesUseFallbackInsteadOfReturningAnObliqueConnector() throws Exception {
+    void tiltedPortAxesUseACheckedTwoBendTransitionInsteadOfAnObliqueConnector() throws Exception {
         Fixture fixture = fixture(0, 0, 0);
         AtomicInteger fallbackCalls = new AtomicInteger();
         RoutePath path = terminalPath(fixture.demand, fixture.port, fixture.features, fallbackCalls, Math.toRadians(30));
-        assertThat(path).isNull();
-        assertThat(fallbackCalls).hasValue(1);
+        assertThat(path).isNotNull();
+        assertThat(fallbackCalls).hasValue(0);
+        assertCheckedAlternative(path, new Fixture(30, fixture.transform, fixture.demand, fixture.port, fixture.features));
+        assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edgeFromTerminalPath(path))).bendCount()).isEqualTo(2);
     }
 
     @Test

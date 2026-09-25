@@ -7,6 +7,7 @@ import org.locationtech.jts.geom.Coordinate;
 
 /**
  * Соединяет нормальный выход из ОКС с осью коридора, даже если фасад повёрнут относительно неё.
+ * Среднее звено двухповоротного подхода образует с конечной осью 90° или, для наклонной нормали, 45°.
  * Внутренние углы 90–135°, между двумя изгибами не меньше minimumLegM. Это предложения геометрии:
  * препятствия, округление, фактические углы и весь обязательный ввод проверяет вызывающий код.
  */
@@ -25,6 +26,9 @@ final class NormalCorridorTransitions {
         double required = start.distance(exit);
         if (required <= 0.001 || !Double.isFinite(required)) return List.of();
         double nx = (exit.x - start.x) / required, ny = (exit.y - start.y) / required;
+        // Соосные фасады сохраняют прямоугольные вводы; диагональ нужна для перехода
+        // между разными системами осей, а не для срезания обычных прямых углов.
+        boolean tiltedNormal = Math.abs(Math.sin(2 * (Math.atan2(ny, nx) - orientation))) > 1e-8;
         double dx = port.x - start.x, dy = port.y - start.y;
         double reach = start.distance(port) + required + 80.0;
         List<List<Coordinate>> candidates = new ArrayList<>();
@@ -40,20 +44,29 @@ final class NormalCorridorTransitions {
                 }
             }
             for (int side : new int[] {-1, 1}) {
-                double wx = -ry * side, wy = rx * side;
-                if (!validTurn(nx * wx + ny * wy)) continue;
-                double denominator = cross(nx, ny, wx, wy);
-                if (Math.abs(denominator) <= 1e-8) continue;
-                for (double s : new double[] {minimumLegM, 5.0, 10.0, 20.0, 40.0}) {
-                    ensureActive();
-                    if (s < minimumLegM) continue;
-                    Coordinate elbow2 = new Coordinate(port.x + rx * s, port.y + ry * s);
-                    double t = cross(elbow2.x - start.x, elbow2.y - start.y, wx, wy) / denominator;
-                    if (t < required + minimumLegM || t > reach) continue;
-                    Coordinate elbow1 = new Coordinate(start.x + nx * t, start.y + ny * t);
-                    double q = (elbow2.x - elbow1.x) * wx + (elbow2.y - elbow1.y) * wy;
-                    if (q < minimumLegM || q > reach) continue;
-                    candidates.add(List.of(new Coordinate(exit), elbow1, elbow2, new Coordinate(port)));
+                for (boolean diagonal : new boolean[] {false, true}) {
+                    if (diagonal && !tiltedNormal) continue;
+                    double wx = -ry * side, wy = rx * side;
+                    if (diagonal) {
+                        // Биссектриса прежней поперечной оси и направления прихода -r.
+                        // Допускает короткий подход вместо обхода с тремя поворотами.
+                        wx = (wx - rx) * MAX_TURN_COSINE;
+                        wy = (wy - ry) * MAX_TURN_COSINE;
+                    }
+                    if (!validTurn(nx * wx + ny * wy)) continue;
+                    double denominator = cross(nx, ny, wx, wy);
+                    if (Math.abs(denominator) <= 1e-8) continue;
+                    for (double s : new double[] {minimumLegM, 5.0, 10.0, 20.0, 40.0}) {
+                        ensureActive();
+                        if (s < minimumLegM) continue;
+                        Coordinate elbow2 = new Coordinate(port.x + rx * s, port.y + ry * s);
+                        double t = cross(elbow2.x - start.x, elbow2.y - start.y, wx, wy) / denominator;
+                        if (t < required + minimumLegM || t > reach) continue;
+                        Coordinate elbow1 = new Coordinate(start.x + nx * t, start.y + ny * t);
+                        double q = (elbow2.x - elbow1.x) * wx + (elbow2.y - elbow1.y) * wy;
+                        if (q < minimumLegM || q > reach) continue;
+                        candidates.add(List.of(new Coordinate(exit), elbow1, elbow2, new Coordinate(port)));
+                    }
                 }
             }
         }

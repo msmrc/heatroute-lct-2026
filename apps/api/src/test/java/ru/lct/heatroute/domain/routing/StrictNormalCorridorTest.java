@@ -18,6 +18,15 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 class StrictNormalCorridorTest {
     @Test
     void usesVerifiedLocalTransitionBeforeGenericFallbackForTiltedWalls() throws Exception {
+        assertTransitions(new Coordinate(-40, -35));
+    }
+
+    @Test
+    void reachesOppositeSideOfTiltedNormalWithoutAGlobalSearchOrThreeBendLoop() throws Exception {
+        assertTransitions(new Coordinate(-40, 35));
+    }
+
+    private void assertTransitions(Coordinate port) throws Exception {
         OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
@@ -26,7 +35,6 @@ class StrictNormalCorridorTest {
             var building = transform.transform(new WKTReader().read(
                     "POLYGON ((0 0, 20 0, 20 20, 0 20, 0 0))"));
             var start = transform.transform(new Coordinate(2, 8), new Coordinate());
-            var port = new Coordinate(-40, -35);
             var features = List.of(new ImportedOfficialFeature("own", "oks_existing",
                     new ObjectMapper().createObjectNode(), building));
             var environment = router.prepare(features);
@@ -40,7 +48,9 @@ class StrictNormalCorridorTest {
             assertThat(fallback).hasValue(0);
             var edge = new RouteEdge("e", "r", "d", path.lengthM(), path.reversed().coordinates().stream()
                     .map(p -> new RouteCoordinate(p.x, p.y)).collect(Collectors.toList()), List.of(), null, 50);
-            assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edge)).isCompliant()).isTrue();
+            var evaluation = new EngineeringRouteEvaluator().evaluate(List.of(edge));
+            assertThat(evaluation.isCompliant()).isTrue();
+            assertThat(evaluation.bendCount()).isLessThanOrEqualTo(2);
             assertThat(rules.validateMandatoryEgress(edge, rules.line(path.reversed().coordinates()),
                     features, 50)).isEmpty();
         }

@@ -20,6 +20,7 @@ public final class FinishedRouteVariantSelector {
     // Только погрешность вычисления углов в double, не дополнительный инженерный допуск.
     private static final double ANGULAR_COMPARISON_EPSILON = 1e-7;
     private final EngineeringRouteEvaluator engineering = new EngineeringRouteEvaluator();
+    private final ExpertChamberRouteValidator chambers = new ExpertChamberRouteValidator();
 
     /**
      * Возвращает доступные роли в порядке balanced, shortest, cheapest. Одна сеть может занимать
@@ -38,6 +39,7 @@ public final class FinishedRouteVariantSelector {
         requireUniqueIds(inputs);
         List<Candidate> valid = inputs.stream().filter(RouteVariant::isValid)
                 .filter(variant -> !depthEnabled || hasValidDepthProfiles(variant))
+                .filter(variant -> chambers.validate(variant.getNodes(), variant.getEdges()).isEmpty())
                 .map(variant -> new Candidate(variant, engineering.evaluate(variant.getEdges())))
                 .collect(Collectors.toList());
         if (valid.isEmpty()) return List.of();

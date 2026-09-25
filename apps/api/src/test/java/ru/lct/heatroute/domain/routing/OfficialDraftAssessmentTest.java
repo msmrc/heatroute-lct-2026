@@ -59,6 +59,8 @@ class OfficialDraftAssessmentTest {
         RouteVariant source = planner.withEngineeringAssessment(planner.finish("seed", "engineering",
                 new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
         assertThat(source.isValid()).isTrue();
+        assertThat(source.getEngineeringIssues()).extracting(RouteValidationIssue::getCode)
+                .containsExactly("EXPERT_CHAMBER_SPACING_TOO_SHORT");
         sizer.reset();
         List<RouteVariant> result = planner.refineCorridorVariants(List.of(source), demands, List.of(), parameters, false, environment);
         assertThat(result).isNotEmpty();
@@ -71,6 +73,7 @@ class OfficialDraftAssessmentTest {
             assertThat(v.getEconomics().isComplete()).isTrue();
             assertThat(v.getSizingIssues()).isEmpty();
             assertThat(v.getEngineeringIssues()).isEmpty();
+            assertThat(new ExpertChamberRouteValidator().validate(v.getNodes(), v.getEdges())).isEmpty();
             assertThat(new OfficialRouteValidator(rules).validate(v.getNodes(), v.getEdges(), List.of())).isEmpty();
             if (depth) assertThat(v.getEdges()).allSatisfy(e -> {
                 assertThat(e.getDepthProfile()).isNotNull();

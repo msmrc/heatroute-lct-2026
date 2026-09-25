@@ -1,5 +1,31 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source85 — новое уточнение по камерам
+
+Сначала [PRIMARY_ROUTING_85.md](PRIMARY_ROUTING_85.md). Не копировать ручной маршрут:
+минимум10м по трассе между камерами, ввод от камеры, короткий камера→ОКС допустим.
+Новый валидатор/selection для всех ролей, повтор перед rank; repairseed с коротким участком
+разрешён только внутри ограниченного объединения. Focused66PASS после исправления раннего
+отсева seed (первый fast2FAIL сохранён); web36+37/lint/typecheckPASS. Итоговый fast85 завершён:
+1311cases/1308PASS/0fail/0error/3scale skip; reports `source85-final-fast-reports/`.
+**Full85session20838** использует `.tooling/source85-gates.QFTwHj/apps/api/target`;
+не менять до завершения. Усилен all-role тест камер,17/17/ДУ/глубины/сметы/strict export.
+Лог `source85-full.log`, accepted `source85-result.json`, предварительный `source85-diagnostic.json`.
+
+Full83session54670 завершён1284/1280PASS/1compactFAIL/3skip; reports в
+`.tooling/intake-20260925/source83-full-reports`, accepted `source83-result.json`.
+Сравнение83 просмотрено: `source83-cheapest-comparison/side-by-side.png`, не результат85.
+Roads81session30394 завершёнexit1:15/17/2роли/31–32badangles. Targets83full/81 свободны.
+Живы **full84session30650** (`.tooling/source84-gates.l7r4V8/apps/api/target`) и
+**roads83session12884** (`.tooling/scenario83.zYg3LZ`): frozen targets не менять и jobs не дублировать.
+Агент Ohm отдельно проверяет callback двух corridor dataset tests, не production;
+его незавершённую работу не объявлять прошедшей.
+
+Открыто: полный85, независимый new-rule preflight сохранённого export JSON, совместные выходы
+камер, roads17/17, compact, скорость/native/Compose/scale. Не уменьшать 10м и не ослаблять
+проверки ради допуска. Runtime61/VPS не обновлялись; R/G/общая цель не закрыты.
+Ниже история, прежние live-статусы заменены этим реестром.
+
 ## Актуально: source84 — направление link approaches исправлено, quality-поиск продолжается
 
 Сначала [PRIMARY_ROUTING_84.md](PRIMARY_ROUTING_84.md).8новых directional cases,

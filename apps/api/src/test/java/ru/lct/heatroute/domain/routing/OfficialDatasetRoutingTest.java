@@ -93,6 +93,8 @@ class OfficialDatasetRoutingTest {
             assertThat(variant.getEngineeringIssues()).as(engineeringDiagnostics(variant)).isEmpty();
             assertThat(new EngineeringRouteEvaluator().evaluate(variant.getEdges()).isCompliant())
                     .as("Final engineering geometry: " + variant.getId()).isTrue();
+            assertThat(new ExpertChamberRouteValidator().validate(variant.getNodes(), variant.getEdges()))
+                    .as("Final chamber sections and OKS origins: " + variant.getId()).isEmpty();
         });
         assertThat(shortest.getTotalLengthM()).isLessThanOrEqualTo(engineering.getTotalLengthM());
         assertThat(result.getVariants()).allSatisfy(variant ->

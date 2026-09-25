@@ -80,6 +80,7 @@ public class OfficialRoutePlanner {
     private final OfficialDepthPlanner depthPlanner;
     private final RoutePlannerTuning tuning;
     private final EngineeringRouteEvaluator engineeringEvaluator = new EngineeringRouteEvaluator();
+    private final ExpertChamberRouteValidator chamberValidator = new ExpertChamberRouteValidator();
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     @Autowired
@@ -290,11 +291,12 @@ public class OfficialRoutePlanner {
                     evaluation.insufficientSpacingCount());
         }
 
-        // Official-invalid drafts remain diagnostic implementation details. Additional expert
-        // geometry rules are published separately as warnings so the three objective-specific
-        // official-valid alternatives remain available for comparison and further correction.
+        // Уточнение по камерам обязательно для всех ролей, включая экономическую.
+        // Остальные экспертные предупреждения о поворотах не подменяют официальный валидатор.
         variants = variants.stream()
                 .filter(RouteVariant::isValid)
+                .filter(variant -> chamberValidator
+                        .validate(variant.getNodes(), variant.getEdges()).isEmpty())
                 .collect(Collectors.toList());
 
         Map<String, Integer> rankById = new HashMap<>();
@@ -353,6 +355,7 @@ public class OfficialRoutePlanner {
                     evaluation.insufficientSpacingCount()
                             + " consecutive bend pairs are less than 2 m apart"));
         }
+        issues.addAll(chamberValidator.validate(variant.getNodes(), variant.getEdges()));
         return variant.withEngineeringIssues(issues);
     }
 

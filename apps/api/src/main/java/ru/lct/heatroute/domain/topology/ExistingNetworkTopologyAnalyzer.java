@@ -210,17 +210,7 @@ public class ExistingNetworkTopologyAnalyzer {
     private Map<String, Integer> incidentCounts(
             List<ImportedOfficialFeature> chambers,
             List<ImportedOfficialFeature> segments) {
-        Map<String, Integer> result = new HashMap<>();
-        for (ImportedOfficialFeature chamber : chambers) {
-            int count = 0;
-            for (ImportedOfficialFeature segment : segments) {
-                if (segment.getMetricGeometry().distance(chamber.getMetricGeometry()) <= COORDINATE_TOLERANCE_M) {
-                    count++;
-                }
-            }
-            result.put(chamber.getFeatureId(), count);
-        }
-        return result;
+        return new ExistingNetworkIncidence(segments).countsByChamber(chambers);
     }
 
     private List<TieInCandidate> createCandidates(

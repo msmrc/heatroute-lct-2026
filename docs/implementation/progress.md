@@ -1,5 +1,37 @@
 # Current implementation progress
 
+## 2026-09-25 — source92: вместимость камер по исходной геометрии
+
+[PRIMARY_ROUTING_92.md](PRIMARY_ROUTING_92.md): проходящая существующая линия занимает2
+примыкания, конец1; повторные проходы/self-cross считаются полностью. Planner/topology reuse,
+независимый final и saved export используют исходный импорт, а не заниженный saved count.
+34новыхслучая; focused90PASS. Независимое review выявило и проверило исправление ещё2RED.
+Финальный frozen master fast:1731cases/1728PASS/0fail/error/3scale skip,28,642с. Три долгих
+dataset/control-класса исключены явно; web36+37/lint/typecheckPASS. Первый общий запуск
+выявил13ошибок неоднозначного reflection helper после merge; имя memo-helper отделено
+в2d513b1, прежние21preparation/priority cases и общий набор теперь зелёные.
+Исходная геометрия отсутствует — прежняя compatibility сохраняется, strict support-presence
+не заявляем. Нормали камер/камера→поворот2м/дороги90–100, полный dataset/compact, Compose,
+deploy/scale/R/G остаются открыты. SSH и уточнение смысла2м запрошены пользователю.
+
+## 2026-09-25 — единый master: слияние проверено
+
+Коммит `e5d8d01` объединяет `a180525` (оба обновления Артёма) и `344c259`
+(source63–91, включая сохранённую рабочую оптимизацию). Два конфликта разрешены с
+сохранением направленной проверки road/tram и повторного использования видимости.
+Frozen merge fast: 1697 случаев / 1694 PASS / 0 failures/errors / 3 scale skipped,
+29,016 с. Три долгих dataset/control-класса исключены явно; полного green gate нет.
+Web: 36 Vitest + 37 script tests, lint/typecheck PASS. Добавлены 68 source91 equivalence
+и 4 merge-direction cases; два старых call-count теста уточнены без ослабления маршрутов.
+Подробности и оставшиеся требования: [MASTER_CONSOLIDATION_2026_09_25.md](MASTER_CONSOLIDATION_2026_09_25.md).
+Текущая политика источников: [ACTIVE_ROUTING_RULES.md](ACTIVE_ROUTING_RULES.md), только ТЗ
+и подтверждённый Евгений. Три СП исключены из активных заданий. Работа только на `master`
+в текущем корне; старое требование E: отменено. Готовые docs соседней задачи включаются
+в общий master. Source92 — отдельное correctness-изменение, не часть этого merge gate.
+Production отвечает ready, но deploy/Compose не выполнены: pwsh/Docker отсутствуют,
+SSH-доступ не установлен; прежний full90 завершился с compact FAIL. R/G не закрыты.
+
+
 ## 2026-09-25 — source90: отступы endpoint и сохранённого экспорта
 
 [Исправление и evidence](PRIMARY_ROUTING_90.md). Перепроверенные §2.2/§2.4 и разъяснения3/11

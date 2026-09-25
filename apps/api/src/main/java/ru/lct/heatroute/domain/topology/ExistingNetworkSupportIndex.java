@@ -24,8 +24,10 @@ public final class ExistingNetworkSupportIndex {
     private static final double TOLERANCE_M = 0.01;
     private final Map<String, Segment> byId = new HashMap<>();
     private final STRtree index = new STRtree();
+    private final ExistingNetworkIncidence incidence;
 
     public ExistingNetworkSupportIndex(Collection<ImportedOfficialFeature> features) {
+        incidence = new ExistingNetworkIncidence(features);
         OfficialPipeCatalog catalog = new OfficialPipeCatalog();
         for (ImportedOfficialFeature feature : features) {
             ensureActive();
@@ -82,6 +84,7 @@ public final class ExistingNetworkSupportIndex {
 
     /** Проверяет сохранённое значение; старые узлы без поля разрешает по исходному импорту. */
     public RouteNode verified(RouteNode node) {
+        node = incidence.resolved(node);
         if (!node.isRoot() || !"new_tie_in_chamber".equals(node.getNodeType())) return node;
         int resolved = maximumDiameter(node.getTargetId(), node.getCoordinate().toCoordinate());
         if (node.getExistingIncidentDiameter() != null && node.getExistingIncidentDiameter() != resolved) {

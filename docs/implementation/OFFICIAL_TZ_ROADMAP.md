@@ -1,5 +1,16 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
+**Текущий source92:** [фактические примыкания камер](PRIMARY_ROUTING_92.md),34новыхслучая,
+focused90PASS; общий frozen fast1728PASS/0fail/error/3skip, web36+37/lint/typecheckPASS.
+Работа только в `master`; Git merge завершён, strict нормали/2м/дороги90–100 и
+полный dataset/compact/Compose/deploy/scale/R/G ещё открыты.
+
+**Единый master, 25.09.2026:** merge `e5d8d01` сохраняет изменения Артёма и source63–91.
+Fast1694PASS/0fail/error/3skip; web36+37/lint/typecheckPASS. Это не full dataset, Compose
+или deploy gate. [Объединение, новые источники и gaps](MASTER_CONSOLIDATION_2026_09_25.md);
+[активный реестр](ACTIVE_ROUTING_RULES.md) заменяет прежние поручения исследовать СП.
+Full90 завершён с1compactFAIL; старые live-статусы ниже исторические. R/G не закрыты.
+
 **Статус документа:** рабочая база для ПМа и разработчиков
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
@@ -287,7 +298,7 @@ production build проходят локально и в `ci #99`; UI развё
 > луч только в существующую камеру. Нельзя отказаться от доступного подключения ради score.
 > Нет реконструкции существующей сети; глубина — отдельный необязательный режим.
 > Реестр источников, инженерных эвристик и открытых проверок:
-> [ROUTING_STANDARDS_APPLICABILITY.md](ROUTING_STANDARDS_APPLICABILITY.md).
+> [ACTIVE_ROUTING_RULES.md](ACTIVE_ROUTING_RULES.md). СП исключены из активных источников.
 > Нижеследующий вывод и старые записи gates являются историческими, а не новой приёмкой.
 
 **Текущий source61, fresh dataset/native/UI PASS:** основной fixture результат1857,155 м/

@@ -10,6 +10,7 @@ import java.util.Set;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.routing.ExpertChamberRouteValidator;
 import ru.lct.heatroute.domain.routing.OfficialRouteDeflectionRules;
+import ru.lct.heatroute.domain.routing.OfficialRouteValidator;
 import ru.lct.heatroute.domain.routing.RouteCoordinate;
 import ru.lct.heatroute.domain.routing.RouteEdge;
 import ru.lct.heatroute.domain.routing.RouteNode;
@@ -67,6 +68,10 @@ final class SavedChamberAssessment {
             List<RouteValidationIssue> turns =
                     OfficialRouteDeflectionRules.validateDegreeTwoNodes(nodes, endpoints);
             if (!turns.isEmpty()) throw new IllegalArgumentException(turns.get(0).getCode() + ": " + turns.get(0).getSubjectId());
+            List<RouteValidationIssue> capacity = OfficialRouteValidator.chamberCapacityIssues(nodes, edges);
+            if (!capacity.isEmpty()) {
+                throw new IllegalArgumentException(capacity.get(0).getCode() + ": " + capacity.get(0).getSubjectId());
+            }
             List<RouteValidationIssue> chamberIssues = new ExpertChamberRouteValidator().validate(
                     nodes, edges, edge -> measuredLengthsM.get(edge.getId()));
             if (!chamberIssues.isEmpty()) {

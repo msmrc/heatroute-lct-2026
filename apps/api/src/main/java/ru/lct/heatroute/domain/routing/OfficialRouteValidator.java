@@ -15,6 +15,7 @@ import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
+import ru.lct.heatroute.domain.topology.ExistingNetworkIncidence;
 
 /** Независимо проверяет топологию, обязательные повороты, пересечения и пространственные ограничения. */
 @Component
@@ -68,7 +69,8 @@ public class OfficialRouteValidator {
         }
 
         validateRootsAndCycles(nodes, upstreamByDownstream, issues);
-        validateChambers(nodes, upstreamByDownstream, childCount, issues);
+        validateChambers(nodes, childCount, issues);
+        issues.addAll(chamberCapacityIssues(nodes, edges));
         issues.addAll(OfficialRouteDeflectionRules.validate(nodes, edges));
         validateCrossings(nodeById, edges, issues);
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
@@ -94,6 +96,8 @@ public class OfficialRouteValidator {
      */
     final class ValidationSession {
         private final PreparedValidationConstraints preparedConstraints;
+        private List<ImportedOfficialFeature> incidenceFeatures;
+        private ExistingNetworkIncidence incidence;
 
         private ValidationSession() {
             preparedConstraints = geometryRules == null ? null : new PreparedValidationConstraints(geometryRules);
@@ -107,12 +111,27 @@ public class OfficialRouteValidator {
             if (OfficialRouteValidator.this.getClass() != OfficialRouteValidator.class) {
                 return OfficialRouteValidator.this.validate(nodes, edges, features);
             }
-            return OfficialRouteValidator.this.validate(nodes, edges, features,
+            if (features == null && geometryRules == null) return OfficialRouteValidator.this.validate(nodes, edges);
+            if (incidenceFeatures != features) {
+                incidence = new ExistingNetworkIncidence(features);
+                incidenceFeatures = features;
+            }
+            return OfficialRouteValidator.this.validateWithResolvedIncidence(incidence.resolved(nodes), edges, features,
                     preparedConstraints != null && preparedConstraints.supports(features) ? preparedConstraints : null);
         }
     }
 
     private List<RouteValidationIssue> validate(
+            List<RouteNode> nodes,
+            List<RouteEdge> edges,
+            List<ImportedOfficialFeature> features,
+            PreparedValidationConstraints preparedConstraints) {
+        if (features == null && geometryRules == null) return validate(nodes, edges);
+        return validateWithResolvedIncidence(new ExistingNetworkIncidence(features).resolved(nodes),
+                edges, features, preparedConstraints);
+    }
+
+    private List<RouteValidationIssue> validateWithResolvedIncidence(
             List<RouteNode> nodes,
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
@@ -291,7 +310,6 @@ public class OfficialRouteValidator {
 
     private void validateChambers(
             List<RouteNode> nodes,
-            Map<String, RouteEdge> upstreamByDownstream,
             Map<String, Integer> childCount,
             List<RouteValidationIssue> issues) {
         for (RouteNode node : nodes) {
@@ -302,14 +320,26 @@ public class OfficialRouteValidator {
                         node.getId(),
                         "A route can branch only in a chamber"));
             }
-            int routeIncident = children + (upstreamByDownstream.containsKey(node.getId()) ? 1 : 0);
-            if (routeIncident + node.getBaseIncidentSections() > 4) {
-                issues.add(issue(
+        }
+    }
+
+    /** Проверяет лимит четырёх участков; перед вызовом исходные примыкания разрешаются по импорту. */
+    public static List<RouteValidationIssue> chamberCapacityIssues(List<RouteNode> nodes, List<RouteEdge> edges) {
+        Map<String, Integer> incident = new HashMap<>();
+        for (RouteEdge edge : edges) {
+            incident.merge(edge.getUpstreamNodeId(), 1, Integer::sum);
+            incident.merge(edge.getDownstreamNodeId(), 1, Integer::sum);
+        }
+        List<RouteValidationIssue> issues = new ArrayList<>();
+        for (RouteNode node : nodes) {
+            if (incident.getOrDefault(node.getId(), 0) + node.getBaseIncidentSections() > 4) {
+                issues.add(new RouteValidationIssue(
                         "CHAMBER_DEGREE_EXCEEDED",
                         node.getId(),
                         "No chamber may have more than four incident sections"));
             }
         }
+        return issues;
     }
 
     /** Проверяет всё ребро: короткий или повторный первый сегмент не отменяет проверку остальной геометрии. */

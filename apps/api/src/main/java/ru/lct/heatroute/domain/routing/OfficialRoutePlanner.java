@@ -40,6 +40,7 @@ import ru.lct.heatroute.domain.sizing.NetworkTreeEdge;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
 import ru.lct.heatroute.domain.sizing.SizedNetworkEdge;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
+import ru.lct.heatroute.domain.topology.ExistingNetworkIncidence;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
@@ -5106,16 +5107,7 @@ public class OfficialRoutePlanner {
     }
 
     private Map<String, Integer> chamberIncidentCounts(List<ImportedOfficialFeature> features) {
-        List<ImportedOfficialFeature> chambers = byType(features, "heat_chamber");
-        List<ImportedOfficialFeature> segments = byType(features, "heat_network");
-        Map<String, Integer> result = new HashMap<>();
-        for (ImportedOfficialFeature chamber : chambers) {
-            int count = (int) segments.stream()
-                    .filter(segment -> segment.getMetricGeometry().distance(chamber.getMetricGeometry()) <= 0.01)
-                    .count();
-            result.put(chamber.getFeatureId(), count);
-        }
-        return result;
+        return new ExistingNetworkIncidence(features).countsByChamber(features);
     }
 
     private List<Demand> demands(

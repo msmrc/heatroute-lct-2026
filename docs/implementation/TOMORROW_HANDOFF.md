@@ -1,6 +1,16 @@
 # Handoff — Артём / PM / developer
 
-## Текущий source70: bounded spatial validation, full/fresh ещё впереди
+## Текущий source71: bounded terminal shortening, ещё не fresh
+
+Сначала [PRIMARY_ROUTING_71.md](PRIMARY_ROUTING_71.md).125focusedPASS, реальный80→60RED→GREEN.
+Production-helper replay всех69ролей:shortest/cheapest2068,786м/11камер/22поворота/0expert/
+283006479,92₽,balanced прежний;17/17/depth/strict export3ролей PASS. Не fresh71.
+Full **compiled70** ещё использует frozen target (`source70-full.log`); его не перезаписывать.
+После завершения сохранить reports/result70, сравнить exact variants с69, затем clean/full71,
+fresh71/roads/картинки/native. Runtime61 не обновлялся. Source71 classes только в isolated
+`shortening71-focused.U9DmSn`; не подставлять их в gate70 и не использовать их как full build.
+
+## Предыдущий source70: bounded spatial validation, full/fresh ещё впереди
 
 Сначала [PRIMARY_ROUTING_70.md](PRIMARY_ROUTING_70.md). Focused101PASS, validation-only
 replay69 3роли×3повтора:exact issues0,655buffers/43183coord стабильно после прогрева.

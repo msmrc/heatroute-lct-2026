@@ -277,6 +277,8 @@ public class OfficialRoutePlanner {
                 .select(finalized, validatedParameters.isDepthEnabled());
         variants = relocateSelectedVariants(variants, demands, features, validatedParameters,
                 reconstructionRequired, routingEnvironment);
+        variants = shortenSelectedTerminals(variants, demands, features, validatedParameters,
+                reconstructionRequired, routingEnvironment);
         routingEnvironment.logVisibilitySummary("finalized_portfolio");
         for (RouteVariant variant : variants) {
             logVariantSummary(variant);
@@ -2311,6 +2313,54 @@ public class OfficialRoutePlanner {
             List<Demand> demands, OfficialRoutingEnvironment environment) {
         return assessedChamberMergeCandidates(source, demands, environment, 80.0, 4,
                 Comparator.comparing(RouteEdge::getLengthM).thenComparing(RouteEdge::getId), true);
+    }
+
+    /**
+     * После выбора и переноса камер убирает лишние обходы уже допустимых вводов.
+     * Ограниченные локальные предложения проходят полный finish; исходные роли сохраняются.
+     */
+    List<RouteVariant> shortenSelectedTerminals(List<RouteVariant> selected, List<Demand> demands,
+            List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
+            boolean reconstructionRequired, OfficialRoutingEnvironment environment) {
+        Map<String, Demand> demandsByNode = demands.stream().collect(Collectors.toMap(
+                demand -> "demand:" + demand.id, demand -> demand));
+        List<RouteVariant> alternatives = new ArrayList<>(selected);
+        FinalizedTerminalShortener shortener = new FinalizedTerminalShortener();
+        for (RouteVariant original : selected) {
+            RouteVariant improved = shortener.improve(original, parameters.isDepthEnabled(),
+                    (current, edge) -> terminalShorteningPaths(current, edge, demandsByNode, environment),
+                    (current, edges) -> withEngineeringAssessment(finish(
+                            "shortened-" + original.getId(), original.getStrategy(),
+                            new VariantDraft(current.getNodes(), edges, current.getConnections()),
+                            features, parameters, reconstructionRequired, environment)));
+            if (improved == original) continue;
+            alternatives.add(improved);
+            LOGGER.info("Terminal shortening role={} length_before_m={} length_after_m={} bends_before={} bends_after={}",
+                    original.getId(), original.getTotalLengthM(), improved.getTotalLengthM(),
+                    engineeringEvaluator.evaluate(original.getEdges()).bendCount(),
+                    engineeringEvaluator.evaluate(improved.getEdges()).bendCount());
+        }
+        return new FinishedRouteVariantSelector().select(alternatives, parameters.isDepthEnabled());
+    }
+
+    private List<RoutePath> terminalShorteningPaths(RouteVariant current, RouteEdge edge,
+            Map<String, Demand> demandsByNode, OfficialRoutingEnvironment environment) {
+        Demand demand = demandsByNode.get(edge.getDownstreamNodeId());
+        if (demand == null || edge.getDiameter() == null) return List.of();
+        RouteNode upstream = current.getNodes().stream()
+                .filter(node -> node.getId().equals(edge.getUpstreamNodeId())).findFirst().orElse(null);
+        if (upstream == null) return List.of();
+        List<RouteEdge> supporting = current.getEdges().stream()
+                .filter(other -> !other.getId().equals(edge.getId()))
+                .filter(other -> other.getUpstreamNodeId().equals(upstream.getId())
+                        || other.getDownstreamNodeId().equals(upstream.getId()))
+                .collect(Collectors.toList());
+        if (supporting.isEmpty()) return List.of();
+        CorridorTerminalRouter terminal = new CorridorTerminalRouter(obstacleRouter, environment,
+                (id, port, diameter, avoidance) -> null, corridorEdgeOrientation(supporting));
+        return terminal.localAlternatives(demand.id, demand.coordinate,
+                upstream.getCoordinate().toCoordinate(), edge.getDiameter()).stream()
+                .map(RoutePath::reversed).collect(Collectors.toList());
     }
 
     /** Улучшает только три выбранные роли, сохраняя исходные сети для повторного итогового отбора. */

@@ -1,6 +1,11 @@
 # Доводка основного алгоритма после обновления Артёма
 
-**Текущий этап:** [source70: bounded spatial validation](PRIMARY_ROUTING_70.md).
+**Текущий этап:** [source71: короткие допустимые вводы](PRIMARY_ROUTING_71.md).
+125focusedPASS; production-helper replay69 shortest/cheapest2068,786м/11камер/22поворота/
+0expert,17/17/depth/strict export3ролей PASS. Это не fresh71; compiled70 ещё выполняется.
+Runtime61/G/R-gates остаются открытыми.
+
+Предыдущий [source70](PRIMARY_ROUTING_70.md):
 Focused101PASS; validation replay69 exact3×3/0issues,без повторного buffer после прогрева.
 Full/fresh70 ещё не выполнены; roads69 завершён1054,672с/17of17/strict export3ролей PASS,
 shortest/cheapest2260,959м/11камер/33поворота/0expert. Ни один R-gate не закрыт.

@@ -1,5 +1,15 @@
 # Current implementation progress
 
+## 2026-09-25 — source71: короткие вводы после выбора готовых ролей
+
+[PRIMARY_ROUTING_71.md](PRIMARY_ROUTING_71.md): отдельный bounded local-pass после relocation,
+исходные сети сохранены, каждый кандидат пересчитывается полностью. RED80→60 на реальном
+planner, component16GREEN, общий focused125PASS. Production-helper replay69:shortest/cheapest
+2068,786м/11камер/22поворота/0expert/283006479,92₽,balanced неизменён;17/17/depth/strict export
+3ролей PASS,2,520с; web36/scripts37/lint/typecheckPASS. Это не fresh71;
+полный compiled70 ещё выполняется и не включает71.
+Runtime61 сохранён, общий quality/performance/R-gate открыт.
+
 ## 2026-09-25 — source70: пространственная подготовка точного валидатора
 
 [PRIMARY_ROUTING_70.md](PRIMARY_ROUTING_70.md): bounded source/bounds/heavy buffers устраняют

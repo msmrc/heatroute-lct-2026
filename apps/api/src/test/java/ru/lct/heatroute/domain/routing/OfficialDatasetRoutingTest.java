@@ -87,8 +87,13 @@ class OfficialDatasetRoutingTest {
                 .filter(variant -> "shortest".equals(variant.getId())).findFirst().orElseThrow();
         RouteVariant cheapest = result.getVariants().stream()
                 .filter(variant -> "cheapest".equals(variant.getId())).findFirst().orElseThrow();
-        assertThat(engineering.getEngineeringIssues()).as(engineeringDiagnostics(engineering)).isEmpty();
-        assertThat(shortest.getEngineeringIssues()).as(engineeringDiagnostics(shortest)).isEmpty();
+        // Экономическая роль не должна незаметно вернуть плохие углы после finish/переноса камер.
+        // Проверяем и опубликованную диагностику, и фактические полилинии всех трёх ролей.
+        assertThat(result.getVariants()).allSatisfy(variant -> {
+            assertThat(variant.getEngineeringIssues()).as(engineeringDiagnostics(variant)).isEmpty();
+            assertThat(new EngineeringRouteEvaluator().evaluate(variant.getEdges()).isCompliant())
+                    .as("Final engineering geometry: " + variant.getId()).isTrue();
+        });
         assertThat(shortest.getTotalLengthM()).isLessThanOrEqualTo(engineering.getTotalLengthM());
         assertThat(result.getVariants()).allSatisfy(variant ->
                 assertThat(cheapest.getEconomics().getCalculatedCost())

@@ -4,6 +4,18 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Свежий результат81:**1234cases/1230PASS/1compactFAIL/0errors/3skip;462,736с.
+17/17/geometry/sizing/depth/economics/strict export; shortest/cheapest2068,786м/11камер/0bad bends,
+exact75. Это восстановление регрессии77–80, не рекорд; balanced2194,257м/14камер как80.
+Advisory всё ещё находит2почти параллельных выхода камер, а roads77/79 завершились16/17 и15/17.
+Жив roads81session30394; усиленный all-role dataset test78303 завершён2/2PASS,494,770с,
+exact variants первого81. Прежние full81/80/79/roads77/79 завершены. Детали/изображения/границы
+в [81](PRIMARY_ROUTING_81.md). Runtime61/VPS прежние;
+compact/G2/native/Compose/scale/R/общая цель **не закрыты**. Далее записи checkpoint в историческом порядке.
+Отдельно воспроизведены3синтетических дефекта общего trunk —
+[направление/техническое дробление](CORRIDOR_TRUNK_ADMISSION.md),52characterization assertions;
+это следующий correctness scope, не уже готовое исправление.
+
 **Приоритетная актуализация — source81:** [основной TOWARD preservation](PRIMARY_ROUTING_81.md).
 Full79 завершён, exact variants78/79 и3bad angles у cheapest. В81 исправление valid-network
 preservation распространено на основной режим с сохранением проверки его вводов.3новыхtests,

@@ -1,5 +1,24 @@
 # Current implementation progress
 
+## 2026-09-25 — свежий81: регрессия поворотов устранена, качество ещё не целиком принято
+
+Full1234cases/1230PASS/1прежний compactFAIL/0errors/3scale skip; original462,736с/concave5,845с.
+Все17/17/geometry/sizing/depth/economics/strict export PASS. Shortest/cheapest2068,786м/11новых
+камер/22поворота/0bad angles/0close pairs; exact variants75. Balanced2194,257м/14камер/26поворотов,
+exact79/80. Сравнение времени под параллельной нагрузкой не доказывает ускорение.
+Отдельно проверены topology/flows/slots/endpoints/actual lengths. Картинка81/Евгений построена
+и просмотрена, SHA+все source geometry сверены. +154,927м к эталону;22поворота против15.
+**Advisory:2почти параллельных выхода камер177/560** — остаются отдельной задачей, хотя bend
+compliance проходит. Усилен постоянный dataset test на все роли: fresh повтор78303 завершён
+2/2PASS,494,770с/concave7,637с, strict exportPASS, exact variants первогоfull81. Reports сохранены.
+Roads77exit1:2990,305с/16of17; roads79exit1:3529,887с/15of17/только2роли. Targets77/79 свободны.
+Новый roads81session30394 использует frozen source81 target; source81-quality.iLac2n теперь свободен.
+Runtime61/VPS прежние, исходники production81 не менялись. Все границы/handles/evidence в81/handoff.
+Subagent+parent воспроизвели3малых trunk-контрпримера/52assertions: неверная сторона проверки
+в grid, канонический порядок вместо rooted и требование complete-special от технических pieces.
+[Следующий fix](CORRIDOR_TRUNK_ADMISSION.md) ещё не внесён. Снят30сJFR дорог81,1477main samples,
+не end-to-end benchmark. Новый web36/scripts37/lint/typecheck PASS (`source81-quality-web.log`).
+
 ## 2026-09-25 — full80 завершён: свежая эквивалентность79 подтверждена
 
 1231cases/1227PASS/1прежний compactFAIL/0errors/3scale skip,120классов. Original fixture613,702с,

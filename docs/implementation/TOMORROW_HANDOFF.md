@@ -1,5 +1,27 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: full81 восстановил повороты; roads и подходы к камерам не приняты
+
+Сначала [PRIMARY_ROUTING_81.md](PRIMARY_ROUTING_81.md), разделы свежего результата и продолжения.
+Full81 завершён1234cases/1230PASS/1прежний compactFAIL/0errors/3skip; fresh462,736с.
+Все17/17/strict export; shortest/cheapest2068,786м/11новых камер/22поворота/0bad bend angles,
+exact variants75. Balanced2194,257м/14камер/26поворотов, exact79/80. Ускорение не доказано.
+**Advisory выявил две почти совпадающие пары выходов камер177/560**:0,0033°/0,0243°.
+0engineering issues не означает решение этих подходов; не закрывать quality/цель.
+Картинка81 с Евгением построена/просмотрена; эталон1913,859м/11маркеров/15поворотов, не нормативная приёмка.
+
+Roads77/79 завершены exit1:77=16/17,79=15/17 и нет shortest; подробные причины в81.
+Targets77/79 свободны. Живой: **roads81session30394** на frozen `.tooling/source81-build.Ndryzg`
+(runner `.tooling/scenario81.nROI5w`). Усиленный dataset test **session78303 завершён2/2PASS**:
+494,770с, exact variants первогоfull81. Target `.tooling/source81-quality.iLac2n` свободен,
+reports сохранены. Логи/результаты `.tooling/intake-20260925/`.
+В tracked test теперь проверяются углы cheapest; web36/scripts37/lint/typecheck тоже PASS.
+Не чистить живые targets/не дублировать jobs. Runtime61/VPS неизменны; native/Compose/scale/G2/R открыты.
+Следующий доказанный bugfix — [CORRIDOR_TRUNK_ADMISSION.md](CORRIDOR_TRUNK_ADMISSION.md):
+F1–F3,3сценария/52assertions повторены основным агентом; production ещё не менялся.
+Субагент завершён/закрыт. Roads81 включает30-секундный JFR, его время не является чистым benchmark.
+Ниже исторические записи, не актуальный live-реестр.
+
 ## Актуально: source81 — preservation подключён к основному режиму
 
 Сначала [PRIMARY_ROUTING_81.md](PRIMARY_ROUTING_81.md). Full79 завершён1226cases/1222PASS/

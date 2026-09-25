@@ -2,6 +2,12 @@
 
 25.09.2026, `codex/routing-63-geometry`, `global-tree-73`. Исправление ошибки, не новая
 инженерная норма и не завершение G2/R. Основной алгоритм; runtime61/VPS не менялись.
+Код `c4749e1` pushed, remote SHA `c4749e1a38d2611b86a47186e2d7f8f199840936` проверен.
+Теперь **clean/full73 без исключений session8395** работает в отдельном snapshot
+`.tooling/source73-build.6qc6Dq/apps/api` (лог `source73-full.log`). Не менять его target
+до завершения. Основной target всё ещё обслуживает roads72session19058.
+Accepted `source73-result.json` появляется после assertions; `source73-diagnostic.json`
+сохраняется отдельно и не подтверждает прохождение. Snapshot fast1076 уже сохранён.
 
 ## Воспроизведённая проблема
 
@@ -56,7 +62,8 @@
 
 ## Следующий обязательный scope
 
-1. Выполнить отдельный clean/full73 и fresh original/roads; fast73 уже завершён и сохранён.
+1. Дождаться clean/full73session8395, сохранить reports и проверить accepted/метрики/export;
+   затем fresh roads73. Fast73 уже завершён и сохранён.
 2. Дождаться fresh roads72 session19058: не перезаписывать основной `apps/api/target` до
    завершения. Его результат нельзя приписывать73. Параллельное время не является SLA.
 3. Final-diameter retention в `ensureMandatoryEgress` ещё проверяет части раздельно и может
@@ -70,3 +77,19 @@
 строгие geometry/depth/economics/export проверки трёх ролей PASS. Все поля вариантов совпали
 с71 при сравнении значений без учёта порядка JSON-ключей; это не улучшение длины/скорости.
 Ручная схема Евгения — ориентир1913,859м/11узловых маркеров, не сертифицированный эталон норм.
+
+## Следующее измеренное узкое место — поиск roads72
+
+Read-only thread snapshot показал CPU работу, не deadlock: после17минут поиском проверено
+свыше138млнпар, расчёт ещё не завершён.45с JFR на живом72 PID33818:1874main samples;
+94,5% включают shortestPath,87,9% segmentAllowed,46,7% road segmentAllowed,43,8% crossings,
+35,1% JTS intersection. Это включающие доли, они не складываются. Recorded stacks частично
+обрезаны глубиной записи; это профиль участка72, не время всей73 и не SLA.
+Evidence `source72-roads-search.jfr`, `source72-roads-search-samples.json`,
+`source72-roads-thread.txt`; запись завершилась, сам расчёт продолжает работать.
+
+Следующая performance-проба: точное извлечение интервалов пересечения **прямого звена** с
+Polygon/MultiPolygon без построения полного JTS overlay-графа на каждую пару. До интеграции
+обязательны equivalence tests по входам/выходам, holes, tangent/boundary, overlap, направлению,
+углам, ±мм, UTM и отмене; исходный общий guard остаётся контролем. Подготовка геометрии может
+быть ограничена текущим расчётом, но не хранить ответы готовых построений. Пока не реализовано.

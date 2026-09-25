@@ -9,6 +9,8 @@ Snapshot/accepted/PNG72 сохранены. Roads72session19058 ещё рабо�
 157focusedPASS, web36/scripts37/lint/typecheckPASS. Fast Maven73 завершён в отдельном snapshot:
 1076cases/1073PASS/0fail/0error/3scale skip; это не full/fresh. Final-DU retention, логические crossing chains, compact и runtime
 остаются открытыми. Runtime61/VPS не менялись, G2/R/цель не закрываются.
+`c4749e1` отправлен, SHA проверен; clean/full73session8395 без исключений запущен в отдельном
+snapshot, `source73-full.log`. Оба target (основной72 и snapshot73) пока заняты.
 
 ## 2026-09-25 — source72 отправлен; clean/full запущен
 

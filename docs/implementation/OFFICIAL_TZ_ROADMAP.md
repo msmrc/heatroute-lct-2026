@@ -9,6 +9,7 @@
 1076cases/1073PASS/0fail/0error/3scale skip. Full72:1053cases/1049PASS/1compact failure/0errors/3scale skip;
 fresh521,534с/17of17/strict export3ролей PASS, значения variants как71. Roads72 ещё работает,
 основной target не перезаписывать. Ни full/fresh73, ни G2/compact/native/Compose/scale не закрыты.
+`c4749e1` pushed; clean/full73session8395 запущен без исключений в отдельном snapshot.
 Ниже — история предыдущих checkpoint, а не текущие статусы запущенных процессов.
 
 **Текущий source72, WIP:** [G2 road/tram/atomic sections](PRIMARY_ROUTING_72.md).

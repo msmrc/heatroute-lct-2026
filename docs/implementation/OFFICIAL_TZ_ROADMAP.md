@@ -7,8 +7,10 @@
 **Текущий source69, WIP:** [подготовка препятствий для валидатора](PRIMARY_ROUTING_69.md).
 JFR67 показал повторные JTS buffers внутри validation. Сессия расчёта удерживает только
 bounded-подготовку; геометрия проверяется заново, standalone/export не менялись.
-Isolated86/86PASS, subclass-hook сохранён после RED. Full/fresh69 ещё не выполнен;
-compiled67 выполняется отдельно, runtime61 сохранён. Ускорение/R-gates не заявляются.
+Код `63b0072`, isolated86/86PASS, subclass-hook сохранён после RED; web36/scripts37/lint/typecheckPASS.
+Clean/fresh69 выполняется. Compiled67 завершён:924cases/920PASS/1failure(compact-control)/3skip;
+fresh640,761с/17of17/strict export3ролей PASS, shortest/cheapest11камер/2090,416м/23поворота/
+0expert. Runtime61 сохранён, ускорение/R-gates не заявляются.
 
 **Предыдущий source68, WIP:** [сохранение исходных relocation-контролей](PRIMARY_ROUTING_68.md).
 Код `ae452a7`,79focusedPASS. Исправлена обнаруженная review потеря ещё не выполненного

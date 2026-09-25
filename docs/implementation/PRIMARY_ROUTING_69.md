@@ -45,7 +45,9 @@ planner используют эту сессию. Структурная про�
   окна/изменяемый источник, topology/length/self-intersection, независимость окружений и
   валидаторов, exceptions и legacy null-rules путь проверены.
 
-Полный Maven/fresh69 ещё не выполнен: сначала должен закончиться compiled67. Его `target`
-не менялся во время isolated-проб. Результат67 нельзя выдавать за69. Ускорение всего расчёта
+Код `63b0072` отправлен. Web36/scripts37/lint/typecheckPASS (`source69-web.log`).
+Compiled67 завершён, snapshot сохранён:924cases/1failure/3skip, fresh17/17/strict exportPASS.
+Новый clean Maven/fresh69 запущен на `63b0072`; результат ещё не получен.
+Во время isolated-проб67 его `target` не менялся. Результат67 нельзя выдавать за69. Ускорение всего расчёта
 и неизменность итогового portfolio требуют свежего прогона. Compact-control, новый
 roads+kindergarten, native69, Compose, scale и R-этапы открыты.

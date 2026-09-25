@@ -4,8 +4,10 @@
 
 Сначала [PRIMARY_ROUTING_69.md](PRIMARY_ROUTING_69.md): measured hot spot JFR67, сессия
 точного валидатора, неизменные проверки/standalone-export. Subclass-hook сохранён после
-реального RED, isolated86/86PASS. Дождаться compiled67 без конкурирующего Maven, сохранить
-snapshot/результат, затем полный/fresh69 и roads+kindergarten. Не использовать старые
+реального RED, isolated86/86PASS, код `63b0072` отправлен; web36/scripts37/lint/typecheckPASS.
+Compiled67 завершён:924cases/920PASS/1failure(compact-control)/3skip; fresh640,761с/17of17/
+strict exportPASS, shortest/cheapest11камер/2090,416м/23поворота/0expert. Snapshot/PNG сохранены.
+Clean/fresh69 выполняется без конкурирующего Maven; после него roads+kindergarten. Не использовать старые
 isolated planner68-классы впереди нового target69. Runtime61 пока сохранён.
 
 ## Предыдущий source68: контрольные relocation-ветви сохранены

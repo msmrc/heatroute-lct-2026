@@ -7,8 +7,11 @@ JTS-буферов внутри validation. Четыре geometry-вызова p
 валидатора; сама проверка маршрута повторяется, standalone/export остаётся независимым.
 Integration RED поймал обход subclass-hook; сохранён публичный override-путь.
 Isolated86/86PASS, включая11новых exact-equivalence/real-buffer/ownership тестов и
-relocation68. Source69 ещё не прошёл полный/fresh gate; compiled67 выполняется отдельно,
-runtime61 сохранён. Нет заявления об ускорении/релизной готовности.
+relocation68. Код `63b0072` отправлен, web36/scripts37/lint/typecheckPASS. Compiled67
+завершён:924cases/920PASS/1failure(compact-control)/3skip. Fresh640,761с/17of17/strict export
+всех3ролей PASS. Shortest/cheapest2090,416м/11новых камер/23поворота/0expert; balanced прежний.
+Snapshot и новое PNG67/Evgeny сохранены, изображение просмотрено/показано. Clean/fresh69
+запущен отдельно, результата пока нет. Runtime61 сохранён, ускорение/релиз не заявлены.
 
 ## 2026-09-25 — source68: сохранение исходных relocation-контролей
 

@@ -6,7 +6,33 @@
 
 **Последующее review:** обнаружена потеря возможностей переноса у вытесненных seeds.
 Исправлено в [68](PRIMARY_ROUTING_68.md); текущий compiled67-прогон — промежуточный,
-его нельзя объявлять итоговым no-loss gate или переносить результат на68.
+его нельзя объявлять итоговым no-loss gate или переносить результат на68/69.
+
+## Завершённый fresh67
+
+Clean924:920PASS/1failure/0errors/3scale skipped. Единственный failure — прежний
+compact-control (≤13камер/<1860м); его пороги не менялись. Fresh all-demand fixture
+640,761с,17/17,геометрия/ДУ/глубина/экономика и strict export всех3вариантов PASS.
+
+| Роль | Длина,м | Новые узловые камеры | Существующие/новые корни | Повороты | Expert issues | Цена,₽ |
+|---|---:|---:|---:|---:|---:|---:|
+| balanced |2192,523|14|1/0|25|0|302839881,84|
+| shortest / cheapest |2090,416|11|1/0|23|0|284949407,70|
+
+Score shortest/cheapest14,249831416, preferred=cheapest. Против66 устранён последний
+неподходящий угол, длина−1,858м, цена−195821,00₽, повороты24→23. Shortest теперь тоже
+получает исправленную11-камерную сеть; balanced не изменился. Ускорение не заявляется:
+640,761с против652,482с — одиночные не изолированные прогоны (JFR/focused-пробы).
+
+Evidence: `source67-full.log`, полный `source67-surefire-reports/`, принятый
+`source67-result.json` и отдельный before_assertions `source67-diagnostic.json`.
+`source67-cheapest-comparison/side-by-side.png` отрендерен, просмотрен и показан пользователю.
+Одинаковые масштаб/охват, исходные вершины без сглаживания, provenance1.geojson проверен.
+У Евгения1913,859м/11узловых маркеров; наша сеть длиннее176,557м. Эталон — геометрический
+ориентир, его соответствие новым нормалям/отступам не утверждается. Это не новая PDF-схема.
+
+Runtime61 остаётся прежним. Source68 исправляет выявленную review потерю seeds; source69
+добавляет bounded-подготовку validation. Полный69 уже запущен, выводы67 на него не переносятся.
 
 ## Причина геометрического дефекта
 
@@ -53,17 +79,15 @@ Constraint, не feature ID. Между поисками контекст не �
 - `source67-late-repair-focused.log`:77/77PASS. Затем добавлен реальный park-detour контроль:
   экспертно правильный, но более длинный/дорогой ремонт не заменяет исходную экономическую
   роль. `source67-late-repair-guards.log`:4/4PASS.
-- `source67-full.log`:clean Java924 запущен на `da44a56`; итог ещё не получен.
-  Fresh bundle67 и его strict export ещё не подтверждены. Старый compact-control не ослаблен.
+- `source67-full.log`:clean Java924 на `da44a56` завершён; итог/ограничения указаны выше.
+  Fresh bundle67/strict export подтверждены. Старый compact-control не ослаблен.
 - `source67-web.log`:web36 +scripts37, lint/typecheckPASS.
 - Native67, Compose, roads+kindergarten и scale не выполнены. Docker/pwsh отсутствуют.
 
 ## Следующее действие
 
-Дождаться текущего clean-прогона, не запускать второй Maven поверх `target` и не перезапускать
-fixture без причины. Сверить accepted `source67-result.json` (не before_assertions diagnostic),
-все3роли,17/17,strict export,камеры/цену/длину/углы и fresh время против66.
-Если результат подтверждён — новое сравнение с Евгением и только затем решение о native smoke.
+Snapshot67 и сравнение сохранены. Дождаться clean69, не запускать второй Maven поверх
+`target`; затем новый roads+kindergarten сценарий и решение о native smoke.
 Не подменять fresh проверку успешным replay66. G2 special/depth/existing-DU/PostGIS и
 непроверенные правила intake остаются отдельными открытыми пунктами; R-этапы не закрываются.
 

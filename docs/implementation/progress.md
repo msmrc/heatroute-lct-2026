@@ -1,5 +1,20 @@
 # Current implementation progress
 
+## 2026-09-25 — full75 завершён; рискованное A* отсечение отклонено
+
+[Checkpoint76](PRIMARY_ROUTING_76.md): обе performance-гипотезы отклонены, main source неизменён75.
+Два reviewer-контрпримера показали изменение маршрута из-за цепочек epsilon; верхняя граница
+по цели полностью удалена, оба RED закреплены среди12новых regression-тестов. Точная численная
+подготовка прошла6962differential/80192bitwise checks, но ускорения вmicro не дала и тоже удалена.
+Web36/scripts37/lint/typecheckPASS; конечный clean/fast Maven1137cases/1134PASS/0fail/0error/3skip.
+Main source побайтно совпал с full75;12новых tests включены,112классов. Предварительные
+1135cases отклонённого patch не являются его заменой. Найдены реальные shared-junction
+self-blocking и terminal-direction дефекты; следующее исправление отдельно от performance.
+Full75:1129cases/1125PASS/1compactFAIL/0errors/3skip;fresh526,467с/17of17/strict export3ролейPASS,
+exact variants74. Roads72 завершился failure16/17 во всех ролях, diagnostic сохранён,
+принятого результата нет. Roads75session70338 ещё работает на замороженном snapshot75target.
+Основной target72 освободился. Runtime61/VPS/compact/G2/native/Compose/scale/R остаются открытыми.
+
 ## 2026-09-25 — full74 завершён; final-ДУ retention исправлен в75
 
 Full конечных74session37091:1114cases/1110PASS/1прежний compact failure/0errors/3scale skip;

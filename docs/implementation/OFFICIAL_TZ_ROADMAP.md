@@ -4,7 +4,19 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
-**Приоритетная актуализация — source75 WIP:** [final-ДУ retention](PRIMARY_ROUTING_75.md).
+**Приоритетная актуализация — checkpoint76:** [отклонённые оптимизации и shared junction](PRIMARY_ROUTING_76.md).
+Небезопасное отсечение A* удалено после двух воспроизведённых epsilon-chain контрпримеров;
+Численная подготовка тоже не принята:6962exact PASS, но измеренного выигрыша нет.
+Production неизменён75;12новых priority regression tests, конечный clean/fast Maven1137cases/
+1134PASS/0fail/0error/3scale skip (три долгих класса исключены,main точно какfull75).
+Web36/scripts37/lint/typecheckPASS. Воспроизведены shared-junction self-blocking и terminal
+direction mismatch — следующие correctness-задачи, не доказанная причина неполных17подключений.
+Full75 завершён:1129cases/1125PASS/1compactFAIL/0errors/3skip;fixture526,467с/17of17/
+strict export3ролейPASS,exact variants74. Roads72 завершён failure16/17 во всех ролях;
+accepted отсутствует, diagnostic сохранён. Roads75session70338 ещё использует snapshot75target.
+Цель/compact/G2/native/Compose/scale/R не закрыты, runtime61/VPS прежние.
+
+**Предыдущий source75:** [final-ДУ retention](PRIMARY_ROUTING_75.md).
 Реальный RED потери допустимого ввода исправлен;15новых regression tests и независимое review.
 Fast Maven1125cases/1122PASS/0fail/0error/3scale skip;web36/scripts37/lint/typecheckPASS.
 Full/fresh конечных74 завершён:1114cases/1110PASS/1compact failure/0errors/3scale skip;

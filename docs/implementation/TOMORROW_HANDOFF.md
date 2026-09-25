@@ -1,5 +1,22 @@
 # Handoff — Артём / PM / developer
 
+## Приоритетная актуализация: audit76 / full75 завершён
+
+Сначала [PRIMARY_ROUTING_76.md](PRIMARY_ROUTING_76.md). Goal-priority pruning отклонён:
+два реальных epsilon-chain контрпримера. Численная подготовка эквивалентна, но измеренного
+выигрыша не дала: тоже удалена. Production **неизменён75**, только12новых SearchPriority tests
+и evidence. Web gatesPASS; конечный clean/fast Maven1137cases/1134PASS/0fail/0error/3skip,
+reports `source76-checkpoint-fast-reports/`, main побайтно как full75. Далее shared-junction self-blocking,
+потом отдельный terminal-direction mismatch; реальные small RED в76, не ослаблять нормы.
+Не использовать предварительные1135cases отклонённого patch как evidence конечного76.
+
+Full75session70380 **завершён**:1129cases/1125PASS/1compactFAIL/3skip;fresh526,467с,17/17,
+strict export3ролейPASS,exact variants74. Reports `source75-full-reports/`, accepted75 сохранён.
+Roads72session19058 тоже **завершён**, но failure16/17 во всех ролях; только diagnostic.
+Основной target теперь свободен. Snapshot75target всё ещё заморожен для **roads75session70338**,
+его не перезаписывать. Runtime61/VPS не менялись; compact/G2/native/Compose/scale/R открыты.
+Ниже исторические статусы; указания о живом full75 или roads72 уже не действуют.
+
 ## Приоритетная актуализация: source75 / full74 завершён
 
 Сначала [PRIMARY_ROUTING_75.md](PRIMARY_ROUTING_75.md). Final-ДУ retention исправлен по

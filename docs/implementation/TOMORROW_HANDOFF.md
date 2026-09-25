@@ -1,5 +1,25 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source84 — направление link approaches исправлено, quality-поиск продолжается
+
+Сначала [PRIMARY_ROUTING_84.md](PRIMARY_ROUTING_84.md).8новых directional cases,
+4RED83→GREEN84, focused48PASS; web36+37/lint/typecheckPASS. Итоговый fast84 завершён:
+1288cases/1285PASS/0fail/0error/3skip,122класса. Reports скопированы в
+`.tooling/intake-20260925/source84-final-fast-reports/`. На том же frozen target
+`.tooling/source84-gates.l7r4V8/apps/api/target` запущен **full84session30650**.
+Первый fast failed из-за отсутствующих общих resources в snapshot; links исправлены,
+production ради этого не менялся. Не пользоваться меняющимися full reports как fast evidence.
+Эксперимент diversity44PASS/960exact comparisons не дал улучшения на реальных камерах;
+он удалён из production, архив `.tooling/chamber-diversity.hQN1Gy/` сохранён.
+Все62точки его Hanan-пула и штатная zone-перестройка тоже не дали принятого улучшения.
+
+Живы full83session54670, roads83session12884 и roads81session30394 на targets, перечисленных
+в83/84. В full83 уже есть compact failure, не считать его зелёным до итоговых reports.
+Ни один live target не менять, дубликаты не запускать. Следом свежие результаты/картинки,
+проверка84, затем совместные подходы/топология конфликтующих камер. Не ослаблять validator
+или правила ранжирования ради красивого промежуточного рисунка. Runtime61/VPS прежние.
+Ниже — исторические записи; актуальные статусы выше и в84.
+
 ## Актуально: source83, fast gate зелёный; полный расчёт ещё идёт
 
 Начать с [PRIMARY_ROUTING_83.md](PRIMARY_ROUTING_83.md). Исправлены потеря допустимого

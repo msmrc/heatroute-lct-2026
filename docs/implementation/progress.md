@@ -1,5 +1,20 @@
 # Current implementation progress
 
+## 2026-09-25 — source84: исправление направления подходов; отсеяна неэффективная эвристика
+
+[Source84](PRIMARY_ROUTING_84.md): `CorridorLinkApproaches` оценивает дорожный вход/special
+по физическому потоку, даже когда поиск идёт от downstream внешнего узла к камере.
+8новых случаев:4RED83/4controlPASS →8GREEN84; focused48PASS, web36+37/lint/typecheckPASS.
+Итоговый fast gate84:1288cases/1285PASS/0fail/0error/3skip,122класса на
+`.tooling/source84-gates.l7r4V8`, после исправления отсутствовавших в первом snapshot
+общих resources, без отключения тестов. Reports сохранены, full84session30650 запущен.
+Две quality-гипотезы проверены bounded saved81 replay:4дополнительные разнесённые точки
+на камеру не собираются; все62точки штатного пула дают9valid finish, но без принятого
+улучшения. Штатная zone-перестройка с2динамическими seeds также FOUND=false (14988мс).
+Неэффективное расширение поиска убрано из production, воспроизводимый архив сохранён.
+Full84/full83/roads83/roads81 живы, targets frozen; в full83 уже есть compact failure.
+Новые quality/скорость/native/Compose/scale/R/G2 не приняты; runtime61/VPS неизменны.
+
 ## 2026-09-25 — checkpoint source83: directed retention и локальная врезка
 
 [Source83](PRIMARY_ROUTING_83.md) исправляет две регрессии review82: потерю допустимого

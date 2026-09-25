@@ -4,6 +4,14 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Текущий source84:** [направление подходов к переносимой камере](PRIMARY_ROUTING_84.md).
+8regression cases/4RED83→GREEN84, focused48PASS, web36+37/lint/typecheckPASS; итоговый
+fast gate84:1288cases/1285PASS/0fail/0error/3skip. Full84session30650 запущен.
+Дополнительное разнообразие переносов проверено на saved81
+и отклонено без подключения к production; источник почти совпадающих выходов не устранён.
+Full83/roads83/roads81 ещё работают на frozen targets. Полной приёмки84 нет;
+runtime61/VPS, R/G2/native/Compose/scale остаются без изменений. Ниже — предыдущие checkpoints.
+
 **Актуальный checkpoint source83:** [направленный поиск и локальная врезка](PRIMARY_ROUTING_83.md).
 Исправлены две регрессии review82; добавлено50постоянных случаев, включая F1–F3.
 Fast1280cases/1277PASS/0fail/0error/3scale skip; web36+37/lint/typecheck PASS.

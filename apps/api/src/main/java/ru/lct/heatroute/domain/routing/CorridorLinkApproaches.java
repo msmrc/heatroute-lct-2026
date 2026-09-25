@@ -30,7 +30,9 @@ final class CorridorLinkApproaches {
         }
         List<Coordinate> source = edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate)
                 .collect(Collectors.toCollection(ArrayList::new));
-        if (!edge.getUpstreamNodeId().equals(outer.getId())) Collections.reverse(source);
+        RouteTraversal traversal = edge.getUpstreamNodeId().equals(outer.getId())
+                ? RouteTraversal.AS_GIVEN : RouteTraversal.REVERSED;
+        if (traversal == RouteTraversal.REVERSED) Collections.reverse(source);
         if (source.size() < 2 || source.size() > 1000) return List.of();
         if (source.get(0).distance(outer.getCoordinate().toCoordinate()) > 0.01) {
             throw new IllegalArgumentException("Edge geometry misses its outer node");
@@ -60,7 +62,8 @@ final class CorridorLinkApproaches {
                     Envelope bounds = new Envelope();
                     coordinates.forEach(bounds::expandToInclude);
                     PreparedCorridor checks = router.prepareCorridor(edge.getDiameter(), environment, bounds,
-                            outer.getCoordinate().toCoordinate(), outer.isRoot() ? outer.getTargetId() : null);
+                            outer.getCoordinate().toCoordinate(), outer.isRoot() ? outer.getTargetId() : null, traversal);
+                    // Поиск всегда outer→камера, но вход в дорогу и special проверяем по потоку.
                     // Исключение выхода из setback предназначено существующему корню, не новой камере.
                     if (!checks.pointAllowed(junction)
                             || !outer.isRoot() && !checks.pointAllowed(outer.getCoordinate().toCoordinate())) continue;

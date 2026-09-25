@@ -1,5 +1,15 @@
 # Current implementation progress
 
+## 2026-09-25 — source69: расчётная подготовка геометрии для валидатора
+
+[PRIMARY_ROUTING_69.md](PRIMARY_ROUTING_69.md): JFR67 локализовал повторное построение
+JTS-буферов внутри validation. Четыре geometry-вызова planner используют сессию точного
+валидатора; сама проверка маршрута повторяется, standalone/export остаётся независимым.
+Integration RED поймал обход subclass-hook; сохранён публичный override-путь.
+Isolated86/86PASS, включая11новых exact-equivalence/real-buffer/ownership тестов и
+relocation68. Source69 ещё не прошёл полный/fresh gate; compiled67 выполняется отдельно,
+runtime61 сохранён. Нет заявления об ускорении/релизной готовности.
+
 ## 2026-09-25 — source68: сохранение исходных relocation-контролей
 
 [PRIMARY_ROUTING_68.md](PRIMARY_ROUTING_68.md), код `ae452a7`. Review67 выявил потерю ещё

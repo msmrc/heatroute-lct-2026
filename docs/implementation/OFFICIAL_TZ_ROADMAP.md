@@ -4,7 +4,13 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
-**Текущий source68, WIP:** [сохранение исходных relocation-контролей](PRIMARY_ROUTING_68.md).
+**Текущий source69, WIP:** [подготовка препятствий для валидатора](PRIMARY_ROUTING_69.md).
+JFR67 показал повторные JTS buffers внутри validation. Сессия расчёта удерживает только
+bounded-подготовку; геометрия проверяется заново, standalone/export не менялись.
+Isolated86/86PASS, subclass-hook сохранён после RED. Full/fresh69 ещё не выполнен;
+compiled67 выполняется отдельно, runtime61 сохранён. Ускорение/R-gates не заявляются.
+
+**Предыдущий source68, WIP:** [сохранение исходных relocation-контролей](PRIMARY_ROUTING_68.md).
 Код `ae452a7`,79focusedPASS. Исправлена обнаруженная review потеря ещё не выполненного
 переноса у исходного кандидата (RED75м вместо70м). Full compiled67 ещё выполняется,
 full/fresh68 не получен; runtime61 сохранён. No-loss/performance/R-gates открыты.

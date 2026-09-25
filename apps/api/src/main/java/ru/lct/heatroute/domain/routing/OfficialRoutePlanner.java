@@ -3912,7 +3912,7 @@ public class OfficialRoutePlanner {
         List<RouteEdge> sizedEdges = applySizing(draft.edges, sizing);
         List<ImportedOfficialFeature> features = featuresForEdges(
                 Collections.emptyList(), sizedEdges, routingEnvironment);
-        return validator.validate(nodes, sizedEdges, features).isEmpty();
+        return routingEnvironment.validationFor(validator).validate(nodes, sizedEdges, features).isEmpty();
     }
 
     private TreeAttachment betterTreeAttachment(TreeAttachment current, TreeAttachment candidate) {
@@ -4319,7 +4319,7 @@ public class OfficialRoutePlanner {
                             economicsCalculator.marginalConnectionCost(List.of(edge), List.of())) > 0) continue;
             List<RouteEdge> candidate = new ArrayList<>(current);
             candidate.set(index, replacement);
-            if (!validator.validate(baseline.getNodes(), candidate,
+            if (!environment.validationFor(validator).validate(baseline.getNodes(), candidate,
                     featuresForEdges(features, candidate, environment)).isEmpty()) continue;
             current = candidate;
             changed = true;
@@ -4378,7 +4378,7 @@ public class OfficialRoutePlanner {
         List<RouteEdge> profiledEdges = parameters.isDepthEnabled()
                 ? withDepthProfiles(nodes, finalSizedEdges, routeFeatures, parameters)
                 : finalSizedEdges;
-        List<RouteValidationIssue> issues = validator.validate(nodes, profiledEdges,
+        List<RouteValidationIssue> issues = routingEnvironment.validationFor(validator).validate(nodes, profiledEdges,
                 featuresForEdges(features, profiledEdges, routingEnvironment));
         // The amended official contract explicitly excludes reconstruction of existing assets.
         ExistingNetworkReconstructionResult reconstruction = ExistingNetworkReconstructionResult.empty();
@@ -4462,7 +4462,7 @@ public class OfficialRoutePlanner {
                 }
                 List<RouteEdge> candidate = new ArrayList<>(current);
                 candidate.set(edgeIndex, candidateEdge);
-                if (!validator.validate(
+                if (!routingEnvironment.validationFor(validator).validate(
                                 nodes,
                                 candidate,
                                 featuresForEdges(features, candidate, routingEnvironment))

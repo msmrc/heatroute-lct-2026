@@ -1,6 +1,7 @@
 package ru.lct.heatroute.domain.routing;
 
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,6 +23,8 @@ final class OfficialRoutingEnvironment {
     private final RoutingFeatureSource source;
     private final OfficialRouteGeometryRules rules;
     private final PreparedRoutingConstraints preparedWindowConstraints;
+    private final Map<OfficialRouteValidator, OfficialRouteValidator.ValidationSession> validationSessions
+            = new IdentityHashMap<>();
     private final ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex existingSupport;
     private final Map<Integer, List<Constraint>> baseByDiameter = new HashMap<>();
     private final Map<String, java.util.Optional<RoutePath>> routeCache = new HashMap<>();
@@ -50,6 +53,11 @@ final class OfficialRoutingEnvironment {
     }
 
     RouteNode verifiedRootSupport(RouteNode root) { return existingSupport.verified(root); }
+
+    /** Сохраняет сессию точного экземпляра валидатора только на время этого окружения расчёта. */
+    OfficialRouteValidator.ValidationSession validationFor(OfficialRouteValidator validator) {
+        return validationSessions.computeIfAbsent(validator, OfficialRouteValidator::forCalculation);
+    }
 
     List<Constraint> constraints(
             int diameter,

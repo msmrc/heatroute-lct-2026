@@ -1,6 +1,14 @@
 # Handoff — Артём / PM / developer
 
-## Текущий source68: контрольные relocation-ветви сохранены
+## Текущий source69: подготовка ограничений внутри validation
+
+Сначала [PRIMARY_ROUTING_69.md](PRIMARY_ROUTING_69.md): measured hot spot JFR67, сессия
+точного валидатора, неизменные проверки/standalone-export. Subclass-hook сохранён после
+реального RED, isolated86/86PASS. Дождаться compiled67 без конкурирующего Maven, сохранить
+snapshot/результат, затем полный/fresh69 и roads+kindergarten. Не использовать старые
+isolated planner68-классы впереди нового target69. Runtime61 пока сохранён.
+
+## Предыдущий source68: контрольные relocation-ветви сохранены
 
 Сначала [PRIMARY_ROUTING_68.md](PRIMARY_ROUTING_68.md), код `ae452a7`. Независимое review
 обнаружило в67 потерю исходного улучшения80→70м после ремонта конкурента до75м. Реальный

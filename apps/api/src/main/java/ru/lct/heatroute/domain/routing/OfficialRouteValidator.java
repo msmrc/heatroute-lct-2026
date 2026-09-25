@@ -80,6 +80,42 @@ public class OfficialRouteValidator {
             List<RouteNode> nodes,
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features) {
+        return validate(nodes, edges, features, null);
+    }
+
+    /** Создаёт сессию одного расчёта; независимая публичная проверка её подготовку не использует. */
+    ValidationSession forCalculation() {
+        return new ValidationSession();
+    }
+
+    /**
+     * Повторно использует только ограниченную подготовку препятствий этого валидатора.
+     * Маршруты и результаты не удерживаются; сессия не предназначена для параллельного доступа.
+     */
+    final class ValidationSession {
+        private final PreparedRoutingConstraints preparedConstraints;
+
+        private ValidationSession() {
+            preparedConstraints = geometryRules == null ? null : new PreparedRoutingConstraints(geometryRules);
+        }
+
+        List<RouteValidationIssue> validate(
+                List<RouteNode> nodes,
+                List<RouteEdge> edges,
+                List<ImportedOfficialFeature> features) {
+            // Наследник может дополнять окончательную проверку: сохраняем его публичный hook.
+            if (OfficialRouteValidator.this.getClass() != OfficialRouteValidator.class) {
+                return OfficialRouteValidator.this.validate(nodes, edges, features);
+            }
+            return OfficialRouteValidator.this.validate(nodes, edges, features, preparedConstraints);
+        }
+    }
+
+    private List<RouteValidationIssue> validate(
+            List<RouteNode> nodes,
+            List<RouteEdge> edges,
+            List<ImportedOfficialFeature> features,
+            PreparedRoutingConstraints preparedConstraints) {
         List<RouteValidationIssue> issues = new ArrayList<>(validate(nodes, edges));
         if (geometryRules == null) {
             return issues;
@@ -139,7 +175,9 @@ public class OfficialRouteValidator {
             issues.addAll(geometryRules.validateMandatoryEgress(
                     edge, route, features, diameter, connectionPoint));
             List<OfficialRouteGeometryRules.Constraint> baseConstraints = constraintsByDiameter.computeIfAbsent(
-                    diameter, value -> geometryRules.baseConstraints(features, value));
+                    diameter, value -> preparedConstraints == null
+                            ? geometryRules.baseConstraints(features, value)
+                            : preparedConstraints.prepare(features, value));
             List<OfficialRouteGeometryRules.Constraint> allConstraints = geometryRules.applicableConstraints(
                     baseConstraints,
                     exemptions,

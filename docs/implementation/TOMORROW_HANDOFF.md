@@ -1,5 +1,25 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source83, fast gate зелёный; полный расчёт ещё идёт
+
+Начать с [PRIMARY_ROUTING_83.md](PRIMARY_ROUTING_83.md). Исправлены потеря допустимого
+направленного обхода и глобальная льгота выбранной теплосети;50новых постоянных случаев.
+Fast1280cases/1277PASS/0fail/0error/3skip, web36+37/lint/typecheck PASS.
+Сохранённые fast reports — `.tooling/intake-20260925/source83-final-fast-reports/`.
+
+Живые процессы: full83session54670 на `.tooling/source83-gates.U0YYnW/apps/api/target`,
+roads83session12884 на собственной копии `.tooling/scenario83.zYg3LZ`, roads81session30394
+на `.tooling/source81-build.Ndryzg/apps/api/target`. Не менять эти targets, не дублировать jobs.
+Full82session53808 завершён exit1:1234cases/1230PASS/1compactFAIL/3skip; target82 свободен.
+В82 ещё нет исправлений review83, поэтому не использовать его как приёмку текущего кода.
+
+Далее: результаты всех ролей83/roads83, строгая независимая проверка и реальные картинки
+с Евгением; потом почти параллельные выходы камер и сопоставимый замер времени.
+Bounded chamber replay82 выявил, что одной смены приоритета переноса недостаточно;
+подробности в [82](PRIMARY_ROUTING_82.md). Runtime61/VPS не менялись. Компактность,
+качество камер, скорость, R/G2/native/Compose/scale и общая цель открыты.
+Ниже — история; действующий реестр процессов находится выше и в83.
+
 ## Актуально: source82 сохранён как промежуточный checkpoint
 
 По запросу пользователя сохраняем все текущие исходники в Git без объявления релиза.

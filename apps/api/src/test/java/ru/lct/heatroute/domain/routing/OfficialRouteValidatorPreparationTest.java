@@ -100,10 +100,12 @@ class OfficialRouteValidatorPreparationTest {
     }
 
     @Test
-    void reappliesRootExemptionsAndEndpointSetbackRelaxation() throws Exception {
+    void rootTargetIdCannotExemptAnOksWhileLocalEndpointSetbackRelaxationRemains() throws Exception {
         List<ImportedOfficialFeature> features = List.of(feature("own", "oks", BUILDING));
         RouteEdge crossing = edge(100, "LINESTRING (-30 0, 30 0)");
-        assertThat(assertEquivalent(nodes(crossing, "own", false), List.of(crossing), features)).isEmpty();
+        // ID врезки не разрешает пересечение одноимённого здания насквозь.
+        assertThat(assertEquivalent(nodes(crossing, "own", false), List.of(crossing), features))
+                .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");
         assertThat(assertEquivalent(nodes(crossing, null, false), List.of(crossing), features))
                 .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");
         RouteEdge approach = edge(100, "LINESTRING (-8 0, -30 0)");
@@ -111,7 +113,8 @@ class OfficialRouteValidatorPreparationTest {
         RouteEdge alongside = edge(100, "LINESTRING (-8 -30, -8 30)");
         assertThat(assertEquivalent(nodes(alongside, null, false), List.of(alongside), features))
                 .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");
-        assertThat(assertEquivalent(nodes(crossing, "own", false), List.of(crossing), features)).isEmpty();
+        assertThat(assertEquivalent(nodes(crossing, "own", false), List.of(crossing), features))
+                .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");
     }
 
     @Test

@@ -4,10 +4,14 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
-**Checkpoint source82:** начальная сборка коридора по фактическому направлению и целым
-пересечениям внесена; 86 focused Java-тестов PASS. Это не приёмка F1–F3 или полного
-алгоритма: fresh82/roads82/производительность/live smoke не подтверждены, R/G2 не закрыты.
+**Актуальный checkpoint source83:** [направленный поиск и локальная врезка](PRIMARY_ROUTING_83.md).
+Исправлены две регрессии review82; добавлено50постоянных случаев, включая F1–F3.
+Fast1280cases/1277PASS/0fail/0error/3scale skip; web36+37/lint/typecheck PASS.
+Full83session54670/roads83session12884/roads81session30394 выполняются. Full82 до review
+завершён1234cases/1230PASS/1compactFAIL/3skip. Свежий результат83, общее время и live smoke
+ещё не подтверждены; это не релиз и не закрытие R/G2. Runtime61/VPS неизменны.
 Состояние и продолжение — [progress](progress.md) и [handoff](TOMORROW_HANDOFF.md).
+Ниже исторические checkpoint; прежние live-статусы заменены реестром83.
 
 **Свежий результат81:**1234cases/1230PASS/1compactFAIL/0errors/3skip;462,736с.
 17/17/geometry/sizing/depth/economics/strict export; shortest/cheapest2068,786м/11камер/0bad bends,

@@ -71,7 +71,7 @@ class OfficialRouteValidatorGeometryBatchTest {
     }
 
     @Test
-    void appliesRootExemptionsAndEndpointSetbackRelaxationSeparatelyPerEdge() throws Exception {
+    void keepsTypedRootContactsAndEndpointSetbackRelaxationSeparatePerEdge() throws Exception {
         List<ImportedOfficialFeature> features = List.of(oks("own", "POLYGON ((0 0, 20 0, 20 20, 0 20, 0 0))"));
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
@@ -82,7 +82,7 @@ class OfficialRouteValidatorGeometryBatchTest {
         List<RouteValidationIssue> actual = assertEquivalent(nodes, edges, features);
         assertThat(actual.stream().filter(issue -> "FORBIDDEN_CLEARANCE_VIOLATION".equals(issue.getCode()))
                 .map(RouteValidationIssue::getSubjectId).collect(Collectors.toList()))
-                .containsExactly("no-relaxation", "not-exempt");
+                .containsExactly("exempt", "no-relaxation", "not-exempt");
     }
 
     @Test
@@ -187,7 +187,7 @@ class OfficialRouteValidatorGeometryBatchTest {
         }
     }
 
-    /** Эталон сохраняет прежнее независимое построение всех буферов для каждого набора исключений. */
+    /** Эталон независимо строит все буферы каждого ребра до применения локальных контактов. */
     private static final class PerEdgeRebuildingRules extends OfficialRouteGeometryRules {
         private final List<ImportedOfficialFeature> features;
         private final Map<List<Constraint>, Integer> diameters = new IdentityHashMap<>();
@@ -205,10 +205,10 @@ class OfficialRouteValidatorGeometryBatchTest {
         }
 
         @Override
-        List<Constraint> applicableConstraints(List<Constraint> base, Set<String> exemptions,
+        List<Constraint> localTieInConstraints(List<Constraint> base, Set<String> targets,
                 Coordinate start, Coordinate end) {
-            return super.applicableConstraints(super.baseConstraints(features, diameters.get(base)),
-                    exemptions, start, end);
+            return super.localTieInConstraints(super.baseConstraints(features, diameters.get(base)),
+                    targets, start, end);
         }
     }
 }

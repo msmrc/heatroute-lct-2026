@@ -1,5 +1,21 @@
 # Current implementation progress
 
+## 2026-09-25 — checkpoint source83: directed retention и локальная врезка
+
+[Source83](PRIMARY_ROUTING_83.md) исправляет две регрессии review82: потерю допустимого
+дорожного обхода и исчезновение special при повторном пересечении выбранной теплосети.
+Greedy учитывает направление; динамический контрольный подграф сохраняет прежние проходы,
+а вводы вычисляются один раз. Льгота врезки ограничена локальным контактом, финальный
+валидатор больше не исключает целиком feature по target ID. Добавлено50постоянных случаев.
+Итоговый fast Maven: **1280cases/1277PASS/0fail/0error/3scale skip**,121класс;
+web36+37/lint/typecheck PASS. Reports сохранены отдельно до запуска полного набора.
+Full83session54670 и roads83session12884 выполняются на независимых frozen targets;
+roads81session30394 также жив. Full82 завершён1234cases/1230PASS/1compactFAIL/3skip,
+production82 до review не является проверкой83. Реестр и пути — в83/handoff.
+Это промежуточный checkpoint по запросу отправки в Git, не релиз: fresh quality83,
+roads, скорость, камеры, compact/G2/native/Compose/scale/R не приняты. Runtime61/VPS прежние.
+Ниже — исторические записи; их live-статусы заменены актуальным реестром83.
+
 ## 2026-09-25 — checkpoint source82 по запросу сохранения в Git
 
 Внесена начальная реализация [допуска общего коридора](CORRIDOR_TRUNK_ADMISSION.md):

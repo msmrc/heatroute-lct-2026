@@ -179,8 +179,9 @@ public class OfficialRouteValidator {
                     ? constraintsByDiameter.computeIfAbsent(diameter, value -> geometryRules.baseConstraints(features, value))
                     : preparedConstraints.prepareIntersecting(features, diameter, route.getEnvelopeInternal());
             List<OfficialRouteGeometryRules.Constraint> allConstraints = geometryRules.applicableConstraints(
-                    baseConstraints,
-                    exemptions,
+                    geometryRules.localTieInConstraints(baseConstraints, exemptions,
+                            route.getCoordinateN(0), route.getCoordinateN(route.getNumPoints() - 1)),
+                    Set.of(),
                     route.getCoordinateN(0),
                     route.getCoordinateN(route.getNumPoints() - 1));
             OfficialRouteGeometryRules.NormalEgress egress = "demand_connection".equals(downstream.getNodeType())

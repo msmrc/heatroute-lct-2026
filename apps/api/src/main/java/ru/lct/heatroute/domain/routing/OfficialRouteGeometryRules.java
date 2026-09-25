@@ -165,6 +165,34 @@ public class OfficialRouteGeometryRules {
         return result;
     }
 
+    /**
+     * Врезка освобождает только контакт выбранной теплосети у endpoint в пределах допуска
+     * координат 1 см. Повторные пересечения той же feature остаются ограничениями и special.
+     * Совпадение ID дороги/ОКС с ID врезки не освобождает объект другого типа.
+     */
+    List<Constraint> localTieInConstraints(List<Constraint> base, Set<String> targetIds,
+            Coordinate start, Coordinate end) {
+        if (targetIds.isEmpty()) return base;
+        Geometry startPoint = geometryFactory.createPoint(start);
+        Geometry endPoint = geometryFactory.createPoint(end);
+        List<Constraint> result = new ArrayList<>(base.size());
+        for (Constraint constraint : base) {
+            if (!targetIds.contains(constraint.id) || !"heat_network".equals(constraint.type)
+                    || constraint.rule.isForbidden()) {
+                result.add(constraint);
+                continue;
+            }
+            Geometry source = constraint.source;
+            if (source.distance(startPoint) <= EPSILON_M) source = source.difference(startPoint.buffer(EPSILON_M));
+            if (!start.equals2D(end) && source.distance(endPoint) <= EPSILON_M) {
+                source = source.difference(endPoint.buffer(EPSILON_M));
+            }
+            result.add(source == constraint.source ? constraint : new Constraint(constraint.id, constraint.type,
+                    source, constraint.blocked, constraint.rule, constraint.clearanceM, constraint.joinedContact));
+        }
+        return result;
+    }
+
     /** Ближайший допустимый прямой выход по нормали с полным наружным отступом до поворота. */
     Optional<NormalEgress> normalEgress(
             List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {

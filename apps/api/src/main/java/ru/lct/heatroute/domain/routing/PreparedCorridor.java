@@ -60,12 +60,9 @@ final class PreparedCorridor {
                 .filter(constraint -> "oks".equals(constraint.type()) && constraint.rule().isForbidden()
                         && constraint.blocked().covers(rootPoint) && !constraint.source().covers(rootPoint))
                 .collect(Collectors.toList());
-        // ID разрешает лишь врезку в выбранную существующую теплосеть, а не отмену любого
-        // одноимённого запрета. Фильтруем сами constraints: ID разных типов могут совпасть.
-        List<Constraint> rootBase = this.constraints.stream()
-                .filter(constraint -> !(targetId != null && targetId.equals(constraint.id())
-                        && "heat_network".equals(constraint.type()) && !constraint.rule().isForbidden()))
-                .collect(Collectors.toList());
+        // Льгота только у самого контакта: дальнее пересечение той же теплосети не исчезает.
+        List<Constraint> rootBase = rules.localTieInConstraints(this.constraints,
+                targetId == null ? Set.of() : Set.of(targetId), root, root);
         this.rootConstraints = rules.applicableConstraints(rootBase, Set.of(), root, root);
         strictIndex = rules.index(this.constraints, traversal);
         rootIndex = rules.index(rootConstraints, traversal);

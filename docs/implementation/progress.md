@@ -1,5 +1,20 @@
 # Current implementation progress
 
+## 2026-09-25 — live VPS deploy актуального master
+
+VPS `/opt/heatroute` обновлён fast-forward с `a180525` до `2e90356` строго по
+`docs/operations/VPS_DEPLOYMENT.md`: перед обновлением создан PostgreSQL custom-format backup
+`heatroute-20260925T131944Z-a180525181022647bec1c78141a49bd9c448e1ff.dump`, mode `600`.
+Production-образы Java API и web успешно пересобраны с `--pull`; Compose поднял `db`, `api`,
+`web`, `gateway` healthy с `restart: unless-stopped`. Внешний HTTPS и readiness проходят,
+OpenAPI содержит официальный import endpoint; в логах после deploy нет error/exception/fatal/OOM.
+Повторный импорт tracked `datasets/official/lct-2026.geojson` вернул существующий valid import
+`f92e4ae2-fd49-47a4-a131-bdeecadef086`: 144 feature, 0 errors. Реальный topology job
+`b931a82c-bad6-42da-94b8-5779c8e0bc25` завершён за первую попытку, `valid=true`, issues пусты,
+29 сетевых участков. UFW публикует только 22/80/443; 5173/8000/55432 слушают loopback.
+Это актуальный live Compose/deploy smoke, но не закрытие R9: хост использует Ubuntu 26.04.1,
+а clean Ubuntu 22, restart recovery, full calculation/export и scale gates отдельно не выполнены.
+
 ## 2026-09-25 — source92: вместимость камер по исходной геометрии
 
 [PRIMARY_ROUTING_92.md](PRIMARY_ROUTING_92.md): проходящая существующая линия занимает2

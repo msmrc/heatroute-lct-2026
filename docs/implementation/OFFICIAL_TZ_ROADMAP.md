@@ -2,8 +2,10 @@
 
 **Текущий source92:** [фактические примыкания камер](PRIMARY_ROUTING_92.md),34новыхслучая,
 focused90PASS; общий frozen fast1728PASS/0fail/error/3skip, web36+37/lint/typecheckPASS.
-Работа только в `master`; Git merge завершён, strict нормали/2м/дороги90–100 и
-полный dataset/compact/Compose/deploy/scale/R/G ещё открыты.
+Работа только в `master`; Git merge завершён. Live VPS `2e90356`: backup, Compose build/deploy,
+health/HTTPS, valid официальный import и valid topology job PASS. Это не R9: clean Ubuntu22,
+restart/full calculation/export/scale, strict нормали/2м/дороги90–100, полный dataset/compact
+и R/G ещё открыты.
 
 **Единый master, 25.09.2026:** merge `e5d8d01` сохраняет изменения Артёма и source63–91.
 Fast1694PASS/0fail/error/3skip; web36+37/lint/typecheckPASS. Это не full dataset, Compose

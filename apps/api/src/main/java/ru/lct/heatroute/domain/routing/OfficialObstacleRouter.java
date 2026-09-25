@@ -384,10 +384,12 @@ public class OfficialObstacleRouter {
         // Карманы восстанавливают отсутствующий путь, но не заменяют уже допустимый hull-маршрут:
         // обычный коридор 200/600 м имеет приоритет над карманом в коридоре 75 м.
         List<List<Coordinate>> ordinaryGraphs = new ArrayList<>(CORRIDOR_EXPANSIONS.length);
+        NavigationObstaclePreparation preparation = new NavigationObstaclePreparation(
+                NAVIGATION_MARGIN_M, this::navigationCoordinates);
         for (boolean includePockets : new boolean[] {false, true}) {
             for (int corridor = 0; corridor < CORRIDOR_EXPANSIONS.length; corridor++) {
                 double expansion = CORRIDOR_EXPANSIONS[corridor];
-                List<Coordinate> nodes = navigationNodes(start, end, constraintIndex, expansion, includePockets);
+                List<Coordinate> nodes = navigationNodes(start, end, constraintIndex, expansion, includePockets, preparation);
                 if (previous != null) nodes = headingNavigationNodes(nodes, previous, start, end);
                 ensureNotCancelled();
                 if (!includePockets) {
@@ -688,6 +690,13 @@ public class OfficialObstacleRouter {
             ConstraintIndex constraints,
             double expansionM,
             boolean includePockets) {
+        return navigationNodes(start, end, constraints, expansionM, includePockets,
+                new NavigationObstaclePreparation(NAVIGATION_MARGIN_M, this::navigationCoordinates));
+    }
+
+    private List<Coordinate> navigationNodes(
+            Coordinate start, Coordinate end, ConstraintIndex constraints, double expansionM,
+            boolean includePockets, NavigationObstaclePreparation preparation) {
         List<Coordinate> result = new ArrayList<>();
         result.add(new Coordinate(start));
         result.add(new Coordinate(end));
@@ -703,9 +712,10 @@ public class OfficialObstacleRouter {
                     || !constraint.blocked().isWithinDistance(directLine, expansionM)) {
                 continue;
             }
-            Geometry bufferedBoundary = constraint.blocked().buffer(NAVIGATION_MARGIN_M, 2);
-            Geometry navigationGeometry = bufferedBoundary.convexHull();
-            Coordinate[] coordinates = navigationCoordinates(navigationGeometry);
+            NavigationObstaclePreparation.Obstacle prepared = preparation.prepare(constraint);
+            Geometry bufferedBoundary = prepared.bufferedBoundary();
+            Geometry navigationGeometry = prepared.hull();
+            Coordinate[] coordinates = prepared.support();
             int uniqueCount = coordinates.length > 1 && coordinates[0].equals2D(coordinates[coordinates.length - 1])
                     ? coordinates.length - 1
                     : coordinates.length;

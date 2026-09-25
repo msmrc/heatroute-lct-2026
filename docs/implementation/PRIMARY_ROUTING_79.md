@@ -76,6 +76,22 @@ portfolio выберет ту же сеть.** Третий плохой уго�
 в Git. `pwsh`/Docker отсутствуют: Compose не проверен. Compact/G2/native/scale/R и цель открыты.
 Ускорение query-sort из77 пока не включено; новые изменения — только correctness.
 
+### Уточнение performance-прототипа, без изменения production
+
+Проверен query-local primitive collector, хранящий первые два ordinal в scalar-полях и
+создающий массив только на третьем попадании. На том же STRtree/исходном порядке —1614точных
+сравнений без расхождений, включая empty/touch/one-ULP и границы роста15/16/17/24/25.
+На synthetic4096 envelopes медианы Java11:25hits1,697→1,206мкс;400hits34,282→17,383мкс;
+2500hits264,347→116,073мкс. При1hit выделение104→56Б, при2,61hits116→98Б.
+Но mostly-empty case0,21hits/query замедлился191→208нс; короткий probe под параллельной
+нагрузкой не доказывает устойчивость этой разницы или end-to-end gain.
+
+Это устранило лишнее выделение массива на small-hit пути предыдущего прототипа. Реальное
+распределение query hits не измерено; в production79 нет этого изменения, кэша или ослабления
+геометрии. Evidence: `.tooling/ordinal-scalar-probe.ZpZnNR/OrdinalQueryProbe.java`, `result.log`.
+Перед включением нужны production differential tests (включая расширенный road envelope),
+гейты и точное сравнение свежих результатов. Прототип не заменяет текущие quality-проверки.
+
 ## Evidence (ignored `.tooling`)
 
 - `preservation79.Ed4k7F/red78-corrected.log`, `green79-final.log`;

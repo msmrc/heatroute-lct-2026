@@ -7,6 +7,9 @@ economics/strict export3ролейPASS. Cheapest2073,965м/11камер/3bad ang
 balanced/shortest2194,257/2194,034м/14камер/0expert. Улучшение качества/скорости не подтверждено.
 Full78session46700 завершён, target78 свободен. Full79session51226/roads77session2599/
 roads79session69123 продолжаются на frozen targets. Runtime61/VPS/compact/R/цель не закрыты.
+Отдельный scalar-ordinal prototype:1614exact query comparisons/0mismatch, устранено лишнее
+выделение массива на1–2hits; плотные запросы быстрее, mostly-empty чуть медленнее. Только
+synthetic microprobe, не production и не end-to-end gain; подробности/evidence в79.
 
 ## 2026-09-25 — correctness79: whole-network preservation
 

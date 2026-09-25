@@ -2,6 +2,15 @@
 
 ## 2026-09-25 — source64: интеграция нормалей, полный quality gate ещё не пройден
 
+Финальный код `0270971`, экспортный fix `2de2ceb` отправлены; remote проверен.
+Clean full904:900PASS/1failure/0errors/3scale skipped. Единственный failure — исторический
+compact-control≤13камер/<1860м; пороги не ослаблялись. Fresh official17/17/ДУ/глубина/
+экономика/strict export всех3вариантов PASS; одиночные concave cases PASS.
+Инженерный balanced/shortest2192,523м/14камер/1корень/25поворотов/302839881,84₽,0expert issues.
+Cheapest1983,620м/14/1/28/290549818,37₽ с6нарушениями; backend preferred=cheapest поscore,
+это не общий инженерный PASS. All-demand447,912с со30с JFR-срезом — не чистый benchmark.
+Bundle `source64-final-result.json`, не live job. Runtime61/readinessUP сохранён.
+
 [PRIMARY_ROUTING_64.md](PRIMARY_ROUTING_64.md): включены фактические нормали ближайших
 допустимых стен и R+W/2 для forbidden-ограничений; полный собственный ввод и предыдущая
 линия проверяются раздельно. Закрыты reentry в другой компонент ОКС, обратный луч, пропуск
@@ -15,8 +24,8 @@ UTM rounding fix `2de2ceb`. Web36+scripts37/lint/typecheck PASS. Повтор da
 cheapest1983,620м/14/28 с6нарушениями. Fresh all-demand436,170с, ускорения нет.
 Но dataset gate4/2failures/1error: компактность, projected cut одиночногоОКС8 и1копейка
 экспорта. Последние два дефекта исправлены: свежий concave focused PASS и strict export
-replay всех3вариантов/568features PASS. Это не новый fresh final plan. Финальный clean
-whole-suite запущен в `source64-final-full.log`; не путать эти срезы.
+replay всех3вариантов/568features PASS. Эти промежуточные свидетельства не заменяют
+финальный fresh результат, приведённый выше (`source64-final-full.log`).
 
 Рабочая ветка `codex/routing-63-geometry`, `master=28c7059`, runtime61 не обновлялся.
 G1/G2/G4/G5/G6 и R-этапы открыты. Новые нормы social_area/2vs3м не объявлены согласованными.

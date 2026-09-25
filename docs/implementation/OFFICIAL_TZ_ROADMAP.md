@@ -8,6 +8,9 @@
 Нормали и R+W/2 для forbidden включены в рабочую ветку; special/depth/PostGIS остаются G2 TODO.
 Закрываются реальные safety/rounding дефекты, локальные проверки проходят, но полный quality
 gate ещё не пройден. Исторический компактный контроль не восстановлен; runtime61 сохранён.
+Итог clean904:900PASS/1failure/0errors/3skip (один compact-control FAIL). Fresh17/17 и strict
+export всех3вариантов PASS; инженерный2192,523м/14камер/25поворотов/0expert issues,
+cheapest1983,620м/14камер/28поворотов/6expert issues. Код `2de2ceb`/`0270971` отправлен.
 Никаких заявлений об ускорении, native64, Compose/scale или закрытии R-этапов.
 
 **Предыдущий source63:** [направление ввода и совместный выбор подходов](PRIMARY_ROUTING_63.md).

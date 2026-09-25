@@ -4,6 +4,16 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Приоритетная актуализация — source77:** [shared-junction repair](PRIMARY_ROUTING_77.md).
+Соседнее принятое ребро не блокирует собственную камеру; только подтверждённая node identity
+и начальный прямой контакт, без ослабления отступов/запретов.29новых regression tests,
+111focusedPASS,65independentPASS. Конечный clean/fast Maven1166cases/1163PASS/0fail/0error/
+3scale skip;web36/scripts37/lint/typecheckPASS. Full/fresh77session79101 ещё работает;
+accepted77 нет. Roads75session70338 всё ещё использует отдельный snapshot75target.
+Направление terminal road entry — следующий отдельный defect, не исправлено77.
+Compact/G2/native/Compose/scale/R и цель открыты; runtime61/VPS прежние.
+Ниже исторические checkpoint; текущие handles указаны в77 и handoff.
+
 **Приоритетная актуализация — checkpoint76:** [отклонённые оптимизации и shared junction](PRIMARY_ROUTING_76.md).
 Небезопасное отсечение A* удалено после двух воспроизведённых epsilon-chain контрпримеров;
 Численная подготовка тоже не принята:6962exact PASS, но измеренного выигрыша нет.

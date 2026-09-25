@@ -4579,7 +4579,6 @@ public class OfficialRoutePlanner {
                 (left, right) -> left,
                 LinkedHashMap::new));
         List<RouteEdge> result = new ArrayList<>();
-        List<LineString> acceptedRoutes = new ArrayList<>();
         for (RouteEdge edge : edges) {
             RouteNode upstream = nodesById.get(edge.getUpstreamNodeId());
             RouteNode downstream = nodesById.get(edge.getDownstreamNodeId());
@@ -4587,11 +4586,9 @@ public class OfficialRoutePlanner {
                     || downstream == null
                     || edge.getDiameter() == null) {
                 result.add(edge);
-                if (edge.getCoordinates().size() >= 2) {
-                    acceptedRoutes.add(routeLine(edge));
-                }
                 continue;
             }
+            RouteAvoidance acceptedRoutes = obstacleRouter.avoidanceFor(edge, result, nodesById);
             boolean demandEdge = "demand_connection".equals(downstream.getNodeType());
             List<RouteCoordinate> coordinates = edge.getCoordinates();
             Coordinate approach = coordinates.size() >= 2
@@ -4619,7 +4616,6 @@ public class OfficialRoutePlanner {
                             completeRoute, edge.getDiameter(), routingEnvironment, exemptions, acceptedRoutes, egress);
             if (validAtFinalDiameter) {
                 result.add(edge);
-                acceptedRoutes.add(routeLine(edge));
                 continue;
             }
             // При настоящем нарушении сохраняем прежний выбор цели для восстановительного поиска.
@@ -4640,7 +4636,6 @@ public class OfficialRoutePlanner {
                             routingEnvironment, exemptions, acceptedRoutes);
             if (finalPath == null) {
                 result.add(edge);
-                acceptedRoutes.add(routeLine(edge));
                 continue;
             }
             if (egress != null) finalPath = finalPath.reversed();
@@ -4652,7 +4647,6 @@ public class OfficialRoutePlanner {
                     edge.getFlowTph(),
                     edge.getDiameter());
             result.add(finalEdge);
-            acceptedRoutes.add(routeLine(finalEdge));
         }
         return result;
     }

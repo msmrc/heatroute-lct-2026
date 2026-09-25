@@ -1,5 +1,19 @@
 # Current implementation progress
 
+## 2026-09-25 — source77: shared-junction repair
+
+[Source77](PRIMARY_ROUTING_77.md): ранее принятая ветвь больше не блокирует собственный общий
+узел при final-ДУ repair. Точная node identity, только локальный прямой контакт; overlap,
+повторный вход и пересечения вдали запрещены. UTM overlay исправлен без расширения допусков;
+whole-line guards не позволяют сделать общий узел внутренней точкой при склейке ввода.
+29 новых постоянных tests; 111 focused PASS, independent65/65 (48 rotated/translated).
+Конечный clean/fast Maven1166cases/1163PASS/0fail/0error/3scale skipped; web36/scripts37/
+lint/typecheckPASS. Full/fresh77session79101 выполняется на отдельном snapshot77; accepted77
+ещё нет. Roads75session70338 продолжает использовать замороженный snapshot75target.
+Ограниченный final-ДУ replay75 не заменяет fresh/sizing/depth/economics и не доказывает ускорения.
+Следующий отдельный дефект — направление road entry после обращения terminal route.
+Runtime61/VPS прежние; compact/G2/native/Compose/scale/R и полная цель не закрыты.
+
 ## 2026-09-25 — full75 завершён; рискованное A* отсечение отклонено
 
 [Checkpoint76](PRIMARY_ROUTING_76.md): обе performance-гипотезы отклонены, main source неизменён75.

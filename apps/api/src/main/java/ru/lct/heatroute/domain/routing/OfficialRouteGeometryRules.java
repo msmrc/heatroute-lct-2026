@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,6 +34,7 @@ public class OfficialRouteGeometryRules {
     static final double EPSILON_M = 0.01;
     static final double NORMAL_EGRESS_MARGIN_M = 0.25;
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
+    private static final double ROUTE_AVOIDANCE_BUFFER_M = 0.20 - CLEARANCE_BOUNDARY_EPSILON_M;
     private static final Comparator<Constraint> CONSTRAINT_ORDER = Comparator
             .comparing((Constraint item) -> item.type)
             .thenComparing(item -> item.id);
@@ -453,10 +455,54 @@ public class OfficialRouteGeometryRules {
         List<Constraint> result = new ArrayList<>();
         for (int index = 0; index < routes.size(); index++) {
             LineString route = routes.get(index);
-            Geometry blocked = route.buffer(0.20 - CLEARANCE_BOUNDARY_EPSILON_M, 2);
+            Geometry blocked = route.buffer(ROUTE_AVOIDANCE_BUFFER_M, 2);
             result.add(new Constraint("accepted-route-" + index, "accepted_route", route, blocked, rule));
         }
         return result;
+    }
+
+    /** Совпадения координат недостаточно: исключение принадлежит одному общему ID узла. */
+    RouteAvoidance routeAvoidance(RouteEdge candidate, List<RouteEdge> accepted, Map<String, RouteNode> nodes) {
+        List<LineString> routes = new ArrayList<>();
+        List<Constraint> constraints = new ArrayList<>();
+        List<JoinedRouteContact> contacts = new ArrayList<>();
+        boolean shared = false;
+        SpatialConstraintRule rule = new SpatialConstraintRule(
+                "accepted_route", true, "0.20", null, null, null, null, "1.00");
+        for (RouteEdge edge : accepted) {
+            Constraint.ensureIntersectionActive();
+            if (edge.getCoordinates().size() < 2) continue;
+            LineString route = line(edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate)
+                    .collect(Collectors.toList()));
+            routes.add(route);
+            Set<String> common = new HashSet<>(List.of(candidate.getUpstreamNodeId(), candidate.getDownstreamNodeId()));
+            common.retainAll(List.of(edge.getUpstreamNodeId(), edge.getDownstreamNodeId()));
+            JoinedRouteContact contact = null;
+            if (common.size() == 1) {
+                String id = common.iterator().next();
+                RouteNode node = nodes.get(id);
+                if (node != null && endpointMatches(candidate, id, node) && endpointMatches(edge, id, node)) {
+                    contact = JoinedRouteContact.create(route, node.getCoordinate().toCoordinate(), ROUTE_AVOIDANCE_BUFFER_M);
+                }
+            }
+            shared |= contact != null;
+            contacts.add(contact);
+        }
+        // Без общих узлов старые методы сохраняют свои hooks и сами готовят обычные препятствия.
+        if (shared) for (int index = 0; index < routes.size(); index++) {
+            Constraint.ensureIntersectionActive();
+            LineString route = routes.get(index);
+            constraints.add(new Constraint("accepted-route-" + index, "accepted_route", route,
+                    route.buffer(ROUTE_AVOIDANCE_BUFFER_M, 2), rule, 0, contacts.get(index)));
+        }
+        return new RouteAvoidance(routes, constraints, shared);
+    }
+
+    private boolean endpointMatches(RouteEdge edge, String id, RouteNode node) {
+        if (edge.getCoordinates().size() < 2) return false;
+        RouteCoordinate endpoint = edge.getCoordinates().get(id.equals(edge.getUpstreamNodeId())
+                ? 0 : edge.getCoordinates().size() - 1);
+        return endpoint.toCoordinate().equals2D(node.getCoordinate().toCoordinate());
     }
 
     List<Constraint> depthAvoidanceConstraints(
@@ -493,12 +539,18 @@ public class OfficialRouteGeometryRules {
     }
 
     boolean segmentAllowed(Coordinate start, Coordinate end, ConstraintIndex constraints) {
+        return segmentAllowed(start, end, constraints, false);
+    }
+
+    private boolean segmentAllowed(Coordinate start, Coordinate end, ConstraintIndex constraints,
+            boolean joinedContactsChecked) {
         if (start.distance(end) <= EPSILON_M) {
             return false;
         }
         LineString segment = geometryFactory.createLineString(new Coordinate[] {start, end});
         for (Constraint constraint : constraints.query(segment.getEnvelopeInternal())) {
             if (constraint.rule.isForbidden()) {
+                if (joinedContactsChecked && constraint.joinedContact != null) continue;
                 if (intersectsInterior(segment, constraint)) {
                     return false;
                 }
@@ -518,9 +570,10 @@ public class OfficialRouteGeometryRules {
     }
 
     boolean pointInsideForbiddenClearance(Coordinate coordinate, ConstraintIndex constraints) {
-        Geometry point = geometryFactory.createPoint(coordinate);
+        org.locationtech.jts.geom.Point point = geometryFactory.createPoint(coordinate);
         for (Constraint constraint : constraints.query(point.getEnvelopeInternal())) {
             if (constraint.rule.isForbidden() && constraint.preparedBlocked.covers(point)) {
+                if (constraint.joinedContact != null && constraint.joinedContact.permitsPoint(point)) continue;
                 return true;
             }
         }
@@ -535,10 +588,31 @@ public class OfficialRouteGeometryRules {
         return provisionalSegmentsAllowed(line, constraints) && completeRoadCrossingsAllowed(line, constraints);
     }
 
+    /** Стык должен оставаться концом всей трассы, а не только временно выделенной части ввода. */
+    boolean joinedContactsAllowed(LineString line, ConstraintIndex constraints) {
+        if (!constraints.hasJoinedContacts) return true;
+        for (Constraint constraint : constraints.query(line.getEnvelopeInternal())) {
+            if (constraint.joinedContact != null && constraint.intersectsBlocked(line)) return false;
+        }
+        return true;
+    }
+
     /** Только локальная видимость; не допускает готовый маршрут без полной проверки special. */
     boolean provisionalSegmentsAllowed(LineString line, ConstraintIndex constraints) {
+        boolean joinedContactsChecked = false;
+        if (constraints.hasJoinedContacts) {
+            for (Constraint constraint : constraints.query(line.getEnvelopeInternal())) {
+                if (constraint.joinedContact != null) {
+                    if (constraint.intersectsBlocked(line)) return false;
+                    joinedContactsChecked = true;
+                }
+            }
+        }
         for (int index = 0; index < line.getNumPoints() - 1; index++) {
-            if (!segmentAllowed(line.getCoordinateN(index), line.getCoordinateN(index + 1), constraints)) {
+            boolean allowed = joinedContactsChecked
+                    ? segmentAllowed(line.getCoordinateN(index), line.getCoordinateN(index + 1), constraints, true)
+                    : segmentAllowed(line.getCoordinateN(index), line.getCoordinateN(index + 1), constraints);
+            if (!allowed) {
                 return false;
             }
         }
@@ -879,6 +953,7 @@ public class OfficialRouteGeometryRules {
         private volatile boolean roadCrossingsInitialized;
         private final SpatialConstraintRule rule;
         private final double clearanceM;
+        private final JoinedRouteContact joinedContact;
 
         private Constraint(
                 String id,
@@ -891,6 +966,11 @@ public class OfficialRouteGeometryRules {
 
         private Constraint(String id, String type, Geometry source, Geometry blocked,
                 SpatialConstraintRule rule, double clearanceM) {
+            this(id, type, source, blocked, rule, clearanceM, null);
+        }
+
+        private Constraint(String id, String type, Geometry source, Geometry blocked,
+                SpatialConstraintRule rule, double clearanceM, JoinedRouteContact joinedContact) {
             this.id = id;
             this.type = type;
             this.source = source;
@@ -901,6 +981,7 @@ public class OfficialRouteGeometryRules {
                     ? PreparedRoadCrossings.additionalCoordinateReservation(source) : 0;
             this.rule = rule;
             this.clearanceM = clearanceM;
+            this.joinedContact = joinedContact;
         }
 
         String id() { return id; }
@@ -933,6 +1014,9 @@ public class OfficialRouteGeometryRules {
 
         private boolean intersectsBlocked(LineString line) {
             ensureIntersectionActive();
+            if (joinedContact != null) {
+                return preparedBlocked.intersects(line) && !joinedContact.permitsContact(line, blocked);
+            }
             if (line.getNumPoints() != 2 || segmentIndexCoordinateReservation == 0) {
                 return preparedBlocked.intersects(line);
             }
@@ -991,6 +1075,7 @@ public class OfficialRouteGeometryRules {
     }
 
     static final class ConstraintIndex {
+        private final boolean hasJoinedContacts;
         // На малых наборах отбор и упорядочивание кандидатов дороже линейного обхода.
         private static final int LINEAR_SCAN_THRESHOLD = 128;
         private final List<Constraint> all;
@@ -999,6 +1084,7 @@ public class OfficialRouteGeometryRules {
 
         private ConstraintIndex(List<Constraint> constraints) {
             all = List.copyOf(constraints);
+            hasJoinedContacts = all.stream().anyMatch(item -> item.joinedContact != null);
             roads = all.stream().filter(item -> !item.rule.isForbidden()
                     && RoadCrossingClearance.supports(item.type)).collect(Collectors.toList());
             if (constraints.size() < LINEAR_SCAN_THRESHOLD) {

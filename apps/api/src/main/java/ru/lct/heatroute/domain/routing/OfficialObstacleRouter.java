@@ -72,6 +72,10 @@ public class OfficialObstacleRouter {
 
     double buildingClearanceM(int diameter) { return rules.preparationClearanceM("oks", diameter).doubleValue(); }
 
+    RouteAvoidance avoidanceFor(RouteEdge edge, List<RouteEdge> accepted, Map<String, RouteNode> nodes) {
+        return rules.routeAvoidance(edge, accepted, nodes);
+    }
+
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgress(
             List<ImportedOfficialFeature> features,
             int diameter,
@@ -99,6 +103,16 @@ public class OfficialObstacleRouter {
         requireHeading(previous, start);
         return findUncached(start, end, diameter, environment, exemptFeatureIds, preference,
                 acceptedRoutes, Collections.emptyList(), new Coordinate(previous));
+    }
+
+    RoutePath findAfter(Coordinate previous, Coordinate start, Coordinate end, int diameter,
+            OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
+            RoutePreference preference, RouteAvoidance avoidance) {
+        if (!avoidance.hasSharedJunction()) return findAfter(previous, start, end, diameter,
+                environment, exemptFeatureIds, preference, avoidance.routes());
+        requireHeading(previous, start);
+        return findUncached(start, end, diameter, environment, exemptFeatureIds, preference,
+                List.of(), List.of(), new Coordinate(previous), avoidance.constraints());
     }
 
     List<String> directBlockingConstraintIds(
@@ -165,6 +179,20 @@ public class OfficialObstacleRouter {
     RoutePath withCheckedTerminalPrefix(OfficialRouteGeometryRules.NormalEgress egress, RoutePath outside,
             int diameter, OfficialRoutingEnvironment environment, Set<String> exemptions,
             List<LineString> acceptedRoutes) {
+        return withCheckedTerminalPrefix(egress, outside, diameter, environment, exemptions, acceptedRoutes, null);
+    }
+
+    RoutePath withCheckedTerminalPrefix(OfficialRouteGeometryRules.NormalEgress egress, RoutePath outside,
+            int diameter, OfficialRoutingEnvironment environment, Set<String> exemptions, RouteAvoidance avoidance) {
+        if (!avoidance.hasSharedJunction()) return withCheckedTerminalPrefix(egress, outside, diameter,
+                environment, exemptions, avoidance.routes());
+        return withCheckedTerminalPrefix(egress, outside, diameter, environment, exemptions,
+                List.of(), avoidance.constraints());
+    }
+
+    private RoutePath withCheckedTerminalPrefix(OfficialRouteGeometryRules.NormalEgress egress, RoutePath outside,
+            int diameter, OfficialRoutingEnvironment environment, Set<String> exemptions,
+            List<LineString> acceptedRoutes, List<Constraint> preparedAvoidance) {
         if (outside.coordinates().size() < 2 || outside.coordinates().get(0).distance(egress.exit()) > 0.001) return null;
         List<Coordinate> coordinates = new ArrayList<>();
         coordinates.add(egress.start());
@@ -177,7 +205,8 @@ public class OfficialObstacleRouter {
                 constraints, exemptions, egress.start(), end).stream()
                 .filter(constraint -> !egress.exempts(constraint))
                 .collect(java.util.stream.Collectors.toList());
-        List<Constraint> avoidance = rules.applicableConstraints(rules.routeAvoidanceConstraints(acceptedRoutes),
+        List<Constraint> avoidance = rules.applicableConstraints(preparedAvoidance == null
+                        ? rules.routeAvoidanceConstraints(acceptedRoutes) : preparedAvoidance,
                 Set.of(), egress.start(), end);
         terminalConstraints.addAll(avoidance);
         RoutePath candidate = path(coordinates, constraints);
@@ -187,7 +216,8 @@ public class OfficialObstacleRouter {
                 exemptions, rounded.get(1), end));
         outsideConstraints.addAll(avoidance);
         ConstraintIndex terminalIndex = rules.index(terminalConstraints);
-        return line.isSimple() && turnsAllowed(candidate.coordinates(), null)
+        return line.isSimple() && rules.joinedContactsAllowed(line, terminalIndex)
+                && turnsAllowed(candidate.coordinates(), null)
                 && rules.provisionalSegmentsAllowed(rules.line(rounded.subList(0, 2)), terminalIndex)
                 && rules.provisionalSegmentsAllowed(rules.line(rounded.subList(1, rounded.size())),
                         rules.index(outsideConstraints))
@@ -243,6 +273,22 @@ public class OfficialObstacleRouter {
     boolean terminalRouteAllowed(List<Coordinate> coordinates, int diameter,
             OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
             List<LineString> acceptedRoutes, OfficialRouteGeometryRules.NormalEgress egress) {
+        return terminalRouteAllowed(coordinates, diameter, environment, exemptFeatureIds, acceptedRoutes, egress, null);
+    }
+
+    boolean terminalRouteAllowed(List<Coordinate> coordinates, int diameter,
+            OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
+            RouteAvoidance avoidance, OfficialRouteGeometryRules.NormalEgress egress) {
+        if (!avoidance.hasSharedJunction()) return terminalRouteAllowed(coordinates, diameter, environment,
+                exemptFeatureIds, avoidance.routes(), egress);
+        return terminalRouteAllowed(coordinates, diameter, environment, exemptFeatureIds,
+                List.of(), egress, avoidance.constraints());
+    }
+
+    private boolean terminalRouteAllowed(List<Coordinate> coordinates, int diameter,
+            OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
+            List<LineString> acceptedRoutes, OfficialRouteGeometryRules.NormalEgress egress,
+            List<Constraint> preparedAvoidance) {
         ensureNotCancelled();
         if (coordinates.size() < 2) return false;
         Coordinate start = coordinates.get(0), end = coordinates.get(coordinates.size() - 1);
@@ -252,7 +298,8 @@ public class OfficialObstacleRouter {
         // Техническая вершина не является существующей врезкой и не ослабляет чужой отступ.
         List<Constraint> outside = new ArrayList<>(rules.applicableConstraints(
                 environment.corridorConstraints(diameter, bounds), exemptFeatureIds, start, end));
-        outside.addAll(rules.applicableConstraints(rules.routeAvoidanceConstraints(acceptedRoutes),
+        outside.addAll(rules.applicableConstraints(preparedAvoidance == null
+                        ? rules.routeAvoidanceConstraints(acceptedRoutes) : preparedAvoidance,
                 Collections.emptySet(), start, end));
         ConstraintIndex outsideIndex = rules.index(outside);
         ConstraintIndex terminalIndex = rules.index(outside.stream().filter(constraint -> !egress.exempts(constraint))
@@ -262,6 +309,7 @@ public class OfficialObstacleRouter {
                 || rules.pointInsideForbiddenClearance(end, terminalIndex)) return false;
         LineString complete = rules.line(coordinates);
         return complete.isSimple()
+                && rules.joinedContactsAllowed(complete, outsideIndex)
                 && (coordinates.size() == 2 || rules.provisionalSegmentsAllowed(
                         rules.line(coordinates.subList(0, coordinates.size() - 1)), outsideIndex))
                 && rules.provisionalSegmentsAllowed(rules.line(List.of(adjacent, end)), terminalIndex)
@@ -276,6 +324,20 @@ public class OfficialObstacleRouter {
             Set<String> exemptFeatureIds,
             List<LineString> acceptedRoutes,
             java.util.function.Predicate<Constraint> terminalExemption) {
+        return lineAllowed(coordinates, diameter, environment, exemptFeatureIds,
+                acceptedRoutes, terminalExemption, null);
+    }
+
+    boolean lineAllowed(List<Coordinate> coordinates, int diameter, OfficialRoutingEnvironment environment,
+            Set<String> exemptFeatureIds, RouteAvoidance avoidance) {
+        if (!avoidance.hasSharedJunction()) return lineAllowed(coordinates, diameter, environment,
+                exemptFeatureIds, avoidance.routes());
+        return lineAllowed(coordinates, diameter, environment, exemptFeatureIds, List.of(), null, avoidance.constraints());
+    }
+
+    private boolean lineAllowed(List<Coordinate> coordinates, int diameter, OfficialRoutingEnvironment environment,
+            Set<String> exemptFeatureIds, List<LineString> acceptedRoutes,
+            java.util.function.Predicate<Constraint> terminalExemption, List<Constraint> preparedAvoidance) {
         if (coordinates.size() < 2) {
             return false;
         }
@@ -287,7 +349,7 @@ public class OfficialObstacleRouter {
             constraints.removeIf(terminalExemption);
         }
         constraints.addAll(rules.applicableConstraints(
-                rules.routeAvoidanceConstraints(acceptedRoutes),
+                preparedAvoidance == null ? rules.routeAvoidanceConstraints(acceptedRoutes) : preparedAvoidance,
                 Collections.emptySet(),
                 start,
                 end));
@@ -345,6 +407,14 @@ public class OfficialObstacleRouter {
                 Collections.emptyList());
     }
 
+    RoutePath find(Coordinate start, Coordinate end, int diameter, OfficialRoutingEnvironment environment,
+            Set<String> exemptFeatureIds, RoutePreference preference, RouteAvoidance avoidance) {
+        if (!avoidance.hasSharedJunction()) return find(start, end, diameter, environment,
+                exemptFeatureIds, preference, avoidance.routes());
+        return findUncached(start, end, diameter, environment, exemptFeatureIds, preference,
+                List.of(), List.of(), null, avoidance.constraints());
+    }
+
     private RoutePath find(
             Coordinate start,
             Coordinate end,
@@ -384,11 +454,19 @@ public class OfficialObstacleRouter {
             Coordinate start, Coordinate end, int diameter, OfficialRoutingEnvironment environment,
             Set<String> exemptFeatureIds, RoutePreference preference, List<LineString> acceptedRoutes,
             List<Constraint> additionalConstraints, Coordinate previous) {
+        return findUncached(start, end, diameter, environment, exemptFeatureIds, preference,
+                acceptedRoutes, additionalConstraints, previous, null);
+    }
+
+    private RoutePath findUncached(
+            Coordinate start, Coordinate end, int diameter, OfficialRoutingEnvironment environment,
+            Set<String> exemptFeatureIds, RoutePreference preference, List<LineString> acceptedRoutes,
+            List<Constraint> additionalConstraints, Coordinate previous, List<Constraint> preparedAvoidance) {
         ensureNotCancelled();
         List<Constraint> constraints = searchConstraints(
                 start, end, previous, diameter, environment, exemptFeatureIds);
         constraints.addAll(rules.applicableConstraints(
-                rules.routeAvoidanceConstraints(acceptedRoutes),
+                preparedAvoidance == null ? rules.routeAvoidanceConstraints(acceptedRoutes) : preparedAvoidance,
                 Collections.emptySet(),
                 start,
                 end));

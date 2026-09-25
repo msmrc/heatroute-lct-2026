@@ -1,5 +1,23 @@
 # Handoff — Артём / PM / developer
 
+## Приоритетная актуализация: source77 / полный прогон идёт
+
+Сначала [PRIMARY_ROUTING_77.md](PRIMARY_ROUTING_77.md). Исправлен shared-junction self-blocking
+в final-ДУ repair: локальное исключение по node identity, не исключение целого соседа.
+29новых tests,111focusedPASS,65independentPASS; конечный clean/fast1166cases/1163PASS/
+0fail/0error/3scale skip и web36/scripts37/lint/typecheckPASS. Полного accepted77 пока нет.
+
+- **Full77session79101**: `.tooling/source77-build.FeShm8/apps/api`, `source77-full.log`,
+  accepted `source77-result.json`, diagnostic `source77-diagnostic.json`. Target заморожен.
+- **Roads75session70338**: `.tooling/scenario75.VxnM8P`, `source75-roads.log`, frozen
+  `.tooling/source75-build.9a8BDz/apps/api/target`. Не перезаписывать до terminal outcome.
+
+Логи/результаты — `.tooling/intake-20260925/`; fast77 reports сохранены отдельно. Сначала
+дождаться текущих процессов, не дублировать fresh calculation из-за тихого лога. После77
+отдельно исправлять road-entry direction demand→root versus stored root→demand, включая
+выбор нормали и whole-line checks; нельзя требовать оба угла вместо правила входа.
+Runtime61/VPS не обновлены; compact/G2/native/Compose/scale/R и цель остаются открытыми.
+
 ## Приоритетная актуализация: audit76 / full75 завершён
 
 Сначала [PRIMARY_ROUTING_76.md](PRIMARY_ROUTING_76.md). Goal-priority pruning отклонён:

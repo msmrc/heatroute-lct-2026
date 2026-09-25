@@ -4,6 +4,11 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Checkpoint source82:** начальная сборка коридора по фактическому направлению и целым
+пересечениям внесена; 86 focused Java-тестов PASS. Это не приёмка F1–F3 или полного
+алгоритма: fresh82/roads82/производительность/live smoke не подтверждены, R/G2 не закрыты.
+Состояние и продолжение — [progress](progress.md) и [handoff](TOMORROW_HANDOFF.md).
+
 **Свежий результат81:**1234cases/1230PASS/1compactFAIL/0errors/3skip;462,736с.
 17/17/geometry/sizing/depth/economics/strict export; shortest/cheapest2068,786м/11камер/0bad bends,
 exact75. Это восстановление регрессии77–80, не рекорд; balanced2194,257м/14камер как80.

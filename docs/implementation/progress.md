@@ -1,5 +1,20 @@
 # Current implementation progress
 
+## 2026-09-25 — checkpoint source82 по запросу сохранения в Git
+
+Внесена начальная реализация [допуска общего коридора](CORRIDOR_TRUNK_ADMISSION.md):
+сетка сохраняет проход при допустимости хотя бы одного направления, сборка проверяет
+фактическое направление от корня, полные пересечения дорог и секции пересчитываются
+после объединения технических звеньев. Версия исходников — `global-tree-82`.
+Первый focused Maven-прогон: **86 tests PASS, 0 failures/errors/skips**, Java 11,
+8 классов; snapshot `.tooling/source82-dev.X9eyJD`, лог
+`.tooling/intake-20260925/source82-initial-focused.log`. Пять изменённых Java-файлов
+побайтно совпадают с проверенным snapshot. Это промежуточный checkpoint, **не релиз**:
+специальные regression-тесты F1–F3, полный fresh82, roads82, производительность и
+live smoke ещё не подтверждены; web gates82 повторно не запускались.
+`pwsh`/Compose недоступны в этом macOS-окружении, обязательный общий gate не закрыт.
+Runtime61/VPS не обновлялись; R/G2/compact/scale и качество выходов из камер остаются открытыми.
+
 ## 2026-09-25 — свежий81: регрессия поворотов устранена, качество ещё не целиком принято
 
 Full1234cases/1230PASS/1прежний compactFAIL/0errors/3scale skip; original462,736с/concave5,845с.

@@ -60,9 +60,10 @@ class OrthogonalCorridorNetworkBuilderJointPathsTest {
         assertThat(bounded).anySatisfy(candidate -> assertThat(candidate.coordinates())
                 .containsExactly(new Coordinate(), new Coordinate(0, 10), new Coordinate(-10, 10)));
         Method compress = OrthogonalCorridorNetworkBuilder.class.getDeclaredMethod("compress",
-                List.class, OrthogonalCorridorGrid.class, List.class, RouteNode.class, PreparedCorridor.class);
+                List.class, OrthogonalCorridorGrid.class, List.class, RouteNode.class, PreparedCorridor.class,
+                OfficialRoutingEnvironment.class);
         compress.setAccessible(true);
-        assertThat(compress.invoke(builder, tree, grid, ports, root, checks())).isNull();
+        assertThat(compress.invoke(builder, tree, grid, ports, root, checks(), environment)).isNull();
         List<OrthogonalCorridorNetworkBuilder.Network> repaired = repair(grid, ports);
         assertThat(repaired).hasSize(1);
         assertValidArithmetic(repaired.get(0), 30);
@@ -93,9 +94,9 @@ class OrthogonalCorridorNetworkBuilderJointPathsTest {
         List<OrthogonalCorridorNetworkBuilder.Network> results = new ArrayList<>();
         Method method = OrthogonalCorridorNetworkBuilder.class.getDeclaredMethod("addJointCandidate", List.class,
                 List.class, OrthogonalCorridorGrid.class, List.class, RouteNode.class, PreparedCorridor.class,
-                CorridorTerminalRouter.class);
+                CorridorTerminalRouter.class, OfficialRoutingEnvironment.class);
         method.setAccessible(true);
-        method.invoke(builder, results, tree, grid, ports, root, checks(), spurs());
+        method.invoke(builder, results, tree, grid, ports, root, checks(), spurs(), environment);
         return results;
     }
 

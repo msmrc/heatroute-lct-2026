@@ -158,6 +158,27 @@ final class PreparedCorridor {
         return pathAfter(null, coordinates);
     }
 
+    /**
+     * Завершает уже проверенные части коридора в фактическом направлении потока: целый special
+     * и его секции нельзя оценивать по техническим звеньям. Вызывающий код предварительно
+     * проверяет каждое звено ствола и неизменённый terminal spur со своей локальной льготой ОКС.
+     * Не заменяет общий финальный валидатор сети и не разрешает произвольную непроверенную линию.
+     */
+    RoutePath completeCheckedAssembly(List<Coordinate> coordinates) {
+        if (coordinates.size() < 2) return null;
+        coordinates.forEach(PreparedCorridor::requireFinite);
+        List<Coordinate> rounded = coordinates.stream()
+                .map(point -> new RouteCoordinate(point.x, point.y).toCoordinate()).collect(Collectors.toList());
+        for (int i = 1; i < rounded.size() - 1; i++) if (isRoot(rounded.get(i))) return null;
+        LineString line = rules.line(rounded);
+        if (!line.isSimple() || line.isClosed()) return null;
+        boolean atRoot = isRoot(rounded.get(0)) || isRoot(rounded.get(rounded.size() - 1));
+        ConstraintIndex index = atRoot ? rootIndex : strictIndex;
+        if (!rules.completeRoadCrossingsAllowed(line, index)) return null;
+        return new RoutePath(rounded,
+                rules.sections(line, atRoot ? rootConstraints : constraints, index.traversal()), line.getLength());
+    }
+
     /** Наружный кандидат после реального ввода; окончательный допуск — только после сборки префикса. */
     RoutePath pathAfter(Coordinate previous, List<Coordinate> coordinates) {
         if (coordinates.size() < 2) return null;

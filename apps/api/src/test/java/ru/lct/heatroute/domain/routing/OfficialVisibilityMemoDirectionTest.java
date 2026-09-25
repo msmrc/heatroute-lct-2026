@@ -105,7 +105,7 @@ class OfficialVisibilityMemoDirectionTest {
     @SuppressWarnings("unchecked")
     private List<Coordinate> search(List<Coordinate> nodes, ConstraintIndex index,
             OfficialObstacleRouter.SegmentVisibilityMemo memo) {
-        Object result = ReflectionTestUtils.invokeMethod(router, "shortestPath", nodes, index,
+        Object result = ReflectionTestUtils.invokeMethod(router, "shortestPathWithMemo", nodes, index,
                 RoutePreference.SHORTEST, nodes.get(0), nodes.get(1), memo);
         return (List<Coordinate>) ReflectionTestUtils.getField(result, "coordinates");
     }

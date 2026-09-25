@@ -271,14 +271,14 @@ class OfficialObstacleRouterSearchTest {
         List<Coordinate> widenedGraph = List.of(
                 new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(5, 5));
 
-        Object first = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPath",
+        Object first = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPathWithMemo",
                 firstGraph, constraints, RoutePreference.SHORTEST,
                 firstGraph.get(0), firstGraph.get(1), memo);
-        Object widened = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPath",
+        Object widened = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPathWithMemo",
                 widenedGraph, constraints, RoutePreference.SHORTEST,
                 widenedGraph.get(0), widenedGraph.get(1), memo);
         int checksAfterWidening = countingRules.visibilityChecks;
-        Object repeated = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPath",
+        Object repeated = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPathWithMemo",
                 widenedGraph, constraints, RoutePreference.SHORTEST,
                 widenedGraph.get(0), widenedGraph.get(1), memo);
 

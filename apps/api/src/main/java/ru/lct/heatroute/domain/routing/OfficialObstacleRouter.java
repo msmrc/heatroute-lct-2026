@@ -1192,11 +1192,11 @@ public class OfficialObstacleRouter {
             RoutePreference preference,
             Coordinate start,
             Coordinate end) {
-        return shortestPath(nodes, constraints, preference, start, end,
+        return shortestPathWithMemo(nodes, constraints, preference, start, end,
                 new SegmentVisibilityMemo(constraints.hasRoadCrossings()));
     }
 
-    private SearchResult shortestPath(List<Coordinate> nodes, ConstraintIndex constraints,
+    private SearchResult shortestPathWithMemo(List<Coordinate> nodes, ConstraintIndex constraints,
             RoutePreference preference, Coordinate start, Coordinate end, SegmentVisibilityMemo sharedVisibility) {
         return shortestPath(nodes, constraints, preference, start, end, null, sharedVisibility,
                 constraints, null, null, sharedVisibility, null);

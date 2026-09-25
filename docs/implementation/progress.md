@@ -1,5 +1,16 @@
 # Current implementation progress
 
+## 2026-09-25 — correctness79: whole-network preservation
+
+[Source79](PRIMARY_ROUTING_79.md): `PRESERVE_VALID` сохраняет целиком независимо проверенную
+сеть при конечных ДУ, не смешивая preservation с поисковым буфером. Новые replacements остаются
+под прежними guards. 6новыхtests;3REDна78→PASS79; clean/fast1222cases/1219PASS/0fail/0error/3skip,
+scoped59PASS, web36/scripts37/lint/typecheckPASS, независимое bounded static review без замечаний.
+Повтор доводки saved75 на79:6/6exactPASS,shortest/cheapest2068,786м/0bad angles; **не fresh79**.
+Full79session51226 запущен; full78session46700/roads77session2599 ещё работают, targets frozen.
+Нужен fresh all-role quality (включая cheapest), roads79 и native smoke. Runtime61/VPS не менялись.
+Релиз/compact/G2/Compose/scale/R/цель не закрыты;4%недельного лимита, checkpoint в Git.
+
 ## 2026-09-25 — correctness78: incoming terminal/normal/sections
 
 [Source78](PRIMARY_ROUTING_78.md): явное физическое направление без смены порядка поиска;

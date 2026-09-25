@@ -1,5 +1,20 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source79 — не перестраивать целиком допустимую сеть
+
+Сначала [PRIMARY_ROUTING_79.md](PRIMARY_ROUTING_79.md). `PRESERVE_VALID` сохраняет все рёбра
+после независимой полной проверки сети при окончательных ДУ; поисковые буферы новых замен
+не ослаблены. 6новыхtests,3REDна78→PASS79; clean/fast1222cases/1219PASS/0fail/0error/3skip.
+Scoped59PASS; контроль доводки saved75:6/6PASS/exact edges/0bad angles, **не fresh79**.
+Web36/scripts37/lint/typecheckPASS. Статическое review без замечаний.
+
+Живые targets: full79session51226→`.tooling/source79-build.RQBOQ4/apps/api/target`,
+full78session46700→`.tooling/source78-build.X5TXbQ/apps/api/target`,
+roads77session2599→`.tooling/source77-build.FeShm8/apps/api/target`. Не изменять их до завершения.
+Следом явная all-role engineering проверка свежего79 (cheapest не покрыт текущими assertions),
+roads79/native smoke и сравнение с экспертом. Source79 не является принятым релизом;
+runtime61/VPS/compact/G2/scale/Compose/R не изменены. Осталось4%лимита, сохраняем checkpoint.
+
 ## Актуально: correctness78; качество77 ещё не принято
 
 Сначала [PRIMARY_ROUTING_78.md](PRIMARY_ROUTING_78.md). Terminal direction/normal/sections

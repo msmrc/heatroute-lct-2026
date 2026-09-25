@@ -4,6 +4,12 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Приоритетная актуализация — source79:** [whole-network preservation](PRIMARY_ROUTING_79.md).
+Устранена воспроизведённая порча уже допустимого incumbent из-за поискового буфера:6новыхtests,
+clean/fast1222cases/1219PASS/0fail/0error/3skip, scoped59PASS, saved75 доводка6/6exactPASS.
+Это не fresh quality gate. Full79session51226/full78session46700/roads77session2599 выполняются
+на отдельных frozen targets; runtime61/VPS прежние. Compact/G2/native/Compose/scale/R/цель открыты.
+
 **Приоритетная актуализация — source78:** [направление terminal и sections](PRIMARY_ROUTING_78.md).
 50новых regression tests; конечный clean/fast1216cases/1213PASS/0fail/0error/3scale skip,
 web36/scripts37/lint/typecheckPASS. Full78session46700 и roads77session2599 ещё работают

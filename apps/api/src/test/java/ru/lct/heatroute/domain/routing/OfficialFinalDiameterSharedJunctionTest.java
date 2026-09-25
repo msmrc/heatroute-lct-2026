@@ -120,6 +120,100 @@ class OfficialFinalDiameterSharedJunctionTest {
     }
 
     @Test
+    void validNetworkIsNotRepairedBecauseOfASiblingsSearchBuffer() throws Exception {
+        assertSearchBufferDoesNotChangeValidNetwork(new Fixture(), false, false);
+    }
+
+    @Test
+    void validNetworkPreservationDoesNotDependOnEdgeOrder() throws Exception {
+        assertSearchBufferDoesNotChangeValidNetwork(new Fixture(), false, true);
+    }
+
+    @Test
+    void validNetworkIsRetainedWithAnIncomingSiblingSearchBuffer() throws Exception {
+        assertSearchBufferDoesNotChangeValidNetwork(new Fixture(), true, false);
+    }
+
+    @Test
+    void searchBufferPreservationWorksAfterRotationAndUtmTranslation() throws Exception {
+        assertSearchBufferDoesNotChangeValidNetwork(new Fixture(90, 414000, 6173000), false, false);
+    }
+
+    @Test
+    void realCrossingAwayFromTheSharedNodeStillRequiresRepair() throws Exception {
+        Fixture fixture = new Fixture();
+        RouteEdge branch = fixture.branch(400);
+        RouteEdge sibling = fixture.edge("sibling", "root", "other", 400, List.of(
+                fixture.point(-20, 20), fixture.point(-20, 40),
+                fixture.point(19.9, 40), fixture.point(19.9, 0)));
+        List<RouteNode> nodes = List.of(fixture.node("root", -20, 20, true),
+                fixture.node("demand", -1, 0, false), fixture.node("other", 19.9, 0, false));
+        List<RouteEdge> before = List.of(sibling, branch);
+        assertThat(codes(nodes, before, fixture.features)).containsExactly("CROSSING_OUTSIDE_COMMON_NODE");
+
+        List<RouteEdge> after = ensure(nodes, before, fixture.features);
+
+        assertValid(nodes, after, fixture.features);
+        assertThat(find(after, "branch")).isNotSameAs(branch);
+        assertThat(find(after, "sibling")).isSameAs(sibling);
+    }
+
+    @Test
+    void validNetworkWithoutBuildingEgressIsAlsoPreserved() throws Exception {
+        Fixture fixture = new Fixture();
+        RouteEdge branch = fixture.edge("branch", "root", "demand", 400, List.of(
+                fixture.point(0, 0), fixture.point(20, 0), fixture.point(20, 20), fixture.point(40, 20)));
+        RouteEdge sibling = fixture.edge("sibling", "root", "other", 400, List.of(
+                fixture.point(0, 0), fixture.point(0, -20), fixture.point(20.1, -20), fixture.point(20.1, 10)));
+        List<RouteNode> nodes = List.of(fixture.node("root", 0, 0, true),
+                fixture.node("demand", 40, 20, false), fixture.node("other", 20.1, 10, false));
+        List<RouteEdge> before = List.of(sibling, branch);
+        assertValid(nodes, before, List.of());
+
+        List<RouteEdge> after = ensure(nodes, before, List.of());
+
+        assertValid(nodes, after, List.of());
+        assertThat(find(after, "branch")).isSameAs(branch);
+        assertThat(find(after, "sibling")).isSameAs(sibling);
+    }
+
+    private void assertSearchBufferDoesNotChangeValidNetwork(Fixture fixture,
+            boolean incoming, boolean branchFirst) throws Exception {
+        RouteEdge branch = fixture.branch(400);
+        List<Coordinate> siblingPoints = new ArrayList<>(List.of(
+                fixture.point(-20, 20), fixture.point(-20, 40),
+                fixture.point(20.1, 40), fixture.point(20.1, 0)));
+        if (incoming) java.util.Collections.reverse(siblingPoints);
+        RouteEdge sibling = fixture.edge("sibling", incoming ? "other" : "root",
+                incoming ? "root" : "other", 400, siblingPoints);
+        List<RouteNode> nodes = incoming
+                ? List.of(fixture.node("other", 20.1, 0, true),
+                        new RouteNode("root", "new_branch_chamber",
+                                new RouteCoordinate(fixture.point(-20, 20).x, fixture.point(-20, 20).y),
+                                true, false, 0, null), fixture.node("demand", -1, 0, false))
+                : List.of(fixture.node("root", -20, 20, true),
+                        fixture.node("demand", -1, 0, false), fixture.node("other", 20.1, 0, false));
+        List<RouteEdge> before = branchFirst ? List.of(branch, sibling) : List.of(sibling, branch);
+        assertValid(nodes, before, fixture.features);
+        assertThat(line(branch).intersection(line(sibling)).getDimension()).isZero();
+        var byId = nodes.stream().collect(Collectors.toMap(RouteNode::getId, node -> node));
+        var environment = router.prepare(fixture.features);
+        var egress = environment.normalEgressTowards(400, fixture.point(-1, 0),
+                fixture.point(10, 0), RouteTraversal.REVERSED).orElseThrow();
+        assertThat(router.terminalRouteAllowed(branch.getCoordinates().stream()
+                        .map(RouteCoordinate::toCoordinate).collect(Collectors.toList()),
+                400, environment, java.util.Set.of(), router.avoidanceFor(branch, List.of(sibling), byId), egress))
+                .as("search buffer still blocks this candidate; it is not a final network violation").isFalse();
+
+        List<RouteEdge> after = ensure(nodes, before, fixture.features);
+
+        assertValid(nodes, after, fixture.features);
+        assertThat(find(after, "branch")).as("PRESERVE_VALID must not replace an independently valid branch")
+                .isSameAs(branch);
+        assertThat(find(after, "sibling")).isSameAs(sibling);
+    }
+
+    @Test
     void coincidentForeignEndpointWithDifferentNodeIdDoesNotEnableRepair() throws Exception {
         Fixture fixture = new Fixture();
         RouteEdge branch = fixture.branch(500);

@@ -4571,6 +4571,14 @@ public class OfficialRoutePlanner {
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
             OfficialRoutingEnvironment routingEnvironment, TerminalApproachPolicy approachPolicy) {
+        // Поисковый буфер соседней трассы не является дополнительной нормой готовой сети.
+        // Сохраняем только целиком проверенную сеть: после частичного ремонта этот допуск устарел бы.
+        if (approachPolicy == TerminalApproachPolicy.PRESERVE_VALID
+                && hasExplicitFinalGeometry(edges)
+                && routingEnvironment.validationFor(validator).validate(nodes, edges,
+                        featuresForEdges(features, edges, routingEnvironment)).isEmpty()) {
+            return new ArrayList<>(edges);
+        }
         Map<String, RouteNode> nodesById = nodes.stream().collect(Collectors.toMap(
                 RouteNode::getId,
                 node -> node,
@@ -4648,6 +4656,17 @@ public class OfficialRoutePlanner {
             result.add(finalEdge);
         }
         return result;
+    }
+
+    /** Не допускает fast path для черновиков без ДУ/полилинии или с вырожденным первым сегментом. */
+    private boolean hasExplicitFinalGeometry(List<RouteEdge> edges) {
+        for (RouteEdge edge : edges) {
+            List<RouteCoordinate> points = edge.getCoordinates();
+            if (edge.getDiameter() == null || points.size() < 2
+                    || points.get(0).toCoordinate().distance(points.get(1).toCoordinate())
+                            <= OfficialRouteGeometryRules.EPSILON_M) return false;
+        }
+        return !edges.isEmpty();
     }
 
     private boolean hasMandatoryEgress(

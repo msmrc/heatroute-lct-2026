@@ -12,6 +12,12 @@ fresh500,035с/17of17/strict exportPASS,exact variants69. Примерно−24,
 изолированном замере. Snapshot70 сохранён; clean/full/fresh71 теперь выполняется отдельно.
 Runtime61 сохранён, общий quality/performance/R-gate открыт.
 
+G2: read-only audit и отдельный Java11 RED подтвердили пропуск бокового отступа road/tram
+(4FAIL/2controlPASS): приДУ100 ось1,700м от полигона принимается вместо требуемых1,755м.
+[План исправления](G2_SPECIAL_CLEARANCE.md) включает оба spatial отбора, разрешённые прямые
+special-интервалы, порталы, final/export и PostGIS equivalence. Production fix ещё не включён;
+full71 не содержит этот isolated specification RED. Не объявлять G2 закрытым по strict export.
+
 ## 2026-09-25 — source70: пространственная подготовка точного валидатора
 
 [PRIMARY_ROUTING_70.md](PRIMARY_ROUTING_70.md): bounded source/bounds/heavy buffers устраняют

@@ -12,6 +12,11 @@ Production-helper replay всех69ролей:shortest/cheapest2068,786м/11ка
 Потом snapshot71/fresh71/roads/картинки/native. Runtime61 не обновлялся. Isolated
 `shortening71-focused.U9DmSn` — только focused/replay, не подмена full build.
 
+Следующий correctness scope — [G2_SPECIAL_CLEARANCE.md](G2_SPECIAL_CLEARANCE.md): реальные
+4RED/2controls для road/tram clearance. Нужен согласованный guard+spatial bounds+порталы+
+export, не просто новая ошибка после фильтра, который уже выкинул близкую дорогу.
+Fixed3м special и разрешённый угол не отменяют внешний габарит. Production пока не изменён.
+
 ## Предыдущий source70: bounded spatial validation, full/fresh ещё впереди
 
 Сначала [PRIMARY_ROUTING_70.md](PRIMARY_ROUTING_70.md). Focused101PASS, validation-only

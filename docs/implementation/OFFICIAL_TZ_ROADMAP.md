@@ -12,6 +12,10 @@ shortest/cheapest,17/17/depth/strict export3ролей PASS. Balanced неизм
 fresh500,035с/17of17/strict exportPASS,exact variants69. Full/fresh71 выполняется отдельно.
 Runtime61/R-gates не закрыты.
 
+**G2 — подтверждённый открытый defect:** [road/tram lateral clearance](G2_SPECIAL_CLEARANCE.md),
+isolated4FAIL/2controlPASS на71. Принимается1,700м от оси вместо1,755м дляДУ100.
+Нынешний strict export не является доказательством этой отсутствующей проверки.
+
 **Предыдущий source70, WIP:** [пространственная подготовка validation](PRIMARY_ROUTING_70.md).
 Bounded snapshots/bounds/buffers, первый buffer/отказы и полный осевой отступ сохранены.
 Isolated101PASS/0FAIL; validation replay69 3×3:exact issues0,655buffers/43183coord стабильно

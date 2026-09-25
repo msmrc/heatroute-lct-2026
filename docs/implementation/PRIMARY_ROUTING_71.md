@@ -71,3 +71,7 @@ Web36/scripts37/lint/typecheck PASS (`source71-web.log`).
 - [ ] Локальный native gate; Compose/scale отдельно.
 
 Compact-control≤13камер/<1860м, G2, общее качество/скорость, R-этапы и общая цель открыты.
+
+Дополнительный G2-аудит подтвердил отдельный genuine RED:4fail/2controlPASS для бокового
+отступа road/tram. [Контрпример и согласованный fix](G2_SPECIAL_CLEARANCE.md). Это отсутствующая
+проверка, не регрессия terminal-pass; успешный нынешний экспорт её не доказывает.

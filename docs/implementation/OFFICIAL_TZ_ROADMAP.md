@@ -8,13 +8,15 @@
 Bounded local-pass после relocation с полным пересчётом и сохранением исходных ролей.
 Focused125PASS; production-helper replay69 даёт2068,786м/11камер/22поворота/0expert у
 shortest/cheapest,17/17/depth/strict export3ролей PASS. Balanced неизменён. Это не fresh71;
-full compiled70 ещё выполняется. Runtime61/R-gates не закрыты.
+код `0d4d462` отправлен. Full70 завершён:951/947PASS/1failure(compact-control)/3skip,
+fresh500,035с/17of17/strict exportPASS,exact variants69. Full/fresh71 выполняется отдельно.
+Runtime61/R-gates не закрыты.
 
 **Предыдущий source70, WIP:** [пространственная подготовка validation](PRIMARY_ROUTING_70.md).
 Bounded snapshots/bounds/buffers, первый buffer/отказы и полный осевой отступ сохранены.
 Isolated101PASS/0FAIL; validation replay69 3×3:exact issues0,655buffers/43183coord стабильно
 после прогрева. Не fresh70/performance gate. Roads69 завершён:1054,672с/17of17/strict export
-3ролей PASS; shortest/cheapest2260,959м/11камер/33поворота/0expert. Full/fresh70 ещё впереди.
+3ролей PASS; shortest/cheapest2260,959м/11камер/33поворота/0expert. Full/fresh70 завершён выше.
 Runtime61,compact-control,native/Compose/scale и R-gates остаются открытыми.
 
 **Предыдущий source69, WIP:** [подготовка препятствий для валидатора](PRIMARY_ROUTING_69.md).

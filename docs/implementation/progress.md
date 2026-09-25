@@ -7,7 +7,9 @@
 planner, component16GREEN, общий focused125PASS. Production-helper replay69:shortest/cheapest
 2068,786м/11камер/22поворота/0expert/283006479,92₽,balanced неизменён;17/17/depth/strict export
 3ролей PASS,2,520с; web36/scripts37/lint/typecheckPASS. Это не fresh71;
-полный compiled70 ещё выполняется и не включает71.
+код `0d4d462` отправлен. Compiled70 завершён:951cases/947PASS/1failure(compact-control)/3skip;
+fresh500,035с/17of17/strict exportPASS,exact variants69. Примерно−24,3% в этом не полностью
+изолированном замере. Snapshot70 сохранён; clean/full/fresh71 теперь выполняется отдельно.
 Runtime61 сохранён, общий quality/performance/R-gate открыт.
 
 ## 2026-09-25 — source70: пространственная подготовка точного валидатора

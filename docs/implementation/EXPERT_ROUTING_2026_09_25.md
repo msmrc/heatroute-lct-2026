@@ -2,7 +2,9 @@
 
 **Текущий этап:** [source71: короткие допустимые вводы](PRIMARY_ROUTING_71.md).
 125focusedPASS; production-helper replay69 shortest/cheapest2068,786м/11камер/22поворота/
-0expert,17/17/depth/strict export3ролей PASS. Это не fresh71; compiled70 ещё выполняется.
+0expert,17/17/depth/strict export3ролей PASS. Код `0d4d462` отправлен, это не fresh71.
+Compiled70 завершён:951cases/1failure(compact-control)/3skip,fresh500,035с/17of17/strict
+exportPASS,exact variants69. Теперь выполняется отдельный full/fresh71.
 Runtime61/G/R-gates остаются открытыми.
 
 Предыдущий [source70](PRIMARY_ROUTING_70.md):

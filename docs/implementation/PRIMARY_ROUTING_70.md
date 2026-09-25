@@ -3,7 +3,7 @@
 Дата:25.09.2026. Ветка `codex/routing-63-geometry`, `global-tree-70`.
 Тип: оптимизация с сохранением геометрических правил и контрактов.
 Продолжает [измерения69](PRIMARY_ROUTING_69.md); стратегии построения дерева не меняет.
-Runtime61/master/VPS сохранены. Полного fresh70 и release gate пока нет.
+Runtime61/master/VPS сохранены. Full/fresh70 завершён ниже; release/R-gate не закрыт.
 
 ## Причина и изменение
 
@@ -50,8 +50,25 @@ lint/typecheck PASS (`source70-web.log`).
 
 CountingPolygon-тесты теперь явно проверяют fallback нестандартной геометрии: изменены
 счётчики подготовки, но не требования к маршрутам/ошибкам. Обычная геометрия и экономия
-подготовки проверяются новым набором. Full Java70/fresh70/live/Compose/scale ещё не
-выполнены. Пороги качества не менялись; source69 по-прежнему последний full/fresh checkpoint.
+подготовки проверяются новым набором. Live70/Compose/scale не выполнены; пороги качества не менялись.
+
+## Итог clean/fresh70 на `704e440`
+
+Clean Java11 Maven:951cases,947PASS/1failure/0errors/3scale skipped. Единственный failure —
+прежний `OfficialCorridorControlRecoveryTest` (≤13камер/<1860м), пороги не ослаблены.
+Fresh all-demand500,035с/17of17/геометрия/ДУ/depth/economics/strict export3ролей PASS.
+Все поля всех3variants **точно совпали** с69 (`isDeepStrictEqual`), не только длина/цена.
+Balanced2192,523м/14камер/25поворотов/302839881,84₽;shortest/cheapest2090,416м/11камер/
+23поворота/284949407,70₽;все0expert. Preferred=cheapest.
+
+В этом прогоне500,035с против660,385с:−160,350с (примерно24,3%). Это не изолированный
+benchmark: несколько кратких isolated tests/replay/query-probes и web checks пересекались
+с full70, у69 был JFR. Одинаковый input/Java11/Xmx1g/ActiveProcessorCount2 и точное
+равенство результатов подтверждены; универсальные SLA/3ГБ/16ГБ отсюда не следуют.
+Фазы69→70:independent46,396→42,825с,shared65,134→49,829с,group_spines162,868→93,054с;
+finalized_portfolio70=314,209с. Последняя фаза остаётся основным следующим bottleneck.
+Evidence `source70-full.log`, `source70-surefire-reports/`, accepted `source70-result.json`
+и отдельный before_assertions `source70-diagnostic.json`. Snapshot сохранён до clean71.
 
 ## Roads+kindergarten: профиль69, не результат70
 
@@ -84,7 +101,7 @@ Query-only microprobe на212ограничениях нового сценар�
 
 ## Следующий gate
 
-Roads69 принят и закончен; target можно перестроить. Далее clean/full/fresh70 и сравнение всех
-вариантов с69:coverage/ДУ/depth/economics/strict
-export. Измерить фазы; не объявлять speedup по счётчику buffer. Compact-control≤13камер/
+Roads69 принят и закончен, full/fresh70 сохранён. Запущен отдельный clean/full/fresh71,
+не приписывать70 результаты нового terminal-pass. После71 — новый roads и native проверка.
+Compact-control≤13камер/
 <1860м остаётся красным. G2,roads,native,Compose/scale,R-этапы и общая цель открыты.

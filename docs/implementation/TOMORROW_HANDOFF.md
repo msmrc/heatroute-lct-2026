@@ -5,10 +5,12 @@
 Сначала [PRIMARY_ROUTING_71.md](PRIMARY_ROUTING_71.md).125focusedPASS, реальный80→60RED→GREEN.
 Production-helper replay всех69ролей:shortest/cheapest2068,786м/11камер/22поворота/0expert/
 283006479,92₽,balanced прежний;17/17/depth/strict export3ролей PASS. Не fresh71.
-Full **compiled70** ещё использует frozen target (`source70-full.log`); его не перезаписывать.
-После завершения сохранить reports/result70, сравнить exact variants с69, затем clean/full71,
-fresh71/roads/картинки/native. Runtime61 не обновлялся. Source71 classes только в isolated
-`shortening71-focused.U9DmSn`; не подставлять их в gate70 и не использовать их как full build.
+Код `0d4d462` отправлен. Full **compiled70** закончен:951cases/947PASS/1failure(compact-control)/
+3skip,fresh500,035с/17of17/strict export3ролей PASS,всеvariants точно как69. Snapshot
+`source70-surefire-reports/`/accepted result сохранён. Теперь full **compiled71** работает
+в target (`source71-full.log`,session28562): не перезаписывать классы до завершения.
+Потом snapshot71/fresh71/roads/картинки/native. Runtime61 не обновлялся. Isolated
+`shortening71-focused.U9DmSn` — только focused/replay, не подмена full build.
 
 ## Предыдущий source70: bounded spatial validation, full/fresh ещё впереди
 

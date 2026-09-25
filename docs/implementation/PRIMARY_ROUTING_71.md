@@ -1,8 +1,10 @@
 # Доводка71: сокращение уже допустимых вводов
 
 Дата:25.09.2026. Ветка `codex/routing-63-geometry`, work in progress.
-Последний отправленный checkpoint: `704e440` / source70. Full compiled70 ещё выполняется;
-новые исходники71 не меняют его замороженные классы. Runtime61/master/VPS сохранены.
+Код `0d4d462` отправлен, remote SHA проверен. Full compiled70 завершён:951cases/947PASS/
+1failure(compact-control)/3skip, fresh500,035с,exact variants69/strict export3ролей PASS.
+Его snapshot сохранён. Clean/full/fresh71 запущен отдельно; результат ещё не получен.
+Runtime61/master/VPS сохранены.
 
 ## Воспроизведённый пробел
 

@@ -10,18 +10,20 @@
 3новыхtests/2RED80→GREEN81; scoped62PASS; clean/fast1230cases/1227PASS/0fail/0error/3skip;
 web36/scripts37/lint/typecheckPASS. Bounded TOWARD replay saved75: exact edges/0bad angles,
 в отличие от79. **Это не fresh81.** Full81session87519 на `.tooling/source81-build.Ndryzg` запущен.
-Также живы full80session59635/roads79session69123/roads77session2599. Target79 не очищать,
-несмотря на завершение full79. Runtime61/VPS прежние; около1%лимита, checkpoint в Git.
+Full80session59635 завершён1231cases/1227PASS/1compactFAIL/0errors/3skip; fixture613,702с,
+exact variants80==79 подтверждено. Target80 свободен, reports сохранены;3bad angles cheapest
+остались, ускорение не доказано. Живы full81/roads79session69123/roads77session2599.
+Target79 не очищать, несмотря на завершение full79. Runtime61/VPS прежние; checkpoint в Git.
 
 ## Актуально: source80 — оптимизация сортировки препятствий
 
 Сначала [PRIMARY_ROUTING_80.md](PRIMARY_ROUTING_80.md). Query-local primitive ordinals сохраняют
 точные состав/порядок STRtree query, без нового кэша/изменения геометрии.5новыхtests, scoped81PASS,
 clean/fast1227cases/1224PASS/0fail/0error/3skip; web36/scripts37/lint/typecheckPASS. End-to-end gain
-не измерен. Full80session59635 на `.tooling/source80-build.GwJekn/apps/api/target` запущен.
-Full79session51226/roads79session69123 делят frozen target79; roads77session2599 — target77.
-Не менять targets и не дублировать процессы. Нужны exact variants80==79 и all-role quality,
-затем roads/native/изображения. Runtime61/VPS неизменны; на checkpoint оставалось2%лимита.
+не доказан. Full80/79 завершены, exact variants80==79 PASS; полный итог80 указан выше.
+Roads79session69123 продолжает использовать frozen target79; roads77session2599 — target77.
+Не менять живые targets и не дублировать процессы. Нужны свежий all-role quality81,
+затем roads/native/изображения. Runtime61/VPS неизменны. Ниже — история, не live-реестр процессов.
 
 ## Актуально: source79 — не перестраивать целиком допустимую сеть
 

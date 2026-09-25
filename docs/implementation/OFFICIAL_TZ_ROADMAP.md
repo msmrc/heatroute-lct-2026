@@ -8,13 +8,15 @@
 Full79 завершён, exact variants78/79 и3bad angles у cheapest. В81 исправление valid-network
 preservation распространено на основной режим с сохранением проверки его вводов.3новыхtests,
 clean/fast1230cases/1227PASS/3skip; web36/scripts37/lint/typecheckPASS; bounded saved75 replay
-в TOWARD сохраняет геометрию/0bad angles. Full81/full80/roads79/roads77 ещё работают.
+в TOWARD сохраняет геометрию/0bad angles. Full81/roads79/roads77 ещё работают.
+Full80 завершён1231cases/1227PASS/1compactFAIL/0errors/3skip; exact variants80==79 PASS,
+fixture613,702с. Эквивалентность подтверждена,3bad angles cheapest остались; ускорение не доказано.
 Свежий quality result81/ускорение/compact/G2/scale/Compose/R/цель не подтверждены; runtime61 прежний.
 
 **Приоритетная актуализация — source80:** [query-local ordinal sort](PRIMARY_ROUTING_80.md).
 Behavior-preserving optimization:5новыхtests/scoped81PASS, clean/fast1227cases/1224PASS/3skip,
-web36/scripts37/lint/typecheckPASS. Full80session59635 и full79/roads79/roads77 ещё выполняются.
-Точный состав/порядок query проверен; полное variants80==79 и end-to-end gain ещё не подтверждены.
+web36/scripts37/lint/typecheckPASS. Full80session59635 и full79 завершены; roads79/roads77 живы.
+Точный состав/порядок query и полное variants80==79 проверены; end-to-end gain не подтверждён.
 Качество, этапы R и цель пока не подтверждены; runtime61/VPS прежние.
 
 **Результат full78:**1220cases/1216PASS/1compactFAIL/3skip, fixture599,957с;17/17/strict

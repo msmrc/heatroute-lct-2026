@@ -56,8 +56,9 @@ portfolio81**. Не заменять им свежий расчёт. В81 нет
 
 - Full81session87519: `.tooling/source81-build.Ndryzg/apps/api/target` заморожен;
   `source81-full.log`, ожидаемые `source81-result.json` и `source81-diagnostic.json`.
-- Full80session59635: `.tooling/source80-build.GwJekn/apps/api/target` заморожен. Проверить
-  exact variants80==79 отдельно от качества. Времена под параллельной нагрузкой не являются SLA.
+- Full80session59635 завершён:1231cases/1227PASS/1compactFAIL/0errors/3skip;613,702с.
+  Exact variants80==79 подтверждено, включая3bad angles cheapest. Target80 свободен,
+  reports сохранены. Это equivalence, не quality/скорость; подробности в80.
 - Roads79session69123 использует `.tooling/source79-build.RQBOQ4/apps/api/target`;
   **full79session51226 завершён, но target79 всё ещё занят roads79**.
 - Roads77session2599 использует `.tooling/source77-build.FeShm8/apps/api/target`.

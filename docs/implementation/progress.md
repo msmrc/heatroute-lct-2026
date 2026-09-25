@@ -1,5 +1,16 @@
 # Current implementation progress
 
+## 2026-09-25 — full80 завершён: свежая эквивалентность79 подтверждена
+
+1231cases/1227PASS/1прежний compactFAIL/0errors/3scale skip,120классов. Original fixture613,702с,
+concave4,838с; под параллельной нагрузкой, не доказательство ускорения или регрессии времени.
+Node deep equality подтвердил exact `run.result.variants`80==79 без исключения полей.
+17/17, geometry/sizing/depth/economics/strict export3ролейPASS; cheapest2073,965м/11новых камер
+по-прежнему3bad angles, balanced/shortest2194,257/2194,034м/14камер/0engineering issues.
+Это equivalence gate, **не приёмка качества**. `source80-full-reports/` сохранены; target80 свободен.
+Full81session87519/roads79session69123/roads77session2599 подтверждены живыми; их targets frozen.
+Runtime61/VPS/compact/G2/native/Compose/scale/R/общая цель не закрыты; итоги и продолжение в80/81.
+
 ## 2026-09-25 — correctness81: preservation в основном TOWARD
 
 Full79:1226cases/1222PASS/1compactFAIL/3skip;595,410с, exact variants79==78, cheapest3bad angles.

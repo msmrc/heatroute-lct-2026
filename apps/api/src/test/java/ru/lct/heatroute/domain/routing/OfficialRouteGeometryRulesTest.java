@@ -175,7 +175,7 @@ class OfficialRouteGeometryRulesTest {
     }
 
     @Test
-    void extendsTheNormalBuildingExitAcrossOnlyItsContainingSocialArea() throws Exception {
+    void doesNotExtendTheOwnBuildingExemptionToItsContainingSocialArea() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("own", "oks_existing", null,
                         "POLYGON ((40 40, 60 40, 60 60, 40 60, 40 40))"),
@@ -184,12 +184,7 @@ class OfficialRouteGeometryRulesTest {
                 feature("foreign", "restriction", "social_area",
                         "POLYGON ((-80 20, -20 20, -20 80, -80 80, -80 20))"));
 
-        OfficialRouteGeometryRules.NormalEgress egress = rules.normalEgressTowards(
-                features, 50, new Coordinate(50, 50), new Coordinate(0, 50)).orElseThrow();
-
-        assertThat(egress.exit().x).isCloseTo(20 - (1.0 + 0.200 + 0.25), offset(1e-9));
-        assertThat(egress.exit().y).isEqualTo(50.0);
-        assertThat(egress.terminalExemptionIds()).containsExactlyInAnyOrder("own", "kindergarten");
+        assertNoEgress(features, 50, new Coordinate(50, 50));
     }
 
     @Test

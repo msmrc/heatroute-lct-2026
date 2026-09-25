@@ -185,7 +185,8 @@ class OfficialGeoJsonExporterTest {
                 new TopologyAnalysis(1, 2, 0, Collections.emptyList(), List.of(
                         new TieInCandidate("cp", "a-high", "heat_network", 40, true),
                         new TieInCandidate("cp", "z-low", "heat_network", 50, true))));
-        assertThat(calculation.getVariants()).filteredOn(v -> "cheapest".equals(v.getId()))
+        assertThat(calculation.getVariants())
+                .filteredOn(v -> calculation.getPreferredVariantId().equals(v.getId()))
                 .singleElement().satisfies(variant -> {
                     assertThat(variant.getConnectedDemandCount()).isEqualTo(1);
                     assertThat(variant.getNodes()).filteredOn(ru.lct.heatroute.domain.routing.RouteNode::isRoot)

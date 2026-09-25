@@ -155,19 +155,15 @@ class CorridorTerminalRoadContinuationTest {
     }
 
     @Test
-    void completedCrossingCannotHideUnsafeNormalThroughOwnSocialArea() {
+    void legalRoadCrossingCannotOverrideContainingSocialArea() {
         ImportedOfficialFeature site = feature("own-site", "social_area", rectangle(-10, -10, 20, 10));
         Geometry safeRoad = roadWithParallelComponent(2.0), unsafeRoad = roadWithParallelComponent(1.0);
-        var safe = router.prepare(List.of(building, site, feature("road", "road", safeRoad)))
-                .normalEgress(DIAMETER, connection).orElseThrow();
-        assertThat(safe.socialAreaIds()).contains("own-site");
-        assertThat(safe.exit().x).isGreaterThan(port.x);
-        assertThat(new RoadCrossingClearance().assess(rules.line(List.of(safe.start(), safe.exit())),
-                unsafeRoad, 1.755, 45, 3).getFailureCode()).isEqualTo("SPECIAL_PARALLEL_CLEARANCE_VIOLATION");
-        var actual = router.prepare(List.of(building, site, feature("road", "road", unsafeRoad)))
-                .normalEgress(DIAMETER, connection).orElseThrow();
-        assertThat(actual.exit().x).as("an irreparable east prefix must leave the legal west normal available")
-                .isLessThan(connection.x);
+        assertThat(router.prepare(List.of(building, feature("road", "road", safeRoad)))
+                .normalEgress(DIAMETER, connection)).isPresent();
+        for (Geometry road : List.of(safeRoad, unsafeRoad)) {
+            assertThat(router.prepare(List.of(building, site, feature("road", "road", road)))
+                    .normalEgress(DIAMETER, connection)).isEmpty();
+        }
     }
 
     private CorridorTerminalRouter corridor(List<ImportedOfficialFeature> features) {

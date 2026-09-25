@@ -143,6 +143,26 @@ class OfficialBuildingEndpointClearanceExportTest {
 
     @ParameterizedTest(name = "{0}, rotated={1}")
     @MethodSource("placements")
+    void rejectsOwnBuildingInputThroughContainingSocialAreaDespiteSavedAcceptance(String profile, boolean rotated)
+            throws Exception {
+        Fixture original = fixture(profile, rotated, 1000, 500, 20);
+        List<ImportedOfficialFeature> inputs = new ArrayList<>(original.inputs);
+        inputs.add(new ImportedOfficialFeature("own-building", "restriction",
+                mapper.createObjectNode().put("restriction_type", "oks"), geometries.createPolygon(new Coordinate[] {
+                    metric(39, -10, rotated), metric(51, -10, rotated), metric(51, 10, rotated),
+                    metric(39, 10, rotated), metric(39, -10, rotated)})));
+        Fixture own = new Fixture(original.calculation, inputs, original.building, original.nodes, original.edges);
+        assertAccepted(own, inputs);
+        // ТЗ §2.2 оставляет все остальные ограничения действующими, включая social_area.
+        inputs.add(new ImportedOfficialFeature("surrounding-social-site", "restriction",
+                mapper.createObjectNode().put("restriction_type", "social_area"), geometries.createPolygon(new Coordinate[] {
+                    metric(20, -20, rotated), metric(60, -20, rotated), metric(60, 20, rotated),
+                    metric(20, 20, rotated), metric(20, -20, rotated)})));
+        assertRejected(own);
+    }
+
+    @ParameterizedTest(name = "{0}, rotated={1}")
+    @MethodSource("placements")
     void rejectsActualEmittedMillimetreExcursionAcrossBuildingBoundary(String profile, boolean rotated) throws Exception {
         double clearanceM = clearances.axisClearanceM("oks", 500, null).doubleValue();
         Fixture fixture = fixture(profile, rotated, 1000, 500, clearanceM + 0.0001);

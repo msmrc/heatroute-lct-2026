@@ -174,8 +174,12 @@ public class OfficialRoutePlanner {
                         TieInCandidate::getConnectionPointId,
                         LinkedHashMap::new,
                         Collectors.toList()));
-        List<Demand> demands = demands(
+        List<Demand> allDemands = demands(
                 features, featuresById, candidatesByConnection, routingEnvironment);
+        TerminalFeasibility.Partition<Demand> feasibility = new TerminalFeasibility()
+                .partition(allDemands, demand -> demand.coordinate, routingEnvironment);
+        List<Demand> demands = feasibility.searchable();
+        VariantDraft generationSeed = forbiddenTerminalSeed(feasibility, candidatesByConnection);
         VariantDraft independentDraft = coverageFirstIndependent(
                 demands,
                 candidatesByConnection,
@@ -184,7 +188,7 @@ public class OfficialRoutePlanner {
                 routingEnvironment,
                 Collections.emptyMap(),
                 RoutePreference.SHORTEST,
-                "independent");
+                "independent", generationSeed);
         VariantDraft shortestDraft = completeWithTreeAttachments(
                 independentDraft, demands, routingEnvironment);
         routingEnvironment.logVisibilitySummary("independent");
@@ -197,7 +201,7 @@ public class OfficialRoutePlanner {
                 chamberIncidentCounts,
                 independentDraft.lengthByDemand,
                 independentDraft.connectionCostByDemand,
-                routingEnvironment, sharedControls);
+                routingEnvironment, sharedControls, generationSeed);
         routingEnvironment.logVisibilitySummary("shared");
 
         List<VariantDraft> portfolio = new ArrayList<>();
@@ -285,6 +289,10 @@ public class OfficialRoutePlanner {
                 validatedParameters, reconstructionRequired, routingEnvironment));
         finalized.addAll(repairMandatoryChambers(finalized, demands, features, validatedParameters,
                 reconstructionRequired, routingEnvironment));
+        // Обязательный ремонт создаёт допустимые сети, отсутствовавшие в первом merge-проходе.
+        // Проверяем их одним ограниченным уровнем; исходные варианты сохраняются для отбора.
+        finalized.addAll(refineRepairedCorridorVariants(finalized, demands, features, validatedParameters,
+                reconstructionRequired, routingEnvironment));
         List<RouteVariant> variants = new FinishedRouteVariantSelector()
                 .select(finalized, validatedParameters.isDepthEnabled());
         variants = relocateSelectedVariants(variants, demands, features, validatedParameters,
@@ -311,6 +319,7 @@ public class OfficialRoutePlanner {
                 .filter(variant -> chamberValidator
                         .validate(variant.getNodes(), variant.getEdges(), routingEnvironment::existingDirections).isEmpty())
                 .collect(Collectors.toList());
+        variants = distinctFinalVariants(variants, features, routingEnvironment);
 
         Map<String, Integer> rankById = new HashMap<>();
         List<RouteVariant> rankable = variants.stream()
@@ -345,7 +354,43 @@ public class OfficialRoutePlanner {
                         .orElse(null);
         }
         return new OfficialCalculationResult(
-                tuning.getAlgorithmVersion(), inputProfile, demands.size(), variants, preferred);
+                tuning.getAlgorithmVersion(), inputProfile, allDemands.size(), variants, preferred);
+    }
+
+    /** Для серверного windowed-пути учитывает также препятствия между сравниваемыми трассами. */
+    List<RouteVariant> distinctFinalVariants(List<RouteVariant> variants, List<ImportedOfficialFeature> features,
+            OfficialRoutingEnvironment environment) {
+        if (variants.isEmpty()) return List.of();
+        org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope();
+        for (RouteVariant variant : variants) {
+            for (RouteEdge edge : variant.getEdges()) {
+                for (RouteCoordinate point : edge.getCoordinates()) {
+                    DistinctRouteAlternatives.ensureActive();
+                    bounds.expandToInclude(point.toCoordinate());
+                }
+            }
+        }
+        List<ImportedOfficialFeature> nearby = bounds.isNull() ? features : environment.featuresInWindow(
+                new Coordinate(bounds.getMinX(), bounds.getMinY()),
+                new Coordinate(bounds.getMaxX(), bounds.getMaxY()));
+        Map<String, ImportedOfficialFeature> unique = new LinkedHashMap<>();
+        for (ImportedOfficialFeature feature : nearby) {
+            DistinctRouteAlternatives.ensureActive();
+            unique.putIfAbsent(feature.getObjectType() + ":" + feature.getFeatureId(), feature);
+        }
+        return new DistinctRouteAlternatives().select(variants, new ArrayList<>(unique.values()));
+    }
+
+    private VariantDraft forbiddenTerminalSeed(TerminalFeasibility.Partition<Demand> feasibility,
+            Map<String, List<TieInCandidate>> candidatesByConnection) {
+        VariantDraft seed = new VariantDraft();
+        feasibility.blocked().forEach((demand, blockers) -> {
+            seed.failureDiagnostics.put(demand.id, new RouteFailureDiagnostics(
+                    candidatesByConnection.getOrDefault(demand.connectionPointId, List.of()).size(),
+                    0, List.of(), blockers, 0));
+            seed.noRoute(demand, "ENDPOINT_INSIDE_FORBIDDEN_AREA");
+        });
+        return seed;
     }
 
     RouteVariant withEngineeringAssessment(RouteVariant variant) {
@@ -505,8 +550,10 @@ public class OfficialRoutePlanner {
             OfficialRoutingEnvironment routingEnvironment,
             Map<String, String> avoidedTargetByDemand,
             RoutePreference preference,
-            String strategyPrefix) {
-        VariantDraft draft = new VariantDraft();
+            String strategyPrefix,
+            VariantDraft generationSeed) {
+        // Штраф доказанно недоступных потребителей участвует и в промежуточном сравнении деревьев.
+        VariantDraft draft = generationSeed.copy();
         Map<String, Integer> usedChamberSlots = new HashMap<>();
         for (Demand demand : demands) {
             String avoidedTarget = avoidedTargetByDemand.get(demand.id);
@@ -545,13 +592,16 @@ public class OfficialRoutePlanner {
             OfficialRoutingEnvironment routingEnvironment,
             Map<String, String> avoidedTargetByDemand,
             RoutePreference preference,
-            String strategyPrefix) {
+            String strategyPrefix,
+            VariantDraft generationSeed) {
         VariantDraft first = independent(
                 demands, candidatesByConnection, featuresById, chamberIncidentCounts,
-                routingEnvironment, avoidedTargetByDemand, preference, strategyPrefix);
+                routingEnvironment, avoidedTargetByDemand, preference, strategyPrefix, generationSeed);
+        Set<String> searchableIds = demands.stream().map(demand -> demand.id).collect(Collectors.toSet());
         Set<String> failedDemandIds = first.connections.stream()
                 .filter(connection -> "no_route".equals(connection.getStatus()))
                 .map(RouteConnection::getDemandId)
+                .filter(searchableIds::contains)
                 .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
         if (failedDemandIds.isEmpty()) {
             return first;
@@ -567,7 +617,7 @@ public class OfficialRoutePlanner {
                 .thenComparing(this::compareDemandIds));
         VariantDraft retry = independent(
                 retryOrder, candidatesByConnection, featuresById, chamberIncidentCounts,
-                routingEnvironment, avoidedTargetByDemand, preference, strategyPrefix);
+                routingEnvironment, avoidedTargetByDemand, preference, strategyPrefix, generationSeed);
         return betterDraft(first, retry);
     }
 
@@ -681,7 +731,8 @@ public class OfficialRoutePlanner {
             Map<String, BigDecimal> independentCostByDemand,
             OfficialRoutingEnvironment routingEnvironment,
             Set<String> directFirstDemandIds,
-            List<VariantDraft> controls) {
+            List<VariantDraft> controls,
+            VariantDraft generationSeed) {
         List<DemandPair> demandPairs = new ArrayList<>();
         for (int leftIndex = 0; leftIndex < demands.size(); leftIndex++) {
             for (int rightIndex = leftIndex + 1; rightIndex < demands.size(); rightIndex++) {
@@ -730,7 +781,7 @@ public class OfficialRoutePlanner {
                 .thenComparing(plan -> plan.left.id)
                 .thenComparing(plan -> plan.right.id));
 
-        VariantDraft draft = new VariantDraft();
+        VariantDraft draft = generationSeed.copy();
         Set<String> paired = new HashSet<>();
         Map<String, Integer> usedChamberSlots = new HashMap<>();
         for (Demand demand : demands) {
@@ -811,14 +862,17 @@ public class OfficialRoutePlanner {
             Map<String, Double> independentLengthByDemand,
             Map<String, BigDecimal> independentCostByDemand,
             OfficialRoutingEnvironment routingEnvironment,
-            List<VariantDraft> controls) {
+            List<VariantDraft> controls,
+            VariantDraft generationSeed) {
         VariantDraft first = shared(
                 demands, candidatesByConnection, featuresById, chamberIncidentCounts,
                 independentLengthByDemand, independentCostByDemand,
-                routingEnvironment, Collections.emptySet(), controls);
+                routingEnvironment, Collections.emptySet(), controls, generationSeed);
+        Set<String> searchableIds = demands.stream().map(demand -> demand.id).collect(Collectors.toSet());
         Set<String> failedDemandIds = first.connections.stream()
                 .filter(connection -> "no_route".equals(connection.getStatus()))
                 .map(RouteConnection::getDemandId)
+                .filter(searchableIds::contains)
                 .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
         if (failedDemandIds.isEmpty()) {
             return first;
@@ -826,7 +880,7 @@ public class OfficialRoutePlanner {
         VariantDraft retry = shared(
                 demands, candidatesByConnection, featuresById, chamberIncidentCounts,
                 independentLengthByDemand, independentCostByDemand,
-                routingEnvironment, failedDemandIds, controls);
+                routingEnvironment, failedDemandIds, controls, generationSeed);
         return betterDraft(first, retry);
     }
 
@@ -2749,22 +2803,43 @@ public class OfficialRoutePlanner {
             List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
             boolean reconstructionRequired, OfficialRoutingEnvironment environment) {
         int[] nextId = {0};
-        return CorridorRefinementSearch.improve(seeds, parameters.isDepthEnabled(), current -> {
-            List<AssessedRouteDraft> candidates = assessedCorridorChamberMergeCandidates(
-                    new VariantDraft(current.getNodes(), current.getEdges(), current.getConnections()), demands, environment);
-            // Сохраняем ограниченные представители по черновому score и длине. Это бюджет эвристики,
-            // не доказательство доминирования: исходные полные сети остаются в общем portfolio.
-            List<VariantDraft> selected = AssessedRouteDraft.byScoreAndLength(candidates, this::draftGeometrySignature);
-            List<RouteVariant> completed = new ArrayList<>();
-            for (VariantDraft draft : selected) {
-                if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Corridor finish cancelled");
-                RouteVariant variant = withEngineeringAssessment(finish("corridor-refined-" + nextId[0]++,
-                        "engineering", draft, features, parameters, reconstructionRequired, environment));
-                completed.add(variant);
-                logVariantSummary(variant);
-            }
-            return completed;
-        });
+        return CorridorRefinementSearch.improve(seeds, parameters.isDepthEnabled(), current ->
+                finishCorridorMerges(current, demands, features, parameters, reconstructionRequired,
+                        environment, "corridor-refined-", nextId));
+    }
+
+    /** Один уровень, максимум два различных допустимых seeds и шесть finish на каждый. */
+    List<RouteVariant> refineRepairedCorridorVariants(List<RouteVariant> seeds, List<Demand> demands,
+            List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
+            boolean reconstructionRequired, OfficialRoutingEnvironment environment) {
+        List<RouteVariant> checked = seeds.stream()
+                .filter(variant -> variant != null && variant.isValid() && variant.getEngineeringIssues().isEmpty())
+                .filter(variant -> chamberValidator.validate(variant.getNodes(), variant.getEdges(),
+                        environment::existingDirections).isEmpty())
+                .filter(variant -> ExpertRouteBendRules.validate(variant.getNodes(), variant.getEdges()).isEmpty())
+                .collect(Collectors.toList());
+        int[] nextId = {0};
+        return CorridorRefinementSearch.improveRepaired(checked, parameters.isDepthEnabled(), current ->
+                finishCorridorMerges(current, demands, features, parameters, reconstructionRequired,
+                        environment, "post-repair-refined-", nextId));
+    }
+
+    private List<RouteVariant> finishCorridorMerges(RouteVariant current, List<Demand> demands,
+            List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
+            boolean reconstructionRequired, OfficialRoutingEnvironment environment, String idPrefix, int[] nextId) {
+        List<AssessedRouteDraft> candidates = assessedCorridorChamberMergeCandidates(
+                new VariantDraft(current.getNodes(), current.getEdges(), current.getConnections()), demands, environment);
+        // Бюджет эвристики, не доказательство доминирования: исходные полные сети остаются в portfolio.
+        List<VariantDraft> selected = AssessedRouteDraft.byScoreAndLength(candidates, this::draftGeometrySignature);
+        List<RouteVariant> completed = new ArrayList<>();
+        for (VariantDraft draft : selected) {
+            ensureCoverageRecoveryActive();
+            RouteVariant variant = withEngineeringAssessment(finish(idPrefix + nextId[0]++,
+                    "engineering", draft, features, parameters, reconstructionRequired, environment));
+            completed.add(variant);
+            logVariantSummary(variant);
+        }
+        return completed;
     }
 
     private List<AssessedRouteDraft> assessedChamberMergeCandidates(VariantDraft source, List<Demand> demands,

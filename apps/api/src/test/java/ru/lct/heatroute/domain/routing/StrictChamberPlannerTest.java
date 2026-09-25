@@ -31,7 +31,7 @@ class StrictChamberPlannerTest {
         OfficialCalculationResult result = new OfficialDatasetRoutingTest().planner().plan(features, topology,
                 new OfficialRunParameters(null, null, depth));
         ExistingNetworkSupportIndex support = new ExistingNetworkSupportIndex(features);
-        assertThat(result.getVariants()).hasSize(3).allSatisfy(variant -> {
+        assertThat(result.getVariants()).hasSizeBetween(1, 3).allSatisfy(variant -> {
             assertThat(variant.getConnectedDemandCount()).isEqualTo(2);
             assertThat(variant.isValid()).isTrue();
             assertThat(new ExpertChamberRouteValidator().validate(variant.getNodes(), variant.getEdges(),

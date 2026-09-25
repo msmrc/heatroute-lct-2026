@@ -163,6 +163,8 @@ final class OrthogonalCorridorNetworkBuilder {
             Port selected = null;
             for (int index : grid.portsNear(terminal.point, 12)) {
                 if (reservations.getOrDefault(index, 0) >= 2) continue;
+                // A standalone terminal may itself be a grid vertex; it cannot form a distinct chamber spur.
+                if (terminal.point.distance(grid.points().get(index)) <= 0.01) continue;
                 RoutePath path = spurs.route(terminal.id, terminal.point, grid.points().get(index), diameter(terminal.flow));
                 if (path == null || path.lengthM() <= 0.01) continue;
                 selected = new Port(terminal, index, path.reversed());
@@ -259,6 +261,7 @@ final class OrthogonalCorridorNetworkBuilder {
                     .limit(4).forEach(candidates::add);
             Map<Integer, Port> options = new LinkedHashMap<>();
             for (int port : candidates) {
+                if (terminal.point.distance(grid.points().get(port)) <= 0.01) continue;
                 CorridorTerminalRouter.Choice choice = spurs.routeChoice(
                         terminal.id, terminal.point, grid.points().get(port), diameter(terminal.flow));
                 RoutePath path = choice.path();

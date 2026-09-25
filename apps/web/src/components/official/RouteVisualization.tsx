@@ -176,6 +176,7 @@ function nodeTone(node: OfficialRouteNode): string {
 }
 
 function noRouteReason(reason?: string): string {
+  if (reason === "ENDPOINT_INSIDE_FORBIDDEN_AREA") return "Точка подключения находится внутри запретной территории";
   if (reason === "NO_NON_CROSSING_ROUTE") return "Не удалось построить трассу без пересечения ограничений";
   if (reason === "NO_ROUTE") return "Маршрут не найден";
   if (!reason) return "Маршрут не найден";

@@ -53,7 +53,7 @@ class OfficialRoutePlannerTest {
     }
 
     @Test
-    void nearbyDemandsPublishAllObjectiveVariantsWithAValidSharedTrunk() throws Exception {
+    void nearbyDemandsPublishOneSharedTrunkWithoutRoleCopies() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
                 feature("restriction", "shared-oks",
@@ -67,26 +67,17 @@ class OfficialRoutePlannerTest {
 
         OfficialCalculationResult result = planner.plan(features, topology);
 
-        assertThat(result.getVariants()).extracting(RouteVariant::getId)
-                .contains("shortest", "balanced");
-        RouteVariant independent = result.getVariants().stream()
-                .filter(variant -> "shortest".equals(variant.getStrategy()))
-                .findFirst()
-                .orElseThrow();
-        RouteVariant shared = result.getVariants().stream()
-                .filter(variant -> "engineering".equals(variant.getStrategy()))
-                .findFirst()
-                .orElseThrow();
-        assertThat(shared.getTotalLengthM()).isLessThanOrEqualTo(independent.getTotalLengthM());
-        assertThat(shared.getEconomics().getCalculatedCost())
-                .isLessThanOrEqualTo(independent.getEconomics().getCalculatedCost());
+        assertThat(result.getVariants()).hasSize(1);
+        RouteVariant shared = result.getVariants().get(0);
+        assertThat(shared.getConnectedDemandCount()).isEqualTo(2);
         assertThat(shared.getEdges()).hasSize(3);
+        assertThat(shared.getEdges()).extracting(edge -> edge.getFlowTph().stripTrailingZeros())
+                .containsExactlyInAnyOrder(new BigDecimal("5"), new BigDecimal("7"), new BigDecimal("12"));
         assertThat(shared.getNodes()).filteredOn(RouteNode::isChamber).hasSize(2);
         assertThat(shared.isValid()).isTrue();
         assertThat(result.getPreferredVariantId()).isEqualTo("balanced");
         assertThat(result.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
         assertThat(shared.getEngineeringIssues()).isEmpty();
-        assertThat(independent.getEngineeringIssues()).isEmpty();
     }
 
     @Test
@@ -449,16 +440,14 @@ class OfficialRoutePlannerTest {
                 candidate("cp-b", "network-bad", 1),
                 candidate("cp-b", "network-good", 2)));
 
-        RouteVariant independent = planner.plan(features, topology).getVariants().stream()
-                .filter(variant -> "shortest".equals(variant.getStrategy()))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(independent.isValid()).isTrue();
-        assertThat(independent.getConnectedDemandCount()).isEqualTo(2);
-        assertThat(independent.getNodes())
-                .filteredOn(node -> "network-bad".equals(node.getTargetId()))
-                .isEmpty();
+        List<RouteVariant> variants = planner.plan(features, topology).getVariants();
+        assertThat(variants).isNotEmpty().allSatisfy(variant -> {
+            assertThat(variant.isValid()).isTrue();
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(2);
+            assertThat(variant.getNodes())
+                    .filteredOn(node -> "network-bad".equals(node.getTargetId()))
+                    .isEmpty();
+        });
     }
 
     @Test
@@ -477,16 +466,15 @@ class OfficialRoutePlannerTest {
                 candidate("cp-b", "network-bad-5", 5),
                 candidate("cp-b", "network-good", 6)));
 
-        RouteVariant independent = planner.plan(features, topology).getVariants().stream()
-                .filter(variant -> "shortest".equals(variant.getStrategy()))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(independent.getConnectedDemandCount()).isEqualTo(2);
-        assertThat(independent.getNodes())
-                .filteredOn(node -> node.getTargetId() != null
-                        && node.getTargetId().startsWith("network-bad"))
-                .isEmpty();
+        List<RouteVariant> variants = planner.plan(features, topology).getVariants();
+        assertThat(variants).isNotEmpty().allSatisfy(variant -> {
+            assertThat(variant.isValid()).isTrue();
+            assertThat(variant.getConnectedDemandCount()).isEqualTo(2);
+            assertThat(variant.getNodes())
+                    .filteredOn(node -> node.getTargetId() != null
+                            && node.getTargetId().startsWith("network-bad"))
+                    .isEmpty();
+        });
     }
 
     @Test
@@ -531,7 +519,7 @@ class OfficialRoutePlannerTest {
     }
 
     @Test
-    void publishesThreeObjectiveVariantsWhenAlternativeTieInsExist() throws Exception {
+    void publishesUpToThreeValidAlternativesWhenAlternativeTieInsExist() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("heat_network", "network-a", "LINESTRING (0 -100, 0 100)", "{}"),
                 feature("heat_network", "network-b", "LINESTRING (200 -100, 200 100)", "{}"),
@@ -545,8 +533,8 @@ class OfficialRoutePlannerTest {
 
         OfficialCalculationResult result = planner.plan(features, topology);
 
-        assertThat(result.getVariants()).extracting(RouteVariant::getId)
-                .containsExactly("balanced", "shortest", "cheapest");
+        assertThat(result.getVariants()).hasSizeBetween(1, 3);
+        assertThat(result.getVariants()).extracting(RouteVariant::getId).doesNotHaveDuplicates();
         assertThat(result.getVariants()).allMatch(RouteVariant::isValid);
         assertThat(result.getVariants().get(0).getNodes())
                 .filteredOn(node -> "network-a".equals(node.getTargetId()))

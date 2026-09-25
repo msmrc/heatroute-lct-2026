@@ -281,11 +281,9 @@ public class OfficialRouteGeometryRules {
         double nearestLegalDistance = Double.POSITIVE_INFINITY;
         for (WallEgress wall : candidates) {
             if (wall.wallDistanceM > nearestLegalDistance + EPSILON_M) break;
-            NormalEgress extended = extendAcrossContainingSocialAreas(
-                    features, diameter, Optional.of(wall.egress)).orElseThrow();
-            if (!terminalLegAllowed(extended, features, diameter, traversal)) continue;
+            if (!terminalLegAllowed(wall.egress, features, diameter, traversal)) continue;
             nearestLegalDistance = Math.min(nearestLegalDistance, wall.wallDistanceM);
-            addDistinctEgress(result, extended);
+            addDistinctEgress(result, wall.egress);
         }
         return result;
     }
@@ -298,8 +296,7 @@ public class OfficialRouteGeometryRules {
         Coordinate exit = new Coordinate(
                 required.start.x + (required.exit.x - required.start.x) * factor,
                 required.start.y + (required.exit.y - required.start.y) * factor);
-        NormalEgress preferred = new NormalEgress(required.oksId, required.start, exit,
-                required.socialAreaIds);
+        NormalEgress preferred = new NormalEgress(required.oksId, required.start, exit);
         return terminalLegAllowed(preferred, features, diameter, traversal) ? preferred : required;
     }
 
@@ -392,74 +389,6 @@ public class OfficialRouteGeometryRules {
             this.egress = egress;
             this.wallDistanceM = wallDistanceM;
         }
-    }
-
-    /**
-     * A demand located on its own social-site parcel may leave that exact parcel through the same
-     * straight building-normal terminal leg. Other social sites remain forbidden, and the route
-     * after this terminal leg is still checked against the complete catalogue.
-     */
-    private Optional<NormalEgress> extendAcrossContainingSocialAreas(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Optional<NormalEgress> candidate) {
-        if (candidate.isEmpty()) {
-            return candidate;
-        }
-        NormalEgress egress = candidate.get();
-        Coordinate start = egress.start();
-        Coordinate exit = egress.exit();
-        double baseDistance = start.distance(exit);
-        if (baseDistance <= EPSILON_M) {
-            return candidate;
-        }
-        double directionX = (exit.x - start.x) / baseDistance;
-        double directionY = (exit.y - start.y) / baseDistance;
-        Geometry point = geometryFactory.createPoint(start);
-        List<ImportedOfficialFeature> containingSocialAreas = features.stream()
-                .filter(feature -> "social_area".equals(constraintType(feature)))
-                .filter(feature -> feature.getMetricGeometry() != null && !feature.getMetricGeometry().isEmpty())
-                .filter(feature -> feature.getMetricGeometry().getEnvelopeInternal().contains(start))
-                .filter(feature -> feature.getMetricGeometry().covers(point))
-                .sorted(Comparator.comparing(ImportedOfficialFeature::getFeatureId))
-                .collect(Collectors.toList());
-        if (containingSocialAreas.isEmpty()) {
-            return candidate;
-        }
-
-        double rayLength = baseDistance;
-        for (ImportedOfficialFeature feature : containingSocialAreas) {
-            org.locationtech.jts.geom.Envelope envelope = feature.getMetricGeometry().getEnvelopeInternal();
-            rayLength = Math.max(rayLength, Math.hypot(envelope.getWidth(), envelope.getHeight()) * 2.0);
-        }
-        Coordinate rayEnd = new Coordinate(
-                start.x + directionX * rayLength,
-                start.y + directionY * rayLength);
-        LineString ray = geometryFactory.createLineString(new Coordinate[] {start, rayEnd});
-        double requiredDistance = baseDistance;
-        Set<String> socialAreaIds = new HashSet<>(egress.socialAreaIds());
-        double socialClearance = preparationClearanceM("social_area", diameter).doubleValue();
-        for (ImportedOfficialFeature feature : containingSocialAreas) {
-            Geometry intersections = ray.intersection(feature.getMetricGeometry().getBoundary());
-            double farthestProjection = Double.NEGATIVE_INFINITY;
-            for (Coordinate intersection : intersections.getCoordinates()) {
-                double projection = (intersection.x - start.x) * directionX
-                        + (intersection.y - start.y) * directionY;
-                if (projection > farthestProjection) {
-                    farthestProjection = projection;
-                }
-            }
-            if (Double.isFinite(farthestProjection) && farthestProjection > EPSILON_M) {
-                requiredDistance = Math.max(
-                        requiredDistance,
-                        farthestProjection + socialClearance);
-                socialAreaIds.add(feature.getFeatureId());
-            }
-        }
-        Coordinate extendedExit = new Coordinate(
-                start.x + directionX * requiredDistance,
-                start.y + directionY * requiredDistance);
-        return Optional.of(new NormalEgress(egress.oksId(), start, extendedExit, socialAreaIds));
     }
 
     private void addDistinctEgress(List<NormalEgress> result, NormalEgress candidate) {
@@ -907,7 +836,7 @@ public class OfficialRouteGeometryRules {
     List<Constraint> ownTerminalFootprintConstraints(List<Constraint> constraints, Set<String> featureIds) {
         return constraints.stream()
                 .filter(constraint -> featureIds.contains(constraint.id))
-                .filter(constraint -> "oks".equals(constraint.type) || "social_area".equals(constraint.type))
+                .filter(constraint -> "oks".equals(constraint.type))
                 .map(constraint -> new Constraint(
                         constraint.id,
                         constraint.type,
@@ -1190,31 +1119,21 @@ public class OfficialRouteGeometryRules {
         private final String oksId;
         private final Coordinate start;
         private final Coordinate exit;
-        private final Set<String> socialAreaIds;
 
         private NormalEgress(String oksId, Coordinate start, Coordinate exit) {
-            this(oksId, start, exit, Set.of());
-        }
-
-        private NormalEgress(String oksId, Coordinate start, Coordinate exit, Set<String> socialAreaIds) {
             this.oksId = oksId;
             this.start = new Coordinate(start);
             this.exit = new Coordinate(exit);
-            this.socialAreaIds = Set.copyOf(socialAreaIds);
         }
 
         String oksId() { return oksId; }
         Coordinate start() { return new Coordinate(start); }
         Coordinate exit() { return new Coordinate(exit); }
-        Set<String> socialAreaIds() { return socialAreaIds; }
-        Set<String> terminalExemptionIds() {
-            Set<String> ids = new HashSet<>(socialAreaIds);
-            ids.add(oksId);
-            return Set.copyOf(ids);
-        }
+        Set<String> terminalExemptionIds() { return Set.of(oksId); }
+
+        /** ТЗ §2.2: льгота финального ввода относится только к своему ОКС, остальные запреты сохраняются. */
         boolean exempts(Constraint constraint) {
-            return ("oks".equals(constraint.type()) && oksId.equals(constraint.id()))
-                    || ("social_area".equals(constraint.type()) && socialAreaIds.contains(constraint.id()));
+            return "oks".equals(constraint.type()) && oksId.equals(constraint.id());
         }
     }
 

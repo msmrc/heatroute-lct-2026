@@ -111,14 +111,12 @@ class BuildingNormalEgressRegressionTest {
     }
 
     @Test
-    void socialExtensionCannotCrossAnotherPartOfOwnBuilding() throws Exception {
+    void socialAreaBlocksEveryNormalEvenForAnOwnMultipartBuilding() throws Exception {
         var features = List.of(
                 building("own", "MULTIPOLYGON (((0 0, 20 0, 20 20, 0 20, 0 0)), "
                         + "((-30 0, -20 0, -20 20, -30 20, -30 0)))"),
                 restriction("site", "social_area", "POLYGON ((-35 -5, 25 -5, 25 25, -35 25, -35 -5))"));
-        var exit = rules.normalEgress(features, 50, new Coordinate(2, 8)).orElseThrow();
-        assertThat(exit.exit().x).isCloseTo(2, offset(1e-8));
-        assertThat(exit.exit().y).isLessThan(-5);
+        assertThat(rules.normalEgress(features, 50, new Coordinate(2, 8))).isEmpty();
     }
 
     @Test

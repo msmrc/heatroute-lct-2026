@@ -10,6 +10,9 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.economics.VariantEconomics;
+import ru.lct.heatroute.domain.depth.DepthProfileIssue;
+import ru.lct.heatroute.domain.depth.DepthProfilePoint;
+import ru.lct.heatroute.domain.depth.DepthProfileResult;
 
 /** Проверяет бюджет и отбор фронта; реальную geometry/sizing/depth проверяет OfficialCorridorDatasetTest. */
 class CorridorRefinementSearchTest {
@@ -207,6 +210,79 @@ class CorridorRefinementSearchTest {
                 v -> java.util.Collections.nCopies(7, child))).isInstanceOf(IllegalArgumentException.class);
         assertThat(CorridorRefinementSearch.improve(List.of(seed), false,
                 v -> v == seed ? java.util.Collections.nCopies(6, child) : List.of())).containsExactly(child);
+    }
+
+    @Test
+    void repairedPassExpandsOnlyTwoDistinctLegalSeedsAndNeverItsOwnChildren() {
+        RouteVariant first = network("first", "a-", 5, 0, 1);
+        RouteVariant renamed = network("renamed", "b-", 5, 0, 1);
+        RouteVariant role = new RouteVariant("role", "cheapest", first.getNodes(), first.getEdges(),
+                first.getConnections(), first.getTotalLengthM(), List.of(), List.of(), null, first.getEconomics(), null);
+        RouteVariant second = network("second", "c-", 5, 1, 2);
+        RouteVariant pruned = network("pruned", "d-", 5, 2, 3);
+        RouteVariant child = network("child", "e-", 4, 0, 1);
+        List<String> expanded = new ArrayList<>();
+        assertThat(CorridorRefinementSearch.improveRepaired(List.of(first, renamed, role, second, pruned), false, v -> {
+            expanded.add(v.getId());
+            return v == child ? List.of(network("grandchild", "g-", 3, 0, 1)) : List.of(child);
+        })).containsExactly(child);
+        assertThat(expanded).containsExactly("first", "second");
+    }
+
+    @Test
+    void repairedPassRejectsIncompleteSeedsIntermediateWarningsAndLostConsumers() {
+        RouteVariant source = network("source", "s-", 4, 0, 1);
+        List<RouteVariant> touched = new ArrayList<>();
+        assertThat(CorridorRefinementSearch.improveRepaired(List.of(closeChambers(source)), false, v -> {
+            touched.add(v); return List.of();
+        })).isEmpty();
+        assertThat(touched).isEmpty();
+        assertThat(CorridorRefinementSearch.improveRepaired(List.of(source), true, v -> {
+            touched.add(v); return List.of();
+        })).isEmpty();
+        assertThat(touched).isEmpty();
+        assertThat(CorridorRefinementSearch.improveRepaired(List.of(source), false, v -> List.of(
+                closeChambers(network("close", "c-", 3, 0, 1)),
+                variant("lost", 3, 1, 1, 0), network("unchanged", "u-", 4, 0, 1)))).isEmpty();
+    }
+
+    @Test
+    void repairedPassKeepsMaximumCoverageAndSixCompletionsPerSeedBound() {
+        RouteVariant source = variant("source", 4, 10, 10, 2);
+        RouteVariant partial = variant("partial", 4, 1, 1, 1);
+        List<String> expanded = new ArrayList<>();
+        RouteVariant child = variant("child", 3, 10, 10, 2);
+        assertThat(CorridorRefinementSearch.improveRepaired(List.of(partial, source), false, v -> {
+            expanded.add(v.getId()); return List.of(child);
+        })).containsExactly(child);
+        assertThat(expanded).containsExactly("source");
+        assertThatThrownBy(() -> CorridorRefinementSearch.improveRepaired(List.of(source), false,
+                v -> java.util.Collections.nCopies(7, child))).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void repairedPassNeverReturnsCheaperDepthInvalidCandidate() {
+        RouteVariant source = withDepth(variant("source", 4, 10, 10, 2), true, false);
+        RouteVariant good = withDepth(variant("good", 3, 9, 9, 2), true, false);
+        RouteVariant missing = variant("missing", 3, 1, 1, 2);
+        RouteVariant incomplete = withDepth(variant("incomplete", 3, 1, 1, 2), false, true);
+        RouteVariant issue = withDepth(variant("issue", 3, 1, 1, 2), true, true);
+        assertThat(incomplete.isValid()).isTrue();
+        assertThat(CorridorRefinementSearch.improveRepaired(List.of(source), true,
+                v -> List.of(missing, incomplete, issue, good))).containsExactly(good);
+    }
+
+    private RouteVariant withDepth(RouteVariant source, boolean complete, boolean issue) {
+        var depth = new DepthProfileResult(complete, List.of(
+                new DepthProfilePoint(BigDecimal.ZERO, new BigDecimal("3")),
+                new DepthProfilePoint(new BigDecimal("100"), new BigDecimal("3"))), List.of(),
+                issue ? List.of(new DepthProfileIssue("NO_VERTICAL_PASSAGE", "crossing", "no passage")) : List.of(),
+                new BigDecimal("100"), new BigDecimal("100"));
+        List<RouteEdge> edges = source.getEdges().stream().map(e -> new RouteEdge(e.getId(), e.getUpstreamNodeId(),
+                e.getDownstreamNodeId(), e.getLengthM().doubleValue(), e.getCoordinates(), e.getSections(),
+                e.getFlowTph(), e.getDiameter(), depth)).collect(java.util.stream.Collectors.toList());
+        return new RouteVariant(source.getId(), source.getStrategy(), source.getNodes(), edges, source.getConnections(),
+                source.getTotalLengthM(), List.of(), List.of(), null, source.getEconomics(), null);
     }
 
     /** Валидная инцидентность для проверки идентичности; инженерный finish здесь не подменяется. */

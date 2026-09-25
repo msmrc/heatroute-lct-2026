@@ -59,7 +59,7 @@ class OfficialTopologyScaleTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(result.getDemandCount()).isEqualTo(expectedDemands);
-        assertThat(result.getVariants()).hasSize(3).allMatch(RouteVariant::isValid);
+        assertThat(result.getVariants()).hasSizeBetween(1, 3).allMatch(RouteVariant::isValid);
         assertThat(preferred.getConnectedDemandCount()).isEqualTo(expectedDemands);
         assertThat(preferred.getEdges()).allSatisfy(edge -> {
             assertThat(edge.getDepthProfile()).isNotNull();

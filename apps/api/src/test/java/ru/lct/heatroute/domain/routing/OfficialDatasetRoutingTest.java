@@ -74,23 +74,21 @@ class OfficialDatasetRoutingTest {
         assertThat(result.getPreferredVariantId())
                 .as(variantDiagnostics(result))
                 .isNotNull();
-        assertThat(result.getVariants())
-                .extracting(RouteVariant::getId)
-                .contains("balanced");
-        assertThat(result.getVariants()).hasSize(3);
+        // §6 разрешает до трёх содержательно различных вариантов. Роли одной сети
+        // не должны раздувать результат тремя одинаковыми экземплярами.
+        assertThat(result.getVariants()).hasSizeBetween(1, 3);
+        assertThat(result.getVariants().stream().map(variant -> {
+            ObjectNode content = objectMapper.valueToTree(variant);
+            content.remove(List.of("id", "strategy", "rank"));
+            return content;
+        }).collect(Collectors.toList())).doesNotHaveDuplicates();
         assertThat(result.getVariants()).allMatch(RouteVariant::isValid);
         assertThat(result.getVariants()).allSatisfy(variant ->
                 assertThat(variant.getConnectedDemandCount()).isEqualTo(result.getDemandCount()));
-        RouteVariant engineering = result.getVariants().stream()
-                .filter(variant -> "balanced".equals(variant.getId())).findFirst().orElseThrow();
-        RouteVariant shortest = result.getVariants().stream()
-                .filter(variant -> "shortest".equals(variant.getId())).findFirst().orElseThrow();
-        RouteVariant cheapest = result.getVariants().stream()
-                .filter(variant -> "cheapest".equals(variant.getId())).findFirst().orElseThrow();
         OfficialRoutingEnvironment verificationEnvironment = new OfficialObstacleRouter(new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry())).prepare(features);
         // Экономическая роль не должна незаметно вернуть плохие углы после finish/переноса камер.
-        // Проверяем и опубликованную диагностику, и фактические полилинии всех трёх ролей.
+        // Проверяем и опубликованную диагностику, и фактические полилинии всех итоговых вариантов.
         assertThat(result.getVariants()).allSatisfy(variant -> {
             assertThat(variant.getEngineeringIssues()).as(engineeringDiagnostics(variant)).isEmpty();
             assertThat(new EngineeringRouteEvaluator().evaluate(variant.getEdges()).isCompliant())
@@ -101,10 +99,13 @@ class OfficialDatasetRoutingTest {
             assertThat(ExpertRouteBendRules.validate(variant.getNodes(), variant.getEdges()))
                     .as("Final bends and continuous 2 m spacing: " + variant.getId()).isEmpty();
         });
-        assertThat(shortest.getTotalLengthM()).isLessThanOrEqualTo(engineering.getTotalLengthM());
-        assertThat(result.getVariants()).allSatisfy(variant ->
-                assertThat(cheapest.getEconomics().getCalculatedCost())
-                        .isLessThanOrEqualTo(variant.getEconomics().getCalculatedCost()));
+        result.getVariants().stream().filter(variant -> "shortest".equals(variant.getId())).forEach(shortest ->
+                assertThat(result.getVariants()).allSatisfy(variant ->
+                        assertThat(shortest.getTotalLengthM()).isLessThanOrEqualTo(variant.getTotalLengthM())));
+        result.getVariants().stream().filter(variant -> "cheapest".equals(variant.getId())).forEach(cheapest ->
+                assertThat(result.getVariants()).allSatisfy(variant ->
+                        assertThat(cheapest.getEconomics().getCalculatedCost())
+                                .isLessThanOrEqualTo(variant.getEconomics().getCalculatedCost())));
         RouteVariant preferred = result.getVariants().stream()
                 .filter(variant -> variant.getId().equals(result.getPreferredVariantId()))
                 .findFirst()
@@ -116,6 +117,12 @@ class OfficialDatasetRoutingTest {
                 .hasSize((int) (result.getDemandCount() - preferred.getConnectedDemandCount()));
         assertThat(preferred.getEconomics().isComplete()).isTrue();
         assertThat(preferred.getEconomics().getScore()).isNotNull();
+        assertThat(result.getVariants()).allSatisfy(variant ->
+                assertThat(preferred.getEconomics().getScore())
+                        .isLessThanOrEqualTo(variant.getEconomics().getScore()));
+        assertThat(result.getVariants().stream().map(RouteVariant::getRank).sorted().collect(Collectors.toList()))
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(1, result.getVariants().size())
+                        .boxed().collect(Collectors.toList()));
         assertThat(result.getVariants()).allSatisfy(variant -> {
             assertThat(variant.getEdges()).isNotEmpty();
             assertThat(variant.getEdges()).allSatisfy(edge -> {

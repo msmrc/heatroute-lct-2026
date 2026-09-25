@@ -1,5 +1,21 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
+## 2026-09-26 — source94: продолжается полный аудит алгоритма
+
+[Требования, изменения и evidence](PRIMARY_ROUTING_94.md). Удалено неподтверждённое исключение
+social_area (RED20→180PASS), добавлен bounded merge после ремонта камер (82PASS, replay17/17,
+−14,002м/−1камера). Содержательные альтернативы реализованы; fresh official2/2PASS:
+cheapest17/17,2025,854м/285083697,19₽,13узловых+1врезка; balanced17/17,2082,343м.
+Итог2различныхварианта, independent exportPASS, основной тест561,149с.
+Про 3м специального участка road/tram задан вопрос пользователю; зависимое правило не менялось.
+Предварительный roads до partition:0вариантов/FAIL,1266,845с. Forbidden-terminal partition
+проверен73cases и отдельными4all-blocked/shared cases; причины и штрафы сохраняются.
+Общий frozen fast1962cases/1959PASS/0fail/error/3scale skip,34,489с; также устранён
+crash совпадающих terminal/grid ports (2RED→60focusedPASS). Web36+37/lint/typecheckPASS.
+Fresh official выполнен, roads и corridor-контроли продолжаются на тех же compiled94 classes. После каждого полного
+прогона — изображение результата.
+Production пока93; release94 готовится, R/G/scale и полная цель остаются открытыми.
+
 **Source93: локальные проверки и production run/export приняты; полная цель в работе.**
 
 [Результат source93](PRIMARY_ROUTING_93.md): нормальный вход в камеру и ближайший поворот

@@ -81,6 +81,20 @@ final class OrthogonalCorridorNetworkBuilder {
     private List<Network> buildInFrame(List<Terminal> input, RouteNode root, int rootCapacity,
             List<Geometry> footprints, OfficialRoutingEnvironment environment,
             SharedSpineNetworkBuilder.TerminalRouter terminalRouter, Double suppliedAngle) {
+        // Новые anchors могут вытеснить старые координаты при прореживании осей сетки.
+        // Контрольные сети строятся на неизменной сетке, расширение не заменяет их.
+        List<Network> result = new ArrayList<>(buildWithAnchors(input, root, rootCapacity,
+                footprints, environment, terminalRouter, suppliedAngle, false));
+        result.addAll(buildWithAnchors(input, root, rootCapacity,
+                footprints, environment, terminalRouter, suppliedAngle, true));
+        return result;
+    }
+
+    /** Две ограниченные кандидатные сетки используют одни и те же проверки полного ДУ ствола. */
+    private List<Network> buildWithAnchors(List<Terminal> input, RouteNode root, int rootCapacity,
+            List<Geometry> footprints, OfficialRoutingEnvironment environment,
+            SharedSpineNetworkBuilder.TerminalRouter terminalRouter, Double suppliedAngle,
+            boolean includeIndividualAnchors) {
         ensureActive();
         // Большая группа остаётся основному поиску; ограничение этой кандидатной стратегии
         // не отбрасывает потребителей из общего расчёта.
@@ -102,28 +116,43 @@ final class OrthogonalCorridorNetworkBuilder {
         double orientation = suppliedAngle == null ? CorridorOrientation.angle(footprints,
                 terminals.stream().map(terminal -> terminal.point).collect(Collectors.toList()), origin) : suppliedAngle;
         Envelope bounds = new Envelope(origin);
+        boolean individualAnchorAdded = false;
         for (Terminal terminal : terminals) {
             List<Coordinate> exits = new ArrayList<>();
-            for (int direction = 0; direction < 4; direction++) {
-                double angle = orientation + direction * Math.PI / 2;
-                Coordinate target = new Coordinate(terminal.point.x + 200 * Math.cos(angle),
-                        terminal.point.y + 200 * Math.sin(angle));
-                Coordinate anchor = environment.normalEgressTowards(diameter, terminal.point, target,
-                                RoutePlannerTuning.stable().getEngineeringEgressExtraM())
-                        .map(OfficialRouteGeometryRules.NormalEgress::exit).orElse(terminal.point);
-                if (exits.stream().noneMatch(existing -> existing.distance(anchor) < 0.01)) exits.add(anchor);
+            Integer individualDiameter = diameter(terminal.flow);
+            if (individualDiameter == null) return List.of();
+            // Общий ДУ может заблокировать ближайшую стену, допустимую для ввода меньшего ДУ.
+            // Сохраняем общие anchors и дополняем индивидуальными; проверки ствола остаются
+            // по общему ДУ. Не более восьми геометрических anchors на потребителя.
+            List<Integer> anchorDiameters = !includeIndividualAnchors || diameter.equals(individualDiameter)
+                    ? List.of(diameter) : List.of(diameter, individualDiameter);
+            for (int anchorDiameter : anchorDiameters) {
+                for (int direction = 0; direction < 4; direction++) {
+                    double angle = orientation + direction * Math.PI / 2;
+                    Coordinate target = new Coordinate(terminal.point.x + 200 * Math.cos(angle),
+                            terminal.point.y + 200 * Math.sin(angle));
+                    Coordinate anchor = environment.normalEgressTowards(anchorDiameter, terminal.point, target,
+                                    RoutePlannerTuning.stable().getEngineeringEgressExtraM())
+                            .map(OfficialRouteGeometryRules.NormalEgress::exit).orElse(terminal.point);
+                    if (exits.stream().noneMatch(existing -> existing.distance(anchor) < 0.01)) {
+                        exits.add(anchor);
+                        individualAnchorAdded |= anchorDiameter != diameter;
+                    }
+                }
             }
             terminalAnchors.add(exits);
             anchors.addAll(exits);
             exits.forEach(bounds::expandToInclude);
         }
+        // Если геометрия совпала, второй граф и деревья не нужны; готовые трассы не кешируются.
+        if (includeIndividualAnchors && !individualAnchorAdded) return List.of();
         bounds.expandBy(Math.max(30, clearance * 2));
         PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, origin, root.getTargetId());
         OrthogonalCorridorGrid grid = OrthogonalCorridorGrid.build(origin, anchors, footprints, clearance,
                 checks::pointAllowed, checks::edgeAllowed, orientation);
         CorridorTerminalRouter spurs = new CorridorTerminalRouter(router, environment, terminalRouter, orientation);
-        LOGGER.info("Corridor graph target={} nodes={} links={} demands={}", root.getTargetId(),
-                grid.points().size(), grid.links().size(), terminals.size());
+        LOGGER.info("Corridor graph target={} nodes={} links={} demands={} individual_anchors={}", root.getTargetId(),
+                grid.points().size(), grid.links().size(), terminals.size(), includeIndividualAnchors);
         Map<Integer, Integer> reservations = new HashMap<>();
         List<Port> ports = new ArrayList<>();
         for (int i = 0; i < terminals.size(); i++) {

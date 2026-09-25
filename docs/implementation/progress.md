@@ -1,5 +1,17 @@
 # Current implementation progress
 
+## 2026-09-25 — source87: прямые подходы и bounded coverage recovery
+
+[Checkpoint87](PRIMARY_ROUTING_87.md): прямой проверяемый хвост не теряется из-за проекции;
+прежние L-пути/допуски/≤8alternatives сохранены.57новыхcases,31RED→57GREEN, scoped139PASS.
+Отдельное повторное подключение no_route к готовому дереву:4дерева/12попыток/2прохода,
+actual sizing/полная геометрия/отмена/сохранение исходных сетей;11новыхcases, scoped70PASS.
+Fast1406/1403PASS/0fail/0error/3skip, reports сохранены; web36+37/lint/typecheckPASS.
+Snapshot `.tooling/source87-gates.t3z7Ji` не содержит будущий supported-front88.
+Полный87 ещё не запущен; живы full86session43280/roads83session12884, targets frozen.
+Углы камер90/180 пока preference, не новая обязательная норма; уточнение запрошено отдельно.
+Runtime61/VPS/quality/roads17/17/compact/скорость/native/Compose/scale/R/G не приняты.
+
 ## 2026-09-25 — source86: export preflight камер и защита углов вводов
 
 [Checkpoint86](PRIMARY_ROUTING_86.md): экспертные правила камер повторно проверяются по

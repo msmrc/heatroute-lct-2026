@@ -58,6 +58,10 @@ public class OfficialRoutePlanner {
     private static final int MAX_GRAFT_EDGES_PER_DEMAND = 3;
     private static final int MAX_GRAFT_EDGES_FOR_DETOUR_REPAIR = 6;
     private static final int MAX_WHOLE_TREE_ACCEPTED_MOVES = 3;
+    private static final int MAX_COVERAGE_RECOVERY_DRAFTS = 4;
+    private static final int MAX_COVERAGE_RECOVERY_ATTEMPTS = 12;
+    private static final int MAX_COVERAGE_RECOVERY_PASSES = 2;
+    private static final int MAX_COVERAGE_RECOVERY_JUNCTIONS = 4;
     private static final double EXCESSIVE_DETOUR_RATIO = 1.35;
     private static final double CHAMBER_APPROACH_LENGTH_M = 4.0;
     private static final int MAX_ADDITIONAL_CHAMBER_APPROACHES = 3;
@@ -203,6 +207,9 @@ public class OfficialRoutePlanner {
             addDistinctDraft(portfolio, spine);
         }
         routingEnvironment.logVisibilitySummary("group_spines");
+
+        recoverCoverageAlternatives(portfolio, demands, routingEnvironment)
+                .forEach(candidate -> addDistinctDraft(portfolio, candidate));
 
         VariantDraft cheapestDraft = selectCheapestDraft(portfolio);
         cheapestDraft = reuseExistingChambersForCheapest(
@@ -385,6 +392,84 @@ public class OfficialRoutePlanner {
             addTreeAttachment(result, demand, attachment);
         }
         return result;
+    }
+
+    /**
+     * Восстанавливает no_route после сборки supporting tree, отдельно от удешевления дерева.
+     * Исходные варианты сохраняет; максимум 4 дерева, 12 попыток суммарно и 2 прохода на дерево.
+     */
+    List<VariantDraft> recoverCoverageAlternatives(List<VariantDraft> portfolio,
+            List<Demand> demands, OfficialRoutingEnvironment environment) {
+        ensureCoverageRecoveryActive();
+        Map<String, Demand> demandById = demands.stream().collect(Collectors.toMap(
+                demand -> demand.id, demand -> demand, (first, duplicate) -> first, LinkedHashMap::new));
+        List<VariantDraft> candidates = new ArrayList<>();
+        for (VariantDraft draft : portfolio) {
+            ensureCoverageRecoveryActive();
+            if (!draft.edges.isEmpty() && !missingCoverageIds(draft, demandById).isEmpty()) {
+                addDistinctDraft(candidates, draft);
+            }
+        }
+        candidates.sort(Comparator.comparingLong(this::connectedCount).reversed()
+                .thenComparingDouble(this::totalRouteLength).thenComparing(this::draftGeometrySignature));
+        List<VariantDraft> recovered = new ArrayList<>();
+        int attempts = 0;
+        int examinedDrafts = 0;
+        for (VariantDraft source : candidates) {
+            ensureCoverageRecoveryActive();
+            if (examinedDrafts++ >= MAX_COVERAGE_RECOVERY_DRAFTS
+                    || attempts >= MAX_COVERAGE_RECOVERY_ATTEMPTS) break;
+            // Этот этап дополняет допустимую сеть; он не заменяет исправление старой геометрии.
+            if (!isFinalGeometryValid(source, environment)) continue;
+            VariantDraft current = source;
+            List<String> missing = missingCoverageIds(source, demandById);
+            for (int pass = 0; pass < MAX_COVERAGE_RECOVERY_PASSES; pass++) {
+                boolean progress = false;
+                for (String id : missing) {
+                    ensureCoverageRecoveryActive();
+                    if (attempts >= MAX_COVERAGE_RECOVERY_ATTEMPTS) break;
+                    if (current.connections.stream().anyMatch(connection -> id.equals(connection.getDemandId())
+                            && "connected".equals(connection.getStatus()))) continue;
+                    attempts++;
+                    VariantDraft candidate = current.copy();
+                    candidate.connections.removeIf(connection -> id.equals(connection.getDemandId()));
+                    candidate.failureDiagnostics.remove(id);
+                    candidate.lengthByDemand.remove(id);
+                    candidate.connectionCostByDemand.remove(id);
+                    candidate.targetByDemand.remove(id);
+                    Demand demand = demandById.get(id);
+                    // Два ближайших ребра с одной проекцией и не более четырёх камер.
+                    TreeAttachment attachment = chooseTreeAttachment(demand, candidate, environment,
+                            true, false, RoutePreference.SHORTEST, null, MAX_COVERAGE_RECOVERY_JUNCTIONS);
+                    ensureCoverageRecoveryActive();
+                    if (attachment == null) continue;
+                    addTreeAttachment(candidate, demand, attachment);
+                    if (!isFinalGeometryValid(candidate, environment)) continue;
+                    ensureCoverageRecoveryActive();
+                    current = candidate;
+                    progress = true;
+                }
+                if (!progress || attempts >= MAX_COVERAGE_RECOVERY_ATTEMPTS) break;
+            }
+            if (current != source) addDistinctDraft(recovered, current);
+        }
+        ensureCoverageRecoveryActive();
+        return recovered;
+    }
+
+    private List<String> missingCoverageIds(VariantDraft draft, Map<String, Demand> demandById) {
+        Set<String> connected = draft.connections.stream()
+                .filter(connection -> "connected".equals(connection.getStatus()))
+                .map(RouteConnection::getDemandId).collect(Collectors.toSet());
+        return draft.connections.stream().filter(connection -> "no_route".equals(connection.getStatus()))
+                .map(RouteConnection::getDemandId).filter(demandById::containsKey)
+                .filter(id -> !connected.contains(id)).distinct().sorted().collect(Collectors.toList());
+    }
+
+    private void ensureCoverageRecoveryActive() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new java.util.concurrent.CancellationException("Route calculation was cancelled");
+        }
     }
 
     private void logVariantSummary(RouteVariant variant) {
@@ -1439,6 +1524,14 @@ public class OfficialRoutePlanner {
             boolean detourRepair,
             RoutePreference preference,
             Set<String> allowedEdgeIds) {
+        return chooseTreeAttachment(demand, draft, routingEnvironment, boundedWholeTreeSearch,
+                detourRepair, preference, allowedEdgeIds, Long.MAX_VALUE);
+    }
+
+    private TreeAttachment chooseTreeAttachment(
+            Demand demand, VariantDraft draft, OfficialRoutingEnvironment routingEnvironment,
+            boolean boundedWholeTreeSearch, boolean detourRepair, RoutePreference preference,
+            Set<String> allowedEdgeIds, long maximumJunctions) {
         if (draft.edges.isEmpty()) {
             return null;
         }
@@ -1457,6 +1550,7 @@ public class OfficialRoutePlanner {
                         .comparingDouble((RouteNode node) -> node.getCoordinate().toCoordinate()
                                 .distance(demand.coordinate))
                         .thenComparing(RouteNode::getId))
+                .limit(maximumJunctions)
                 .collect(Collectors.toList());
         for (RouteNode junction : existingJunctions) {
             Coordinate junctionCoordinate = junction.getCoordinate().toCoordinate();

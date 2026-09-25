@@ -1,5 +1,20 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source87 — direct tail и coverage recovery
+
+[PRIMARY_ROUTING_87.md](PRIMARY_ROUTING_87.md):57новыхdirect-tail cases/139scopedPASS,
+11coverage cases/70scopedPASS. Итог fast1406/1403PASS/0fail/0error/3skip; reports отдельно
+`.tooling/intake-20260925/source87-final-fast-reports/`, snapshot `.tooling/source87-gates.t3z7Ji`.
+Web36+37/lint/typecheckPASS. Snapshot87 не содержит разрабатываемый supported-front88.
+Полный87 ещё нет. Живы full86session43280 на `.tooling/source86-gates.6VYRoA/apps/api/target`
+и roads83session12884 на `.tooling/scenario83.zYg3LZ`; не менять/не дублировать jobs.
+Mill завершён/закрыт, evidence `.tooling/coverage87.6AgEtV/EVIDENCE.txt`.
+Arendt завершил direct-tail; теперь владеет только новым `CorridorSupportedChamberRelocations`
+и его тестом для88. Main отвечает за последующую policy/planner-интеграцию. Не включать
+непроверенный компонент88 в Git87. Вопрос об углах90/180 и45/135 задан async; пока preference.
+Остальные ограничения из86 действуют: runtime61/VPS прежние, качество/roads/compact/скорость
+и native/Compose/scale/R/G не подтверждены. Ниже исторические реестры.
+
 ## Актуально: source86 — preflight сохранённого экспорта и углы камер
 
 Сначала [PRIMARY_ROUTING_86.md](PRIMARY_ROUTING_86.md). Export независимо применяет правило10м

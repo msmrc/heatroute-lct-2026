@@ -12,7 +12,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 
 /**
- * Перестраивает конец коридорной трубы с осевым подходом к перенесённой камере.
+ * Перестраивает конец коридорной трубы прямым хвостом или осевым подходом к перенесённой камере.
  * Сохраняет проверяемый префикс существующей полилинии; все новые варианты проверяются целиком.
  */
 final class CorridorLinkApproaches {
@@ -43,6 +43,13 @@ final class CorridorLinkApproaches {
         if (source.size() > 2) cuts.add(0);
         for (int cut : cuts) {
             Coordinate start = source.get(cut);
+            List<Coordinate> direct = new ArrayList<>(source.subList(0, cut + 1));
+            // Проекция может создать миллиметровое колено или потерять точный конец.
+            // Прямой хвост проверяем отдельно, сохраняя всю геометрию до места среза.
+            if (!start.equals2D(new RouteCoordinate(junction.x, junction.y).toCoordinate())) {
+                direct.add(new Coordinate(junction));
+            }
+            addCheckedPath(paths, direct, edge, outer, junction, router, environment, traversal);
             List<Coordinate> approaches = new ArrayList<>(List.of(junction));
             for (double length : new double[] {2.1, 5.0}) {
                 for (int direction = 0; direction < 4; direction++) {
@@ -58,18 +65,7 @@ final class CorridorLinkApproaches {
                     Coordinate elbow = new Coordinate(start.x + x * projection, start.y + y * projection);
                     List<Coordinate> coordinates = new ArrayList<>(source.subList(0, cut + 1));
                     append(coordinates, elbow); append(coordinates, approach); append(coordinates, junction);
-                    if (coordinates.size() < 2) continue;
-                    Envelope bounds = new Envelope();
-                    coordinates.forEach(bounds::expandToInclude);
-                    PreparedCorridor checks = router.prepareCorridor(edge.getDiameter(), environment, bounds,
-                            outer.getCoordinate().toCoordinate(), outer.isRoot() ? outer.getTargetId() : null, traversal);
-                    // Поиск всегда outer→камера, но вход в дорогу и special проверяем по потоку.
-                    // Исключение выхода из setback предназначено существующему корню, не новой камере.
-                    if (!checks.pointAllowed(junction)
-                            || !outer.isRoot() && !checks.pointAllowed(outer.getCoordinate().toCoordinate())) continue;
-                    RoutePath path = checks.path(coordinates);
-                    if (path == null || !engineeringCompliant(path)) continue;
-                    if (paths.stream().noneMatch(previous -> same(previous, path))) paths.add(path);
+                    addCheckedPath(paths, coordinates, edge, outer, junction, router, environment, traversal);
                 }
             }
         }
@@ -85,6 +81,25 @@ final class CorridorLinkApproaches {
             if (result.size() == 8) break;
         }
         return List.copyOf(result);
+    }
+
+    /** Один допуск для прямых и L-хвостов, включая сохранённый префикс и направление потока. */
+    private static void addCheckedPath(List<RoutePath> paths, List<Coordinate> coordinates,
+            RouteEdge edge, RouteNode outer, Coordinate junction, OfficialObstacleRouter router,
+            OfficialRoutingEnvironment environment, RouteTraversal traversal) {
+        if (Thread.currentThread().isInterrupted()) throw new CancellationException("Corridor approach cancelled");
+        if (coordinates.size() < 2) return;
+        Envelope bounds = new Envelope();
+        coordinates.forEach(bounds::expandToInclude);
+        PreparedCorridor checks = router.prepareCorridor(edge.getDiameter(), environment, bounds,
+                outer.getCoordinate().toCoordinate(), outer.isRoot() ? outer.getTargetId() : null, traversal);
+        // Поиск всегда outer→камера, но вход в дорогу и special проверяем по потоку.
+        // Исключение выхода из setback предназначено существующему корню, не новой камере.
+        if (!checks.pointAllowed(junction)
+                || !outer.isRoot() && !checks.pointAllowed(outer.getCoordinate().toCoordinate())) return;
+        RoutePath path = checks.path(coordinates);
+        if (path == null || !engineeringCompliant(path)) return;
+        if (paths.stream().noneMatch(previous -> same(previous, path))) paths.add(path);
     }
 
     private static void append(List<Coordinate> coordinates, Coordinate point) {

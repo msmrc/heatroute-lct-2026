@@ -1,18 +1,26 @@
 # Technical sources
 
-Primary product requirements are the organizer PDF and the amended technical DOCX
-`Техническое_приложение_ЛЦТ_новое.docx`. The amended written contract supersedes conflicting older
-roadmap prose and earlier video Q&A. Source fingerprint, standards applicability and the explicit
-separation of contest rules from expert heuristics are recorded in
-[ROUTING_STANDARDS_APPLICABILITY.md](implementation/ROUTING_STANDARDS_APPLICABILITY.md).
-Historical Q&A decisions and timestamps remain in `implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`.
+Engineering requirements come only from the current organizer TZ/technical appendix and
+confirmed Evgeny comments. The amended `Техническое_приложение_ЛЦТ_новое.docx` supersedes
+conflicting older roadmap prose and earlier video Q&A. Current source fingerprints, the updated
+expert document and the explicit exclusion of SP research are recorded in
+[ACTIVE_ROUTING_RULES.md](implementation/ACTIVE_ROUTING_RULES.md).
+Historical Q&A decisions and timestamps remain in `implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`;
+they do not override the amended written contract.
 
 Source precedence:
 
-1. organizer PDF and technical DOCX for exact tables, fields and formulas;
-2. later organizer Q&A for current supplied-dataset scope and implementation priority;
-3. repository prose and roadmaps;
-4. external documentation, used only to implement the requirements.
+1. current organizer TZ and technical DOCX for exact tables, fields, formulas and constraints;
+2. confirmed Evgeny comments for project geometry requirements; unresolved conflicts with the TZ
+   require a specific clarification, not an inferred exception;
+3. repository prose and roadmaps as implementation records, not independent engineering authority;
+4. external software documentation, used only to implement those requirements.
+
+By the user's decision of 2026-09-25, SP 124.13330.2012, SP 315.1325800.2017 and SP 41-105-2002
+are excluded from active requirements. Do not research or import engineering constraints from
+these or substitute construction standards. Earlier SP research instructions are superseded.
+Keep every requirement independently stated in the TZ or confirmed by Evgeny, even when it also
+appears in an SP. The old standards applicability note is historical evidence only.
 
 External implementation sources:
 

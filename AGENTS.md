@@ -6,6 +6,12 @@ The organizer documents override repository prose. The active implementation bas
 `docs/implementation/OFFICIAL_TZ_ROADMAP.md`; the next-shift checklist is
 `docs/implementation/TOMORROW_HANDOFF.md`. Historical M0–M7 evidence is not an acceptance claim.
 
+The current engineering source register is `docs/implementation/ACTIVE_ROUTING_RULES.md`:
+use the organizer TZ and confirmed Evgeny comments. By the user's decision of 2026-09-25,
+SP 124.13330.2012, SP 315.1325800.2017 and SP 41-105-2002 are not active requirement sources.
+Retain rules independently required by the TZ or Evgeny; do not remove them because they also
+appear in an SP. Record unresolved source conflicts instead of inventing engineering exceptions.
+
 Code-quality rules and the incremental refactoring backlog are in
 `docs/implementation/REFACTORING.md`. Read it before backend changes or refactoring. Apply the
 rules to new and substantially changed code; do not expand a feature task into a whole-codebase
@@ -24,7 +30,13 @@ the final geometry and arithmetic must be independently validated before export.
 
 ## Required workflow
 
-1. Work only inside the exact repository root on `E:` and preserve unrelated changes.
+1. Work only inside the repository root supplied by the current task (this checkout:
+   `/Users/mikhailmartsinyuk/lct2026`) and preserve unrelated changes. The former `E:`-only
+   instruction is obsolete. Use `master` for all work; do not create or switch to feature branches.
+   Before editing, inspect status and concurrent task ownership. Coordinate file ownership and
+   serialize Git mutations; never stage another task's unfinished work indiscriminately.
+   Fetch before integration/push, merge remote changes without rewriting shared history,
+   and push normally. Do not force-push, reset shared work, or assume Git push deploys the VPS.
 2. Update `docs/implementation/progress.md` and roadmap status with every completed gate.
 3. Add focused Java tests for every official table boundary, geometry invariant and failure mode.
 4. Run `pwsh -File scripts/dev.ps1 test`, `lint`, `typecheck`, then a live Compose smoke for

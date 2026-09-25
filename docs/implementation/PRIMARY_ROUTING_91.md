@@ -76,3 +76,15 @@ SHA-256: `1f1d16d794627d09ca5b9a73552a1baf8eaba2814da790101ad7f841753e1580`.
 Compact-control90 уже красный; результат полного расчёта ещё не принят.
 Fresh91, roads/kindergarten17/17, качество всех ролей/UIpreferred, native smoke, Compose,
 scale и R/G-этапы остаются открыты. `pwsh`/Docker на этом Mac отсутствуют.
+
+## Интеграция в master, 25.09.2026
+
+Source91 сохранён как344c259 и объединён с изменениями Артёма merge-коммитомe5d8d01.
+Tracked `CheckedCorridorAssemblyTest`:68PASS; включая fallback/custom rules, полный window,
+фактический ДУ, section equivalence и сохранение независимых forbidden checks. Старый ignored
+suite ошибочно ожидал успешное пересечение road/tram дляДУ1200/1400: обе реализации отказывают
+при осевом отступе>3м и текущей защите3м. Эта существующая граница осталась открытой.
+Frozen master fast:1694PASS/0fail/error/3skip; три долгих dataset/control-класса исключены.
+Web36+37/lint/typecheckPASS; подробности вMASTER_CONSOLIDATION_2026_09_25.md.
+Full90 завершён сcompactFAIL; старый live-handle выше уже не активен.
+Fresh91/Compose/deploy/R/G этими проверками не подтверждаются.

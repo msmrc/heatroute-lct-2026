@@ -96,6 +96,17 @@ public class OfficialRouteGeometryRules {
         return axisClearance.axisClearanceM(type, diameter, null);
     }
 
+    /** Пространственная подготовка не предполагает неизменность пользовательских реализаций правил. */
+    boolean hasStandardPreparationRules() {
+        return getClass() == OfficialRouteGeometryRules.class
+                && catalog != null && catalog.getClass() == OfficialConstraintCatalog.class
+                && crossingGeometry != null && crossingGeometry.getClass() == OfficialCrossingGeometry.class;
+    }
+
+    boolean hasConstraintRule(String type) {
+        return catalog.find(type).isPresent();
+    }
+
     void sortConstraints(List<Constraint> constraints) {
         constraints.sort(CONSTRAINT_ORDER);
     }

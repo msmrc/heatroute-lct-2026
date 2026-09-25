@@ -4,7 +4,14 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
-**Текущий source69, WIP:** [подготовка препятствий для валидатора](PRIMARY_ROUTING_69.md).
+**Текущий source70, WIP:** [пространственная подготовка validation](PRIMARY_ROUTING_70.md).
+Bounded snapshots/bounds/buffers, первый buffer/отказы и полный осевой отступ сохранены.
+Isolated101PASS/0FAIL; validation replay69 3×3:exact issues0,655buffers/43183coord стабильно
+после прогрева. Не fresh70/performance gate. Roads69 завершён:1054,672с/17of17/strict export
+3ролей PASS; shortest/cheapest2260,959м/11камер/33поворота/0expert. Full/fresh70 ещё впереди.
+Runtime61,compact-control,native/Compose/scale и R-gates остаются открытыми.
+
+**Предыдущий source69, WIP:** [подготовка препятствий для валидатора](PRIMARY_ROUTING_69.md).
 JFR67 показал повторные JTS buffers внутри validation. Сессия расчёта удерживает только
 bounded-подготовку; геометрия проверяется заново, standalone/export не менялись.
 Код `63b0072`, isolated86/86PASS, subclass-hook сохранён после RED; web36/scripts37/lint/typecheckPASS.

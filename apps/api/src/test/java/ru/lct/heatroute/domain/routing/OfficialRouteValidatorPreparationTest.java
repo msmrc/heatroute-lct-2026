@@ -35,7 +35,7 @@ class OfficialRouteValidatorPreparationTest {
     private final OfficialRouteValidator.ValidationSession session = validator.forCalculation();
 
     @Test
-    void avoidsRealBuffersButRechecksChangedRoutesAndReturnsIndependentIssueLists() throws Exception {
+    void customGeometryUsesFullPreparationAndRechecksChangedRoutesWithIndependentIssueLists() throws Exception {
         AtomicInteger buffers = new AtomicInteger();
         List<ImportedOfficialFeature> features = List.of(countedBuilding(buffers));
         RouteEdge valid = edge(50, "LINESTRING (-30 20, 30 20)");
@@ -64,21 +64,22 @@ class OfficialRouteValidatorPreparationTest {
         assertIssues(expectedInvalid, session.validate(nodes, edges, features));
         edges.set(0, valid);
         assertIssues(expectedValid, session.validate(nodes, edges, features));
-        assertThat(buffers.get()).isEqualTo(3);
+        // Пользовательский Polygon не получает пространственного skip или удержания буфера.
+        assertThat(buffers.get()).isEqualTo(7);
 
         assertIssues(expectedValid, validator.validate(nodes, edges, features));
         assertIssues(expectedValid, validator.validate(nodes, edges, features));
-        assertThat(buffers.get()).isEqualTo(5);
+        assertThat(buffers.get()).isEqualTo(9);
 
         RouteEdge enlarged = edge(500, "LINESTRING (-30 20, -30 0, 30 0, 30 20)");
         List<RouteValidationIssue> expectedEnlarged = validator.validate(nodes, List.of(enlarged), features);
-        assertThat(buffers.get()).isEqualTo(6);
+        assertThat(buffers.get()).isEqualTo(10);
         assertIssues(expectedEnlarged, session.validate(nodes, List.of(enlarged), features));
-        assertThat(buffers.get()).isEqualTo(7);
+        assertThat(buffers.get()).isEqualTo(11);
         assertIssues(expectedEnlarged, session.validate(nodes, List.of(enlarged), features));
         assertIssues(expectedInvalid, session.validate(nodes, List.of(invalid), features));
         assertIssues(expectedValid, session.validate(nodes, edges, features));
-        assertThat(buffers.get()).isEqualTo(7);
+        assertThat(buffers.get()).isEqualTo(14);
     }
 
     @Test
@@ -222,7 +223,7 @@ class OfficialRouteValidatorPreparationTest {
     }
 
     @Test
-    void isolatesPreparationByCalculationAndExactValidatorIdentity() throws Exception {
+    void isolatesSessionsByCalculationAndExactValidatorIdentity() throws Exception {
         AtomicInteger buffers = new AtomicInteger();
         List<ImportedOfficialFeature> features = List.of(countedBuilding(buffers));
         RouteEdge route = edge(50, "LINESTRING (-30 20, 30 20)");
@@ -241,18 +242,18 @@ class OfficialRouteValidatorPreparationTest {
         assertThat(first).isSameAs(environment.validationFor(firstValidator)).isNotSameAs(second);
         assertThat(first.validate(nodes, List.of(route), features)).isEmpty();
         assertThat(first.validate(nodes, List.of(route), features)).isEmpty();
-        assertThat(buffers.get()).isEqualTo(1);
-        assertThat(second.validate(nodes, List.of(route), features)).isEmpty();
         assertThat(buffers.get()).isEqualTo(2);
+        assertThat(second.validate(nodes, List.of(route), features)).isEmpty();
+        assertThat(buffers.get()).isEqualTo(3);
         OfficialRouteValidator.ValidationSession next = new OfficialRoutingEnvironment(List.of(), rules)
                 .validationFor(firstValidator);
         assertThat(next).isNotSameAs(first);
         assertThat(next.validate(nodes, List.of(route), features)).isEmpty();
-        assertThat(buffers.get()).isEqualTo(3);
+        assertThat(buffers.get()).isEqualTo(4);
         assertThat(firstValidator.forCalculation().validate(nodes, List.of(route), features)).isEmpty();
-        assertThat(buffers.get()).isEqualTo(4);
+        assertThat(buffers.get()).isEqualTo(5);
         assertThat(first.validate(nodes, List.of(route), features)).isEmpty();
-        assertThat(buffers.get()).isEqualTo(4);
+        assertThat(buffers.get()).isEqualTo(6);
         // Равные equals/hashCode не делают валидаторы одним владельцем сессии.
         OfficialRouteValidator equalFirst = new EqualValidator(rules);
         OfficialRouteValidator equalSecond = new EqualValidator(rules);
@@ -264,7 +265,7 @@ class OfficialRouteValidatorPreparationTest {
                 .isEmpty();
         assertThat(first.validate(nodes(crossing, null, false), List.of(crossing), features))
                 .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");
-        assertThat(buffers.get()).isEqualTo(4);
+        assertThat(buffers.get()).isEqualTo(7);
     }
 
     @Test
@@ -325,6 +326,20 @@ class OfficialRouteValidatorPreparationTest {
             assertIssues(legacyIssues, legacySession.validate(duplicates, List.of(invalidDiameter), null));
             assertIssues(legacyIssues, legacySession.validate(duplicates, List.of(invalidDiameter), features));
         }
+    }
+
+    @Test
+    void unsupportedAttributesDoNotMoveExceptionsBeforeTheOriginalValidationStage() throws Exception {
+        List<ImportedOfficialFeature> malformed = List.of(new ImportedOfficialFeature(
+                "malformed", "restriction", null, new WKTReader().read(BUILDING)));
+        assertThat(validator.validate(List.of(), List.of(), malformed)).isEmpty();
+        assertThat(session.validate(List.of(), List.of(), malformed)).isEmpty();
+        RouteEdge route = edge(50, "LINESTRING (-30 20, 30 20)");
+        List<RouteNode> nodes = nodes(route, null, false);
+        Throwable expected = catchThrowable(() -> validator.validate(nodes, List.of(route), malformed));
+        assertThat(expected).isNotNull();
+        assertThat(catchThrowable(() -> session.validate(nodes, List.of(route), malformed)))
+                .isExactlyInstanceOf(expected.getClass()).hasMessage(expected.getMessage());
     }
 
     private List<RouteValidationIssue> assertEquivalent(

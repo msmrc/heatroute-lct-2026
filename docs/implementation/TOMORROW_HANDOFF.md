@@ -1,6 +1,16 @@
 # Handoff — Артём / PM / developer
 
-## Текущий source69: подготовка ограничений внутри validation
+## Текущий source70: bounded spatial validation, full/fresh ещё впереди
+
+Сначала [PRIMARY_ROUTING_70.md](PRIMARY_ROUTING_70.md). Focused101PASS, validation-only
+replay69 3роли×3повтора:exact issues0,655buffers/43183coord стабильно после прогрева.
+Нормы/порог качества не менялись. Пока нет full/fresh70; runtime61 не обновлялся.
+Roads69 завершён:1054,672с/17of17/strict export3ролей PASS, shortest/cheapest2260,959м/11камер/
+33поворота/0expert. Accepted `source69-roads-result.json`; diagnostic отдельно, не подмена.
+Target больше не занят69. JFR дорогого поиска описан в70. Далее clean/full/fresh70,
+exact variants/export/time comparison, web gates; не обновлять runtime по одному replay.
+
+## Предыдущий source69: подготовка ограничений внутри validation
 
 Сначала [PRIMARY_ROUTING_69.md](PRIMARY_ROUTING_69.md): measured hot spot JFR67, сессия
 точного валидатора, неизменные проверки/standalone-export. Subclass-hook сохранён после

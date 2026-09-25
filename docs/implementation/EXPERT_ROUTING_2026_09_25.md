@@ -1,6 +1,11 @@
 # Доводка основного алгоритма после обновления Артёма
 
-**Текущий этап:** [source69: подготовка геометрии для повторной валидации](PRIMARY_ROUTING_69.md).
+**Текущий этап:** [source70: bounded spatial validation](PRIMARY_ROUTING_70.md).
+Focused101PASS; validation replay69 exact3×3/0issues,без повторного buffer после прогрева.
+Full/fresh70 ещё не выполнены; roads69 завершён1054,672с/17of17/strict export3ролей PASS,
+shortest/cheapest2260,959м/11камер/33поворота/0expert. Ни один R-gate не закрыт.
+
+Предыдущий [source69](PRIMARY_ROUTING_69.md):
 Свежий67 подтвердил11новых камер/2090,416м/23поворота/0expert у shortest/cheapest,
 17/17 и strict export всех3ролей. Это не завершённый общий gate: compact-control красный,
 source69 завершил clean936/1failure/3skip, fresh660,385с/17of17/strict exportPASS,

@@ -93,10 +93,10 @@ public class OfficialRouteValidator {
      * Маршруты и результаты не удерживаются; сессия не предназначена для параллельного доступа.
      */
     final class ValidationSession {
-        private final PreparedRoutingConstraints preparedConstraints;
+        private final PreparedValidationConstraints preparedConstraints;
 
         private ValidationSession() {
-            preparedConstraints = geometryRules == null ? null : new PreparedRoutingConstraints(geometryRules);
+            preparedConstraints = geometryRules == null ? null : new PreparedValidationConstraints(geometryRules);
         }
 
         List<RouteValidationIssue> validate(
@@ -107,7 +107,8 @@ public class OfficialRouteValidator {
             if (OfficialRouteValidator.this.getClass() != OfficialRouteValidator.class) {
                 return OfficialRouteValidator.this.validate(nodes, edges, features);
             }
-            return OfficialRouteValidator.this.validate(nodes, edges, features, preparedConstraints);
+            return OfficialRouteValidator.this.validate(nodes, edges, features,
+                    preparedConstraints != null && preparedConstraints.supports(features) ? preparedConstraints : null);
         }
     }
 
@@ -115,7 +116,7 @@ public class OfficialRouteValidator {
             List<RouteNode> nodes,
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
-            PreparedRoutingConstraints preparedConstraints) {
+            PreparedValidationConstraints preparedConstraints) {
         List<RouteValidationIssue> issues = new ArrayList<>(validate(nodes, edges));
         if (geometryRules == null) {
             return issues;
@@ -128,7 +129,7 @@ public class OfficialRouteValidator {
                 .filter(feature -> !feature.getMetricGeometry().isEmpty())
                 .forEach(feature -> sourceDemandPoints.put(
                         feature.getFeatureId(), feature.getMetricGeometry().getCoordinate()));
-        // Один набор буферов на фактический ДУ в рамках этой независимой проверки.
+        // Standalone/fallback готовит один набор буферов на ДУ; сессия отбирает по полной полилинии.
         // Исключения и подходы к endpoints применяются отдельно, исходные ограничения не меняются.
         Map<Integer, List<OfficialRouteGeometryRules.Constraint>> constraintsByDiameter = new HashMap<>();
         for (RouteEdge edge : edges) {
@@ -174,10 +175,9 @@ public class OfficialRouteValidator {
             }
             issues.addAll(geometryRules.validateMandatoryEgress(
                     edge, route, features, diameter, connectionPoint));
-            List<OfficialRouteGeometryRules.Constraint> baseConstraints = constraintsByDiameter.computeIfAbsent(
-                    diameter, value -> preparedConstraints == null
-                            ? geometryRules.baseConstraints(features, value)
-                            : preparedConstraints.prepare(features, value));
+            List<OfficialRouteGeometryRules.Constraint> baseConstraints = preparedConstraints == null
+                    ? constraintsByDiameter.computeIfAbsent(diameter, value -> geometryRules.baseConstraints(features, value))
+                    : preparedConstraints.prepareIntersecting(features, diameter, route.getEnvelopeInternal());
             List<OfficialRouteGeometryRules.Constraint> allConstraints = geometryRules.applicableConstraints(
                     baseConstraints,
                     exemptions,

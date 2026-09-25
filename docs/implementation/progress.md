@@ -1,5 +1,17 @@
 # Current implementation progress
 
+## 2026-09-25 — source70: пространственная подготовка точного валидатора
+
+[PRIMARY_ROUTING_70.md](PRIMARY_ROUTING_70.md): bounded source/bounds/heavy buffers устраняют
+повторное buffer для дальних объектов; первое вычисление/отказы и осевые границы сохранены.
+Focused101PASS, включая14новых component tests и RED→GREEN для порядка исключений eligibility.
+Validation-only replay69:3роли×3повтора,exact issues0,655buffers/43183coord стабильно после
+прогрева. Это не fresh70/benchmark. Web36/scripts37/lint/typecheckPASS; full/fresh70 ещё впереди.
+Независимое static review не выявило подтверждённых дефектов. Roads69 завершён:
+1054,672с/17of17/strict export3ролей PASS; shortest/cheapest2260,959м/11камер/33поворота,
+все роли0expert. Его JFR выявил дорогой sorted spatial query в поиске видимости. Target больше
+не занят69, runtime61/R-gates сохранены.
+
 ## 2026-09-25 — source69: расчётная подготовка геометрии для валидатора
 
 [PRIMARY_ROUTING_69.md](PRIMARY_ROUTING_69.md): JFR67 локализовал повторное построение

@@ -121,7 +121,7 @@ final class PreparedRoutingConstraints {
         return retainedCoordinates;
     }
 
-    private static boolean sameGeometry(Geometry left, Geometry right) {
+    static boolean sameGeometry(Geometry left, Geometry right) {
         if (left.getClass() != right.getClass()
                 || left.getSRID() != right.getSRID()
                 || left.getFactory().getSRID() != right.getFactory().getSRID()

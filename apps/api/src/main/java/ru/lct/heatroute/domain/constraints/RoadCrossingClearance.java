@@ -99,6 +99,12 @@ public final class RoadCrossingClearance {
      */
     public boolean segmentAllowed(LineString segment, Geometry source, double clearanceM,
             double minimumAngleDegrees, double extensionM) {
+        return segmentAllowed(segment, source, clearanceM, minimumAngleDegrees, extensionM, null);
+    }
+
+    /** Ускоренная видимость использует только подготовку источника; полный assess остаётся независимым. */
+    boolean segmentAllowed(LineString segment, Geometry source, double clearanceM,
+            double minimumAngleDegrees, double extensionM, PreparedRoadCrossings prepared) {
         if (farEnough(segment, source, clearanceM)) return true;
         if (source.getDimension() != 2) return false;
         Coordinate a = segment.getCoordinateN(0), b = segment.getCoordinateN(1);
@@ -110,7 +116,8 @@ public final class RoadCrossingClearance {
                 new Coordinate(a.x - dx * extensionM, a.y - dy * extensionM),
                 new Coordinate(b.x + dx * extensionM, b.y + dy * extensionM)});
         LengthIndexedLine indexed = new LengthIndexedLine(extended);
-        List<Interval> spans = crossings(extended, source, indexed);
+        List<Interval> spans = prepared == null ? crossings(extended, source, indexed)
+                : prepared.crossings(extended).orElseGet(() -> crossings(extended, source, indexed));
         if (spans.isEmpty()) return false;
         boolean hasActualCrossing = spans.stream().anyMatch(span ->
                 span.endM > extensionM + EPSILON_M && span.startM < extensionM + length - EPSILON_M);
@@ -283,7 +290,7 @@ public final class RoadCrossingClearance {
 
     public static final class Interval {
         private final double startM, endM, angleDegrees;
-        private Interval(double startM, double endM, double angleDegrees) {
+        Interval(double startM, double endM, double angleDegrees) {
             this.startM = startM;
             this.endM = endM;
             this.angleDegrees = angleDegrees;

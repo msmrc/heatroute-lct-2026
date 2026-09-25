@@ -3,11 +3,13 @@
 25.09.2026, `codex/routing-63-geometry`, `global-tree-73`. Исправление ошибки, не новая
 инженерная норма и не завершение G2/R. Основной алгоритм; runtime61/VPS не менялись.
 Код `c4749e1` pushed, remote SHA `c4749e1a38d2611b86a47186e2d7f8f199840936` проверен.
-Теперь **clean/full73 без исключений session8395** работает в отдельном snapshot
-`.tooling/source73-build.6qc6Dq/apps/api` (лог `source73-full.log`). Не менять его target
-до завершения. Основной target всё ещё обслуживает roads72session19058.
-Accepted `source73-result.json` появляется после assertions; `source73-diagnostic.json`
-сохраняется отдельно и не подтверждает прохождение. Snapshot fast1076 уже сохранён.
+**Clean/full73 без исключений session8395 завершён**:1080cases/1076PASS/1compact failure/
+0errors/3scale skipped. Отчёты сохранены в `source73-full-reports/`; исходный dataset
+fixture533,933с,17/17,strict export3ролей PASS. Все значения variants совпали с72, включая
+геометрию, ДУ, секции, depth и смету. Это не улучшение compact/скорости; время при параллельном
+roads72 не является SLA. Accepted `source73-result.json` получен после assertions;
+`source73-diagnostic.json` отдельно. Основной target всё ещё обслуживает roads72session19058.
+Следующая performance-проверка — [source74](PRIMARY_ROUTING_74.md), не новый accepted runtime.
 
 ## Воспроизведённая проблема
 
@@ -62,8 +64,8 @@ Accepted `source73-result.json` появляется после assertions; `sou
 
 ## Следующий обязательный scope
 
-1. Дождаться clean/full73session8395, сохранить reports и проверить accepted/метрики/export;
-   затем fresh roads73. Fast73 уже завершён и сохранён.
+1. Full/fresh73 завершён и reports сохранены. Fresh roads73 не выполнялся; следующий
+   замер [source74](PRIMARY_ROUTING_74.md) должен проверять полный результат, не один microbenchmark.
 2. Дождаться fresh roads72 session19058: не перезаписывать основной `apps/api/target` до
    завершения. Его результат нельзя приписывать73. Параллельное время не является SLA.
 3. Final-diameter retention в `ensureMandatoryEgress` ещё проверяет части раздельно и может
@@ -92,4 +94,5 @@ Evidence `source72-roads-search.jfr`, `source72-roads-search-samples.json`,
 Polygon/MultiPolygon без построения полного JTS overlay-графа на каждую пару. До интеграции
 обязательны equivalence tests по входам/выходам, holes, tangent/boundary, overlap, направлению,
 углам, ±мм, UTM и отмене; исходный общий guard остаётся контролем. Подготовка геометрии может
-быть ограничена текущим расчётом, но не хранить ответы готовых построений. Пока не реализовано.
+быть ограничена текущим расчётом, но не хранить ответы готовых построений. Реализация и
+проверки следующего checkpoint описаны в [source74](PRIMARY_ROUTING_74.md).

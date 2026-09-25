@@ -24,7 +24,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
  * потребителям только для чтения, как и геометрия входных данных ConstraintIndex.
  * Исходные features и их атрибуты не удерживаются; неиспользуемый JTS userData удаляется из копии.
  * Лимиты ограничивают число удерживаемых записей и резерв явных координат: исходная геометрия,
- * буфер и, если индекс возможен, его собственная копия буфера вместе с концами рёбер.
+ * буфер и, если индексы возможны, их собственные копии буфера/road-полигона с концами рёбер.
  * Резерв вычисляется без создания индекса и может завышаться для невалидных полигонов.
  * Это не лимит байтов (узлы/границы JTS и временные массивы не считаются), не лимит полного
  * возвращаемого списка и не ограничение объектов, ещё используемых потребителями после eviction.
@@ -63,8 +63,8 @@ final class PreparedRoutingConstraints {
             if (source == null || source.isEmpty()) {
                 continue;
             }
-            // Проверяем ДУ и при повторном использовании: осевой отступ всех forbidden-типов
-            // включает половину ширины пары. Special-типы не зависят от ДУ в этой подготовке.
+            // Проверяем ДУ и при повторном использовании: осевые отступы forbidden и road/tram
+            // включают половину ширины пары; индекс не освобождает от пересчёта при новом ДУ.
             Key key = new Key(feature.getFeatureId(), type, rules.preparationClearanceM(type, diameter));
             Entry entry = retained.get(key);
             if (entry != null && sameGeometry(entry.constraint.source(), source)) {
@@ -99,7 +99,7 @@ final class PreparedRoutingConstraints {
     private void retain(Key key, Constraint constraint) {
         long coordinates = (long) constraint.source().getNumPoints()
                 + (constraint.blocked() == null ? 0L : constraint.blocked().getNumPoints())
-                + constraint.segmentIndexCoordinateReservation();
+                + constraint.segmentIndexCoordinateReservation() + constraint.roadCrossingCoordinateReservation();
         if (maxEntries == 0 || coordinates > maxCoordinates) {
             return;
         }

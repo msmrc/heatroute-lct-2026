@@ -4,12 +4,15 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
-**Приоритетная актуализация — source73 WIP:** [непрерывный road/tram ввод](PRIMARY_ROUTING_73.md).
-157focusedPASS и web36/scripts37/lint/typecheckPASS; fast Maven73 в отдельном snapshot завершён:
-1076cases/1073PASS/0fail/0error/3scale skip. Full72:1053cases/1049PASS/1compact failure/0errors/3scale skip;
-fresh521,534с/17of17/strict export3ролей PASS, значения variants как71. Roads72 ещё работает,
-основной target не перезаписывать. Ни full/fresh73, ни G2/compact/native/Compose/scale не закрыты.
-`c4749e1` pushed; clean/full73session8395 запущен без исключений в отдельном snapshot.
+**Приоритетная актуализация — source74 WIP:** [поиск road/tram](PRIMARY_ROUTING_74.md).
+123focusedPASS; fast Maven1110cases/1107PASS/0fail/0error/3scale skip;
+web36/scripts37/lint/typecheckPASS. Full/fresh73 завершён:1080cases/1076PASS/1compact failure/
+0errors/3scale skip, исходный fixture533,933с,17/17,strict export3ролей PASS; variants как72.
+Два numerical RED нового ускоренного пути исправлены fallback, финальные нормы не ослаблены.
+Clean/full конечных74session37091 работает в отдельном snapshot; предыдущий pre-budget
+full74session16835 также жив; roads72session19058 — на основномtarget. Не перезаписывать
+занятые target. Нет fresh74/road74/end-to-end speed claim;
+G2/compact/native/Compose/scale/R и цель остаются открытыми. Runtime61/VPS не менялись.
 Ниже — история предыдущих checkpoint, а не текущие статусы запущенных процессов.
 
 **Текущий source72, WIP:** [G2 road/tram/atomic sections](PRIMARY_ROUTING_72.md).

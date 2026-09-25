@@ -1,5 +1,23 @@
 # Current implementation progress
 
+## 2026-09-25 — full73 завершён; performance74 проходит полный gate
+
+Full73session8395:1080cases/1076PASS/1прежний compact failure/0errors/3scale skip.
+Fresh533,933с,17/17,strict export3ролей PASS, все значения variants совпали с72.
+Accepted73 и snapshot reports сохранены; отдельный roads73 не запускался.
+
+[Source74](PRIMARY_ROUTING_74.md): индекс road/tram-интервалов только в поиске, bounded
+подготовка текущего расчёта без ready-route replay. Два настоящих numerical RED исправлены
+fallback на исходный JTS, отступы/углы/3м защиты не ослаблены; full-validator/export независимы.
+123focusedPASS; чистый быстрый Maven1110cases/1107PASS/0fail/0error/3scale skip,
+web36/scripts37/lint/typecheckPASS. 7520запросов реальных дорог совпали; microbenchmark не
+равен скорости полного расчёта. Последний RED исправил резерв packed-double locator3N→4N.
+Clean/full конечных74session37091 в отдельном snapshot уже работает; предыдущий full74
+session16835 — pre-budget версия. Roads72session19058 продолжает использовать основнойtarget.
+Не перезаписывать занятые target. Agent Chandrasekhar отдельно воспроизводит final-ДУ retention,
+production пока не меняет.
+Fresh74/roads74/compact/native/Compose/scale и R/цель ещё не закрыты; runtime61/VPS сохранены.
+
 ## 2026-09-25 — full72 завершён; техническая граница ввода исправлена в73
 
 Full72:1053cases/1049PASS/1compact failure/0errors/3scale skip. Fresh521,534с,17/17,

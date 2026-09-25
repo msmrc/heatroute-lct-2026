@@ -1,26 +1,30 @@
 # Handoff — Артём / PM / developer
 
-## Приоритетная актуализация: source73 / full72 завершён
+## Приоритетная актуализация: source74 / full73 завершён
 
-Сначала [PRIMARY_ROUTING_73.md](PRIMARY_ROUTING_73.md). Код73 `c4749e1` pushed; checkpoint WIP,
-157focusedPASS/web36/scripts37/lint/typecheckPASS. Fast73session46340 завершена:
-1076cases/1073PASS/0fail/0error/3scale skip. Отдельный snapshot `.tooling/source73-build.6qc6Dq/apps/api`;
-`source73-fast-final-reports/` сохранён, не смешивать с target72.
-Clean/full73 **session8395** теперь запущен без исключений в этом snapshot. Не менять
-`.tooling/source73-build.6qc6Dq/apps/api/target` до завершения; `source73-full.log`.
-Accepted `source73-result.json`/before-assertions `source73-diagnostic.json` различать.
+Сначала [PRIMARY_ROUTING_74.md](PRIMARY_ROUTING_74.md).123focusedPASS, быстрый Maven1110cases/
+1107PASS/0fail/0error/3scale skip; web36/scripts37/lint/typecheckPASS. Ускоренный road/tram
+поиск ограничен текущим расчётом; numerical RED исправлены, полный guard/export не ослаблен.
+Это не accepted fresh74 и не end-to-end speed claim.
 
-Full72session53894 ЗАВЕРШЁН:1053cases/1049PASS/1compact failure/0errors/3scale skip.
-Fresh521,534с/17of17/strict export3ролей PASS; accepted72/snapshot72/PNG72 сохранены,
-variants по значениям точно совпали с71. Runtime61 не менялся.
+Clean/full конечных74 **session37091** без исключений работает в отдельном snapshot
+`.tooling/source74-final-build.mgNqTd/apps/api`; не менять его target. Лог `source74-final-full.log`,
+accepted `source74-final-result.json`/before-assertions `source74-final-diagnostic.json` различать.
+Fast reports сохранены в `source74-fast-final-reports/`. После завершения сохранить full reports,
+сравнить все значения variants с73, проверить3экспорта, затем fresh roads74. Ранний full74
+session16835 в `.tooling/source74-build.OwIzxd/apps/api` всё ещё жив; он не содержит последнюю
+поправку memory reservation для packed-double. Его отчёты/`source74-result.json` не выдавать
+за full конечных исходников. Оба snapshot target не перезаписывать.
 
-Roads72session19058 **ЕЩЁ ЖИВ**: `.tooling/intake-20260925/source72-roads.log`, цель
-`source72-roads-result.json`, before-assertions diagnostic отдельно. Основной
-`apps/api/target` НЕ перезаписывать до его завершения! Не перезапускать эту пробу с нуля.
-После full/fresh73 — snapshot отчётов, метрики/export/PNG и fresh roads73.
-Final-DU retention и crossing через отдельные логические рёбра остаются открытыми.
-Новый45с JFR roads72:1874main samples,43,8%crossings/35,1%JTSintersection; точный план
-performance-пробы без replay описан в73. JFR завершён; не останавливать исходный расчёт.
+Full73session8395 завершён:1080cases/1076PASS/1compact failure/0errors/3scale skip;
+fresh533,933с,17/17/strict export3ролей PASS, все variants как72. Accepted73/full reports сохранены.
+Но **основной** `apps/api/target` ещё занят roads72session19058/PID33818. Не clean/не перезапускать
+его с нуля: процесс живой, JFR подтвердил CPU-поиск. Параллельное время не является SLA.
+Fresh roads73 не выполнялся. Runtime61/VPS неизменены. Final-ДУ retention, crossing через
+логические рёбра, другие G2 коммуникации, compact-control, native/Compose/scale открыты.
+Agent Chandrasekhar `01a0d696-7e7c-7a92-89fe-11b7be8475f5` сейчас делает только isolated
+RED для final-ДУ retention; получить результат, не дублировать работу и не менять production
+по предположению. Записывает только `.tooling/final-du75-*`, live target не затрагивает.
 Старые блоки ниже — история, не действующие указания о живых сессиях.
 
 ## Следующий checkpoint72: road/tram + atomic special sections

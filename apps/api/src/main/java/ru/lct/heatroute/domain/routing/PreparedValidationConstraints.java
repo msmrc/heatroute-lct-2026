@@ -183,7 +183,7 @@ final class PreparedValidationConstraints {
     private void retainBuffer(Entry entry, Constraint constraint) {
         if (records.get(entry.key) != entry) return;
         long reservation = (constraint.blocked() == null ? 0L : constraint.blocked().getNumPoints())
-                + constraint.segmentIndexCoordinateReservation();
+                + constraint.segmentIndexCoordinateReservation() + constraint.roadCrossingCoordinateReservation();
         entry.constraint = constraint;
         entry.bufferCoordinates = reservation;
         buffers.put(entry.key, entry);

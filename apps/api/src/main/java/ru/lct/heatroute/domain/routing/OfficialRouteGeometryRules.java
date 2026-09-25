@@ -25,6 +25,7 @@ import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.constraints.SpatialConstraintRule;
 import ru.lct.heatroute.domain.constraints.RoadCrossingClearance;
+import ru.lct.heatroute.domain.constraints.PreparedRoadCrossings;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 @Component
@@ -504,9 +505,7 @@ public class OfficialRouteGeometryRules {
                 continue;
             }
             if (RoadCrossingClearance.supports(constraint.type)) {
-                if (!roadCrossings.segmentAllowed(segment, constraint.source, constraint.clearanceM,
-                        constraint.rule.getMinimumCrossingAngleDegrees().doubleValue(),
-                        constraint.rule.getSpecialExtensionM().doubleValue())) return false;
+                if (!constraint.roadSegmentAllowed(segment, roadCrossings)) return false;
                 continue;
             }
             if (constraint.rule.getMinimumCrossingAngleDegrees() != null
@@ -873,8 +872,11 @@ public class OfficialRouteGeometryRules {
         private final Geometry blocked;
         private final PreparedGeometry preparedBlocked;
         private final long segmentIndexCoordinateReservation;
+        private final long roadCrossingCoordinateReservation;
         private volatile PreparedSegmentIntersection segmentIntersection;
         private volatile boolean segmentIntersectionInitialized;
+        private volatile PreparedRoadCrossings roadCrossings;
+        private volatile boolean roadCrossingsInitialized;
         private final SpatialConstraintRule rule;
         private final double clearanceM;
 
@@ -895,6 +897,8 @@ public class OfficialRouteGeometryRules {
             this.blocked = blocked;
             this.preparedBlocked = blocked == null ? null : PreparedGeometryFactory.prepare(blocked);
             this.segmentIndexCoordinateReservation = PreparedSegmentIntersection.additionalCoordinateReservation(blocked);
+            this.roadCrossingCoordinateReservation = !rule.isForbidden() && RoadCrossingClearance.supports(type)
+                    ? PreparedRoadCrossings.additionalCoordinateReservation(source) : 0;
             this.rule = rule;
             this.clearanceM = clearanceM;
         }
@@ -905,8 +909,27 @@ public class OfficialRouteGeometryRules {
         Geometry blocked() { return blocked; }
         PreparedGeometry preparedBlocked() { return preparedBlocked; }
         long segmentIndexCoordinateReservation() { return segmentIndexCoordinateReservation; }
+        long roadCrossingCoordinateReservation() { return roadCrossingCoordinateReservation; }
         SpatialConstraintRule rule() { return rule; }
         double clearanceM() { return clearanceM; }
+
+        /** Индекс принадлежит неизменяемому Constraint одного расчёта; память зарезервирована до аллокации. */
+        private boolean roadSegmentAllowed(LineString line, RoadCrossingClearance fallback) {
+            ensureIntersectionActive();
+            if (roadCrossingCoordinateReservation > 0 && !roadCrossingsInitialized) {
+                synchronized (this) {
+                    if (!roadCrossingsInitialized) {
+                        roadCrossings = PreparedRoadCrossings.forReadOnlyConstraint(source);
+                        roadCrossingsInitialized = true;
+                    }
+                }
+            }
+            ensureIntersectionActive();
+            double angle = rule.getMinimumCrossingAngleDegrees().doubleValue();
+            double extension = rule.getSpecialExtensionM().doubleValue();
+            return roadCrossings == null ? fallback.segmentAllowed(line, source, clearanceM, angle, extension)
+                    : roadCrossings.segmentAllowed(line, clearanceM, angle, extension);
+        }
 
         private boolean intersectsBlocked(LineString line) {
             ensureIntersectionActive();

@@ -14,6 +14,38 @@ import ru.lct.heatroute.domain.economics.VariantEconomics;
 /** Проверяет бюджет и отбор фронта; реальную geometry/sizing/depth проверяет OfficialCorridorDatasetTest. */
 class CorridorRefinementSearchTest {
     @Test
+    void shortChamberSectionsCanBeRepairedAcrossLevelsButAreNeverReturnedAsFinished() {
+        RouteVariant seed = closeChambers(variant("seed", 4, 10, 10, 2));
+        RouteVariant intermediate = closeChambers(variant("intermediate", 3, 11, 11, 2));
+        RouteVariant repaired = variant("repaired", 2, 12, 12, 2);
+        List<String> expanded = new ArrayList<>();
+        List<RouteVariant> result = CorridorRefinementSearch.improve(List.of(seed), false, source -> {
+            expanded.add(source.getId());
+            if (source == seed) return List.of(intermediate);
+            if (source == intermediate) return List.of(repaired);
+            return List.of();
+        });
+        assertThat(result).containsExactly(repaired);
+        assertThat(expanded).containsExactly("seed", "intermediate", "repaired");
+    }
+
+    @Test
+    void unrepairedChamberSectionsCannotLeakFromTheBoundedSearch() {
+        RouteVariant seed = closeChambers(variant("seed", 5, 10, 10, 2));
+        AtomicInteger calls = new AtomicInteger();
+        assertThat(CorridorRefinementSearch.improve(List.of(seed), false, source -> {
+            int call = calls.incrementAndGet();
+            return List.of(closeChambers(variant("next-" + call, chambers(source) - 1, 11, 11, 2)));
+        })).isEmpty();
+        assertThat(calls).hasValue(3);
+    }
+
+    private RouteVariant closeChambers(RouteVariant variant) {
+        return variant.withEngineeringIssues(List.of(new RouteValidationIssue(
+                "EXPERT_CHAMBER_SPACING_TOO_SHORT", "chamber", "less than 10 m")));
+    }
+
+    @Test
     void keepsScoreAndCostFrontsWithinThreeLevelsAndTwoStates() {
         RouteVariant score = variant("score", 10, 10, 10, 2);
         RouteVariant cheap = variant("cheap", 10, 1, 11, 2);

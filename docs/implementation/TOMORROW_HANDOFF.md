@@ -1,5 +1,573 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source90 — B-10 исправлен в коде, быстрые проверки зелёные
+
+Начать с [PRIMARY_ROUTING_90.md](PRIMARY_ROUTING_90.md). Snapshot
+`.tooling/source90-gates.dl98EW` совпал с checkout src. Clean fast57015 завершён exit0:
+1624cases/1621PASS/0fail/error/3skip,24,599с; `source90-fast-final-reports/` сохранены отдельно.
+Web3961 завершён exit0:36+37/lint/typecheckPASS. Kant завершён и закрыт;9старых routing
+tests проверены/интегрированы; новый exporter test расширен main до73cases, routing25cases.
+
+Нельзя возвращать исключение отступа ОКС для существующего root: источники его не дают.
+Законно только финальное прямое подключение собственного ОКС. Сохранённый export проверяет
+исходную и выдаваемую геометрию, до первой feature; special-checker работает отдельно.
+Подробности RED/границ/округления/отмены/собственного ввода — в scope90.
+
+Full88session92736 **завершён exit1**, target88 свободен; не ждать и не перезапускать.
+1512cases/1508PASS/1compactFAIL/3skip, original738,313с/concave6,852с,3роли17/17.
+Принятый файл `source88-result.json`, отчёты `source88-full-reports/`; оба в intake20260925.
+Далее fresh90, затем roads/kindergarten17/17, compact и общее время. Source89 отдельно full
+не запускался. Runtime61/VPS не менялись; R/G/native/Compose/scale и вся цель не приняты.
+**Живой full90session90073** на `.tooling/source90-gates.dl98EW`: не менять src/target и
+не запускать здесь второй Maven до завершения. Лог `source90-full.log`, ожидаемый accepted
+`source90-result.json`, diagnostic `source90-diagnostic.json`. Нужны final reports и метрики
+каждой роли. Только после фактического допуска строить свежие картинки/сравнение.
+Read-only replay85175 завершён exit0: все3роли88 и все3роли89-witness прошли direct/prepared
+geometry и новый exporter90 (`source90-setback-replay-final.log`), без изменения/перепланирования.
+Это не fresh90. Остальных живых Maven handles этого этапа нет.
+
+## Актуально: source89 fast готов, следующий correctness — B-10
+
+Начать с [PRIMARY_ROUTING_89.md](PRIMARY_ROUTING_89.md) и [REFACTORING](REFACTORING.md).
+Snapshot89 `.tooling/source89-gates.jsf4wz` совпал с checkout перед финальным fast;
+fast67366 завершён exit0:1526cases/1523PASS/0fail/error/3skip,136классов. Отчёты сохранены:
+`.tooling/intake-20260925/source89-fast-reports/`. Web54346 exit0:36+37/lint/typecheckPASS.
+Final replay15870 завершён exit0: `source89-final2-from86.json/log`, non-inlined version89,
+balanced2113,249м/286789420,37₽/4→0pairs/17of17/strict3rolesPASS, этап5,832с.
+Это bounded saved-input witness, не fresh89 и не productioncache. Другие роли ещё с4парами;
+официальный rank/UIpreferred не менялся и может показывать cheapest первым.
+
+**По-прежнему жив full88session92736** на frozen `.tooling/source88-gates.pO5we3`:
+его исходники/target не менять и не запускать дубликат. Compact-control FAIL; официальный
+dataset-тест выполняется. Лог `source88-full.log`, ожидаемые `source88-result.json` и
+`source88-diagnostic.json` в `.tooling/intake-20260925/`. Нужны завершение/отчёты/охват/метрики;
+не считать промежуточные corridor-логи готовыми ролями. **Full89 ещё не запущен**, target89 свободен.
+
+Darwin завершён/закрыт; его единственный тест интегрирован и прошёл на89. Evidence:
+`.tooling/chamber-safety.jBjWz5/EVIDENCE.md`. Он же сохранил **B-10 RED**:
+`.tooling/chamber-safety.jBjWz5/endpoint-reproducer/OfficialChamberQualitySafetyTest.java`.
+Новая камера рядом с building получает ошибочное снятие буфера от `applicableConstraints`.
+Сначала вынести focused regression и исправить независимый допуск/локальное исключение врезки,
+сохранив нормальные вводы и реальные исходные данные. Interior-сценарии зелёного safety-набора
+не закрывают этот дефект. Правила требования и источники проверять перед изменением исключения.
+
+Далее fresh89/последующей исправленной версии, дороги17/17, компактность и общее время;
+картинки строить по фактическому принятому fresh-результату с честной версией. Runtime61/VPS
+не трогались. Доступность live UI не означает, что он работает на89. Native/Compose/scale/R/G
+не приняты. Все live-статусы ниже исторические; актуален этот реестр.
+
+## Актуально: source88 проверен быстрым набором, full88 в работе
+
+Начать с [PRIMARY_ROUTING_88.md](PRIMARY_ROUTING_88.md). Main snapshot:
+`.tooling/source88-gates.pO5we3`, локальный replay `.tooling/source88-replay.6GPOgt`.
+Переносы, ограниченный поиск и balanced-компромисс интегрированы; исходные сети сохранены.
+Предпочтение 90°/180° и per-node guard приняты от Arendt. Dewey проверил бюджет/промежуточные
+кандидаты: 4 новых межкомпонентных теста, обход лимита длины 1 RED→GREEN. Оба агента закрыты.
+Итоговый fast88session78747 **завершён exit0**: 1505 случаев / 1502 PASS / 0 fail/error / 3 skip;
+отчёты `.tooling/intake-20260925/source88-final-fast-reports/`, web36+37/lint/typecheckPASS.
+Saved86 stage replay95547 завершён exit0: balanced 2111,240 м / 286610441,65 ₽, пары4→2,
+shortest2090,406 м /284980245,83 ₽, cheapest2090,416 м /284948379,08 ₽, 17/17/export3rolesPASS.
+Это проверка нового этапа за3,044с, не fresh plan/общее ускорение; остаются плохие пары камер.
+
+**Сейчас full88session92736** использует snapshot/target `.tooling/source88-gates.pO5we3`:
+НЕ менять его исходники/classes и НЕ запускать второй Maven в нём до завершения.
+Лог `.tooling/intake-20260925/source88-full.log`; ожидаемый принятый `source88-result.json`,
+диагностика `source88-diagnostic.json`. Snapshot сверён с checkout; после fast изменены только
+два JavaDoc, full перекомпилирует их. Первый отдельный full87 пропущен, full88 проверяет87+88.
+Full86session43280 и roads83session12884 **завершились exit1**, не ждать и не перезапускать их.
+Full86 принял исходный набор/экспорт, но compact FAIL; roads83 только 15/17 и не принят.
+После завершения full88 сохранить Surefire-отчёты отдельно, проверить все роли/экспорт/охват,
+измерить реальные камеры/углы/цену/время и сравнить с86. Только затем рисовать fresh-сравнение.
+Следом проверить дороги с direct-tail/recovery87, не считать15/17 принятым результатом.
+Compact, качество всех ролей, скорость и native/Compose/scale/R/G остаются открыты; runtime61/VPS прежние.
+Правила источников: ТЗ допускает произвольный поворот 0–90°; экспертный документ — перпендикулярное
+присоединение камеры. Async-вопрос пользователю закрыт сверкой первоисточников, не ждать ответа.
+Все статусы работающих сессий ниже — история; актуален только этот реестр.
+
+## Актуально: source87 — direct tail и coverage recovery
+
+[PRIMARY_ROUTING_87.md](PRIMARY_ROUTING_87.md):57новыхdirect-tail cases/139scopedPASS,
+11coverage cases/70scopedPASS. Итог fast1406/1403PASS/0fail/0error/3skip; reports отдельно
+`.tooling/intake-20260925/source87-final-fast-reports/`, snapshot `.tooling/source87-gates.t3z7Ji`.
+Web36+37/lint/typecheckPASS. Snapshot87 не содержит разрабатываемый supported-front88.
+Полный87 ещё нет. Живы full86session43280 на `.tooling/source86-gates.6VYRoA/apps/api/target`
+и roads83session12884 на `.tooling/scenario83.zYg3LZ`; не менять/не дублировать jobs.
+Mill завершён/закрыт, evidence `.tooling/coverage87.6AgEtV/EVIDENCE.txt`.
+Arendt завершил direct-tail; теперь владеет только новым `CorridorSupportedChamberRelocations`
+и его тестом для88. Main отвечает за последующую policy/planner-интеграцию. Не включать
+непроверенный компонент88 в Git87. Вопрос об углах90/180 и45/135 задан async; пока preference.
+Остальные ограничения из86 действуют: runtime61/VPS прежние, качество/roads/compact/скорость
+и native/Compose/scale/R/G не подтверждены. Ниже исторические реестры.
+
+## Актуально: source86 — preflight сохранённого экспорта и углы камер
+
+Сначала [PRIMARY_ROUTING_86.md](PRIMARY_ROUTING_86.md). Export независимо применяет правило10м
+и начало ввода в камере по фактическим полилиниям; старые неверные run требуют перерасчёта,
+но остаются читаемыми. Shortener не портит углы камеры.27новыхслучаев, fast1338/1335PASS/3skip,
+0fail/errors; reports `.tooling/intake-20260925/source86-final-fast-reports/`.
+Snapshot86 `.tooling/source86-gates.6VYRoA` побайтно проверен; web36+37/lint/typecheckPASS,
+лог `source86-web.log`. Теперь **full86session43280**, target frozen; `source86-full.log`,
+ожидаемый accepted `source86-result.json`, diagnostic `source86-diagnostic.json`.
+Full84 завершён exit1:1288PASS/1compactFAIL/3skip, original747,231с/strict exportPASS;
+его target свободен, отчёты `source84-full-reports/`, accepted `source84-result.json`.
+Full85session20838 завершён:1318/1314PASS/1compactFAIL/3skip, original772,996с/concave6,693с,
+все3роли17/17/новые правила/strict exportPASS. По11новыхкамер/min20,18388м; обе старые
+почти параллельные пары остались. Reports `source85-full-reports/`, accepted `source85-result.json`,
+просмотренная пара изображений `source85-cheapest-comparison/side-by-side.png`. Target85 свободен.
+Живы full86 и roads83session12884 (`.tooling/scenario83.zYg3LZ`); не менять targets и не дублировать jobs.
+
+Положительный локальный rebuild83:2089,610м/284667513,88₽/26bends/17of17/11новыхкамер,
+без почти параллельных выходов, min20,18388м, independent strict exportPASS. Не fresh86.
+Компактный prototype воспроизвёл ровно те же nodes/edges за8попыток. Main не менял policy
+ради допуска цены/длины; candidate offer и acceptance policy — отдельная следующая работа.
+Evidence `.tooling/source83-joint-audit.febI2W/EVIDENCE.md`.
+Arendt получил только `CorridorLinkApproaches`+новыйtest: checked direct-tail gap; Mill —
+`OfficialRoutePlanner`+новыйtest/helper: bounded coverage completion для no_route.
+Оба изменения для следующего checkpoint, не часть проверенного86; не смешивать targets.
+Отдельный unresolved exact own-OKS corner guard описан в
+`.tooling/roads-regression-audit.4mZZNB/EVIDENCE.txt`; не ослаблять final validator.
+Runtime61/VPS не трогались. Полный86, roads17/17, compact, скорость/native/Compose/scale/R/G
+не приняты. Все live-статусы ниже — история, актуален этот реестр.
+
+## Актуально: source85 — новое уточнение по камерам
+
+Сначала [PRIMARY_ROUTING_85.md](PRIMARY_ROUTING_85.md). Не копировать ручной маршрут:
+минимум10м по трассе между камерами, ввод от камеры, короткий камера→ОКС допустим.
+Новый валидатор/selection для всех ролей, повтор перед rank; repairseed с коротким участком
+разрешён только внутри ограниченного объединения. Focused66PASS после исправления раннего
+отсева seed (первый fast2FAIL сохранён); web36+37/lint/typecheckPASS. Итоговый fast85 завершён:
+1311cases/1308PASS/0fail/0error/3scale skip; reports `source85-final-fast-reports/`.
+**Full85session20838** использует `.tooling/source85-gates.QFTwHj/apps/api/target`;
+не менять до завершения. Усилен all-role тест камер,17/17/ДУ/глубины/сметы/strict export.
+Лог `source85-full.log`, accepted `source85-result.json`, предварительный `source85-diagnostic.json`.
+
+Full83session54670 завершён1284/1280PASS/1compactFAIL/3skip; reports в
+`.tooling/intake-20260925/source83-full-reports`, accepted `source83-result.json`.
+Сравнение83 просмотрено: `source83-cheapest-comparison/side-by-side.png`, не результат85.
+Roads81session30394 завершёнexit1:15/17/2роли/31–32badangles. Targets83full/81 свободны.
+Живы **full84session30650** (`.tooling/source84-gates.l7r4V8/apps/api/target`) и
+**roads83session12884** (`.tooling/scenario83.zYg3LZ`): frozen targets не менять и jobs не дублировать.
+Callback двух corridor dataset tests исправлены и проверены отдельно на production84:
+3RED→3GREEN, dataset4PASS, compactFAIL. Все68кандидатов compact до/после совпали побайтно;
+минимум2003,405м/13камер, а не<1860м. Это не объяснение compact failure. Агент завершён,
+его targets свободны; evidence `.tooling/corridor-harness-fixed.PZUnyB/README.md`.
+Полный85 snapshot содержит эти тесты и побайтно совпадает с checkout.
+
+Открыто: полный85, независимый new-rule preflight сохранённого export JSON, совместные выходы
+камер, roads17/17, compact, скорость/native/Compose/scale. Не уменьшать 10м и не ослаблять
+проверки ради допуска. Runtime61/VPS не обновлялись; R/G/общая цель не закрыты.
+Ниже история, прежние live-статусы заменены этим реестром.
+
+## Актуально: source84 — направление link approaches исправлено, quality-поиск продолжается
+
+Сначала [PRIMARY_ROUTING_84.md](PRIMARY_ROUTING_84.md).8новых directional cases,
+4RED83→GREEN84, focused48PASS; web36+37/lint/typecheckPASS. Итоговый fast84 завершён:
+1288cases/1285PASS/0fail/0error/3skip,122класса. Reports скопированы в
+`.tooling/intake-20260925/source84-final-fast-reports/`. На том же frozen target
+`.tooling/source84-gates.l7r4V8/apps/api/target` запущен **full84session30650**.
+Первый fast failed из-за отсутствующих общих resources в snapshot; links исправлены,
+production ради этого не менялся. Не пользоваться меняющимися full reports как fast evidence.
+Эксперимент diversity44PASS/960exact comparisons не дал улучшения на реальных камерах;
+он удалён из production, архив `.tooling/chamber-diversity.hQN1Gy/` сохранён.
+Все62точки его Hanan-пула и штатная zone-перестройка тоже не дали принятого улучшения.
+
+Живы full83session54670, roads83session12884 и roads81session30394 на targets, перечисленных
+в83/84. В full83 уже есть compact failure, не считать его зелёным до итоговых reports.
+Ни один live target не менять, дубликаты не запускать. Следом свежие результаты/картинки,
+проверка84, затем совместные подходы/топология конфликтующих камер. Не ослаблять validator
+или правила ранжирования ради красивого промежуточного рисунка. Runtime61/VPS прежние.
+Ниже — исторические записи; актуальные статусы выше и в84.
+
+## Актуально: source83, fast gate зелёный; полный расчёт ещё идёт
+
+Начать с [PRIMARY_ROUTING_83.md](PRIMARY_ROUTING_83.md). Исправлены потеря допустимого
+направленного обхода и глобальная льгота выбранной теплосети;50новых постоянных случаев.
+Fast1280cases/1277PASS/0fail/0error/3skip, web36+37/lint/typecheck PASS.
+Сохранённые fast reports — `.tooling/intake-20260925/source83-final-fast-reports/`.
+
+Живые процессы: full83session54670 на `.tooling/source83-gates.U0YYnW/apps/api/target`,
+roads83session12884 на собственной копии `.tooling/scenario83.zYg3LZ`, roads81session30394
+на `.tooling/source81-build.Ndryzg/apps/api/target`. Не менять эти targets, не дублировать jobs.
+Full82session53808 завершён exit1:1234cases/1230PASS/1compactFAIL/3skip; target82 свободен.
+В82 ещё нет исправлений review83, поэтому не использовать его как приёмку текущего кода.
+
+Далее: результаты всех ролей83/roads83, строгая независимая проверка и реальные картинки
+с Евгением; потом почти параллельные выходы камер и сопоставимый замер времени.
+Bounded chamber replay82 выявил, что одной смены приоритета переноса недостаточно;
+подробности в [82](PRIMARY_ROUTING_82.md). Runtime61/VPS не менялись. Компактность,
+качество камер, скорость, R/G2/native/Compose/scale и общая цель открыты.
+Ниже — история; действующий реестр процессов находится выше и в83.
+
+## Актуально: source82 сохранён как промежуточный checkpoint
+
+По запросу пользователя сохраняем все текущие исходники в Git без объявления релиза.
+Начальная реализация [CORRIDOR_TRUNK_ADMISSION.md](CORRIDOR_TRUNK_ADMISSION.md) внесена:
+фактическое направление проверяется после rooting, полный дорожный проход — после сборки
+полилинии; секции создаются заново при ДУ собранного ребра.
+Первый scoped gate завершён: **86/86 PASS**, 8 классов, Java11/Maven,
+`.tooling/source82-dev.X9eyJD/apps/api/target/surefire-reports/`.
+Далее: закончить постоянные F1–F3 regression-тесты и отрицательные проверки,
+провести review, полный fresh82/roads82 и сравнение качества/времени до обновления runtime.
+Повторные web gates82 и live Compose smoke не выполнены. Runtime остаётся61, VPS не менялся.
+Ни R/G2, ни качество выходов из камер этим checkpoint не закрываются.
+Запущенный ранее roads81 использует frozen target81: не изменять его до завершения процесса.
+
+## Актуально: full81 восстановил повороты; roads и подходы к камерам не приняты
+
+Сначала [PRIMARY_ROUTING_81.md](PRIMARY_ROUTING_81.md), разделы свежего результата и продолжения.
+Full81 завершён1234cases/1230PASS/1прежний compactFAIL/0errors/3skip; fresh462,736с.
+Все17/17/strict export; shortest/cheapest2068,786м/11новых камер/22поворота/0bad bend angles,
+exact variants75. Balanced2194,257м/14камер/26поворотов, exact79/80. Ускорение не доказано.
+**Advisory выявил две почти совпадающие пары выходов камер177/560**:0,0033°/0,0243°.
+0engineering issues не означает решение этих подходов; не закрывать quality/цель.
+Картинка81 с Евгением построена/просмотрена; эталон1913,859м/11маркеров/15поворотов, не нормативная приёмка.
+
+Roads77/79 завершены exit1:77=16/17,79=15/17 и нет shortest; подробные причины в81.
+Targets77/79 свободны. Живой: **roads81session30394** на frozen `.tooling/source81-build.Ndryzg`
+(runner `.tooling/scenario81.nROI5w`). Усиленный dataset test **session78303 завершён2/2PASS**:
+494,770с, exact variants первогоfull81. Target `.tooling/source81-quality.iLac2n` свободен,
+reports сохранены. Логи/результаты `.tooling/intake-20260925/`.
+В tracked test теперь проверяются углы cheapest; web36/scripts37/lint/typecheck тоже PASS.
+Не чистить живые targets/не дублировать jobs. Runtime61/VPS неизменны; native/Compose/scale/G2/R открыты.
+Следующий доказанный bugfix — [CORRIDOR_TRUNK_ADMISSION.md](CORRIDOR_TRUNK_ADMISSION.md):
+F1–F3,3сценария/52assertions повторены основным агентом; production ещё не менялся.
+Субагент завершён/закрыт. Roads81 включает30-секундный JFR, его время не является чистым benchmark.
+Ниже исторические записи, не актуальный live-реестр.
+
+## Актуально: source81 — preservation подключён к основному режиму
+
+Сначала [PRIMARY_ROUTING_81.md](PRIMARY_ROUTING_81.md). Full79 завершён1226cases/1222PASS/
+1compactFAIL/3skip,fixture595,410с; exact variants79==78, cheapest3bad angles остаются.
+Причина узкого эффекта79: основной finish использует TOWARD, PRESERVE — лишь альтернативу
+переноса камер. В81 whole-network fast path работает и в TOWARD, только если все вводы уже
+проходят прежний предикат и вся сеть независимо допустима. Альтернатива другой оси сохранена.
+3новыхtests/2RED80→GREEN81; scoped62PASS; clean/fast1230cases/1227PASS/0fail/0error/3skip;
+web36/scripts37/lint/typecheckPASS. Bounded TOWARD replay saved75: exact edges/0bad angles,
+в отличие от79. **Это не fresh81.** Full81session87519 на `.tooling/source81-build.Ndryzg` запущен.
+Full80session59635 завершён1231cases/1227PASS/1compactFAIL/0errors/3skip; fixture613,702с,
+exact variants80==79 подтверждено. Target80 свободен, reports сохранены;3bad angles cheapest
+остались, ускорение не доказано. Живы full81/roads79session69123/roads77session2599.
+Target79 не очищать, несмотря на завершение full79. Runtime61/VPS прежние; checkpoint в Git.
+
+## Актуально: source80 — оптимизация сортировки препятствий
+
+Сначала [PRIMARY_ROUTING_80.md](PRIMARY_ROUTING_80.md). Query-local primitive ordinals сохраняют
+точные состав/порядок STRtree query, без нового кэша/изменения геометрии.5новыхtests, scoped81PASS,
+clean/fast1227cases/1224PASS/0fail/0error/3skip; web36/scripts37/lint/typecheckPASS. End-to-end gain
+не доказан. Full80/79 завершены, exact variants80==79 PASS; полный итог80 указан выше.
+Roads79session69123 продолжает использовать frozen target79; roads77session2599 — target77.
+Не менять живые targets и не дублировать процессы. Нужны свежий all-role quality81,
+затем roads/native/изображения. Runtime61/VPS неизменны. Ниже — история, не live-реестр процессов.
+
+## Актуально: source79 — не перестраивать целиком допустимую сеть
+
+**Обновление:** full78session46700 завершён1220cases/1216PASS/1compactFAIL/3skip;17of17/strict
+exportPASS, но cheapest3bad angles остаются. Target78 свободен. Full79session51226 и оба
+roads77session2599/roads79session69123 продолжают работать; их targets не изменять.
+
+Сначала [PRIMARY_ROUTING_79.md](PRIMARY_ROUTING_79.md). `PRESERVE_VALID` сохраняет все рёбра
+после независимой полной проверки сети при окончательных ДУ; поисковые буферы новых замен
+не ослаблены. 6новыхtests,3REDна78→PASS79; clean/fast1222cases/1219PASS/0fail/0error/3skip.
+Scoped59PASS; контроль доводки saved75:6/6PASS/exact edges/0bad angles, **не fresh79**.
+Web36/scripts37/lint/typecheckPASS. Статическое review без замечаний.
+
+Живые targets: full79session51226→`.tooling/source79-build.RQBOQ4/apps/api/target`,
+full78session46700→`.tooling/source78-build.X5TXbQ/apps/api/target`,
+roads77session2599→`.tooling/source77-build.FeShm8/apps/api/target`. Не изменять их до завершения.
+Дополнительно запущен roads79session69123, runner `.tooling/scenario79.Vhd4HA`, тот же target79:
+**не очищать target79 после full79 до окончания roads79**. Лог `source79-roads.log`, вход239features
+проверен по SHA в79. Fresh results ещё нет; все четыре процесса подтверждены живыми.
+Следом явная all-role engineering проверка свежего79 (cheapest не покрыт текущими assertions),
+roads79/native smoke и сравнение с экспертом. Source79 не является принятым релизом;
+runtime61/VPS/compact/G2/scale/Compose/R не изменены. Осталось4%лимита, сохраняем checkpoint.
+
+## Актуально: correctness78; качество77 ещё не принято
+
+Сначала [PRIMARY_ROUTING_78.md](PRIMARY_ROUTING_78.md). Terminal direction/normal/sections
+исправлены вместе;50новых tests, конечный clean/fast1216cases/1213PASS/0fail/0error/3skip,
+web36/scripts37/lint/typecheckPASS. Последний transitive-crossing reviewer finding исправлен
+и закреплён тестами. Scope не включает все nonterminal reversal/undirected trunk callers.
+
+**Живые процессы:** full78session46700 на `.tooling/source78-build.X5TXbQ/apps/api/target`;
+roads77session2599 на `.tooling/source77-build.FeShm8/apps/api/target`. Оба target заморожены.
+Логи/accepted/diagnostics — `.tooling/intake-20260925/`; дождаться, не дублировать расчёты.
+Все агенты завершены. Main runtime61/VPS неизменны, full78 ещё не принят.
+
+Следующий quality bugfix: `PRESERVE_VALID` отказывает ранее официально допустимой ветви из-за
+поискового буфера accepted-route;77 разблокировал repair и добавил плохие углы. Bounded75/77
+trace это подтвердил для двух ветвей; весь portfolio/третий угол ещё не объяснены. В78 это
+**не исправлено**. Нужен regression и authoritative final-ДУ preservation, не ослабление
+официальных отступов и не исключение целых соседних трасс. Затем fresh all-role quality.
+На последней проверке оставалось6%недельного лимита; изменения сохраняются checkpoint'ом.
+
+## Приоритетная актуализация: full77 завершён, quality regression открыт
+
+Full77:1170cases/1166PASS/1compactFAIL/3skip;fixture526,533с/17of17/strict exportPASS.
+Однако cheapest2073,965м/11камер/3плохих угла, shortest2192,300м/14камер: хуже75.
+Не обновлять runtime и не считать существующий fixture достаточным quality gate всех ролей.
+Roads75 завершён2838,622с/16of17,exact variants72,толькоdiagnostic. Snapshot75target свободен.
+**Живой roads77session2599** использует `.tooling/source77-build.FeShm8/apps/api/target`,
+runner `.tooling/scenario77.iPcahu`, `source77-roads.log`. Snapshot77target снова заморожен.
+В checkout WIP78 направления ввода (99focusedPASS после incoming-normal fix); полный gate
+не закончен. Параллельно bounded audit77 выясняет причину ухудшения retention/portfolio.
+
+Сначала [PRIMARY_ROUTING_77.md](PRIMARY_ROUTING_77.md). Исправлен shared-junction self-blocking
+в final-ДУ repair: локальное исключение по node identity, не исключение целого соседа.
+29новых tests,111focusedPASS,65independentPASS; конечный clean/fast1166cases/1163PASS/
+0fail/0error/3scale skip и web36/scripts37/lint/typecheckPASS. Полный итог выше.
+
+- **Full77session79101 завершён**: `.tooling/source77-build.FeShm8/apps/api`, `source77-full.log`,
+  accepted `source77-result.json`, diagnostic `source77-diagnostic.json`. Target заморожен.
+- **Roads75session70338 завершён exit1**: `.tooling/scenario75.VxnM8P`, `source75-roads.log`,
+  `.tooling/source75-build.9a8BDz/apps/api/target` больше не занят.
+
+Логи/результаты — `.tooling/intake-20260925/`; fast77 reports сохранены отдельно. Сначала
+дождаться текущих процессов, не дублировать fresh calculation из-за тихого лога. После77
+отдельно исправлять road-entry direction demand→root versus stored root→demand, включая
+выбор нормали и whole-line checks; нельзя требовать оба угла вместо правила входа.
+Runtime61/VPS не обновлены; compact/G2/native/Compose/scale/R и цель остаются открытыми.
+
+## Приоритетная актуализация: audit76 / full75 завершён
+
+Сначала [PRIMARY_ROUTING_76.md](PRIMARY_ROUTING_76.md). Goal-priority pruning отклонён:
+два реальных epsilon-chain контрпримера. Численная подготовка эквивалентна, но измеренного
+выигрыша не дала: тоже удалена. Production **неизменён75**, только12новых SearchPriority tests
+и evidence. Web gatesPASS; конечный clean/fast Maven1137cases/1134PASS/0fail/0error/3skip,
+reports `source76-checkpoint-fast-reports/`, main побайтно как full75. Далее shared-junction self-blocking,
+потом отдельный terminal-direction mismatch; реальные small RED в76, не ослаблять нормы.
+Не использовать предварительные1135cases отклонённого patch как evidence конечного76.
+
+Full75session70380 **завершён**:1129cases/1125PASS/1compactFAIL/3skip;fresh526,467с,17/17,
+strict export3ролейPASS,exact variants74. Reports `source75-full-reports/`, accepted75 сохранён.
+Roads72session19058 тоже **завершён**, но failure16/17 во всех ролях; только diagnostic.
+Основной target теперь свободен. Snapshot75target всё ещё заморожен для **roads75session70338**,
+его не перезаписывать. Runtime61/VPS не менялись; compact/G2/native/Compose/scale/R открыты.
+Ниже исторические статусы; указания о живом full75 или roads72 уже не действуют.
+
+## Приоритетная актуализация: source75 / full74 завершён
+
+Сначала [PRIMARY_ROUTING_75.md](PRIMARY_ROUTING_75.md). Final-ДУ retention исправлен по
+реальному RED,15постоянных tests, независимое review24PASS. Финальный быстрый Maven:
+1125cases/1122PASS/0fail/0error/3scale skip;web36/scripts37/lint/typecheckPASS.
+Это ещё не accepted fresh75; не объявлять compact/speed/G2/R готовыми.
+
+**Один snapshot75 заморожен для двух живых задач:** `.tooling/source75-build.9a8BDz/apps/api`.
+Не запускать там новый Maven и не менять target до завершения **обоих**:
+
+1. Clean/full75 **session70380**, `source75-full.log`, accepted `source75-result.json`,
+   before-assertions `source75-diagnostic.json` отдельно.
+2. Fresh roads75 **session70338**, runner `.tooling/scenario75.VxnM8P`, `source75-roads.log`,
+   accepted `source75-roads-result.json`, before-assertions `source75-roads-result.json.diagnostic.json`.
+
+Fast75 reports сохранены в `source75-fast-final-reports/`; после full сохранить отдельный
+snapshot, сравнить результат с74/72 и проверить качество cheapest дополнительно к helper.
+Новый результат нарисовать рядом с Евгением в том же масштабе. Следующая гипотеза A* pruning
+описана в75 и пока не реализована; сначала measured/equivalence tests, не ограничивать качество.
+
+Full конечных74session37091 завершён:1114cases/1110PASS/1compact failure/0errors/3scale skip,
+fixture532,720с,17/17/strict export3ролей PASS, все variants точно как73. Accepted
+`source74-final-result.json`, отчёты `source74-final-full-reports/`; оба snapshot74 свободны.
+Ранний pre-budget74session16835 завершён и сохранён отдельно, не подмена конечного gate.
+Время fixture73 исправлено:529,767с;533,933с — весь класс из2тестов.
+
+**Основной** `apps/api/target` всё ещё занят roads72session19058/PID33818. Не clean/не
+перезапускать с нуля: процесс живой, CPU-поиск. Параллельное время не является SLA.
+Fresh roads73/74 отдельно не выполнялся. Runtime61/VPS неизменены. Logical crossing chains,
+остальные G2, compact/native/Compose/scale открыты. Все агенты75 завершены и закрыты.
+Fetch подтвердил origin/master28c7059, новых upstream commits нет.
+Старые блоки ниже — история, не действующие указания о живых сессиях.
+
+## Следующий checkpoint72: road/tram + atomic special sections
+
+Код **`a410259` pushed**,remote SHA проверен. Теперь работает **clean/full72 session53894**,
+лог `source72-full.log`,без исключений,Java11/Xmx1g/CPU2. НЕ менятьtarget/не запускатьMaven
+до завершения. Затем snapshot reports, accepted `source72-result.json`/before-assertions
+diagnostic различать; fresh metrics/export/PNG, далее roads72/native. Последующий docs-only
+commit не меняет замороженный compiled72.
+
+Сначала [PRIMARY_ROUTING_72.md](PRIMARY_ROUTING_72.md). Финальный быстрый Maven1049cases/
+1046PASS/0fail/0error/3scale skip (3долгих класса исключены);web36/scripts37/lint/typecheckPASS.
+Предыдущий broad22190 завершён; его2fixture failures/2rounding errors исправлены и повторены.
+Review3findings исправленRED→GREEN; export-agent38new+42existingPASS, оба агента закрыты.
+Target compiled72; следующийclean/fullбезисключений. Fresh71 PNG создан и просмотрен;
+full72/roads/native/Compose/scale остаются обязательными. Особый открытый риск — special
+через границу логических рёбер. Runtime61 неизменён, цель не завершена.
+Read-only recheck старого roads69 уже выявил8нарушенныхрёбер уshortest/cheapest:
+7непрямыхspecial,1боковойотступ1,467297<1,755м. Это неfresh72; новая генерация обязательна.
+
+## Актуализация25.09 ~05:28MSK: full71 завершён, идёт G2 fix72
+
+Приоритет над историческими записями ниже: session28562 завершилась exit1 только из-за
+прежнего compact-control.969cases/965PASS/1failure/0errors/3scale skipped. Fresh original
+fixture513,704с;17/17,shortest/cheapest2068,786м/11камер/22поворота/283006479,92₽,
+depth/strict export3ролей PASS. Snapshot `source71-surefire-reports/`,accepted
+`source71-result.json`, before-assertions diagnostic отдельно. Target можно пересобирать.
+
+Uncommitted72: road/tram clearance/actualboundaryangle/protective3m/порталы; новыеfocused
+тесты, exporter guard интегрируется. Полного72/fresh/roads/native пока нет. Runtime61 сохранён.
+Не принимать source71 strict export за доказательство G2: он воспроизведённо пропускает отступ.
+
+## Текущий source71: bounded terminal shortening, ещё не fresh
+
+Сначала [PRIMARY_ROUTING_71.md](PRIMARY_ROUTING_71.md).125focusedPASS, реальный80→60RED→GREEN.
+Production-helper replay всех69ролей:shortest/cheapest2068,786м/11камер/22поворота/0expert/
+283006479,92₽,balanced прежний;17/17/depth/strict export3ролей PASS. Не fresh71.
+Код `0d4d462` отправлен. Full **compiled70** закончен:951cases/947PASS/1failure(compact-control)/
+3skip,fresh500,035с/17of17/strict export3ролей PASS,всеvariants точно как69. Snapshot
+`source70-surefire-reports/`/accepted result сохранён. Теперь full **compiled71** работает
+в target (`source71-full.log`,session28562): не перезаписывать классы до завершения.
+Потом snapshot71/fresh71/roads/картинки/native. Runtime61 не обновлялся. Isolated
+`shortening71-focused.U9DmSn` — только focused/replay, не подмена full build.
+
+Следующий correctness scope — [G2_SPECIAL_CLEARANCE.md](G2_SPECIAL_CLEARANCE.md): реальные
+4RED/2controls для road/tram clearance. Нужен согласованный guard+spatial bounds+порталы+
+export, не просто новая ошибка после фильтра, который уже выкинул близкую дорогу.
+Fixed3м special и разрешённый угол не отменяют внешний габарит. Production пока не изменён.
+
+## Предыдущий source70: bounded spatial validation, full/fresh ещё впереди
+
+Сначала [PRIMARY_ROUTING_70.md](PRIMARY_ROUTING_70.md). Focused101PASS, validation-only
+replay69 3роли×3повтора:exact issues0,655buffers/43183coord стабильно после прогрева.
+Нормы/порог качества не менялись. Пока нет full/fresh70; runtime61 не обновлялся.
+Roads69 завершён:1054,672с/17of17/strict export3ролей PASS, shortest/cheapest2260,959м/11камер/
+33поворота/0expert. Accepted `source69-roads-result.json`; diagnostic отдельно, не подмена.
+Target больше не занят69. JFR дорогого поиска описан в70. Далее clean/full/fresh70,
+exact variants/export/time comparison, web gates; не обновлять runtime по одному replay.
+
+## Предыдущий source69: подготовка ограничений внутри validation
+
+Сначала [PRIMARY_ROUTING_69.md](PRIMARY_ROUTING_69.md): measured hot spot JFR67, сессия
+точного валидатора, неизменные проверки/standalone-export. Subclass-hook сохранён после
+реального RED, isolated86/86PASS, код `63b0072` отправлен; web36/scripts37/lint/typecheckPASS.
+Compiled67 завершён:924cases/920PASS/1failure(compact-control)/3skip; fresh640,761с/17of17/
+strict exportPASS, shortest/cheapest11камер/2090,416м/23поворота/0expert. Snapshot/PNG сохранены.
+Clean69 завершён:936cases/932PASS/1failure(compact-control)/0errors/3skip. Fresh660,385с/
+17of17/strict exportPASS, все variants точно совпали с67. Полный snapshot69 и PNG сохранены.
+Ускорения нет:117constraints/~35kкоординат наДУ,100kбюджет вытесняется на цикле7–8ДУ.
+Следующий безопасный пространственный отбор и80→60м quality-проба описаны в69; НЕ реализованы.
+Сейчас отдельно выполняется roads+kindergarten через ignored `ScenarioRoutingProbe`,
+лог `source69-roads.log`, цель `source69-roads-result.json`. Не перезапускать без проверки
+живого процесса и не выдавать before_assertions diagnostic за accepted bundle. Проверить
+17/17/3роли/depth/strict export, затем графику. Это не HTTP/PostGIS/scale проверка.
+Не использовать старые isolated planner68-классы впереди target69. Runtime61 пока сохранён.
+
+## Предыдущий source68: контрольные relocation-ветви сохранены
+
+Сначала [PRIMARY_ROUTING_68.md](PRIMARY_ROUTING_68.md), код `ae452a7`. Независимое review
+обнаружило в67 потерю исходного улучшения80→70м после ремонта конкурента до75м. Реальный
+RED→GREEN;79focusedPASS. В relocation остаются исходные3роли+1repair, промежуточного
+вытеснения нет. Full **compiled67** ещё выполняется; не переносить его результаты на68.
+После него snapshot, метрики/JFR, затем fresh68/export и roads+kindergarten. Runtime61/VPS
+не обновлялись; полного no-loss/performance/R-gate пока нет.
+
+## Предыдущий source67: clean/fresh прогон выполняется
+
+Сначала [PRIMARY_ROUTING_67.md](PRIMARY_ROUTING_67.md). Код `ff1a4c1`/`da44a56` отправлен.
+Поздний cheapest получает существующую инженерную доводку после выбора portfolio, только
+если это даёт полный compliant результат без роста цены/длины; исходные роли сохранены.
+Replay66:2090,416м/11новых камер/23поворота/0expert/17of17/strict exportPASS. Это НЕ fresh67.
+Подготовка obstacle buffer/hull ограничена одним поиском и бюджетом памяти;80router PASS.
+Repair77focused/4guardsPASS; web36/scripts37/lint/typecheckPASS. Clean924/fresh67 выполняется,
+надо дождаться результата, сохранить
+surefire snapshot и сравнить все роли/экспорт/время. Runtime61 не обновлять по одному replay.
+
+## Предыдущий source66: 11 камер у cheapest, общий quality gate открыт
+
+Сначала [PRIMARY_ROUTING_66.md](PRIMARY_ROUTING_66.md). Код `8d58875` / `3c50437` в origin,
+ветка `codex/routing-63-geometry`. Исходная aggregate-DU сетка сохранена; вторая добавляет
+достижимые индивидуальные вводы без снижения отступов ствола. Synthetic79,0→≤63,05м,
+rotation/UTM precision fix, focused55/55PASS. Web36/scripts37/lint/typecheckPASS.
+Clean full914:910PASS/1failure/0errors/3skip; failure — прежний compact-control.
+Fresh652,482с/17of17/strict export всех3ролей PASS. Cheapest2092,274м/11новых камер,
+1существующий корень/24поворота/285145228,70₽/1неподходящий угол; balanced/shortest всё ещё
+2192,523м/14/25/0expert. Меньше камер и дешевле65, но чуть длиннее и заметно медленнее;
+это не общий no-loss PASS. PNG66/Evgeny просмотрен. Сначала устранить оставшийся угол179,426°
+на реальной геометрии, затем fresh whole gate. Отдельный патч подготовки obstacle buffer/hull
+ещё не принят, не путать его с compiled66. Локальный JAR61 и VPS не менялись.
+
+## Предыдущий source65: наклонные вводы, общий quality gate открыт
+
+Сначала [PRIMARY_ROUTING_65.md](PRIMARY_ROUTING_65.md). Код `aff1dcf` в origin,
+ветка `codex/routing-63-geometry`; master и работающий JAR61 не менялись. Ограниченные
+диагональные переходы добавлены только для наклонных нормалей, прежние прямоугольные вводы
+сохранены. Весь Java-набор двумя прогонами909:905PASS/1failure/0errors/3skip; единственный
+failure — compact-control. Fresh443,775с/17of17/strict export всех3вариантов PASS.
+Balanced/shortest остался2192,523м/14камер/25поворотов/0expert; cheapest2080,633м,
+13узловых+1новая корневая камера/37поворотов/4неподходящих угла,289824529,03₽,
+score14,356985813. Цена ниже64, но длина иscore хуже; не принимать как no-loss improvement.
+Web36/scripts37/lint/typecheck PASS; native65/Compose/scale и ускорение не заявлены.
+
+Следующий RED/fix: сохранить общие anchors и дополнить индивидуальными вводами (сейчас
+общийДУ может выбрать другую ближайшую стену, чем ДУ ветви). Контрпример79→63,04м,
+точные координаты/границы проверки и снимки65 — в отчёте. Не снижать ДУ проверок ствола.
+Отдельно проверить сохранение старых портфельных контролей, не менять objective вслепую.
+
+## Предыдущий source64: строгие вводы, не принятый runtime
+
+Сначала [PRIMARY_ROUTING_64.md](PRIMARY_ROUTING_64.md). Рабочая ветка по-прежнему
+`codex/routing-63-geometry`; source64 — единственный основной алгоритм этой ветки.
+`master=28c7059`, работающий API/JAR61 не менялся. Нельзя переносить исторический зелёный
+full63 на новый код64: изменились нормали, отступы и достижимые порты.
+
+Code checkpoints `2de2ceb`/`0270971` отправлены, remote проверен. Итог clean904:
+900PASS/1failure/0errors/3skip; **full suite красный только на compact-control**.
+Финальный свежий официальный fixture и strict export3вариантов PASS, concave cases PASS.
+Инженерный2192,523м/14камер/25поворотов/17of17/0expert issues; cheapest1983,620м/14/28
+с6нарушениями. Backend preferred=cheapest поscore, не путать с инженерной рекомендацией.
+447,912с с JFR-срезом — не доказательство ускорения. Финальный bundle
+`source64-final-result.json`; это не native64. Основная следующая цель — компактность/скорость.
+
+Локальные safety-регрессии нормалей/actual-leg/округления/сжатия исправлены. R+W/2 включён
+только для forbidden; G2 special/depth/existing-DU ещё открыт. Последний fast900/0/0/3skip
+и web36/scripts37/lint/typecheck PASS. Reviewed dataset дал17/17,2192,523м/14камер/25поворотов,
+0экспертных нарушений balanced/shortest, но strict export остановился на1копейке.
+UTM rounding fix `2de2ceb` устранил причину: strict export replay3вариантов/568features PASS.
+Одиночный concave fixture также исправлен. Эти промежуточные пробы предшествуют свежему
+финальному результату выше (`source64-final-full.log`). Не поднимать
+compact-control пороги вслепую и не убирать quality assertions.
+
+Следующий приоритет: сократить длину/камеры/время инженерного дерева, сохраняя ноль
+экспертных нарушений и strict export. Диагональные2поворотные предложения восстановили3/12
+отдельных подходов в диагностике, но ещё не интегрированы/не дали нового полного дерева.
+Проверить гипотезу
+несогласованности aggregate-DU anchors и actual-DU spurs. Не расширять перебор без диагностики.
+Далее закончить G2 и fresh roads+kindergarten сценарий. 0,25м — безопасный поисковый запас,
+не новое требование ТЗ; принадлежность ОКС нельзя определять только по rounded endpoint.
+G1/G2/G4/G5/G6, R-этапы, native64/Compose/scale и общая цель остаются открыты.
+
+## Предыдущий source63: технический gate не является приёмкой64
+
+Рабочая ветка `codex/routing-63-geometry`; `master` оставлен на `28c7059`.
+Экспортный rounding fix — `3d9b3b0`, основной routing checkpoint — `d4d6ef5`; оба отправлены,
+remote SHA проверен. Не сливать/разворачивать всю
+ветку только потому, что технические gates зелёные: quality gate ниже открыт.
+
+Последний clean Java gate **PASS**:879/0/0/3skip,876выполнены,5:51;
+`source63-stable-full.log` / `source63-stable-result.json`.17/17 и strict export PASS.
+Preferred1857,156м/13камер/13поворотов,276,574с; ускорение не доказано. Экспортные2копейки
+исправлены в `OfficialGeoJsonExporter` (миллиметровые ценовые станции), RED2→GREEN61;
+допуск1копейки остаётся строгим. **Не обновлять runtime61 только по зелёным тестам:**
+balanced длиннее baseline, cheapest10камер/24поворота,7экспертных нарушений вместо0.
+Ремонт cheap улучшил7→3, но остановился, не включён. Задан вопрос об обязательности
+экспертной допустимости для всех ролей; не подменять objective молча. Отдельный PNG63/Evgeny
+— fixture, не live job. Следующий шаг: решить качество экономической роли/профиля,
+затем native fresh job+HTTP export; строгие нормали/R+W/2 всё ещё открыты.
+
+Сначала [PRIMARY_ROUTING_63.md](PRIMARY_ROUTING_63.md): изменения направления ввода/портов,
+baseline28c7059. Исправлены spacing через degree2 и положительные миллиметровые звенья.
+Прямой почти соосный ввод — дополнительный кандидат, не безусловная замена L-контроля.
+Последний законченный полный snapshot871/1failure/0errors/3skipped ещё нарушал spacing
+у shortest. Добавлен приоритет сетей без экспертных нарушений для инженерных ролей при
+том же полном охвате: RED1→GREEN57selector/terminal. Полный повтор и экспорт —
+Промежуточный `source63-selector-full.log`:873/0failures/1error/3skip, отказ strict export
+у cheapest по компонентам экономики; последующий fix/gate описан выше.
+Bounded-подграф без перенаправленных коротких L-контролей уже вернул13-камерный черновик
+1858,476м; RED1→GREEN1, focused403/403 PASS. Полный finish/export ещё не повторён на этой версии.
+После него обязателен quality gate против62 (1857,155м/13камер/13поворотов).
+Более ранний зелёный866-case gate регрессировал и не принят. Дополнительные штрафы/поисковые
+веса и перебор всех первых терминалов не помогли и остались диагностикой.
+Не включать строгие нормали поверх незавершённого quality gate. Runtime61/VPS не тронуты.
+
 ## Новый этап25.09: источники, осевые отступы и нормальные вводы
 
 Сначала [EXPERT_ROUTING_2026_09_25.md](EXPERT_ROUTING_2026_09_25.md). База после pull —

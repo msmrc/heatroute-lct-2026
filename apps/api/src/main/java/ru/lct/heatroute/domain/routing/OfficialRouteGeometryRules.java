@@ -2,9 +2,13 @@ package ru.lct.heatroute.domain.routing;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -15,29 +19,35 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineSegment;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.linearref.LengthIndexedLine;
-import org.locationtech.jts.operation.distance.DistanceOp;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.locationtech.jts.index.strtree.STRtree;
+import org.locationtech.jts.index.ItemVisitor;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
+import ru.lct.heatroute.domain.constraints.OfficialAxisClearance;
+import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.constraints.SpatialConstraintRule;
+import ru.lct.heatroute.domain.constraints.RoadCrossingClearance;
+import ru.lct.heatroute.domain.constraints.PreparedRoadCrossings;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 @Component
 public class OfficialRouteGeometryRules {
     static final double EPSILON_M = 0.01;
     static final double NORMAL_EGRESS_MARGIN_M = 0.25;
-    private static final double MAX_ALTERNATIVE_EGRESS_EXTRA_M = 60.0;
-    private static final double MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR = 3.0;
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
+    private static final double ROUTE_AVOIDANCE_BUFFER_M = 0.20 - CLEARANCE_BOUNDARY_EPSILON_M;
     private static final Comparator<Constraint> CONSTRAINT_ORDER = Comparator
             .comparing((Constraint item) -> item.type)
             .thenComparing(item -> item.id);
 
     private final OfficialConstraintCatalog catalog;
     private final OfficialCrossingGeometry crossingGeometry;
+    private final OfficialAxisClearance axisClearance;
+    private final RoadCrossingClearance roadCrossings = new RoadCrossingClearance();
+    private final BuildingWallNormals wallNormals = new BuildingWallNormals();
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     public OfficialRouteGeometryRules(
@@ -45,6 +55,7 @@ public class OfficialRouteGeometryRules {
             OfficialCrossingGeometry crossingGeometry) {
         this.catalog = catalog;
         this.crossingGeometry = crossingGeometry;
+        this.axisClearance = new OfficialAxisClearance(new OfficialPipeCatalog(), catalog);
     }
 
     List<Constraint> constraints(
@@ -70,8 +81,8 @@ public class OfficialRouteGeometryRules {
                 continue;
             }
             Geometry blocked = null;
-            if (rule.isForbidden()) {
-                BigDecimal clearance = preparationClearanceM(type, diameter);
+            BigDecimal clearance = preparationClearanceM(type, diameter);
+            if (clearance != null) {
                 // Equality with the published minimum clearance is legal. Shrinking only by a
                 // numerical epsilon keeps the prepared-geometry fast path and excludes a pure
                 // tangential touch from the blocked region.
@@ -79,21 +90,40 @@ public class OfficialRouteGeometryRules {
                         0.0, clearance.doubleValue() - CLEARANCE_BOUNDARY_EPSILON_M);
                 blocked = source.buffer(blockedClearance, 4);
             }
-            result.add(new Constraint(feature.getFeatureId(), type, source, blocked, rule));
+            result.add(new Constraint(feature.getFeatureId(), type, source, blocked, rule,
+                    clearance == null ? 0 : clearance.doubleValue()));
         }
         sortConstraints(result);
         return result;
     }
 
+    /** Только ограничения, используемые разметкой секций и полным пересечением дороги/трамвая. */
+    List<Constraint> crossingConstraints(List<ImportedOfficialFeature> features, int diameter) {
+        List<ImportedOfficialFeature> crossingFeatures = features.stream()
+                .filter(feature -> catalog.find(constraintType(feature))
+                        .map(rule -> !rule.isForbidden()).orElse(false))
+                .collect(Collectors.toList());
+        return baseConstraints(crossingFeatures, diameter);
+    }
+
     /** Called only after an input geometry has passed the null/empty checks. */
     BigDecimal preparationClearanceM(String type, int diameter) {
         SpatialConstraintRule rule = catalog.find(type).orElse(null);
-        if (rule == null || !rule.isForbidden()) {
+        if (rule == null || (!rule.isForbidden() && !RoadCrossingClearance.supports(type))) {
             return null;
         }
-        return "oks".equals(type)
-                ? catalog.existingBuildingClearanceM(diameter)
-                : rule.getHorizontalClearanceM();
+        return axisClearance.axisClearanceM(type, diameter, null);
+    }
+
+    /** Пространственная подготовка не предполагает неизменность пользовательских реализаций правил. */
+    boolean hasStandardPreparationRules() {
+        return getClass() == OfficialRouteGeometryRules.class
+                && catalog != null && catalog.getClass() == OfficialConstraintCatalog.class
+                && crossingGeometry != null && crossingGeometry.getClass() == OfficialCrossingGeometry.class;
+    }
+
+    boolean hasConstraintRule(String type) {
+        return catalog.find(type).isPresent();
     }
 
     void sortConstraints(List<Constraint> constraints) {
@@ -101,36 +131,27 @@ public class OfficialRouteGeometryRules {
     }
 
     ConstraintIndex index(List<Constraint> constraints) {
-        return new ConstraintIndex(constraints);
+        return new ConstraintIndex(constraints, RouteTraversal.AS_GIVEN);
     }
 
+    /** Направление относится к road/tram-проверкам запроса, а не к общим исходным ограничениям. */
+    ConstraintIndex index(List<Constraint> constraints, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        return traversal == RouteTraversal.AS_GIVEN ? index(constraints) : new ConstraintIndex(constraints, traversal);
+    }
+
+    /**
+     * Применяет только явно переданные исключения. Само положение конца в отступе ОКС
+     * не снимает буфер (§2.2 и разъяснение3); собственный финальный ввод проверяется отдельно.
+     */
     List<Constraint> applicableConstraints(
             List<Constraint> base,
             Set<String> exemptFeatureIds,
             Coordinate start,
             Coordinate end) {
-        Geometry startPoint = geometryFactory.createPoint(start);
-        Geometry endPoint = geometryFactory.createPoint(end);
         List<Constraint> result = new ArrayList<>();
         for (Constraint constraint : base) {
             if (exemptFeatureIds.contains(constraint.id)) {
-                continue;
-            }
-            if ("oks".equals(constraint.type)
-                    && constraint.rule.isForbidden()
-                    && (constraint.blocked.covers(startPoint) || constraint.blocked.covers(endPoint))
-                    && !constraint.source.covers(startPoint)
-                    && !constraint.source.covers(endPoint)) {
-                // A tie-in on an existing network may already be located inside the published
-                // building setback. Permit the local approach to that endpoint, but keep the
-                // building footprint itself as a hard obstacle. The former implementation
-                // omitted the complete OKS constraint and could therefore route through a house.
-                result.add(new Constraint(
-                        constraint.id,
-                        constraint.type,
-                        constraint.source,
-                        constraint.source,
-                        constraint.rule));
                 continue;
             }
             result.add(constraint);
@@ -139,261 +160,238 @@ public class OfficialRouteGeometryRules {
     }
 
     /**
-     * Возвращает короткий финальный подход от ближайшей границы своего ОКС к точке
-     * подключения. Отступ от своего здания на этом финальном отрезке не требуется.
+     * Врезка освобождает только контакт выбранной теплосети у endpoint в пределах допуска
+     * координат 1 см. Повторные пересечения той же feature остаются ограничениями и special.
+     * Совпадение ID дороги/ОКС с ID врезки не освобождает объект другого типа.
      */
-    Optional<NormalEgress> normalEgress(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Coordinate connectionPoint) {
-        return extendAcrossContainingSocialAreas(
-                features,
-                diameter,
-                normalEgressFromContainingOks(
-                        containingOksFeatures(features, diameter, connectionPoint), connectionPoint));
-    }
-
-    /** Отбирает только исходные ОКС: выход не использует буферы отступов остальных объектов. */
-    private List<ImportedOfficialFeature> containingOksFeatures(
-            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
-        SpatialConstraintRule rule = catalog.find("oks").orElse(null);
-        if (rule == null) {
-            return List.of();
-        }
-        Geometry point = geometryFactory.createPoint(connectionPoint);
-        List<ImportedOfficialFeature> result = new ArrayList<>();
-        for (ImportedOfficialFeature feature : features) {
-            if (!"oks".equals(constraintType(feature))) {
+    List<Constraint> localTieInConstraints(List<Constraint> base, Set<String> targetIds,
+            Coordinate start, Coordinate end) {
+        if (targetIds.isEmpty()) return base;
+        Geometry startPoint = geometryFactory.createPoint(start);
+        Geometry endPoint = geometryFactory.createPoint(end);
+        List<Constraint> result = new ArrayList<>(base.size());
+        for (Constraint constraint : base) {
+            if (!targetIds.contains(constraint.id) || !"heat_network".equals(constraint.type)
+                    || constraint.rule.isForbidden()) {
+                result.add(constraint);
                 continue;
             }
+            Geometry source = constraint.source;
+            if (source.distance(startPoint) <= EPSILON_M) source = source.difference(startPoint.buffer(EPSILON_M));
+            if (!start.equals2D(end) && source.distance(endPoint) <= EPSILON_M) {
+                source = source.difference(endPoint.buffer(EPSILON_M));
+            }
+            result.add(source == constraint.source ? constraint : new Constraint(constraint.id, constraint.type,
+                    source, constraint.blocked, constraint.rule, constraint.clearanceM, constraint.joinedContact));
+        }
+        return result;
+    }
+
+    /** Ближайший допустимый прямой выход по нормали с полным наружным отступом до поворота. */
+    Optional<NormalEgress> normalEgress(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
+        return nearestLegalNormalEgresses(features, diameter, connectionPoint, RouteTraversal.AS_GIVEN).stream()
+                .map(egress -> withNavigationMargin(egress, features, diameter, RouteTraversal.AS_GIVEN)).findFirst();
+    }
+
+    /** Геометрия нормали остаётся наружной; REVERSED проверяет физический ввод к подключению. */
+    Optional<NormalEgress> normalEgress(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return normalEgress(features, diameter, connectionPoint);
+        return nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal).stream()
+                .map(egress -> withNavigationMargin(egress, features, diameter, traversal)).findFirst();
+    }
+
+    /** Цель разрешает только равенство расстояний до стен, не подменяя нормаль лучом на камеру. */
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint, Coordinate target) {
+        return normalEgressCandidates(features, diameter, connectionPoint, target, 0).stream().findFirst();
+    }
+
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return normalEgressTowards(features, diameter, connectionPoint, target);
+        return normalEgressCandidates(features, diameter, connectionPoint, target, 0, traversal).stream().findFirst();
+    }
+
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, double maximumAlternativeEgressExtraM) {
+        return normalEgressTowards(features, diameter, connectionPoint, target);
+    }
+
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return normalEgressTowards(
+                features, diameter, connectionPoint, target, maximumAlternativeEgressExtraM);
+        return normalEgressTowards(features, diameter, connectionPoint, target, traversal);
+    }
+
+    /** Дальняя стена доступна только если все более близкие полные вводы перекрыты препятствиями. */
+    List<NormalEgress> normalEgressCandidates(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, double maximumAlternativeEgressExtraM) {
+        return directedNormalEgressCandidates(features, diameter, connectionPoint, target, RouteTraversal.AS_GIVEN);
+    }
+
+    List<NormalEgress> normalEgressCandidates(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return normalEgressCandidates(
+                features, diameter, connectionPoint, target, maximumAlternativeEgressExtraM);
+        return directedNormalEgressCandidates(features, diameter, connectionPoint, target, traversal);
+    }
+
+    private List<NormalEgress> directedNormalEgressCandidates(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, RouteTraversal traversal) {
+        List<NormalEgress> result = nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal).stream()
+                .map(egress -> withNavigationMargin(egress, features, diameter, traversal))
+                .collect(Collectors.toCollection(ArrayList::new));
+        result.sort(Comparator.comparingDouble((NormalEgress exit) -> exit.exit().distance(target))
+                .thenComparing(NormalEgress::oksId)
+                .thenComparingDouble(exit -> exit.exit().x).thenComparingDouble(exit -> exit.exit().y));
+        return result;
+    }
+
+    private List<NormalEgress> nearestLegalNormalEgresses(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint, RouteTraversal traversal) {
+        List<ImportedOfficialFeature> containing = containingOksFeatures(features, diameter, connectionPoint);
+        if (containing.isEmpty()) return List.of();
+        double clearance = axisClearance.axisClearanceM("oks", diameter, null).doubleValue();
+        List<WallEgress> candidates = new ArrayList<>();
+        for (ImportedOfficialFeature feature : containing) {
+            for (BuildingWallNormals.Exit exit : wallNormals.candidates(
+                    feature.getMetricGeometry(), connectionPoint, clearance)) {
+                candidates.add(new WallEgress(new NormalEgress(feature.getFeatureId(), connectionPoint, exit.point()),
+                        exit.wallDistanceM()));
+            }
+        }
+        candidates.sort(Comparator.comparingDouble((WallEgress exit) -> exit.wallDistanceM)
+                .thenComparing(exit -> exit.egress.oksId())
+                .thenComparingDouble(exit -> exit.egress.exit().x)
+                .thenComparingDouble(exit -> exit.egress.exit().y));
+        List<NormalEgress> result = new ArrayList<>();
+        double nearestLegalDistance = Double.POSITIVE_INFINITY;
+        for (WallEgress wall : candidates) {
+            if (wall.wallDistanceM > nearestLegalDistance + EPSILON_M) break;
+            NormalEgress extended = extendAcrossContainingSocialAreas(
+                    features, diameter, Optional.of(wall.egress)).orElseThrow();
+            if (!terminalLegAllowed(extended, features, diameter, traversal)) continue;
+            nearestLegalDistance = Math.min(nearestLegalDistance, wall.wallDistanceM);
+            addDistinctEgress(result, extended);
+        }
+        return result;
+    }
+
+    /** Запас помогает поиску и округлению, но не отменяет допустимую ближайшую стену. */
+    private NormalEgress withNavigationMargin(
+            NormalEgress required, List<ImportedOfficialFeature> features, int diameter, RouteTraversal traversal) {
+        double length = required.start.distance(required.exit);
+        double factor = (length + NORMAL_EGRESS_MARGIN_M) / length;
+        Coordinate exit = new Coordinate(
+                required.start.x + (required.exit.x - required.start.x) * factor,
+                required.start.y + (required.exit.y - required.start.y) * factor);
+        NormalEgress preferred = new NormalEgress(required.oksId, required.start, exit,
+                required.socialAreaIds);
+        return terminalLegAllowed(preferred, features, diameter, traversal) ? preferred : required;
+    }
+
+    /** Проверяет весь ввод без полигональной аппроксимации чужих запрещённых отступов. */
+    private boolean terminalLegAllowed(NormalEgress egress, List<ImportedOfficialFeature> features,
+            int diameter, RouteTraversal traversal) {
+        LineString leg = line(List.of(egress.start(), egress.exit()));
+        for (ImportedOfficialFeature feature : features) {
+            String type = constraintType(feature);
+            SpatialConstraintRule rule = type == null ? null : catalog.find(type).orElse(null);
             Geometry source = feature.getMetricGeometry();
-            if (source == null || source.isEmpty()) {
+            if (rule == null || source == null || source.isEmpty()) continue;
+            BigDecimal preparedClearance = preparationClearanceM(type, diameter);
+            Constraint constraint = new Constraint(feature.getFeatureId(), type, source, null, rule,
+                    preparedClearance == null ? 0 : preparedClearance.doubleValue());
+            if (egress.exempts(constraint)) {
+                if ("oks".equals(type) && !ownApproachAllowed(egress, leg, source, diameter)) return false;
                 continue;
             }
             if (rule.isForbidden()) {
-                // Сохраняем прежний отказ для неподдерживаемого ДУ, даже если ОКС далеко от точки.
-                catalog.existingBuildingClearanceM(diameter);
+                double clearance = preparationClearanceM(type, diameter).doubleValue();
+                org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope(
+                        source.getEnvelopeInternal());
+                bounds.expandBy(clearance);
+                if (bounds.intersects(leg.getEnvelopeInternal())
+                        && (leg.intersects(source)
+                            || leg.distance(source) < clearance - CLEARANCE_BOUNDARY_EPSILON_M)) return false;
+            } else if (RoadCrossingClearance.supports(type)) {
+                // Подключение фиксировано, наружный порт открыт: входящий ввод является суффиксом.
+                double angle = rule.getMinimumCrossingAngleDegrees().doubleValue();
+                double extension = rule.getSpecialExtensionM().doubleValue();
+                boolean allowed = traversal == RouteTraversal.AS_GIVEN
+                        ? roadCrossings.terminalPrefixAllowed(leg, source, constraint.clearanceM, angle, extension)
+                        : roadCrossings.terminalSuffixAllowed(
+                                (LineString) leg.reverse(), source, constraint.clearanceM, angle, extension);
+                if (!allowed) return false;
+            } else if (!lineAllowed(leg, index(List.of(constraint)))) {
+                return false;
             }
-            if (source.getEnvelopeInternal().contains(connectionPoint) && source.covers(point)) {
-                result.add(feature);
+        }
+        return true;
+    }
+
+    /** Льгота своего ОКС заканчивается на первом полном выходе, а не на конце произвольного луча. */
+    private boolean ownApproachAllowed(NormalEgress expected, LineString leg, Geometry footprint, int diameter) {
+        Coordinate endpoint = leg.getCoordinateN(0);
+        Coordinate adjacent = leg.getCoordinateN(1);
+        Coordinate farthestIntersection = endpoint;
+        for (Coordinate intersection : leg.intersection(footprint).getCoordinates()) {
+            if (intersection.distance(endpoint) > farthestIntersection.distance(endpoint)) {
+                farthestIntersection = intersection;
             }
+        }
+        // Проверяется фактический участок, включая возможное возвращение в другой компонент.
+        double roundingAllowance = Math.min(EPSILON_M, endpoint.distance(expected.start));
+        if (line(List.of(endpoint, farthestIntersection)).difference(footprint).getLength()
+                > roundingAllowance + CLEARANCE_BOUNDARY_EPSILON_M) return false;
+        double length = leg.getLength();
+        if (length <= CLEARANCE_BOUNDARY_EPSILON_M) return false;
+        double clearance = axisClearance.axisClearanceM("oks", diameter, null).doubleValue();
+        Coordinate exteriorStart = wallNormals.firstClearancePoint(
+                footprint, farthestIntersection, adjacent, clearance);
+        if (exteriorStart == null || endpoint.distance(exteriorStart) > length + CLEARANCE_BOUNDARY_EPSILON_M) {
+            return false;
+        }
+        LineString extension = line(List.of(exteriorStart, adjacent));
+        return extension.distance(footprint) + CLEARANCE_BOUNDARY_EPSILON_M >= clearance;
+    }
+
+    private List<ImportedOfficialFeature> containingOksFeatures(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
+        Geometry point = geometryFactory.createPoint(connectionPoint);
+        List<ImportedOfficialFeature> result = new ArrayList<>();
+        for (ImportedOfficialFeature feature : features) {
+            if (!"oks".equals(constraintType(feature))) continue;
+            Geometry source = feature.getMetricGeometry();
+            if (source == null || source.isEmpty()) continue;
+            catalog.existingBuildingClearanceM(diameter);
+            if (source.getEnvelopeInternal().contains(connectionPoint) && source.covers(point)) result.add(feature);
         }
         result.sort(Comparator.comparing(ImportedOfficialFeature::getFeatureId));
         return result;
     }
 
-    private Optional<NormalEgress> normalEgressFromContainingOks(
-            List<ImportedOfficialFeature> containingOks, Coordinate connectionPoint) {
-        Geometry point = geometryFactory.createPoint(connectionPoint);
-        ImportedOfficialFeature nearest = null;
-        Coordinate boundaryPoint = null;
-        double nearestDistance = Double.POSITIVE_INFINITY;
-        for (ImportedOfficialFeature feature : containingOks) {
-            Geometry boundary = feature.getMetricGeometry().getBoundary();
-            if (boundary.isEmpty()) {
-                continue;
-            }
-            Coordinate candidate = DistanceOp.nearestPoints(point, boundary)[1];
-            double distance = connectionPoint.distance(candidate);
-            if (distance < nearestDistance - EPSILON_M
-                    || (Math.abs(distance - nearestDistance) <= EPSILON_M
-                            && (nearest == null || feature.getFeatureId().compareTo(nearest.getFeatureId()) < 0))) {
-                nearest = feature;
-                boundaryPoint = candidate;
-                nearestDistance = distance;
-            }
-        }
-        if (nearest == null || boundaryPoint == null || nearestDistance <= EPSILON_M) {
-            return Optional.empty();
-        }
-        double directionX = (boundaryPoint.x - connectionPoint.x) / nearestDistance;
-        double directionY = (boundaryPoint.y - connectionPoint.y) / nearestDistance;
-        double exitDistance = nearestDistance + NORMAL_EGRESS_MARGIN_M;
-        Coordinate exit = new Coordinate(
-                connectionPoint.x + directionX * exitDistance,
-                connectionPoint.y + directionY * exitDistance);
-        return Optional.of(new NormalEgress(nearest.getFeatureId(), new Coordinate(connectionPoint), exit));
-    }
+    private static final class WallEgress {
+        private final NormalEgress egress;
+        private final double wallDistanceM;
 
-    /**
-     * Выбирает сторону подхода к точке подключения по направлению к цели. Это не даёт
-     * ближайшей границе на противоположной стороне создать круговой обход своего ОКС.
-     */
-    Optional<NormalEgress> normalEgressTowards(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Coordinate connectionPoint,
-            Coordinate target) {
-        return normalEgressTowards(
-                features, diameter, connectionPoint, target, MAX_ALTERNATIVE_EGRESS_EXTRA_M);
-    }
-
-    Optional<NormalEgress> normalEgressTowards(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Coordinate connectionPoint,
-            Coordinate target,
-            double maximumAlternativeEgressExtraM) {
-        List<ImportedOfficialFeature> containingOks = containingOksFeatures(features, diameter, connectionPoint);
-        Optional<NormalEgress> nearest = normalEgressFromContainingOks(containingOks, connectionPoint);
-        return extendAcrossContainingSocialAreas(
-                features,
-                diameter,
-                normalEgressTowardsContainingOks(
-                        containingOks, connectionPoint, target, maximumAlternativeEgressExtraM, nearest));
-    }
-
-    private Optional<NormalEgress> normalEgressTowardsContainingOks(
-            List<ImportedOfficialFeature> containingOks,
-            Coordinate connectionPoint,
-            Coordinate target,
-            double maximumAlternativeEgressExtraM,
-            Optional<NormalEgress> nearest) {
-        double targetDistance = connectionPoint.distance(target);
-        if (targetDistance <= EPSILON_M || nearest.isEmpty()) {
-            return nearest;
+        private WallEgress(NormalEgress egress, double wallDistanceM) {
+            this.egress = egress;
+            this.wallDistanceM = wallDistanceM;
         }
-        double nearestApproachDistance = connectionPoint.distance(nearest.get().exit());
-        double maximumApproachDistance = Math.min(
-                nearestApproachDistance + maximumAlternativeEgressExtraM,
-                nearestApproachDistance * MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR);
-        double directionX = (target.x - connectionPoint.x) / targetDistance;
-        double directionY = (target.y - connectionPoint.y) / targetDistance;
-        NormalEgress best = null;
-        double bestDistance = Double.POSITIVE_INFINITY;
-        for (ImportedOfficialFeature feature : containingOks) {
-            Geometry source = feature.getMetricGeometry();
-            double rayLength = Math.max(
-                    targetDistance,
-                    Math.hypot(
-                            source.getEnvelopeInternal().getWidth(),
-                            source.getEnvelopeInternal().getHeight()) * 2.0);
-            Coordinate rayEnd = new Coordinate(
-                    connectionPoint.x + directionX * rayLength,
-                    connectionPoint.y + directionY * rayLength);
-            Geometry intersections = geometryFactory
-                    .createLineString(new Coordinate[] {connectionPoint, rayEnd})
-                    .intersection(source.getBoundary());
-            for (Coordinate intersection : intersections.getCoordinates()) {
-                double projection = (intersection.x - connectionPoint.x) * directionX
-                        + (intersection.y - connectionPoint.y) * directionY;
-                if (projection <= EPSILON_M
-                        || projection + NORMAL_EGRESS_MARGIN_M > maximumApproachDistance
-                        || projection >= bestDistance) {
-                    continue;
-                }
-                Coordinate exit = new Coordinate(
-                        connectionPoint.x + directionX * (projection + NORMAL_EGRESS_MARGIN_M),
-                        connectionPoint.y + directionY * (projection + NORMAL_EGRESS_MARGIN_M));
-                if (source.covers(geometryFactory.createPoint(exit))) {
-                    continue;
-                }
-                bestDistance = projection;
-                best = new NormalEgress(feature.getFeatureId(), connectionPoint, exit);
-            }
-        }
-        return best == null ? nearest : Optional.of(best);
-    }
-
-    /**
-     * Returns a bounded set of constructible exits from the OKS. Besides the nearest and
-     * target-facing exits, the set contains exits normal to the dominant rectangle sides of the
-     * building. This lets the engineering portfolio rebuild a complete terminal branch instead of
-     * preserving a locally short exit that forces a long or irregular obstacle detour.
-     */
-    List<NormalEgress> normalEgressCandidates(
-            List<ImportedOfficialFeature> features,
-            int diameter,
-            Coordinate connectionPoint,
-            Coordinate target,
-            double maximumAlternativeEgressExtraM) {
-        List<ImportedOfficialFeature> containingOks = containingOksFeatures(features, diameter, connectionPoint);
-        Optional<NormalEgress> nearest = normalEgressFromContainingOks(containingOks, connectionPoint);
-        if (nearest.isEmpty()) {
-            return List.of();
-        }
-        double nearestApproachDistance = connectionPoint.distance(nearest.get().exit());
-        double maximumApproachDistance = Math.min(
-                nearestApproachDistance + maximumAlternativeEgressExtraM,
-                nearestApproachDistance * MAX_ALTERNATIVE_EGRESS_DISTANCE_FACTOR);
-        List<NormalEgress> result = new ArrayList<>();
-        extendAcrossContainingSocialAreas(features, diameter, nearest)
-                .ifPresent(candidate -> addDistinctEgress(result, candidate));
-        normalEgressTowardsContainingOks(
-                containingOks, connectionPoint, target, maximumAlternativeEgressExtraM, nearest)
-                .flatMap(candidate -> extendAcrossContainingSocialAreas(
-                        features, diameter, Optional.of(candidate)))
-                .ifPresent(candidate -> addDistinctEgress(result, candidate));
-
-        for (ImportedOfficialFeature feature : containingOks) {
-            Geometry rectangle = new MinimumDiameter(feature.getMetricGeometry()).getMinimumRectangle();
-            Coordinate[] rectangleCoordinates = rectangle.getCoordinates();
-            for (int index = 0; index + 1 < rectangleCoordinates.length; index++) {
-                double edgeX = rectangleCoordinates[index + 1].x - rectangleCoordinates[index].x;
-                double edgeY = rectangleCoordinates[index + 1].y - rectangleCoordinates[index].y;
-                double edgeLength = Math.hypot(edgeX, edgeY);
-                if (edgeLength <= EPSILON_M) {
-                    continue;
-                }
-                double normalX = -edgeY / edgeLength;
-                double normalY = edgeX / edgeLength;
-                normalEgressAlongDirection(
-                        feature, connectionPoint, normalX, normalY, maximumApproachDistance)
-                        .flatMap(candidate -> extendAcrossContainingSocialAreas(
-                                features, diameter, Optional.of(candidate)))
-                        .ifPresent(candidate -> addDistinctEgress(result, candidate));
-                normalEgressAlongDirection(
-                        feature, connectionPoint, -normalX, -normalY, maximumApproachDistance)
-                        .flatMap(candidate -> extendAcrossContainingSocialAreas(
-                                features, diameter, Optional.of(candidate)))
-                        .ifPresent(candidate -> addDistinctEgress(result, candidate));
-            }
-        }
-        result.sort(Comparator
-                .comparingDouble((NormalEgress candidate) ->
-                        connectionPoint.distance(candidate.exit()) + candidate.exit().distance(target))
-                .thenComparingDouble(candidate -> candidate.exit().x)
-                .thenComparingDouble(candidate -> candidate.exit().y));
-        return result;
-    }
-
-    private Optional<NormalEgress> normalEgressAlongDirection(
-            ImportedOfficialFeature feature,
-            Coordinate connectionPoint,
-            double directionX,
-            double directionY,
-            double maximumApproachDistance) {
-        Geometry source = feature.getMetricGeometry();
-        double rayLength = Math.max(
-                maximumApproachDistance + NORMAL_EGRESS_MARGIN_M,
-                Math.hypot(
-                        source.getEnvelopeInternal().getWidth(),
-                        source.getEnvelopeInternal().getHeight()) * 2.0);
-        Coordinate rayEnd = new Coordinate(
-                connectionPoint.x + directionX * rayLength,
-                connectionPoint.y + directionY * rayLength);
-        Geometry intersections = geometryFactory
-                .createLineString(new Coordinate[] {connectionPoint, rayEnd})
-                .intersection(source.getBoundary());
-        double bestProjection = Double.POSITIVE_INFINITY;
-        for (Coordinate intersection : intersections.getCoordinates()) {
-            double projection = (intersection.x - connectionPoint.x) * directionX
-                    + (intersection.y - connectionPoint.y) * directionY;
-            if (projection > EPSILON_M && projection < bestProjection) {
-                bestProjection = projection;
-            }
-        }
-        if (!Double.isFinite(bestProjection)
-                || bestProjection + NORMAL_EGRESS_MARGIN_M > maximumApproachDistance) {
-            return Optional.empty();
-        }
-        Coordinate exit = new Coordinate(
-                connectionPoint.x + directionX * (bestProjection + NORMAL_EGRESS_MARGIN_M),
-                connectionPoint.y + directionY * (bestProjection + NORMAL_EGRESS_MARGIN_M));
-        if (source.covers(geometryFactory.createPoint(exit))) {
-            return Optional.empty();
-        }
-        return Optional.of(new NormalEgress(feature.getFeatureId(), connectionPoint, exit));
     }
 
     /**
@@ -454,7 +452,7 @@ public class OfficialRouteGeometryRules {
             if (Double.isFinite(farthestProjection) && farthestProjection > EPSILON_M) {
                 requiredDistance = Math.max(
                         requiredDistance,
-                        farthestProjection + socialClearance + NORMAL_EGRESS_MARGIN_M);
+                        farthestProjection + socialClearance);
                 socialAreaIds.add(feature.getFeatureId());
             }
         }
@@ -475,10 +473,17 @@ public class OfficialRouteGeometryRules {
             LineString route,
             List<ImportedOfficialFeature> features,
             int diameter) {
+        return validateMandatoryEgress(edge, route, features, diameter,
+                route.getCoordinateN(route.getNumPoints() - 1));
+    }
+
+    List<RouteValidationIssue> validateMandatoryEgress(
+            RouteEdge edge, LineString route, List<ImportedOfficialFeature> features,
+            int diameter, Coordinate connectionPoint) {
         List<RouteValidationIssue> issues = new ArrayList<>();
-        // Route edges are directed from the existing-network root towards demand. Only the demand
-        // endpoint must leave its containing OKS; a tie-in may legitimately lie near another OKS.
-        validateEndpointEgress(edge, route, features, diameter, false, issues);
+        // Рёбра направлены от врезки к потребителю. Финальный ввод проверяется отдельно;
+        // близость врезки к чужому ОКС не освобождает её от проверки отступа.
+        validateEndpointEgress(edge, route, features, diameter, connectionPoint, issues);
         return issues;
     }
 
@@ -487,31 +492,40 @@ public class OfficialRouteGeometryRules {
             LineString route,
             List<ImportedOfficialFeature> features,
             int diameter,
-            boolean fromStart,
+            Coordinate connectionPoint,
             List<RouteValidationIssue> issues) {
-        int endpointIndex = fromStart ? 0 : route.getNumPoints() - 1;
-        int adjacentIndex = fromStart ? 1 : route.getNumPoints() - 2;
-        Coordinate endpoint = route.getCoordinateN(endpointIndex);
-        Coordinate adjacent = route.getCoordinateN(adjacentIndex);
-        NormalEgress expected = normalEgressTowards(features, diameter, endpoint, adjacent).orElse(null);
-        if (expected == null) {
-            return;
+        Coordinate endpoint = route.getCoordinateN(route.getNumPoints() - 1);
+        Coordinate adjacent = route.getCoordinateN(route.getNumPoints() - 2);
+        List<ImportedOfficialFeature> containing = containingOksFeatures(features, diameter, connectionPoint);
+        if (containing.isEmpty()) return;
+        List<NormalEgress> expected = nearestLegalNormalEgresses(
+                features, diameter, connectionPoint, RouteTraversal.REVERSED);
+        LineString actualLeg = line(List.of(endpoint, adjacent));
+        boolean valid = expected.stream().anyMatch(egress -> followsNormal(endpoint, adjacent, egress)
+                && containing.stream().filter(feature -> feature.getFeatureId().equals(egress.oksId))
+                        .allMatch(feature -> ownApproachAllowed(
+                                egress, actualLeg, feature.getMetricGeometry(), diameter)));
+        if (!valid) {
+            issues.add(issue(
+                    "OKS_NORMAL_EGRESS_VIOLATION",
+                    edge.getId(),
+                    "Route must use a nearest legal wall normal with the complete exterior approach"));
         }
-        double requiredLength = endpoint.distance(expected.exit);
+    }
+
+    private boolean followsNormal(Coordinate endpoint, Coordinate adjacent, NormalEgress expected) {
+        double requiredLength = expected.start.distance(expected.exit);
         double actualLength = endpoint.distance(adjacent);
-        double normalX = expected.exit.x - endpoint.x;
-        double normalY = expected.exit.y - endpoint.y;
+        double normalX = expected.exit.x - expected.start.x;
+        double normalY = expected.exit.y - expected.start.y;
         double actualX = adjacent.x - endpoint.x;
         double actualY = adjacent.y - endpoint.y;
         double cross = Math.abs(normalX * actualY - normalY * actualX);
         double alignmentTolerance = Math.max(
                 2 * EPSILON_M * actualLength, requiredLength * actualLength * 1e-4);
-        if (actualLength + 2 * EPSILON_M < requiredLength || cross > alignmentTolerance) {
-            issues.add(issue(
-                    "OKS_NORMAL_EGRESS_VIOLATION",
-                    edge.getId(),
-                    "Route must reach the connection point through one boundary of its containing OKS"));
-        }
+        return actualLength + 2 * EPSILON_M >= requiredLength
+                && normalX * actualX + normalY * actualY > 0
+                && cross <= alignmentTolerance;
     }
 
     List<Constraint> routeAvoidanceConstraints(List<LineString> routes) {
@@ -520,10 +534,54 @@ public class OfficialRouteGeometryRules {
         List<Constraint> result = new ArrayList<>();
         for (int index = 0; index < routes.size(); index++) {
             LineString route = routes.get(index);
-            Geometry blocked = route.buffer(0.20 - CLEARANCE_BOUNDARY_EPSILON_M, 2);
+            Geometry blocked = route.buffer(ROUTE_AVOIDANCE_BUFFER_M, 2);
             result.add(new Constraint("accepted-route-" + index, "accepted_route", route, blocked, rule));
         }
         return result;
+    }
+
+    /** Совпадения координат недостаточно: исключение принадлежит одному общему ID узла. */
+    RouteAvoidance routeAvoidance(RouteEdge candidate, List<RouteEdge> accepted, Map<String, RouteNode> nodes) {
+        List<LineString> routes = new ArrayList<>();
+        List<Constraint> constraints = new ArrayList<>();
+        List<JoinedRouteContact> contacts = new ArrayList<>();
+        boolean shared = false;
+        SpatialConstraintRule rule = new SpatialConstraintRule(
+                "accepted_route", true, "0.20", null, null, null, null, "1.00");
+        for (RouteEdge edge : accepted) {
+            Constraint.ensureIntersectionActive();
+            if (edge.getCoordinates().size() < 2) continue;
+            LineString route = line(edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate)
+                    .collect(Collectors.toList()));
+            routes.add(route);
+            Set<String> common = new HashSet<>(List.of(candidate.getUpstreamNodeId(), candidate.getDownstreamNodeId()));
+            common.retainAll(List.of(edge.getUpstreamNodeId(), edge.getDownstreamNodeId()));
+            JoinedRouteContact contact = null;
+            if (common.size() == 1) {
+                String id = common.iterator().next();
+                RouteNode node = nodes.get(id);
+                if (node != null && endpointMatches(candidate, id, node) && endpointMatches(edge, id, node)) {
+                    contact = JoinedRouteContact.create(route, node.getCoordinate().toCoordinate(), ROUTE_AVOIDANCE_BUFFER_M);
+                }
+            }
+            shared |= contact != null;
+            contacts.add(contact);
+        }
+        // Без общих узлов старые методы сохраняют свои hooks и сами готовят обычные препятствия.
+        if (shared) for (int index = 0; index < routes.size(); index++) {
+            Constraint.ensureIntersectionActive();
+            LineString route = routes.get(index);
+            constraints.add(new Constraint("accepted-route-" + index, "accepted_route", route,
+                    route.buffer(ROUTE_AVOIDANCE_BUFFER_M, 2), rule, 0, contacts.get(index)));
+        }
+        return new RouteAvoidance(routes, constraints, shared);
+    }
+
+    private boolean endpointMatches(RouteEdge edge, String id, RouteNode node) {
+        if (edge.getCoordinates().size() < 2) return false;
+        RouteCoordinate endpoint = edge.getCoordinates().get(id.equals(edge.getUpstreamNodeId())
+                ? 0 : edge.getCoordinates().size() - 1);
+        return endpoint.toCoordinate().equals2D(node.getCoordinate().toCoordinate());
     }
 
     List<Constraint> depthAvoidanceConstraints(
@@ -560,15 +618,28 @@ public class OfficialRouteGeometryRules {
     }
 
     boolean segmentAllowed(Coordinate start, Coordinate end, ConstraintIndex constraints) {
+        return segmentAllowed(start, end, constraints, false);
+    }
+
+    private boolean segmentAllowed(Coordinate start, Coordinate end, ConstraintIndex constraints,
+            boolean joinedContactsChecked) {
         if (start.distance(end) <= EPSILON_M) {
             return false;
         }
         LineString segment = geometryFactory.createLineString(new Coordinate[] {start, end});
+        LineString roadSegment = null;
         for (Constraint constraint : constraints.query(segment.getEnvelopeInternal())) {
             if (constraint.rule.isForbidden()) {
+                if (joinedContactsChecked && constraint.joinedContact != null) continue;
                 if (intersectsInterior(segment, constraint)) {
                     return false;
                 }
+                continue;
+            }
+            if (RoadCrossingClearance.supports(constraint.type)) {
+                if (roadSegment == null) roadSegment = constraints.traversal() == RouteTraversal.AS_GIVEN
+                        ? segment : (LineString) segment.reverse();
+                if (!constraint.roadSegmentAllowed(roadSegment, roadCrossings)) return false;
                 continue;
             }
             if (constraint.rule.getMinimumCrossingAngleDegrees() != null) {
@@ -597,9 +668,10 @@ public class OfficialRouteGeometryRules {
     }
 
     boolean pointInsideForbiddenClearance(Coordinate coordinate, ConstraintIndex constraints) {
-        Geometry point = geometryFactory.createPoint(coordinate);
+        org.locationtech.jts.geom.Point point = geometryFactory.createPoint(coordinate);
         for (Constraint constraint : constraints.query(point.getEnvelopeInternal())) {
             if (constraint.rule.isForbidden() && constraint.preparedBlocked.covers(point)) {
+                if (constraint.joinedContact != null && constraint.joinedContact.permitsPoint(point)) continue;
                 return true;
             }
         }
@@ -611,18 +683,98 @@ public class OfficialRouteGeometryRules {
     }
 
     boolean lineAllowed(LineString line, ConstraintIndex constraints) {
+        return provisionalSegmentsAllowed(line, constraints) && completeRoadCrossingsAllowed(line, constraints);
+    }
+
+    /** Стык должен оставаться концом всей трассы, а не только временно выделенной части ввода. */
+    boolean joinedContactsAllowed(LineString line, ConstraintIndex constraints) {
+        if (!constraints.hasJoinedContacts) return true;
+        for (Constraint constraint : constraints.query(line.getEnvelopeInternal())) {
+            if (constraint.joinedContact != null && constraint.intersectsBlocked(line)) return false;
+        }
+        return true;
+    }
+
+    /** Только локальная видимость; не допускает готовый маршрут без полной проверки special. */
+    boolean provisionalSegmentsAllowed(LineString line, ConstraintIndex constraints) {
+        boolean joinedContactsChecked = false;
+        if (constraints.hasJoinedContacts) {
+            for (Constraint constraint : constraints.query(line.getEnvelopeInternal())) {
+                if (constraint.joinedContact != null) {
+                    if (constraint.intersectsBlocked(line)) return false;
+                    joinedContactsChecked = true;
+                }
+            }
+        }
         for (int index = 0; index < line.getNumPoints() - 1; index++) {
-            if (!segmentAllowed(line.getCoordinateN(index), line.getCoordinateN(index + 1), constraints)) {
+            boolean allowed = joinedContactsChecked
+                    ? segmentAllowed(line.getCoordinateN(index), line.getCoordinateN(index + 1), constraints, true)
+                    : segmentAllowed(line.getCoordinateN(index), line.getCoordinateN(index + 1), constraints);
+            if (!allowed) {
                 return false;
             }
         }
         return true;
     }
 
+    /** Проверяет road/tram на всей физической полилинии, включая обязательный ввод. */
+    boolean completeRoadCrossingsAllowed(LineString line, ConstraintIndex constraints) {
+        LineString physicalLine = null;
+        for (Constraint constraint : constraints.query(line.getEnvelopeInternal())) {
+            if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)) {
+                if (physicalLine == null) physicalLine = constraints.traversal() == RouteTraversal.AS_GIVEN
+                        ? line : (LineString) line.reverse();
+                if (!roadAssessment(physicalLine, constraint).isAllowed()) return false;
+            }
+        }
+        return true;
+    }
+
+    /** Отдельный поворот графа не может прервать обязательный прямой road/tram special. */
+    boolean specialTurnAllowed(Coordinate before, Coordinate at, Coordinate after, ConstraintIndex constraints) {
+        for (Constraint constraint : constraints.roads) {
+            double extension = constraint.rule.getSpecialExtensionM().doubleValue();
+            org.locationtech.jts.geom.Envelope bounds = constraint.source.getEnvelopeInternal();
+            if (at.x < bounds.getMinX() - extension || at.x > bounds.getMaxX() + extension
+                    || at.y < bounds.getMinY() - extension || at.y > bounds.getMaxY() + extension) continue;
+            if (!roadCrossings.turnAllowed(before, at, after, constraint.source, extension)) return false;
+        }
+        return true;
+    }
+
+    private RoadCrossingClearance.Assessment roadAssessment(LineString route, Constraint constraint) {
+        return roadCrossings.assess(route, constraint.source, constraint.clearanceM,
+                constraint.rule.getMinimumCrossingAngleDegrees().doubleValue(),
+                constraint.rule.getSpecialExtensionM().doubleValue());
+    }
+
+    /** Возвращает порядок построения, но интервалы и углы берёт из физического направления ребра. */
+    List<RouteSection> sections(LineString route, List<Constraint> constraints, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return sections(route, constraints);
+        List<RouteSection> physicalSections = sections((LineString) route.reverse(), constraints);
+        List<RouteSection> result = new ArrayList<>(physicalSections.size());
+        for (int index = physicalSections.size() - 1; index >= 0; index--) {
+            RouteSection section = physicalSections.get(index);
+            List<RouteCoordinate> coordinates = new ArrayList<>(section.getCoordinates());
+            Collections.reverse(coordinates);
+            result.add(new RouteSection(section.getKind(), section.getRestrictionType(), section.getRestrictionId(),
+                    coordinates, section.getLengthM().doubleValue(), section.getCrossingAngleDegrees() == null
+                            ? null : section.getCrossingAngleDegrees().doubleValue()));
+        }
+        return result;
+    }
+
     List<RouteSection> sections(LineString route, List<Constraint> constraints) {
         LengthIndexedLine indexed = new LengthIndexedLine(route);
         List<Span> spans = new ArrayList<>();
         for (Constraint constraint : constraints) {
+            if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)) {
+                for (RoadCrossingClearance.Interval interval : roadAssessment(route, constraint).getIntervals()) {
+                    spans.add(new Span(interval.getStartM(), interval.getEndM(), constraint, interval.getAngleDegrees()));
+                }
+                continue;
+            }
             if (constraint.rule.isForbidden() || !hasSpecialCrossing(route, constraint)) {
                 continue;
             }
@@ -643,11 +795,11 @@ public class OfficialRouteGeometryRules {
                 .thenComparing(span -> span.constraint.type)
                 .thenComparing(span -> span.constraint.id));
 
-        List<MergedSpan> merged = mergeSpans(spans);
         List<Double> cuts = new ArrayList<>();
         cuts.add(indexed.getStartIndex());
         cuts.add(indexed.getEndIndex());
-        for (MergedSpan span : merged) {
+        // §4: общая часть пересечений — отдельная секция, не весь union с общими атрибутами.
+        for (Span span : spans) {
             cuts.add(span.start);
             cuts.add(span.end);
         }
@@ -656,42 +808,29 @@ public class OfficialRouteGeometryRules {
         for (int index = 0; index < cuts.size() - 1; index++) {
             double start = cuts.get(index);
             double end = cuts.get(index + 1);
-            if (end - start <= EPSILON_M) {
+            if (end - start <= CLEARANCE_BOUNDARY_EPSILON_M) {
                 continue;
             }
             double middle = (start + end) / 2.0;
-            MergedSpan active = merged.stream()
-                    .filter(span -> middle >= span.start - EPSILON_M && middle <= span.end + EPSILON_M)
-                    .findFirst()
-                    .orElse(null);
+            List<Span> active = spans.stream()
+                    .filter(span -> middle >= span.start && middle <= span.end)
+                    .collect(Collectors.toList());
             Geometry extracted = indexed.extractLine(start, end);
             List<RouteCoordinate> coordinates = routeCoordinates(extracted.getCoordinates());
-            if (active == null) {
+            if (active.isEmpty()) {
                 result.add(new RouteSection("base", null, null, coordinates, extracted.getLength(), null));
             } else {
-                String types = active.spans.stream().map(span -> span.constraint.type).distinct()
+                String types = active.stream().map(span -> span.constraint.type).distinct()
                         .collect(Collectors.joining("+"));
-                String ids = active.spans.stream().map(span -> span.constraint.id).distinct()
+                String ids = active.stream().map(span -> span.constraint.id).distinct()
                         .collect(Collectors.joining("+"));
-                double angle = active.spans.stream().mapToDouble(span -> span.angle).min().orElse(90.0);
+                double angle = active.stream().mapToDouble(span -> span.angle).min().orElse(90.0);
                 result.add(new RouteSection("special", types, ids, coordinates, extracted.getLength(), angle));
             }
         }
         if (result.isEmpty()) {
             result.add(new RouteSection(
                     "base", null, null, routeCoordinates(route.getCoordinates()), route.getLength(), null));
-        }
-        return result;
-    }
-
-    private List<MergedSpan> mergeSpans(List<Span> spans) {
-        List<MergedSpan> result = new ArrayList<>();
-        for (Span span : spans) {
-            if (result.isEmpty() || span.start > result.get(result.size() - 1).end + EPSILON_M) {
-                result.add(new MergedSpan(span));
-            } else {
-                result.get(result.size() - 1).add(span);
-            }
         }
         return result;
     }
@@ -703,6 +842,22 @@ public class OfficialRouteGeometryRules {
         List<RouteValidationIssue> issues = new ArrayList<>(validateForbidden(edge, route, constraints));
         for (Constraint constraint : constraints) {
             if (constraint.rule.isForbidden()) {
+                continue;
+            }
+            if (RoadCrossingClearance.supports(constraint.type)) {
+                RoadCrossingClearance.Assessment assessment = roadAssessment(route, constraint);
+                if (!assessment.isAllowed()) {
+                    issues.add(issue(assessment.getFailureCode(), edge.getId(),
+                            "Route violates " + constraint.type + " crossing/clearance at " + constraint.id));
+                }
+                if (!assessment.getIntervals().isEmpty() && edge.getSections().stream()
+                        .filter(section -> "special".equals(section.getKind()))
+                        .map(RouteSection::getRestrictionId).filter(java.util.Objects::nonNull)
+                        .flatMap(value -> java.util.Arrays.stream(value.split("\\+")))
+                        .noneMatch(constraint.id::equals)) {
+                    issues.add(issue("SPECIAL_CROSSING_SECTION_MISSING", edge.getId(),
+                            "Crossing of " + constraint.type + " is not split into a special section"));
+                }
                 continue;
             }
             if (!constraint.rule.isForbidden() && hasSpecialCrossing(route, constraint)) {
@@ -772,6 +927,24 @@ public class OfficialRouteGeometryRules {
                         constraint.source,
                         constraint.rule))
                 .collect(Collectors.toList());
+    }
+
+    /** Льгота ввода действует только на последнем прямом звене, не на остальной трассе. */
+    List<RouteValidationIssue> validateOwnTerminalClearance(RouteEdge edge, LineString outside,
+            List<Constraint> constraints, NormalEgress egress, int diameter) {
+        List<RouteValidationIssue> issues = new ArrayList<>();
+        for (Constraint constraint : constraints) {
+            if (!egress.exempts(constraint)) continue;
+            double clearance = "oks".equals(constraint.type)
+                    ? axisClearance.axisClearanceM("oks", diameter, null).doubleValue()
+                    : preparationClearanceM(constraint.type, diameter).doubleValue();
+            // Точное расстояние не пропускает срезание угла полигонального buffer.
+            if (outside.distance(constraint.source) < clearance - CLEARANCE_BOUNDARY_EPSILON_M) {
+                issues.add(issue("FORBIDDEN_CLEARANCE_VIOLATION", edge.getId(),
+                        "Route violates own " + constraint.type + " clearance outside terminal approach at " + constraint.id));
+            }
+        }
+        return issues;
     }
 
     LineString line(List<Coordinate> coordinates) {
@@ -892,7 +1065,7 @@ public class OfficialRouteGeometryRules {
         for (Coordinate coordinate : coordinates) {
             RouteCoordinate next = new RouteCoordinate(coordinate.x, coordinate.y);
             if (result.isEmpty()
-                    || result.get(result.size() - 1).toCoordinate().distance(next.toCoordinate()) > EPSILON_M) {
+                    || !result.get(result.size() - 1).toCoordinate().equals2D(next.toCoordinate())) {
                 result.add(next);
             }
         }
@@ -912,9 +1085,14 @@ public class OfficialRouteGeometryRules {
         private final PreparedGeometry preparedSource;
         private final double sourceAxisAngle;
         private final long segmentIndexCoordinateReservation;
+        private final long roadCrossingCoordinateReservation;
         private volatile PreparedSegmentIntersection segmentIntersection;
         private volatile boolean segmentIntersectionInitialized;
+        private volatile PreparedRoadCrossings roadCrossings;
+        private volatile boolean roadCrossingsInitialized;
         private final SpatialConstraintRule rule;
+        private final double clearanceM;
+        private final JoinedRouteContact joinedContact;
 
         private Constraint(
                 String id,
@@ -922,6 +1100,16 @@ public class OfficialRouteGeometryRules {
                 Geometry source,
                 Geometry blocked,
                 SpatialConstraintRule rule) {
+            this(id, type, source, blocked, rule, 0);
+        }
+
+        private Constraint(String id, String type, Geometry source, Geometry blocked,
+                SpatialConstraintRule rule, double clearanceM) {
+            this(id, type, source, blocked, rule, clearanceM, null);
+        }
+
+        private Constraint(String id, String type, Geometry source, Geometry blocked,
+                SpatialConstraintRule rule, double clearanceM, JoinedRouteContact joinedContact) {
             this.id = id;
             this.type = type;
             this.source = source;
@@ -933,7 +1121,11 @@ public class OfficialRouteGeometryRules {
             this.preparedSource = specialPolygon ? PreparedGeometryFactory.prepare(source) : null;
             this.sourceAxisAngle = specialPolygon ? polygonAxisAngle(source) : 0.0;
             this.segmentIndexCoordinateReservation = PreparedSegmentIntersection.additionalCoordinateReservation(blocked);
+            this.roadCrossingCoordinateReservation = !rule.isForbidden() && RoadCrossingClearance.supports(type)
+                    ? PreparedRoadCrossings.additionalCoordinateReservation(source) : 0;
             this.rule = rule;
+            this.clearanceM = clearanceM;
+            this.joinedContact = joinedContact;
         }
 
         String id() { return id; }
@@ -942,10 +1134,33 @@ public class OfficialRouteGeometryRules {
         Geometry blocked() { return blocked; }
         PreparedGeometry preparedBlocked() { return preparedBlocked; }
         long segmentIndexCoordinateReservation() { return segmentIndexCoordinateReservation; }
+        long roadCrossingCoordinateReservation() { return roadCrossingCoordinateReservation; }
         SpatialConstraintRule rule() { return rule; }
+        double clearanceM() { return clearanceM; }
+
+        /** Индекс принадлежит неизменяемому Constraint одного расчёта; память зарезервирована до аллокации. */
+        private boolean roadSegmentAllowed(LineString line, RoadCrossingClearance fallback) {
+            ensureIntersectionActive();
+            if (roadCrossingCoordinateReservation > 0 && !roadCrossingsInitialized) {
+                synchronized (this) {
+                    if (!roadCrossingsInitialized) {
+                        roadCrossings = PreparedRoadCrossings.forReadOnlyConstraint(source);
+                        roadCrossingsInitialized = true;
+                    }
+                }
+            }
+            ensureIntersectionActive();
+            double angle = rule.getMinimumCrossingAngleDegrees().doubleValue();
+            double extension = rule.getSpecialExtensionM().doubleValue();
+            return roadCrossings == null ? fallback.segmentAllowed(line, source, clearanceM, angle, extension)
+                    : roadCrossings.segmentAllowed(line, clearanceM, angle, extension);
+        }
 
         private boolean intersectsBlocked(LineString line) {
             ensureIntersectionActive();
+            if (joinedContact != null) {
+                return preparedBlocked.intersects(line) && !joinedContact.permitsContact(line, blocked);
+            }
             if (line.getNumPoints() != 2 || segmentIndexCoordinateReservation == 0) {
                 return preparedBlocked.intersects(line);
             }
@@ -1004,54 +1219,98 @@ public class OfficialRouteGeometryRules {
     }
 
     static final class ConstraintIndex {
+        private final RouteTraversal traversal;
+        private final boolean hasJoinedContacts;
         // На малых наборах отбор и упорядочивание кандидатов дороже линейного обхода.
         private static final int LINEAR_SCAN_THRESHOLD = 128;
         private final List<Constraint> all;
+        private final List<Constraint> roads;
         private final STRtree tree;
 
-        private ConstraintIndex(List<Constraint> constraints) {
+        private ConstraintIndex(List<Constraint> constraints, RouteTraversal traversal) {
+            this.traversal = Objects.requireNonNull(traversal, "Route traversal is required");
             all = List.copyOf(constraints);
+            hasJoinedContacts = all.stream().anyMatch(item -> item.joinedContact != null);
+            roads = all.stream().filter(item -> !item.rule.isForbidden()
+                    && RoadCrossingClearance.supports(item.type)).collect(Collectors.toList());
             if (constraints.size() < LINEAR_SCAN_THRESHOLD) {
                 tree = null;
             } else {
                 tree = new STRtree();
                 for (int ordinal = 0; ordinal < all.size(); ordinal++) {
                     Constraint constraint = all.get(ordinal);
-                    Geometry indexed = constraint.rule.isForbidden() ? constraint.blocked : constraint.source;
+                    Geometry indexed = constraint.blocked != null ? constraint.blocked : constraint.source;
                     if (indexed != null && !indexed.isEmpty()) {
-                        tree.insert(indexed.getEnvelopeInternal(), ordinal);
+                        org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope(
+                                indexed.getEnvelopeInternal());
+                        // Полигональный buffer приближает дуги внутрь. Для точного road-clearance
+                        // envelope расширяется по source на полный радиус, в том числе после поворота.
+                        if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)) {
+                            org.locationtech.jts.geom.Envelope exact = new org.locationtech.jts.geom.Envelope(
+                                    constraint.source.getEnvelopeInternal());
+                            exact.expandBy(constraint.clearanceM);
+                            bounds.expandToInclude(exact);
+                        }
+                        tree.insert(bounds, ordinal);
                     }
                 }
                 tree.build();
             }
         }
 
-        @SuppressWarnings("unchecked")
+        RouteTraversal traversal() { return traversal; }
+
+        boolean hasRoadCrossings() { return !roads.isEmpty(); }
+
         List<Constraint> query(org.locationtech.jts.geom.Envelope envelope) {
             if (tree == null) {
                 return all;
             }
             // STRtree обходит элементы в пространственном порядке. Возвращаем исходный порядок,
             // поскольку от него зависят индексы навигационных узлов и разрешение равенств поиска.
-            List<Integer> ordinals = (List<Integer>) tree.query(envelope);
-            if (ordinals.isEmpty()) {
+            OrdinalHits ordinals = new OrdinalHits();
+            tree.query(envelope, ordinals);
+            if (ordinals.size == 0) {
                 return List.of();
             }
-            if (ordinals.size() == 1) {
-                return List.of(all.get(ordinals.get(0)));
+            if (ordinals.size == 1) {
+                return List.of(all.get(ordinals.first));
             }
-            if (ordinals.size() == 2) {
-                int first = ordinals.get(0);
-                int second = ordinals.get(1);
+            if (ordinals.size == 2) {
+                int first = ordinals.first;
+                int second = ordinals.second;
                 return first < second ? List.of(all.get(first), all.get(second))
                         : List.of(all.get(second), all.get(first));
             }
-            ordinals.sort(Integer::compare);
-            List<Constraint> result = new ArrayList<>(ordinals.size());
-            for (int ordinal : ordinals) {
-                result.add(all.get(ordinal));
+            Arrays.sort(ordinals.values, 0, ordinals.size);
+            List<Constraint> result = new ArrayList<>(ordinals.size);
+            for (int index = 0; index < ordinals.size; index++) {
+                result.add(all.get(ordinals.values[index]));
             }
             return result;
+        }
+
+        /** Данные только одного запроса; для частых 0–2 попаданий массив не создаётся. */
+        private static final class OrdinalHits implements ItemVisitor {
+            private int first;
+            private int second;
+            private int[] values;
+            private int size;
+
+            @Override
+            public void visitItem(Object item) {
+                int ordinal = (Integer) item;
+                if (size == 0) { first = ordinal; size = 1; return; }
+                if (size == 1) { second = ordinal; size = 2; return; }
+                if (values == null) {
+                    values = new int[16];
+                    values[0] = first;
+                    values[1] = second;
+                } else if (size == values.length) {
+                    values = Arrays.copyOf(values, size + size / 2);
+                }
+                values[size++] = ordinal;
+            }
         }
     }
 
@@ -1069,20 +1328,4 @@ public class OfficialRouteGeometryRules {
         }
     }
 
-    private static final class MergedSpan {
-        private final double start;
-        private double end;
-        private final List<Span> spans = new ArrayList<>();
-
-        private MergedSpan(Span first) {
-            start = first.start;
-            end = first.end;
-            spans.add(first);
-        }
-
-        private void add(Span next) {
-            end = Math.max(end, next.end);
-            spans.add(next);
-        }
-    }
 }

@@ -1,6 +1,7 @@
 package ru.lct.heatroute.domain.routing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -18,8 +19,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
@@ -62,16 +67,8 @@ class OfficialCorridorDatasetTest {
                     new RouteCoordinate(rootPoint.x, rootPoint.y), true, true, incident, target.getFeatureId());
             List<OrthogonalCorridorNetworkBuilder.Network> candidates = new OrthogonalCorridorNetworkBuilder(
                     router, new OfficialPipeCatalog()).build(terminals, root, 4 - incident, buildings, environment,
-                    (id, junction, diameter, avoidance) -> {
-                        Coordinate point = demands.get(id).getMetricGeometry().getCoordinate();
-                        OfficialRouteGeometryRules.NormalEgress egress = environment
-                                .normalEgressTowards(diameter, point, junction,
-                                        RoutePlannerTuning.stable().getEngineeringEgressExtraM()).orElse(null);
-                        RoutePath path = router.find(egress == null ? point : egress.exit(), junction, diameter,
-                                environment, Set.of(),
-                                RoutePreference.ENGINEERING, avoidance);
-                        return path == null || egress == null ? path : path.withMandatoryPrefix(point);
-                    });
+                    (id, junction, diameter, avoidance) -> terminalRoute(router, environment,
+                            demands.get(id).getMetricGeometry().getCoordinate(), junction, diameter, avoidance));
             System.out.println("CORRIDOR target=" + target.getFeatureId() + " candidates=" + candidates.size());
             for (OrthogonalCorridorNetworkBuilder.Network candidate : candidates) {
                 List<RouteValidationIssue> issues = validator.validate(candidate.nodes(), candidate.edges(), features);
@@ -142,6 +139,76 @@ class OfficialCorridorDatasetTest {
                 assertThat(edge.getDepthProfile().getIssues()).isEmpty();
             });
         });
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "true,false", "true,true"})
+    void callbackPreservesPhysicallyLegalStraightInput(boolean ownOks, boolean terminalRoad) {
+        OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(
+                new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
+        OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
+        OfficialRouteValidator validator = new OfficialRouteValidator(rules);
+        double left = terminalRoad ? 4 : 30, right = terminalRoad ? 10 : 70, half = terminalRoad ? 1 : 3;
+        List<ImportedOfficialFeature> features = new ArrayList<>(List.of(polygon("road", "road",
+                point(left, -half), point(right, -half), point(right, half),
+                point(left + 2 * half / Math.tan(Math.toRadians(40)), half), point(left, -half))));
+        if (ownOks) features.add(polygon("own", "oks", point(-2, -10), point(0, -10),
+                point(0, 10), point(-2, 10), point(-2, -10)));
+        Coordinate demand = point(-1, 0), port = point(150, 0);
+        RouteNode root = node("root", port, true), leaf = node("demand", demand, false);
+        RoutePath physical = path(rules, features, List.of(port, demand));
+        assertThat(validator.validate(List.of(root, leaf), List.of(edge(physical, "root", "demand")), features))
+                .as("independent official validator admits the 151m physical port-to-demand edge").isEmpty();
+        List<RouteValidationIssue> outwardIssues = validator.validate(
+                List.of(node("root", demand, true), node("demand", port, false)),
+                List.of(edge(path(rules, features, List.of(demand, port)), "root", "demand")), features);
+        assertThat(outwardIssues).as("the same crossing in the callback direction is illegal")
+                .extracting(RouteValidationIssue::getCode).contains("SPECIAL_CROSSING_ANGLE_VIOLATION");
+        OfficialRoutingEnvironment environment = router.prepare(features);
+        RoutePath callback = terminalRoute(router, environment, demand, port, 100, List.of());
+        assertThat(callback).as("callback must retain the validator-approved physical route").isNotNull();
+        assertThat(callback.lengthM()).isCloseTo(151, within(0.002));
+        assertThat(validator.validate(List.of(root, leaf), List.of(edge(callback.reversed(), "root", "demand")), features)).isEmpty();
+        assertThat(callback.reversed().sections()).usingRecursiveComparison().isEqualTo(
+                rules.sections(rules.line(callback.reversed().coordinates()), rules.baseConstraints(features, 100)));
+        assertThat(callback.reversed().sections()).filteredOn(section -> "special".equals(section.getKind()))
+                .extracting(RouteSection::getCrossingAngleDegrees).containsExactly(new BigDecimal("90.000"));
+    }
+
+    /** Колбэк строит demand→port, а builder разворачивает его в физическое ребро port→demand. */
+    static RoutePath terminalRoute(OfficialObstacleRouter router, OfficialRoutingEnvironment environment,
+            Coordinate point, Coordinate port, int diameter, List<LineString> avoidance) {
+        OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgressTowards(diameter,
+                point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED).orElse(null);
+        RoutePath path = egress == null
+                ? router.find(point, port, diameter, environment, Set.of(), RoutePreference.ENGINEERING, avoidance, RouteTraversal.REVERSED)
+                : router.findAfter(egress.start(), egress.exit(), port, diameter,
+                        environment, Set.of(), RoutePreference.ENGINEERING, avoidance, RouteTraversal.REVERSED);
+        return path == null || egress == null ? path
+                : router.withCheckedTerminalPrefix(egress, path, diameter, environment, Set.of(), avoidance, RouteTraversal.REVERSED);
+    }
+
+    private ImportedOfficialFeature polygon(String id, String type, Coordinate... points) {
+        return new ImportedOfficialFeature(id, "restriction", new ObjectMapper().createObjectNode()
+                .put("restriction_type", type), new GeometryFactory().createPolygon(points));
+    }
+
+    private Coordinate point(double x, double y) { return new Coordinate(500000 + x, 6170000 + y); }
+
+    private RouteNode node(String id, Coordinate point, boolean root) {
+        return new RouteNode(id, root ? "existing_chamber_tie_in" : "demand_connection",
+                new RouteCoordinate(point.x, point.y), root, root, root ? 2 : 0, null);
+    }
+
+    private RoutePath path(OfficialRouteGeometryRules rules, List<ImportedOfficialFeature> features,
+            List<Coordinate> points) {
+        LineString line = rules.line(points);
+        return new RoutePath(points, rules.sections(line, rules.baseConstraints(features, 100)), line.getLength());
+    }
+
+    private RouteEdge edge(RoutePath path, String from, String to) {
+        return new RouteEdge("edge", from, to, path.lengthM(), path.coordinates().stream()
+                .map(p -> new RouteCoordinate(p.x, p.y)).collect(Collectors.toList()), path.sections(), BigDecimal.ONE, 100);
     }
 
     private String officialInputSha256() throws Exception {

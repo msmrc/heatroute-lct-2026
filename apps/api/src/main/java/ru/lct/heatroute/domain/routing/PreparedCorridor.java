@@ -16,9 +16,9 @@ import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.ConstraintIndex;
 
 /**
- * Проверяет рёбра одного общего коридора. Корневое исключение ограничено коротким выходом
- * из отступа ОКС; выход не повторяет занятый луч существующей теплосети. Это консервативный
- * фильтр кандидатов, а не изменение официального валидатора или правил глубины.
+ * Проверяет рёбра одного общего коридора и локальный контакт с существующей теплосетью.
+ * Корень не освобождён от отступа ОКС; выход не повторяет занятый луч существующей сети.
+ * Это фильтр кандидатов, а не замена независимого финального валидатора или правил глубины.
  */
 final class PreparedCorridor {
     private static final double ROOT_ROUNDING_TOLERANCE_M = 0.001;
@@ -40,6 +40,11 @@ final class PreparedCorridor {
 
     PreparedCorridor(OfficialRouteGeometryRules rules, List<Constraint> constraints,
             Coordinate root, String targetId) {
+        this(rules, constraints, root, targetId, RouteTraversal.AS_GIVEN);
+    }
+
+    PreparedCorridor(OfficialRouteGeometryRules rules, List<Constraint> constraints,
+            Coordinate root, String targetId, RouteTraversal traversal) {
         this.rules = Objects.requireNonNull(rules, "Corridor geometry rules are required");
         this.constraints = List.copyOf(constraints);
         requireFinite(root);
@@ -55,15 +60,12 @@ final class PreparedCorridor {
                 .filter(constraint -> "oks".equals(constraint.type()) && constraint.rule().isForbidden()
                         && constraint.blocked().covers(rootPoint) && !constraint.source().covers(rootPoint))
                 .collect(Collectors.toList());
-        // ID разрешает лишь врезку в выбранную существующую теплосеть, а не отмену любого
-        // одноимённого запрета. Фильтруем сами constraints: ID разных типов могут совпасть.
-        List<Constraint> rootBase = this.constraints.stream()
-                .filter(constraint -> !(targetId != null && targetId.equals(constraint.id())
-                        && "heat_network".equals(constraint.type()) && !constraint.rule().isForbidden()))
-                .collect(Collectors.toList());
+        // Льгота только у самого контакта: дальнее пересечение той же теплосети не исчезает.
+        List<Constraint> rootBase = rules.localTieInConstraints(this.constraints,
+                targetId == null ? Set.of() : Set.of(targetId), root, root);
         this.rootConstraints = rules.applicableConstraints(rootBase, Set.of(), root, root);
-        strictIndex = rules.index(this.constraints);
-        rootIndex = rules.index(rootConstraints);
+        strictIndex = rules.index(this.constraints, traversal);
+        rootIndex = rules.index(rootConstraints, traversal);
     }
 
     boolean pointAllowed(Coordinate point) {
@@ -150,7 +152,34 @@ final class PreparedCorridor {
     }
 
     RoutePath path(List<Coordinate> coordinates) {
+        return pathAfter(null, coordinates);
+    }
+
+    /**
+     * Завершает уже проверенные части коридора в фактическом направлении потока: целый special
+     * и его секции нельзя оценивать по техническим звеньям. Вызывающий код предварительно
+     * проверяет каждое звено ствола и неизменённый terminal spur со своей локальной льготой ОКС.
+     * Не заменяет общий финальный валидатор сети и не разрешает произвольную непроверенную линию.
+     */
+    RoutePath completeCheckedAssembly(List<Coordinate> coordinates) {
         if (coordinates.size() < 2) return null;
+        coordinates.forEach(PreparedCorridor::requireFinite);
+        List<Coordinate> rounded = coordinates.stream()
+                .map(point -> new RouteCoordinate(point.x, point.y).toCoordinate()).collect(Collectors.toList());
+        for (int i = 1; i < rounded.size() - 1; i++) if (isRoot(rounded.get(i))) return null;
+        LineString line = rules.line(rounded);
+        if (!line.isSimple() || line.isClosed()) return null;
+        boolean atRoot = isRoot(rounded.get(0)) || isRoot(rounded.get(rounded.size() - 1));
+        ConstraintIndex index = atRoot ? rootIndex : strictIndex;
+        if (!rules.completeRoadCrossingsAllowed(line, index)) return null;
+        return new RoutePath(rounded,
+                rules.sections(line, atRoot ? rootConstraints : constraints, index.traversal()), line.getLength());
+    }
+
+    /** Наружный кандидат после реального ввода; окончательный допуск — только после сборки префикса. */
+    RoutePath pathAfter(Coordinate previous, List<Coordinate> coordinates) {
+        if (coordinates.size() < 2) return null;
+        if (previous != null) requireFinite(previous);
         coordinates.forEach(PreparedCorridor::requireFinite);
         List<Coordinate> rounded = coordinates.stream()
                 .map(point -> new RouteCoordinate(point.x, point.y).toCoordinate()).collect(Collectors.toList());
@@ -161,7 +190,19 @@ final class PreparedCorridor {
         }
         LineString line = rules.line(rounded);
         boolean atRoot = isRoot(rounded.get(0)) || isRoot(rounded.get(rounded.size() - 1));
-        return new RoutePath(rounded, rules.sections(line, atRoot ? rootConstraints : constraints), line.getLength());
+        // Видимость звена допускает часть crossing; готовый путь обязан содержать весь special.
+        ConstraintIndex index = atRoot ? rootIndex : strictIndex;
+        if (previous == null) {
+            if (!rules.lineAllowed(line, index)) return null;
+        } else {
+            if (!rules.provisionalSegmentsAllowed(line, index)) return null;
+            List<Coordinate> complete = new ArrayList<>();
+            complete.add(new RouteCoordinate(previous.x, previous.y).toCoordinate());
+            complete.addAll(rounded);
+            LineString fullLine = rules.line(complete);
+            if (!rules.completeRoadCrossingsAllowed(fullLine, index)) return null;
+        }
+        return new RoutePath(rounded, rules.sections(line, atRoot ? rootConstraints : constraints, index.traversal()), line.getLength());
     }
 
     private boolean isRoot(Coordinate point) { return point.distance(root) <= ROOT_ROUNDING_TOLERANCE_M; }

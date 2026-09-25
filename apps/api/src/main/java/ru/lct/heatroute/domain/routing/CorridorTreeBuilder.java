@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.CancellationException;
+import java.util.function.BiPredicate;
 import org.locationtech.jts.geom.Coordinate;
 
 /**
@@ -17,6 +18,7 @@ import org.locationtech.jts.geom.Coordinate;
  * null означает, что данный кандидат не удалось собрать, а не доказательство отсутствия дерева.
  */
 final class CorridorTreeBuilder {
+    private static final BiPredicate<Integer, Integer> UNRESTRICTED = (from, to) -> true;
     private static final int MAX_NODES = 100_000;
     private static final int MAX_LINKS = 400_000;
     private static final int MAX_METRIC_TERMINALS = 64;
@@ -33,13 +35,21 @@ final class CorridorTreeBuilder {
     List<int[]> build(List<Coordinate> points, List<int[]> links, int root, int rootCapacity,
             Map<Integer, Integer> terminalStubCounts, boolean farthestFirst,
             double newJunctionPenaltyM, double bendPenaltyM) {
+        return build(points, links, root, rootCapacity, terminalStubCounts, farthestFirst,
+                newJunctionPenaltyM, bendPenaltyM, UNRESTRICTED);
+    }
+
+    /** Допуск относится к физическому движению от уже построенного дерева к новому терминалу. */
+    List<int[]> build(List<Coordinate> points, List<int[]> links, int root, int rootCapacity,
+            Map<Integer, Integer> terminalStubCounts, boolean farthestFirst,
+            double newJunctionPenaltyM, double bendPenaltyM, BiPredicate<Integer, Integer> directionAllowed) {
         ensureNotCancelled();
         require(rootCapacity >= 0, "Root capacity must be nonnegative");
         require(Double.isFinite(newJunctionPenaltyM) && newJunctionPenaltyM >= 0,
                 "Junction penalty must be finite and nonnegative");
         require(Double.isFinite(bendPenaltyM) && bendPenaltyM >= 0,
                 "Bend penalty must be finite and nonnegative");
-        Graph graph = new Graph(points, links, root);
+        Graph graph = new Graph(points, links, null, root, directionAllowed);
         return buildGraph(graph, root, rootCapacity, terminalStubCounts, farthestFirst,
                 newJunctionPenaltyM, bendPenaltyM);
     }
@@ -48,6 +58,14 @@ final class CorridorTreeBuilder {
     List<int[]> buildWeighted(List<Coordinate> points, List<int[]> links, List<Double> lengths,
             int root, int rootCapacity, Map<Integer, Integer> terminalStubCounts, boolean farthestFirst,
             double newJunctionPenaltyM, double bendPenaltyM) {
+        return buildWeighted(points, links, lengths, root, rootCapacity, terminalStubCounts, farthestFirst,
+                newJunctionPenaltyM, bendPenaltyM, UNRESTRICTED);
+    }
+
+    /** Взвешенные terminal-подключения и звенья ствола могут иметь разные допустимые направления. */
+    List<int[]> buildWeighted(List<Coordinate> points, List<int[]> links, List<Double> lengths,
+            int root, int rootCapacity, Map<Integer, Integer> terminalStubCounts, boolean farthestFirst,
+            double newJunctionPenaltyM, double bendPenaltyM, BiPredicate<Integer, Integer> directionAllowed) {
         ensureNotCancelled();
         require(lengths != null, "Weighted links require lengths");
         require(rootCapacity >= 0, "Root capacity must be nonnegative");
@@ -55,7 +73,7 @@ final class CorridorTreeBuilder {
                 "Junction penalty must be finite and nonnegative");
         require(Double.isFinite(bendPenaltyM) && bendPenaltyM >= 0,
                 "Bend penalty must be finite and nonnegative");
-        return buildGraph(new Graph(points, links, lengths, root), root, rootCapacity,
+        return buildGraph(new Graph(points, links, lengths, root, directionAllowed), root, rootCapacity,
                 terminalStubCounts, farthestFirst, newJunctionPenaltyM, bendPenaltyM);
     }
 
@@ -66,6 +84,14 @@ final class CorridorTreeBuilder {
     List<int[]> buildWeightedFrom(List<Coordinate> points, List<int[]> links, List<Double> lengths,
             int root, int rootCapacity, Map<Integer, Integer> terminalStubCounts, int firstTerminal,
             double newJunctionPenaltyM, double bendPenaltyM) {
+        return buildWeightedFrom(points, links, lengths, root, rootCapacity, terminalStubCounts, firstTerminal,
+                newJunctionPenaltyM, bendPenaltyM, UNRESTRICTED);
+    }
+
+    /** Заданный первый терминал не меняет физическое направление поиска root → demand. */
+    List<int[]> buildWeightedFrom(List<Coordinate> points, List<int[]> links, List<Double> lengths,
+            int root, int rootCapacity, Map<Integer, Integer> terminalStubCounts, int firstTerminal,
+            double newJunctionPenaltyM, double bendPenaltyM, BiPredicate<Integer, Integer> directionAllowed) {
         ensureNotCancelled();
         require(lengths != null, "Weighted links require lengths");
         require(rootCapacity >= 0, "Root capacity must be nonnegative");
@@ -73,7 +99,7 @@ final class CorridorTreeBuilder {
                 "Junction penalty must be finite and nonnegative");
         require(Double.isFinite(bendPenaltyM) && bendPenaltyM >= 0,
                 "Bend penalty must be finite and nonnegative");
-        Graph graph = new Graph(points, links, lengths, root);
+        Graph graph = new Graph(points, links, lengths, root, directionAllowed);
         Tree tree = new Tree(graph, root, rootCapacity, terminalStubCounts);
         require(firstTerminal >= 0 && firstTerminal < graph.x.length && tree.isRemainingTerminal(firstTerminal),
                 "First terminal must be a non-root node with a positive stub count");
@@ -160,6 +186,7 @@ final class CorridorTreeBuilder {
             double sourcePenalty = source != tree.root && tree.degree[source] + tree.stubs[source] == 2
                     ? junctionPenalty : 0;
             for (int arc : graph.outgoing[source]) {
+                if (!graph.directionAllowed[arc]) continue;
                 int next = graph.to[arc];
                 if (tree.inTree[next] || !tree.hasRoom(next, 1)) continue;
                 double turn = tree.parent[source] >= 0
@@ -179,6 +206,7 @@ final class CorridorTreeBuilder {
             // Не подключённые терминалы тоже резервируют stub: через порт с тремя stub идти нельзя.
             if (!tree.hasRoom(node, 2)) continue;
             for (int nextArc : graph.outgoing[node]) {
+                if (!graph.directionAllowed[nextArc]) continue;
                 int next = graph.to[nextArc];
                 if (nextArc == (current.arc ^ 1) || tree.inTree[next] || !tree.hasRoom(next, 1)) continue;
                 double turn = graph.isBend(graph.from[current.arc], node, next) ? bendPenalty : 0;
@@ -433,12 +461,19 @@ final class CorridorTreeBuilder {
         private final int[] to;
         private final double[] length;
         private final int[][] outgoing;
+        private final boolean[] directionAllowed;
 
         private Graph(List<Coordinate> points, List<int[]> links, int root) {
             this(points, links, null, root);
         }
 
         private Graph(List<Coordinate> points, List<int[]> links, List<Double> lengths, int root) {
+            this(points, links, lengths, root, UNRESTRICTED);
+        }
+
+        private Graph(List<Coordinate> points, List<int[]> links, List<Double> lengths, int root,
+                BiPredicate<Integer, Integer> admission) {
+            require(admission != null, "Directed link admission is required");
             require(points != null && !points.isEmpty() && points.size() <= MAX_NODES,
                     "Graph must contain 1..100000 points");
             require(links != null && links.size() <= MAX_LINKS, "Graph must contain at most 400000 links");
@@ -495,6 +530,7 @@ final class CorridorTreeBuilder {
             from = new int[2 * unique];
             to = new int[2 * unique];
             length = new double[2 * unique];
+            directionAllowed = new boolean[2 * unique];
             int[] counts = new int[x.length];
             for (int index = 0; index < unique; index++) {
                 ensureNotCancelled();
@@ -503,6 +539,8 @@ final class CorridorTreeBuilder {
                 int arc = 2 * index;
                 from[arc] = to[arc + 1] = a;
                 to[arc] = from[arc + 1] = b;
+                directionAllowed[arc] = admission.test(a, b);
+                directionAllowed[arc + 1] = admission.test(b, a);
                 length[arc] = length[arc + 1] = minimumWeights == null
                         ? Math.hypot(x[a] - x[b], y[a] - y[b]) : minimumWeights.get(keys[index]);
                 counts[a]++;

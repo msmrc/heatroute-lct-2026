@@ -15,7 +15,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 
 /**
- * Предлагает ввод с одним прямым углом и осевым подходом к общему коридору.
+ * Предлагает прямой ввод или ввод с одним прямым углом и осевым подходом к общему коридору.
  * Выбор направления из нескольких выходов не сводится к лучу прямо на конечный порт.
  * Свободные части проходят строгую проверку отступов; неподходящий случай остаётся общему поиску.
  */
@@ -44,10 +44,18 @@ final class CorridorTerminalRouter {
     }
 
     RoutePath route(String id, Coordinate point, Coordinate port, int diameter) {
+        return routeChoice(id, point, port, diameter).path();
+    }
+
+    /** Отмечает замену короткого L-ввода, чтобы поиск мог сохранить отдельное контрольное дерево. */
+    Choice routeChoice(String id, Coordinate point, Coordinate port, int diameter) {
         attempts++;
         RoutePath best = null;
-        for (OfficialRouteGeometryRules.NormalEgress egress : environment.normalEgressCandidates(
-                diameter, point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM())) {
+        RoutePath straightAlternative = null;
+        double rejectedShortestM = Double.POSITIVE_INFINITY;
+        List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
+                diameter, point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED);
+        for (OfficialRouteGeometryRules.NormalEgress egress : egresses) {
             if (Thread.currentThread().isInterrupted()) throw new CancellationException("Corridor terminal cancelled");
             Coordinate exit = egress.exit();
             double required = point.distance(exit);
@@ -55,26 +63,57 @@ final class CorridorTerminalRouter {
             double nx = (exit.x - point.x) / required, ny = (exit.y - point.y) / required;
             double along = (port.x - point.x) * nx + (port.y - point.y) * ny;
             if (along <= required + 0.01) continue;
+            RoutePath straight = checkedStraightContinuation(egress, port, diameter);
+            if (straight != null && (straightAlternative == null || straight.lengthM() < straightAlternative.lengthM())) {
+                straightAlternative = straight;
+            }
             Coordinate elbow = new Coordinate(point.x + nx * along, point.y + ny * along);
             Coordinate approach = elbow.distance(port) > 0.001 ? elbow : point;
             double angle = Math.atan2(port.y - approach.y, port.x - approach.x);
             // Допуск осевого подхода 0,5°: sin(2θ) имеет период 90°. Это фильтр кандидата,
             // а не ослабление официальной проверки или округление геометрии для красоты.
             if (Math.abs(Math.sin(2 * (angle - orientation))) > PORT_AXIS_TOLERANCE) continue;
-            Envelope bounds = new Envelope(exit, port);
-            bounds.expandToInclude(elbow);
-            PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, exit, null);
             List<Coordinate> coordinates = new ArrayList<>(List.of(exit));
             if (elbow.distance(exit) > 0.001 && elbow.distance(port) > 0.001) coordinates.add(elbow);
             coordinates.add(port);
-            RoutePath outside = checks.path(coordinates);
+            RoutePath outside = checkedOutside(coordinates, egress, diameter);
             if (outside == null) continue;
-            RoutePath candidate = router.withCheckedTerminalPrefix(egress, outside, diameter, environment);
-            if (candidate == null) continue;
+            RoutePath candidate = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment, RouteTraversal.REVERSED);
+            if (candidate == null) {
+                double prefixM = new RouteCoordinate(point.x, point.y).toCoordinate()
+                        .distance(outside.coordinates().get(0));
+                rejectedShortestM = Math.min(rejectedShortestM, outside.lengthM() + prefixM);
+                continue;
+            }
             if (best == null || candidate.lengthM() < best.lengthM()) best = candidate;
         }
+        boolean redirectedControl = rejectedShortestM < (best == null ? Double.POSITIVE_INFINITY : best.lengthM());
+        // Сохраняем контрольную геометрию дерева; прямой вариант также доступен совместному
+        // выбору через alternatives(), а здесь заменяет только отсутствующий допустимый L-ввод.
+        if (best == null) best = straightAlternative;
+        // Нормали реальных фасадов могут быть повёрнуты относительно общей сетки.
+        // Проверенный переход должен участвовать уже в первичном выборе порта.
+        if (best == null && !egresses.isEmpty()) {
+            best = localAlternatives(id, point, port, diameter).stream()
+                    .min(Comparator.comparingDouble(RoutePath::lengthM)).orElse(null);
+        }
         if (best != null) axialPaths++;
-        return best == null ? fallback.route(id, port, diameter, List.of()) : best;
+        RoutePath path = best == null ? fallback.route(id, port, diameter, List.of()) : best;
+        return new Choice(path, redirectedControl);
+    }
+
+    /** Выбранный путь и происхождение выбора; отклонённая геометрия здесь не хранится. */
+    static final class Choice {
+        private final RoutePath path;
+        private final boolean redirectedControl;
+
+        private Choice(RoutePath path, boolean redirectedControl) {
+            this.path = path;
+            this.redirectedControl = redirectedControl;
+        }
+
+        RoutePath path() { return path; }
+        boolean redirectedControl() { return redirectedControl; }
     }
 
     /**
@@ -101,7 +140,7 @@ final class CorridorTerminalRouter {
         RoutePath original = includeFallback ? route(id, new Coordinate(start), new Coordinate(end), diameter) : null;
         ensureActive();
         List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
-                diameter, start, end, RoutePlannerTuning.stable().getEngineeringEgressExtraM());
+                diameter, start, end, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED);
         RoutePath control = checkedControl(original, start, end, diameter, egresses);
         List<RoutePath> candidates = new ArrayList<>();
         if (egresses.isEmpty()) addFreeSpaceAlternatives(candidates, start, end, diameter, clearance);
@@ -114,6 +153,9 @@ final class CorridorTerminalRouter {
             double nx = (exit.x - start.x) / required, ny = (exit.y - start.y) / required;
             double t = (end.x - start.x) * nx + (end.y - start.y) * ny;
             Coordinate projection = new Coordinate(start.x + nx * t, start.y + ny * t);
+            if (t > required + 0.01) {
+                addDistinct(candidates, checkedStraightContinuation(egress, end, diameter));
+            }
             for (List<Coordinate> coordinates : NormalCorridorTransitions.build(
                     start, exit, end, orientation, MIN_TWO_BEND_LEG_M)) {
                 addDistinct(candidates, checkedGenerated(egress, coordinates, diameter));
@@ -179,7 +221,7 @@ final class CorridorTerminalRouter {
             if (!finiteMetric(coordinate)) return null;
             bounds.expandToInclude(coordinate);
         }
-        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, point, null);
+        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, point, null, RouteTraversal.REVERSED);
         // PreparedCorridor умеет локальный выход существующего корня из setback. Здесь корня
         // теплосети нет, поэтому запрещаем такое послабление и до, и после округления координат.
         for (Coordinate coordinate : coordinates) if (!checks.pointAllowed(coordinate)) return null;
@@ -195,19 +237,32 @@ final class CorridorTerminalRouter {
         ensureActive();
         for (Coordinate coordinate : coordinates) if (!finiteMetric(coordinate)) return null;
         if (!axisAligned(coordinates.get(coordinates.size() - 2), coordinates.get(coordinates.size() - 1))) return null;
-        RoutePath outside = checkedOutside(coordinates, egress.exit(), diameter);
+        RoutePath outside = checkedOutside(coordinates, egress, diameter);
         if (outside == null) return null;
-        RoutePath full = router.withCheckedTerminalPrefix(egress, outside, diameter, environment);
+        RoutePath full = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment, RouteTraversal.REVERSED);
         if (!soundGeometry(full, diameter)) return null;
         List<Coordinate> points = full.coordinates();
         return axisAligned(points.get(points.size() - 2), points.get(points.size() - 1)) ? full : null;
     }
 
-    private RoutePath checkedOutside(List<Coordinate> coordinates, Coordinate root, int diameter) {
+    /** Почти соосному порту не нужен сантиметровый доглег; допуск прямого участка задаёт evaluator. */
+    private RoutePath checkedStraightContinuation(OfficialRouteGeometryRules.NormalEgress egress,
+            Coordinate port, int diameter) {
+        RoutePath path = checkedGenerated(egress, List.of(egress.exit(), port), diameter);
+        if (path == null) return null;
+        RouteEdge edge = new RouteEdge("terminal-straight", "terminal", "port", path.lengthM(),
+                path.coordinates().stream().map(p -> new RouteCoordinate(p.x, p.y)).collect(Collectors.toList()),
+                path.sections(), null, diameter);
+        return new EngineeringRouteEvaluator().evaluate(List.of(edge)).bendCount() == 0 ? path : null;
+    }
+
+    private RoutePath checkedOutside(List<Coordinate> coordinates,
+            OfficialRouteGeometryRules.NormalEgress egress, int diameter) {
         Envelope bounds = new Envelope();
         coordinates.forEach(bounds::expandToInclude);
-        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, root, null);
-        return checks.path(coordinates);
+        bounds.expandToInclude(egress.start());
+        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, egress.exit(), null, RouteTraversal.REVERSED);
+        return checks.pathAfter(egress.start(), coordinates);
     }
 
     /** Старый fallback остаётся доступен через route(); в список нельзя включить непроверенный результат. */
@@ -225,9 +280,9 @@ final class CorridorTerminalRouter {
             Coordinate exit = egress.exit();
             Coordinate roundedExit = new RouteCoordinate(exit.x, exit.y).toCoordinate();
             if (!points.get(1).equals2D(roundedExit)) continue;
-            RoutePath outside = checkedOutside(points.subList(1, points.size()), exit, diameter);
+            RoutePath outside = checkedOutside(points.subList(1, points.size()), egress, diameter);
             if (outside == null) continue;
-            RoutePath checked = router.withCheckedTerminalPrefix(egress, outside, diameter, environment);
+            RoutePath checked = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment, RouteTraversal.REVERSED);
             if (soundGeometry(checked, diameter) && sameGeometry(original, checked)) return checked;
         }
         return null;
@@ -251,7 +306,18 @@ final class CorridorTerminalRouter {
     }
 
     private List<RoutePath> diverseSelection(RoutePath control, List<RoutePath> candidates) {
-        candidates.sort(Comparator.comparingDouble(RoutePath::lengthM).thenComparing(this::geometryKey));
+        // Равные по длине зигзаги не должны вытеснять простой ввод из ограниченного набора.
+        Map<RoutePath, Integer> bends = new java.util.IdentityHashMap<>();
+        for (RoutePath candidate : candidates) {
+            RouteEdge edge = new RouteEdge("terminal-choice", "terminal", "port", candidate.lengthM(),
+                    candidate.coordinates().stream().map(p -> new RouteCoordinate(p.x, p.y)).collect(Collectors.toList()),
+                    candidate.sections(), null, null);
+            bends.put(candidate, new EngineeringRouteEvaluator().evaluate(List.of(edge)).bendCount());
+        }
+        // До пяти округлённых отрезков дают миллиметровую погрешность суммарной длины.
+        // Среди равноценных по сантиметру форм выбираем в системе коридора, а не по мировому X/Y.
+        candidates.sort(Comparator.comparingLong((RoutePath path) -> Math.round(path.lengthM() * 100))
+                .thenComparingInt(bends::get).thenComparing(this::geometryKey));
         Map<Integer, ArrayDeque<RoutePath>> byRay = new TreeMap<>();
         for (RoutePath candidate : candidates) {
             if (control != null && sameGeometry(control, candidate)) continue;
@@ -301,7 +367,13 @@ final class CorridorTerminalRouter {
 
     private String geometryKey(RoutePath path) {
         StringBuilder key = new StringBuilder();
-        path.coordinates().forEach(p -> key.append(p.x).append(',').append(p.y).append(';'));
+        Coordinate origin = path.coordinates().get(0);
+        double c = Math.cos(orientation), s = Math.sin(orientation);
+        path.coordinates().forEach(p -> {
+            double dx = p.x - origin.x, dy = p.y - origin.y;
+            key.append(Math.round((dx * c + dy * s) * 100)).append(',')
+                    .append(Math.round((-dx * s + dy * c) * 100)).append(';');
+        });
         return key.toString();
     }
 

@@ -25,6 +25,21 @@ class FinishedRouteVariantSelectorTest {
     private final EngineeringRouteEvaluator evaluator = new EngineeringRouteEvaluator();
 
     @Test
+    void completeCompliantNetworkSuppliesEngineeringRolesBeforeAShorterIrregularControl() {
+        RouteVariant balanced = variant("balanced", "engineering", 100, 100, 2, false);
+        RouteVariant shortest = variant("shortest", "shortest", 90, 90, 2, false);
+        RouteVariant compliant = variant("portfolio-clean", "engineering", 110, 120, 2, true);
+
+        List<RouteVariant> selected = selector.select(List.of(balanced, shortest, compliant));
+
+        assertRoles(selected);
+        assertSource(role(selected, "balanced"), compliant);
+        assertSource(role(selected, "shortest"), compliant);
+        // Экономическая роль остаётся отдельной: экспертное предупреждение не меняет смету.
+        assertSource(role(selected, "cheapest"), shortest);
+    }
+
+    @Test
     void finalLengthAndCostCanInvertTheOriginalRoleNamesWithoutReplacingBalancedControl() {
         RouteVariant balanced = variant("balanced", "engineering", 90, 300, 2, true);
         RouteVariant shortest = variant("shortest", "shortest", 120, 100, 2, true);

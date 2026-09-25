@@ -1,6 +1,7 @@
 package ru.lct.heatroute.domain.routing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
@@ -32,7 +33,7 @@ class OfficialRetainedEgressTest {
         for (boolean depth : List.of(false, true)) {
             for (String strategy : List.of("engineering", "shortest", "cheapest")) {
                 RouteVariant result = finish(original, features, strategy, depth);
-                assertAccepted(result, depth);
+                assertAccepted(result, features, depth);
                 assertThat(result.getEdges().get(0).getCoordinates()).usingRecursiveComparison()
                         .isEqualTo(original.getCoordinates());
                 assertThat(new EngineeringRouteEvaluator().evaluate(result.getEdges()).bendCount()).isEqualTo(1);
@@ -48,7 +49,7 @@ class OfficialRetainedEgressTest {
                 .anyMatch(issue -> "OKS_NORMAL_EGRESS_VIOLATION".equals(issue.getCode()));
         for (boolean depth : List.of(false, true)) {
             RouteVariant result = finish(original, features, "shortest", depth);
-            assertAccepted(result, depth);
+            assertAccepted(result, features, depth);
             assertThat(result.getEdges().get(0).getCoordinates()).usingRecursiveComparison()
                     .isNotEqualTo(original.getCoordinates());
         }
@@ -63,29 +64,40 @@ class OfficialRetainedEgressTest {
                         .toArray(new Coordinate[0]))));
         RouteEdge original = edge(points(0, -20, -10, -20, 10, -10, 10, 10, 10));
         assertThat(new OfficialRouteValidator(rules).validate(nodes(coordinates(original)), List.of(original), features))
-                .isNotEmpty();
+                .extracting(RouteValidationIssue::getCode)
+                .contains("FORBIDDEN_CLEARANCE_VIOLATION").doesNotContain("OKS_NORMAL_EGRESS_VIOLATION");
         RouteVariant result = finish(original, features, "shortest", false);
-        assertAccepted(result, false);
+        assertAccepted(result, features, false);
         assertThat(result.getEdges().get(0).getCoordinates()).usingRecursiveComparison()
                 .isNotEqualTo(original.getCoordinates());
     }
 
     @Test
-    void repairsAValidDirectionWhenAnotherObstacleBlocksTheFinalLeg() {
+    void repairsABlockedNormalUsingAnotherNearestPermittedWall() {
         List<ImportedOfficialFeature> features = new ArrayList<>(features(0));
         features.add(new ImportedOfficialFeature("park", "restriction",
                 json.createObjectNode().put("restriction_type", "park"),
                 new GeometryFactory().createPolygon(points(0, 3, 9, 6, 9, 6, 11, 3, 11, 3, 9)
                         .toArray(new Coordinate[0]))));
         RouteEdge original = edge(points(0, -20, -10, -20, 10, -10, 10, 10, 10));
-        assertThat(rules.validateMandatoryEgress(original, rules.line(coordinates(original)), features, 50)).isEmpty();
+        assertThat(rules.validateMandatoryEgress(original, rules.line(coordinates(original)), features, 50))
+                .extracting(RouteValidationIssue::getCode).containsExactly("OKS_NORMAL_EGRESS_VIOLATION");
         assertThat(new OfficialRouteValidator(rules).validate(nodes(coordinates(original)), List.of(original), features))
-                .isNotEmpty();
+                .extracting(RouteValidationIssue::getCode)
+                .contains("OKS_NORMAL_EGRESS_VIOLATION", "FORBIDDEN_CLEARANCE_VIOLATION");
         for (boolean depth : List.of(false, true)) {
             RouteVariant result = finish(original, features, "shortest", depth);
-            assertAccepted(result, depth);
+            assertAccepted(result, features, depth);
             assertThat(result.getEdges().get(0).getCoordinates()).usingRecursiveComparison()
                     .isNotEqualTo(original.getCoordinates());
+            List<Coordinate> repaired = coordinates(result.getEdges().get(0));
+            Coordinate adjacent = repaired.get(repaired.size() - 2);
+            Coordinate endpoint = repaired.get(repaired.size() - 1);
+            assertThat(adjacent.x).as("the obstructed west normal must not be retained")
+                    .isGreaterThanOrEqualTo(endpoint.x - 0.01);
+            assertThat(rules.line(repaired).distance(features.get(1).getMetricGeometry()))
+                    .as("the own-building exception never exempts the park on the final leg")
+                    .isGreaterThanOrEqualTo(1.0 + 0.400 / 2 - 1e-6);
         }
     }
 
@@ -107,9 +119,12 @@ class OfficialRetainedEgressTest {
     }
 
     @Test
-    void priorFinalizationRemainsAnIndependentlyValidatedAlternative() {
+    void bothFinalizationPoliciesRequireLegalNormalsInsteadOfAShorterTargetRay() {
         List<ImportedOfficialFeature> features = features(0);
         RouteEdge original = edge(points(0, -20, -10, -20, 10, -10, 10, 10, 10));
+        RouteEdge targetRay = edge(points(0, -20, -10, 10, 10));
+        assertThat(rules.validateMandatoryEgress(targetRay, rules.line(coordinates(targetRay)), features, 50))
+                .extracting(RouteValidationIssue::getCode).containsExactly("OKS_NORMAL_EGRESS_VIOLATION");
         OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
         OfficialRoutePlanner.VariantDraft draft = new OfficialRoutePlanner.VariantDraft(
                 nodes(coordinates(original)), List.of(original),
@@ -120,9 +135,13 @@ class OfficialRetainedEgressTest {
             RouteVariant previous = planner.finish("previous", "shortest", draft, features, parameters, false, environment);
             RouteVariant retained = planner.finish("retained", "shortest", draft, features, parameters, false,
                     environment, TerminalApproachPolicy.PRESERVE_VALID);
-            assertAccepted(previous, depth);
-            assertAccepted(retained, depth);
-            assertThat(previous.getTotalLengthM()).isLessThan(retained.getTotalLengthM());
+            assertAccepted(previous, features, depth);
+            assertAccepted(retained, features, depth);
+            // Обе политики обязаны отвергнуть короткий диагональный луч на корень; равные длины допустимы.
+            for (RouteVariant result : List.of(previous, retained)) {
+                assertThat(result.getTotalLengthM().doubleValue())
+                        .isGreaterThan(rules.line(coordinates(targetRay)).getLength());
+            }
             assertThat(retained.getEdges().get(0).getCoordinates()).usingRecursiveComparison()
                     .isEqualTo(original.getCoordinates());
         }
@@ -136,7 +155,7 @@ class OfficialRetainedEgressTest {
                         .toArray(new Coordinate[0]))));
         List<Coordinate> points = points(0, -30, -20, -30, 10, -10, 10, 10, 10);
         RouteEdge original = edge(points);
-        // На расстоянии6 м проходит ДУ400 (5 м), но не ДУ500 (7 м).
+        // 6 м достаточно для ДУ400 (R+W/2=5.685 м), но не для ДУ500 (7.835 м).
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
         OfficialRoutingEnvironment environment = router.prepare(features);
         List<Coordinate> prefix = points.subList(0, points.size() - 1);
@@ -144,26 +163,39 @@ class OfficialRetainedEgressTest {
         assertThat(router.lineAllowed(prefix, 500, environment, java.util.Set.of(), List.of())).isFalse();
         for (boolean depth : List.of(false, true)) {
             RouteVariant result = finish(original, features, "shortest", depth, new BigDecimal("1000"));
-            assertAccepted(result, depth, 500);
+            assertAccepted(result, features, depth, 500);
             assertThat(result.getEdges().get(0).getCoordinates()).usingRecursiveComparison()
                     .isNotEqualTo(original.getCoordinates());
-            assertThat(new OfficialRouteValidator(rules).validate(result.getNodes(), result.getEdges(), features))
-                    .isEmpty();
+            assertThat(result.getEdges().get(0).getFlowTph()).isEqualByComparingTo("1000");
+            List<Coordinate> repaired = coordinates(result.getEdges().get(0));
+            assertThat(repaired.get(repaired.size() - 2).distance(repaired.get(repaired.size() - 1)))
+                    .as("the final DU500 normal includes 10 m inside and R+W/2+0.25 m outside")
+                    .isGreaterThanOrEqualTo(10 + 7 + 1.670 / 2 + 0.25 - 0.01);
         }
     }
 
-    private void assertAccepted(RouteVariant result, boolean depth) {
-        assertAccepted(result, depth, 50);
+    private void assertAccepted(RouteVariant result, List<ImportedOfficialFeature> features, boolean depth) {
+        assertAccepted(result, features, depth, 50);
     }
 
-    private void assertAccepted(RouteVariant result, boolean depth, int diameter) {
+    private void assertAccepted(RouteVariant result, List<ImportedOfficialFeature> features, boolean depth, int diameter) {
         assertThat(result.getValidationIssues()).isEmpty();
         assertThat(result.getSizingIssues()).isEmpty();
         assertThat(result.isValid()).isTrue();
         assertThat(result.getConnectedDemandCount()).isEqualTo(1);
         assertThat(result.getEconomics().isComplete()).isTrue();
+        assertThat(new OfficialRouteValidator(rules).validate(result.getNodes(), result.getEdges(), features)).isEmpty();
+        BigDecimal edgeLength = result.getEdges().stream().map(RouteEdge::getLengthM)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(result.getTotalLengthM()).isEqualByComparingTo(edgeLength);
+        assertThat(result.getEconomics().getNewNetworkLength()).isEqualByComparingTo(edgeLength);
         assertThat(result.getEdges()).allSatisfy(edge -> {
             assertThat(edge.getDiameter()).isEqualTo(diameter);
+            assertThat(rules.line(coordinates(edge)).getLength())
+                    .isCloseTo(edge.getLengthM().doubleValue(), offset(0.001));
+            assertThat(edge.getSections()).isNotEmpty();
+            assertThat(edge.getSections().stream().map(RouteSection::getLengthM)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo(edge.getLengthM());
             if (depth) assertThat(edge.getDepthProfile().isComplete()).isTrue();
         });
     }

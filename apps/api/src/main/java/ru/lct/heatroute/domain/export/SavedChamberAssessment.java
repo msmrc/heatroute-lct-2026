@@ -8,15 +8,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
+import ru.lct.heatroute.domain.routing.ExpertChamberRouteValidator;
 import ru.lct.heatroute.domain.routing.OfficialRouteDeflectionRules;
 import ru.lct.heatroute.domain.routing.RouteCoordinate;
 import ru.lct.heatroute.domain.routing.RouteEdge;
 import ru.lct.heatroute.domain.routing.RouteNode;
+import ru.lct.heatroute.domain.routing.RouteValidationIssue;
 import ru.lct.heatroute.domain.sizing.OfficialChamberSizing;
 import ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex;
 
 /**
- * Проверяет ДУ и цену камер сохранённого варианта по исходному импорту, не доверяя valid=true.
+ * Проверяет ДУ/цену камер и экспертные правила вводов и расстояния между камерами, не доверяя valid=true.
  * Заголовки рёбер типизированы, полилинии проверяются потоково без копирования;
  * старые неверные сметы требуют перерасчёта.
  */
@@ -42,6 +44,7 @@ final class SavedChamberAssessment {
                 if (typed.isRoot() && "existing_chamber_tie_in".equals(typed.getNodeType())) existingRoots.add(typed.getId());
             }
             List<RouteEdge> edges = new ArrayList<>();
+            Map<String, Double> measuredLengthsM = new java.util.HashMap<>();
             List<OfficialRouteDeflectionRules.EdgeEndpoints> endpoints = new ArrayList<>();
             Set<String> edgeIds = new HashSet<>();
             long existingRays = 0;
@@ -55,14 +58,21 @@ final class SavedChamberAssessment {
                 OfficialRouteDeflectionRules.PolylineCheck check = SavedRouteGeometry.verify(edge,
                         nodesById.get(from).getCoordinate(), nodesById.get(to).getCoordinate());
                 endpoints.add(check.endpoints(from, to));
+                measuredLengthsM.put(id, check.getActualLengthM());
                 edges.add(new RouteEdge(id, from, to, edgeLength.doubleValue(), List.of(), List.of(),
                         number(edge, "flow_tph"), integer(edge, "diameter")));
                 length = length.add(edgeLength);
                 if (existingRoots.contains(from)) existingRays++;
             }
-            List<ru.lct.heatroute.domain.routing.RouteValidationIssue> turns =
+            List<RouteValidationIssue> turns =
                     OfficialRouteDeflectionRules.validateDegreeTwoNodes(nodes, endpoints);
             if (!turns.isEmpty()) throw new IllegalArgumentException(turns.get(0).getCode() + ": " + turns.get(0).getSubjectId());
+            List<RouteValidationIssue> chamberIssues = new ExpertChamberRouteValidator().validate(
+                    nodes, edges, edge -> measuredLengthsM.get(edge.getId()));
+            if (!chamberIssues.isEmpty()) {
+                RouteValidationIssue issue = chamberIssues.get(0);
+                throw new IllegalArgumentException(issue.getCode() + ": " + issue.getSubjectId());
+            }
             Map<String, Integer> diameters = OfficialChamberSizing.diameters(nodes, edges);
             BigDecimal chamberCost = diameters.values().stream().map(economics::chamberCost)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);

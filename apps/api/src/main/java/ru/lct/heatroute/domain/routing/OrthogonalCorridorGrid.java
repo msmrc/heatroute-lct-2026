@@ -15,8 +15,9 @@ import org.locationtech.jts.geom.Geometry;
 
 /**
  * Строит ограниченный граф общих проходов в системе направлений фасадов.
- * Координаты линий выводятся из потребителей и застройки; каждое ребро независимо проверяется
- * переданным официальным предикатом. Это кандидатная сетка, не полный поиск всех возможных трасс.
+ * Координаты линий выводятся из потребителей и застройки; сохраняется кандидат ребра,
+ * допустимый хотя бы в одном направлении. Фактическое rooted-направление и полный special
+ * обязательны при сборке сети; неориентированный link сам по себе не является допуском трассы.
  */
 final class OrthogonalCorridorGrid {
     private static final int MAX_AXIS_COORDINATES = 96;
@@ -124,7 +125,8 @@ final class OrthogonalCorridorGrid {
 
     private static void link(int from, int to, List<Coordinate> points, List<int[]> links,
             BiPredicate<Coordinate, Coordinate> allowed) {
-        if (to >= 0 && allowed.test(points.get(from), points.get(to))) links.add(new int[] {from, to});
+        if (to >= 0 && (allowed.test(points.get(from), points.get(to))
+                || allowed.test(points.get(to), points.get(from)))) links.add(new int[] {from, to});
     }
 
     /** Первые кандидаты — ближайшие свободные узлы; реальный ввод проверяет маршрутизатор. */

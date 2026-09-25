@@ -4,7 +4,248 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
-**Новый этап25.09, intake и компонентная подготовка:** после `2e7b713` изучены новые правила,
+**Checkpoint source90:** [отступы и независимый экспорт](PRIMARY_ROUTING_90.md).
+Удалено неподтверждённое исключение ОКС у endpoint; существующая камера тоже обязана соблюдать
+отступ. Собственный финальный ввод сохранён. Общий export preflight проверяет исходную и
+выдаваемую линии до первой feature. Fast1621PASS/0fail/error/3scale skip,98новыхслучаев,
+web36+37/lint/typecheckPASS. Full88 завершён:1508PASS/1compactFAIL/3skip, dataset17of17.
+Все6сохранённыхролей88/89 проходят новый export90; fresh90session90073 выполняется отдельно.
+Fresh90/roads17of17/compact/все роли/UIpreferred/скорость/native/Compose/scale/R/G не приняты.
+Ниже исторические checkpoints, включая прежнюю неверную гипотезу исключения существующей врезки.
+
+**Checkpoint source89:** [неподвижная камера и магистральная ось](PRIMARY_ROUTING_89.md).
+Fast1523PASS/0fail/error/3scale skip, web36+37/lint/typecheckPASS. Saved86 доводится до balanced
+с0нерегулярныхпар/17of17/exportPASS за5,832с; это не fresh-расчёт и не качество всех ролей.
+Source88full92736 ещё выполняется, compactFAIL. **B-10 подтверждён 2RED**: конечная новая камера
+не должна получать исключение отступа ОКС существующей врезки. Исправление открыто; имеющийся
+strict export не доказывает этот инвариант. R/G/native/Compose/scale и готовность не закрыты.
+Ниже исторические checkpoints; актуален этот статус и handoff.
+
+**Checkpoint source88:** [автоматическая доводка лучей камер](PRIMARY_ROUTING_88.md).
+Ограниченный генератор переносов + пересчёт всей сети; balanced может платить до 5% за строго
+лучшую геометрию. Это явная политика качества, не новая обязательная норма и не смена score.
+Full86 завершён 1341 PASS / 1 compact FAIL / 3 skip, исходный набор/export PASS;
+roads83 завершён 15/17 и не принят. Итог fast88: 1502 PASS / 0 fail/error / 3 scale skipped,
+web36+37/lint/typecheckPASS. Saved86 stage: нерегулярные пары balanced 4→2, 17/17/exportPASS,
+3,044 с — не время полного расчёта. Fresh88 запущен, пока не принят; runtime61 прежний,
+R/G, качество всех ролей, roads17/17, compact, скорость и native/Compose/scale остаются открыты.
+
+**Текущий source87:** [прямые подходы и восстановление no_route](PRIMARY_ROUTING_87.md).
+68новыхслучаев; fast1406/1403PASS/0fail/0error/3skip, web36+37/lint/typecheckPASS.
+Бюджеты ограничены, исходные варианты/проверки не ослаблены. Полный87 ещё не выполнен;
+full86/roads83 продолжаются. Генератор опорных переносов88 ещё не часть этого checkpoint.
+Не закрывает G/R, дороги17/17, compact, скорость или native/Compose/scale; runtime61 прежний.
+
+**Текущий source86:** [export и сохранение углов камер](PRIMARY_ROUTING_86.md).
+Независимый preflight новых экспертных правил для сохранённого JSON:24casesPASS;
+shortener не ухудшает минимальные углы камер:3RED→GREEN. Fast1338/1335PASS/0fail/0error/3skip.
+Web86:36+37/lint/typecheckPASS, full86session43280 выполняется. Full84 завершён1292/1288PASS/1compactFAIL/3skip,
+variants структурно равны83. Full85:1318/1314PASS/1compactFAIL/3skip,3роли17/17/камеры/strict
+exportPASS, минимум20,18388м, но2почти параллельные пары остаются. Roads83 пока жив.
+Положительный локальный quality-кандидат
+с17подключениями/11новыми камерами ещё не автоматически генерируемый production86.
+Правило10м — уточнение Евгения, не новая норма СП; его схема не golden route.
+Runtime61/VPS и статусы R/G/native/Compose/scale не изменены. Ниже исторические checkpoints.
+
+**Текущий source85:** [экспертные правила камер](PRIMARY_ROUTING_85.md), источник — новое
+прямое уточнение Евгения через пользователя. Минимум10м между камерами **по пути** и начало
+ввода ОКС в камере; не минимум для короткого ввода и не правило переиспользования у врезки.
+Рисунок не является эталоном копирования. Focused66PASS, web36+37/lint/typecheckPASS;
+итоговый fast85:1311cases/1308PASS/0fail/0error/3scale skip, full85session20838 выполняется.
+Full83 завершён1284/1280PASS/1compactFAIL/3skip,
+17/17/strict export по прежним правилам; balanced83 имеет новый камерный дефект4,5865м.
+Roads81 завершён15/17/2роли и не принят. Full84/roads83 живы. Новый пункт уточняет G3,
+но не закрывает G/R/камерную геометрию/скорость/native/Compose/scale. Runtime61/VPS прежние.
+Далее исторические checkpoint; их live-статусы не актуальны.
+
+**Текущий source84:** [направление подходов к переносимой камере](PRIMARY_ROUTING_84.md).
+8regression cases/4RED83→GREEN84, focused48PASS, web36+37/lint/typecheckPASS; итоговый
+fast gate84:1288cases/1285PASS/0fail/0error/3skip. Full84session30650 запущен.
+Дополнительное разнообразие переносов проверено на saved81
+и отклонено без подключения к production; источник почти совпадающих выходов не устранён.
+Full83/roads83/roads81 ещё работают на frozen targets. Полной приёмки84 нет;
+runtime61/VPS, R/G2/native/Compose/scale остаются без изменений. Ниже — предыдущие checkpoints.
+
+**Актуальный checkpoint source83:** [направленный поиск и локальная врезка](PRIMARY_ROUTING_83.md).
+Исправлены две регрессии review82; добавлено50постоянных случаев, включая F1–F3.
+Fast1280cases/1277PASS/0fail/0error/3scale skip; web36+37/lint/typecheck PASS.
+Full83session54670/roads83session12884/roads81session30394 выполняются. Full82 до review
+завершён1234cases/1230PASS/1compactFAIL/3skip. Свежий результат83, общее время и live smoke
+ещё не подтверждены; это не релиз и не закрытие R/G2. Runtime61/VPS неизменны.
+Состояние и продолжение — [progress](progress.md) и [handoff](TOMORROW_HANDOFF.md).
+Ниже исторические checkpoint; прежние live-статусы заменены реестром83.
+
+**Свежий результат81:**1234cases/1230PASS/1compactFAIL/0errors/3skip;462,736с.
+17/17/geometry/sizing/depth/economics/strict export; shortest/cheapest2068,786м/11камер/0bad bends,
+exact75. Это восстановление регрессии77–80, не рекорд; balanced2194,257м/14камер как80.
+Advisory всё ещё находит2почти параллельных выхода камер, а roads77/79 завершились16/17 и15/17.
+Жив roads81session30394; усиленный all-role dataset test78303 завершён2/2PASS,494,770с,
+exact variants первого81. Прежние full81/80/79/roads77/79 завершены. Детали/изображения/границы
+в [81](PRIMARY_ROUTING_81.md). Runtime61/VPS прежние;
+compact/G2/native/Compose/scale/R/общая цель **не закрыты**. Далее записи checkpoint в историческом порядке.
+Отдельно воспроизведены3синтетических дефекта общего trunk —
+[направление/техническое дробление](CORRIDOR_TRUNK_ADMISSION.md),52characterization assertions;
+это следующий correctness scope, не уже готовое исправление.
+
+**Приоритетная актуализация — source81:** [основной TOWARD preservation](PRIMARY_ROUTING_81.md).
+Full79 завершён, exact variants78/79 и3bad angles у cheapest. В81 исправление valid-network
+preservation распространено на основной режим с сохранением проверки его вводов.3новыхtests,
+clean/fast1230cases/1227PASS/3skip; web36/scripts37/lint/typecheckPASS; bounded saved75 replay
+в TOWARD сохраняет геометрию/0bad angles. Full81/roads79/roads77 ещё работают.
+Full80 завершён1231cases/1227PASS/1compactFAIL/0errors/3skip; exact variants80==79 PASS,
+fixture613,702с. Эквивалентность подтверждена,3bad angles cheapest остались; ускорение не доказано.
+Свежий quality result81/ускорение/compact/G2/scale/Compose/R/цель не подтверждены; runtime61 прежний.
+
+**Приоритетная актуализация — source80:** [query-local ordinal sort](PRIMARY_ROUTING_80.md).
+Behavior-preserving optimization:5новыхtests/scoped81PASS, clean/fast1227cases/1224PASS/3skip,
+web36/scripts37/lint/typecheckPASS. Full80session59635 и full79 завершены; roads79/roads77 живы.
+Точный состав/порядок query и полное variants80==79 проверены; end-to-end gain не подтверждён.
+Качество, этапы R и цель пока не подтверждены; runtime61/VPS прежние.
+
+**Результат full78:**1220cases/1216PASS/1compactFAIL/3skip, fixture599,957с;17/17/strict
+exportPASS, но cheapest сохранил3плохих угла. [Подробности78](PRIMARY_ROUTING_78.md).
+Full79/roads77/roads79 ещё выполняются; runtime61/VPS не менялись. Это не принятый quality gate.
+
+**Приоритетная актуализация — source79:** [whole-network preservation](PRIMARY_ROUTING_79.md).
+Устранена воспроизведённая порча уже допустимого incumbent из-за поискового буфера:6новыхtests,
+clean/fast1222cases/1219PASS/0fail/0error/3skip, scoped59PASS, saved75 доводка6/6exactPASS.
+Это не fresh quality gate. Full79session51226/full78session46700/roads77session2599 выполняются
+на отдельных frozen targets; runtime61/VPS прежние. Compact/G2/native/Compose/scale/R/цель открыты.
+
+**Приоритетная актуализация — source78:** [направление terminal и sections](PRIMARY_ROUTING_78.md).
+50новых regression tests; конечный clean/fast1216cases/1213PASS/0fail/0error/3scale skip,
+web36/scripts37/lint/typecheckPASS. Full78session46700 и roads77session2599 ещё работают
+на отдельных frozen targets. Релиз/quality не принят: regression77 cheapest/shortest остаётся,
+bounded trace подтвердил mismatch preservation versus search avoidance. Runtime61/VPS прежние;
+compact/G2/native/Compose/scale/R/цель открыты. Точные gates и следующий bugfix — в78/handoff.
+
+**Приоритетная актуализация — source77:** [shared-junction repair](PRIMARY_ROUTING_77.md).
+Full77 завершён1170cases/1166PASS/1compactFAIL/3skip;17/17/strict exportPASS, но **регрессия
+engineering cheapest:3плохих угла**, shortest стал длиннее. Не обновлять runtime на77.
+Roads75 завершён2838,622с/16of17,exact variants72; новый roads77session2599 использует
+frozen snapshot77target. Terminal-direction78 в работе, не завершённый quality gate.
+Соседнее принятое ребро не блокирует собственную камеру; только подтверждённая node identity
+и начальный прямой контакт, без ослабления отступов/запретов.29новых regression tests,
+111focusedPASS,65independentPASS. Конечный clean/fast Maven1166cases/1163PASS/0fail/0error/
+3scale skip;web36/scripts37/lint/typecheckPASS. Fixture-accepted77 не подтверждает качество
+cheapest: этот assertion отсутствовал; подробный полный итог и открытый дефект выше.
+Направление terminal road entry — следующий отдельный defect, не исправлено77.
+Compact/G2/native/Compose/scale/R и цель открыты; runtime61/VPS прежние.
+Ниже исторические checkpoint; текущие handles указаны в77 и handoff.
+
+**Приоритетная актуализация — checkpoint76:** [отклонённые оптимизации и shared junction](PRIMARY_ROUTING_76.md).
+Небезопасное отсечение A* удалено после двух воспроизведённых epsilon-chain контрпримеров;
+Численная подготовка тоже не принята:6962exact PASS, но измеренного выигрыша нет.
+Production неизменён75;12новых priority regression tests, конечный clean/fast Maven1137cases/
+1134PASS/0fail/0error/3scale skip (три долгих класса исключены,main точно какfull75).
+Web36/scripts37/lint/typecheckPASS. Воспроизведены shared-junction self-blocking и terminal
+direction mismatch — следующие correctness-задачи, не доказанная причина неполных17подключений.
+Full75 завершён:1129cases/1125PASS/1compactFAIL/0errors/3skip;fixture526,467с/17of17/
+strict export3ролейPASS,exact variants74. Roads72 завершён failure16/17 во всех ролях;
+accepted отсутствует, diagnostic сохранён. Roads75session70338 ещё использует snapshot75target.
+Цель/compact/G2/native/Compose/scale/R не закрыты, runtime61/VPS прежние.
+
+**Предыдущий source75:** [final-ДУ retention](PRIMARY_ROUTING_75.md).
+Реальный RED потери допустимого ввода исправлен;15новых regression tests и независимое review.
+Fast Maven1125cases/1122PASS/0fail/0error/3scale skip;web36/scripts37/lint/typecheckPASS.
+Full/fresh конечных74 завершён:1114cases/1110PASS/1compact failure/0errors/3scale skip;
+fixture532,720с,17/17,strict export3ролей PASS, все variants как73. Ускорение всего расчёта
+пока не доказано; предыдущий fixture73 —529,767с,533,933с было временем класса из2тестов.
+Теперь full75session70380 и fresh roads75session70338 используют один отдельный snapshot;
+roads72session19058 — основнойtarget. Не перезаписывать занятые target. Fresh75 ещё не принят.
+G2/compact/native/Compose/scale/R и цель остаются открытыми. Runtime61/VPS не менялись.
+Ниже — история предыдущих checkpoint, а не текущие статусы запущенных процессов.
+
+**Текущий source72, WIP:** [G2 road/tram/atomic sections](PRIMARY_ROUTING_72.md).
+После focused263PASS исправлены3review findings и округление oblique секций.
+Финальный быстрый Maven1049cases/1046PASS/0fail/0error/3skip (исключены3долгих класса),
+web36/scripts37/lint/typecheckPASS. Full/fresh/roads/native/scale ещё не приняты;
+нет claim о готовности G2/R. Runtime61 остаётся прежним.
+Код `a410259` отправлен; clean/full72 запущен без исключений,accepted72 ещё нет.
+
+**Последняя проверенная база — fresh71:** clean969cases/965PASS/1compact failure/0errors/
+3scale skip; исходный dataset fixture513,704с,17/17,strict export3ролей PASS.
+shortest/cheapest2068,786м/11новых камер/22поворота/283006479,92₽. Snapshot71 сохранён.
+Далее correctness72 road/tram: пока focused, не новый accepted build и не закрытие G2.
+Runtime61 не менялся. [Подробности71](PRIMARY_ROUTING_71.md).
+
+**Текущий source71, WIP:** [короткие допустимые вводы](PRIMARY_ROUTING_71.md).
+Bounded local-pass после relocation с полным пересчётом и сохранением исходных ролей.
+Focused125PASS; production-helper replay69 даёт2068,786м/11камер/22поворота/0expert у
+shortest/cheapest,17/17/depth/strict export3ролей PASS. Balanced неизменён. Это не fresh71;
+код `0d4d462` отправлен. Full70 завершён:951/947PASS/1failure(compact-control)/3skip,
+fresh500,035с/17of17/strict exportPASS,exact variants69. Full/fresh71 выполняется отдельно.
+Runtime61/R-gates не закрыты.
+
+**G2 — подтверждённый открытый defect:** [road/tram lateral clearance](G2_SPECIAL_CLEARANCE.md),
+isolated4FAIL/2controlPASS на71. Принимается1,700м от оси вместо1,755м дляДУ100.
+Нынешний strict export не является доказательством этой отсутствующей проверки.
+
+**Предыдущий source70, WIP:** [пространственная подготовка validation](PRIMARY_ROUTING_70.md).
+Bounded snapshots/bounds/buffers, первый buffer/отказы и полный осевой отступ сохранены.
+Isolated101PASS/0FAIL; validation replay69 3×3:exact issues0,655buffers/43183coord стабильно
+после прогрева. Не fresh70/performance gate. Roads69 завершён:1054,672с/17of17/strict export
+3ролей PASS; shortest/cheapest2260,959м/11камер/33поворота/0expert. Full/fresh70 завершён выше.
+Runtime61,compact-control,native/Compose/scale и R-gates остаются открытыми.
+
+**Предыдущий source69, WIP:** [подготовка препятствий для валидатора](PRIMARY_ROUTING_69.md).
+JFR67 показал повторные JTS buffers внутри validation. Сессия расчёта удерживает только
+bounded-подготовку; геометрия проверяется заново, standalone/export не менялись.
+Код `63b0072`, isolated86/86PASS, subclass-hook сохранён после RED; web36/scripts37/lint/typecheckPASS.
+Clean69 завершён:936cases/932PASS/1failure(compact-control)/0errors/3skip; fresh660,385с/
+17of17/strict export3ролей PASS. Все variants точно совпадают с67, shortest/cheapest11камер/
+2090,416м/23поворота/0expert. Ускорения нет: подготовка вытесняется при смене ДУ;
+следующий spatial-подход пока только review. Fresh roads+kindergarten запущен отдельно.
+Runtime61 сохранён, native/Compose/scale и R-gates открыты.
+
+**Предыдущий source68, WIP:** [сохранение исходных relocation-контролей](PRIMARY_ROUTING_68.md).
+Код `ae452a7`,79focusedPASS. Исправлена обнаруженная review потеря ещё не выполненного
+переноса у исходного кандидата (RED75м вместо70м). Исправление включено в полный69 gate;
+отдельного full/fresh68 не было. Runtime61 сохранён, общий quality/R-gate открыт.
+
+**Предыдущий source67, WIP:** [поздняя доводка и подготовка препятствий](PRIMARY_ROUTING_67.md).
+Код `ff1a4c1`/`da44a56` отправлен. Replay66 даёт11новых камер/2090,416м/23поворота/0expert/
+strict exportPASS; исправлено отсутствие этого этапа у позднего победителя portfolio.
+Отдельная search-local подготовка контуров сохраняет точные результаты;80router PASS,
+repair77focused/4guardsPASS. Web36/scripts37/lint/typecheckPASS; clean924:920PASS/1failure/
+0errors/3skip; fresh640,761с/17of17/strict exportPASS. Все роли0expert, shortest/cheapest
+11камер/2090,416м. Runtime61 сохранён; ускорение/release/R-этапы не подтверждены.
+
+**Предыдущий source66, WIP:** [индивидуальные вводы и сохранение контрольной сетки](PRIMARY_ROUTING_66.md).
+Код `8d58875` / `3c50437` в origin. Исправлены локальный mismatch ДУ anchors и численная
+потеря минимального перехода при UTM-переносе. Focused55/web36/scripts37/lint/typecheckPASS;
+clean914:910PASS/1failure/0errors/3skip, compact-control FAIL. Fresh652,482с/17of17/strict
+export3ролей PASS. Cheapest11новых камер/2092,274м/24поворота/1неподходящий угол; дешевле65,
+но чуть длиннее и медленнее. Balanced/shortest не улучшился. Runtime61 сохранён; общий
+quality gate, ускорение и R-этапы не объявляются завершёнными.
+
+**Предыдущий source65, WIP:** [наклонные вводы с двумя поворотами](PRIMARY_ROUTING_65.md),
+код `aff1dcf` в origin. Сохранены соосные прямоугольные контроли; новые локальные диагонали
+проходят прежние проверки углов/ввода/отступов. Весь Java-набор двумя прогонами909:
+905PASS/1failure/0errors/3skip; compact-control FAIL. Fresh17/17/strict export3вариантов PASS.
+Balanced2192,523м/14камер/25поворотов — без улучшения; cheapest дешевле64, но длиннее и хуже
+поscore,4неподходящих угла. Web36/scripts37/lint/typecheck PASS. Runtime61 не менялся,
+ускорение/готовность/R-этапы не заявляются. Следующий доказанный локальный дефект — разные
+ДУ anchors и вводов, точный синтетический контрпример записан в65.
+
+**Предыдущий source64, WIP:** [действительные нормали и полный ввод](PRIMARY_ROUTING_64.md).
+Нормали и R+W/2 для forbidden включены в рабочую ветку; special/depth/PostGIS остаются G2 TODO.
+Закрываются реальные safety/rounding дефекты, локальные проверки проходят, но полный quality
+gate ещё не пройден. Исторический компактный контроль не восстановлен; runtime61 сохранён.
+Итог clean904:900PASS/1failure/0errors/3skip (один compact-control FAIL). Fresh17/17 и strict
+export всех3вариантов PASS; инженерный2192,523м/14камер/25поворотов/0expert issues,
+cheapest1983,620м/14камер/28поворотов/6expert issues. Код `2de2ceb`/`0270971` отправлен.
+Никаких заявлений об ускорении, native64, Compose/scale или закрытии R-этапов.
+
+**Предыдущий source63:** [направление ввода и совместный выбор подходов](PRIMARY_ROUTING_63.md).
+Clean Java879/0failures/0errors/3skipped и web36/scripts37/lint/typecheck PASS.
+Fresh17/17/ДУ/глубина/экономика/strict export PASS, preferred1857,156м/13камер/13поворотов.
+Экспортный дефект ценовых станций исправлен без ослабления допуска. Но quality gate открыт:
+balanced длиннее baseline, у cheapest7экспертных нарушений. Ускорение не доказано.
+Runtime61 сохранён; native63 и Compose/scale не заявляются.
+R+W/2 и новые нормали к стенам ещё не включены; никакой R-этап не закрывается.
+
+**Исторический intake25.09 и компонентная подготовка:** после `2e7b713` изучены новые правила,
 PDF-схема, два связанных Google Docs и пользовательский набор239объектов с дорогами/детсадом.
 [Цель, источники, противоречия и gates](EXPERT_ROUTING_2026_09_25.md). Выявлено отсутствие
 полного R+W/2 в активных плановых отступах. Подготовлены проверяемые независимые компоненты

@@ -76,6 +76,14 @@ final class BuildingWallNormals {
         return List.copyOf(result);
     }
 
+    /** Первый полный отступ вдоль фактического луча, в том числе после миллиметрового округления. */
+    Coordinate firstClearancePoint(Geometry footprint, Coordinate origin, Coordinate towards, double clearanceM) {
+        if (footprint.distance(FACTORY.createPoint(origin)) + EPSILON >= clearanceM) return new Coordinate(origin);
+        if (origin.distance(towards) <= EPSILON) return null;
+        Exit exit = extendToClearance(new Exit(origin, towards, 0), footprint, clearanceM);
+        return exit == null ? null : exit.point();
+    }
+
     /** Первый выход луча из объединения точных отступов от сегментов контура. */
     private Exit extendToClearance(Exit exit, Geometry footprint, double clearanceM) {
         double initialLength = exit.point.distance(exit.wall);

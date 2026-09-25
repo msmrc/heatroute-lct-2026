@@ -18,6 +18,13 @@ import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 class OfficialRouteValidatorGeometryBatchTest {
+    // Независимые табличные R + W/2; не используем расчёт буферов для ожидаемого результата.
+    private static final Map<Integer, Double> BUILDING_AXIS_CLEARANCES_M = Map.of(
+            400, 5.0 + 1.370 / 2,
+            500, 7.0 + 1.670 / 2,
+            800, 7.0 + 2.250 / 2,
+            900, 9.0 + 2.450 / 2,
+            1400, 9.0 + 3.450 / 2);
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
@@ -30,7 +37,8 @@ class OfficialRouteValidatorGeometryBatchTest {
         addEdge(nodes, edges, "default", null, null, false, "LINESTRING (-30 20, 30 20)");
         addEdge(nodes, edges, "du50", 50, null, false, "LINESTRING (-30 30, 30 30)");
         addEdge(nodes, edges, "du500", 500, null, false, "LINESTRING (-30 40, 30 40)");
-        addEdge(nodes, edges, "own-egress", 500, null, true, "LINESTRING (-30 0, -5.25 0, 0 0)");
+        // Стена x=-5; ДУ500 требует 7 + 1.670/2 + 0.25 м снаружи до поворота.
+        addEdge(nodes, edges, "own-egress", 500, null, true, "LINESTRING (-30 0, -13.085 0, 0 0)");
 
         assertThat(validator.validate(nodes, edges, features)).isEmpty();
         assertThat(rules.preparedDiameters).containsExactly(50, 500);
@@ -47,7 +55,7 @@ class OfficialRouteValidatorGeometryBatchTest {
     void matchesFreshPerEdgePreparationAtEveryBuildingClearanceBoundary() throws Exception {
         List<ImportedOfficialFeature> features = List.of(oks("own", "POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))"));
         for (int diameter : List.of(400, 500, 800, 900, 1400)) {
-            double clearance = new OfficialConstraintCatalog().existingBuildingClearanceM(diameter).doubleValue();
+            double clearance = BUILDING_AXIS_CLEARANCES_M.get(diameter);
             for (double offset : List.of(-0.001, 0.0, 0.001)) {
                 List<RouteNode> nodes = new ArrayList<>();
                 List<RouteEdge> edges = new ArrayList<>();
@@ -63,7 +71,7 @@ class OfficialRouteValidatorGeometryBatchTest {
     }
 
     @Test
-    void appliesRootExemptionsAndEndpointSetbackRelaxationSeparatelyPerEdge() throws Exception {
+    void rootTargetAndEndpointPositionCannotExemptBuildingSetbacksInABatch() throws Exception {
         List<ImportedOfficialFeature> features = List.of(oks("own", "POLYGON ((0 0, 20 0, 20 20, 0 20, 0 0))"));
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
@@ -71,10 +79,12 @@ class OfficialRouteValidatorGeometryBatchTest {
         addEdge(nodes, edges, "not-exempt", 100, null, false, "LINESTRING (-20 12, 40 12)");
         addEdge(nodes, edges, "endpoint-in-setback", 100, null, false, "LINESTRING (-3 18, -30 18)");
         addEdge(nodes, edges, "no-relaxation", 100, null, false, "LINESTRING (-3 -20, -3 40)");
+        addEdge(nodes, edges, "legal-boundary", 100, "own", false, "LINESTRING (-5.255 6, -30 6)");
+        addEdge(nodes, edges, "exact-wall-boundary", 100, null, false, "LINESTRING (-5.255 8, -30 8)");
         List<RouteValidationIssue> actual = assertEquivalent(nodes, edges, features);
         assertThat(actual.stream().filter(issue -> "FORBIDDEN_CLEARANCE_VIOLATION".equals(issue.getCode()))
                 .map(RouteValidationIssue::getSubjectId).collect(Collectors.toList()))
-                .containsExactly("no-relaxation", "not-exempt");
+                .containsExactly("endpoint-in-setback", "exempt", "no-relaxation", "not-exempt");
     }
 
     @Test
@@ -84,29 +94,57 @@ class OfficialRouteValidatorGeometryBatchTest {
                 oks("remote", "POLYGON ((20 40, 30 40, 30 50, 20 50, 20 40))"));
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
-        addEdge(nodes, edges, "valid-egress", 50, null, true, "LINESTRING (-30 0, -5.25 0, 0 0)");
+        addEdge(nodes, edges, "valid-egress", 50, null, true, "LINESTRING (-30 0, -10.45 0, 0 0)");
         addEdge(nodes, edges, "own-prefix", 50, null, true,
-                "LINESTRING (-30 2, 10 2, 10 0, 5.25 0, 0 0)");
+                "LINESTRING (-30 2, 15 2, 15 0, 10.45 0, 0 0)");
         addEdge(nodes, edges, "distant-detour", 50, null, false,
                 "LINESTRING (0 -30, 25 -30, 25 60, 50 60, 50 -30)");
         List<RouteValidationIssue> actual = assertEquivalent(nodes, edges, features);
+        assertThat(actual).noneMatch(issue -> "OKS_NORMAL_EGRESS_VIOLATION".equals(issue.getCode()));
         assertThat(actual.stream().filter(issue -> "FORBIDDEN_CLEARANCE_VIOLATION".equals(issue.getCode()))
                 .map(RouteValidationIssue::getSubjectId).collect(Collectors.toList()))
                 .contains("own-prefix", "distant-detour").doesNotContain("valid-egress");
     }
 
     @Test
+    void keepsExactOwnPrefixAxisClearanceAtEveryFinalDiameterBoundary() throws Exception {
+        List<ImportedOfficialFeature> features = List.of(oks("own", "POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))"));
+        for (int diameter : List.of(400, 500, 800, 900, 1400)) {
+            double clearance = BUILDING_AXIS_CLEARANCES_M.get(diameter);
+            for (double offset : List.of(-0.001, 0.0, 0.001)) {
+                List<RouteNode> nodes = new ArrayList<>();
+                List<RouteEdge> edges = new ArrayList<>();
+                double x = -5 - clearance - offset;
+                double finalNormalY = 5 + clearance + 0.25;
+                addEdge(nodes, edges, "own-prefix", diameter, null, true,
+                        "LINESTRING (-30 0, " + x + " 0, " + x + " 30, 0 30, 0 " + finalNormalY + ", 0 0)");
+                List<RouteValidationIssue> actual = assertEquivalent(nodes, edges, features);
+                assertThat(actual).noneMatch(issue -> "OKS_NORMAL_EGRESS_VIOLATION".equals(issue.getCode()));
+                assertThat(actual.stream().anyMatch(issue -> "FORBIDDEN_CLEARANCE_VIOLATION".equals(issue.getCode())))
+                        .as("own prefix at DU %s, R+W/2=%s, offset=%s", diameter, clearance, offset)
+                        .isEqualTo(offset < 0);
+            }
+        }
+    }
+
+    @Test
     void preservesSpecialCrossingAndMissingSectionDiagnostics() throws Exception {
         var attributes = mapper.createObjectNode().put("restriction_type", "road");
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature(
-                "road", "restriction", attributes, new WKTReader().read("LINESTRING (0 -50, 0 50)")));
+                "road", "restriction", attributes,
+                new WKTReader().read("POLYGON ((-1 -50, 1 -50, 1 50, -1 50, -1 -50))")));
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
+        // G2 измеряет угол по границе полигона; оба прохода имеют полные защитные прямые 3 м.
         addEdge(nodes, edges, "crossing", 50, null, false, "LINESTRING (-20 -20, 20 20)");
-        addEdge(nodes, edges, "acute", 50, null, false, "LINESTRING (-1 -20, 1 20)");
+        addEdge(nodes, edges, "acute", 50, null, false, "LINESTRING (-10 15, 10 45)");
         List<RouteValidationIssue> actual = assertEquivalent(nodes, edges, features);
         assertThat(actual).extracting(RouteValidationIssue::getCode)
                 .contains("SPECIAL_CROSSING_ANGLE_VIOLATION", "SPECIAL_CROSSING_SECTION_MISSING");
+        assertThat(actual).filteredOn(issue -> "SPECIAL_CROSSING_ANGLE_VIOLATION".equals(issue.getCode()))
+                .extracting(RouteValidationIssue::getSubjectId).containsExactly("acute");
+        assertThat(actual).filteredOn(issue -> "SPECIAL_CROSSING_SECTION_MISSING".equals(issue.getCode()))
+                .extracting(RouteValidationIssue::getSubjectId).containsExactly("crossing");
     }
 
     private List<RouteValidationIssue> assertEquivalent(
@@ -151,7 +189,7 @@ class OfficialRouteValidatorGeometryBatchTest {
         }
     }
 
-    /** Эталон сохраняет прежнее независимое построение всех буферов для каждого набора исключений. */
+    /** Эталон независимо строит все буферы каждого ребра до применения локальных контактов. */
     private static final class PerEdgeRebuildingRules extends OfficialRouteGeometryRules {
         private final List<ImportedOfficialFeature> features;
         private final Map<List<Constraint>, Integer> diameters = new IdentityHashMap<>();
@@ -169,10 +207,10 @@ class OfficialRouteValidatorGeometryBatchTest {
         }
 
         @Override
-        List<Constraint> applicableConstraints(List<Constraint> base, Set<String> exemptions,
+        List<Constraint> localTieInConstraints(List<Constraint> base, Set<String> targets,
                 Coordinate start, Coordinate end) {
-            return super.applicableConstraints(super.baseConstraints(features, diameters.get(base)),
-                    exemptions, start, end);
+            return super.localTieInConstraints(super.baseConstraints(features, diameters.get(base)),
+                    targets, start, end);
         }
     }
 }

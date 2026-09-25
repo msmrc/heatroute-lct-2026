@@ -36,6 +36,66 @@ class CorridorTerminalRoutingTest {
     private final OrthogonalCorridorNetworkBuilder builder = new OrthogonalCorridorNetworkBuilder(router, pipes);
 
     @Test
+    void rejectedShortControlIsMarkedWithoutDiscardingTheValidReplacement() throws Exception {
+        for (double angle : new double[] {0, 13}) {
+            Fixture fixture = fixture(angle, 414000.00049, 6173000.00049);
+            Coordinate port = move(new Coordinate(-30, 10.015), fixture.transform);
+            CorridorTerminalRouter spurs = alternativeRouter(fixture, (id, end, diameter, avoidance) -> null);
+            CorridorTerminalRouter.Choice choice = spurs.routeChoice("terminal", fixture.demand, port, 50);
+            assertThat(choice.path()).isNotNull();
+            assertThat(choice.redirectedControl()).as("rounded short control at %s degrees", angle).isEqualTo(angle == 13);
+            assertThat(OfficialRouteDeflectionRules.validate(nodesFor(choice.path()),
+                    List.of(edgeFromTerminalPath(choice.path())))).isEmpty();
+            assertPathArithmetic(choice.path());
+        }
+    }
+
+    @Test
+    void almostAxialPortOffersAStraightAlternativeAfterRounding() throws Exception {
+        for (double angle : new double[] {0, 13, 71, 117, 203, 289}) {
+            Fixture fixture = fixture(angle, 414000.00049, 6173000.00049);
+            Coordinate port = move(new Coordinate(-30, 10.015), fixture.transform);
+            AtomicInteger fallbackCalls = new AtomicInteger();
+            RoutePath path = terminalPath(fixture.demand, port, fixture.features, fallbackCalls, Math.toRadians(angle));
+            assertThat(path).as("near-axis port at %s degrees", angle).isNotNull();
+            assertThat(fallbackCalls).hasValue(0);
+            RouteEdge edge = edgeFromTerminalPath(path);
+            assertThat(OfficialRouteDeflectionRules.validate(nodesFor(path), List.of(edge))).isEmpty();
+            assertThat(new OfficialRouteValidator(rules).validate(nodesFor(path), List.of(edge), fixture.features)).isEmpty();
+            assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edge)).isCompliant()).isTrue();
+            assertPathArithmetic(path);
+            assertSafeOwnPrefix(path, fixture.features.get(0).getMetricGeometry());
+            CorridorTerminalRouter spurs = alternativeRouter(fixture, (id, end, diameter, avoidance) -> null);
+            List<RoutePath> local = spurs.localAlternatives("terminal", fixture.demand, port, 50);
+            assertThat(local).as("local alternatives at %s degrees", angle).anySatisfy(candidate -> {
+                RouteEdge localEdge = edgeFromTerminalPath(candidate);
+                assertThat(new EngineeringRouteEvaluator().evaluate(List.of(localEdge)).bendCount()).isZero();
+                assertThat(OfficialRouteDeflectionRules.validate(nodesFor(candidate), List.of(localEdge))).isEmpty();
+                assertThat(new OfficialRouteValidator(rules)
+                        .validate(nodesFor(candidate), List.of(localEdge), fixture.features)).isEmpty();
+                assertPathArithmetic(candidate);
+                assertSafeOwnPrefix(candidate, fixture.features.get(0).getMetricGeometry());
+            });
+        }
+    }
+
+    @Test
+    void generatedGridPortDoesNotReceiveTheExistingTieInClearanceException() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        List<ImportedOfficialFeature> features = List.of(
+                new ImportedOfficialFeature("own", "oks_existing", json.createObjectNode(),
+                        new WKTReader().read("POLYGON ((0 0,10 0,10 10,0 10,0 0))")),
+                new ImportedOfficialFeature("foreign", "oks_existing", json.createObjectNode(),
+                        new WKTReader().read("POLYGON ((12 3,15 3,15 7,12 7,12 3))")));
+        AtomicInteger fallbackCalls = new AtomicInteger();
+        assertThat(terminalPath(new Coordinate(8, 5), new Coordinate(-20, 8), features, fallbackCalls)).isNull();
+        assertThat(fallbackCalls).hasValue(1);
+        CorridorTerminalRouter spurs = new CorridorTerminalRouter(router, router.prepare(features),
+                (id, port, diameter, avoidance) -> null, 0);
+        assertThat(spurs.localAlternatives("demand", new Coordinate(8, 5), new Coordinate(-20, 8), 50)).isEmpty();
+    }
+
+    @Test
     void diagonalPortUsesACompleteFacadeNormalThenOneRightAngleWithoutFallback() throws Exception {
         Fixture fixture = fixture(0, 0, 0);
         AtomicInteger fallbackCalls = new AtomicInteger();
@@ -69,7 +129,7 @@ class CorridorTerminalRoutingTest {
         assertThat(fallbackCalls).hasValue(0);
         assertThat(path).isNotNull();
         assertThat(path.coordinates().get(0).distance(fixture.demand)).isLessThan(ROUNDING_TOLERANCE_M);
-        assertThat(path.coordinates()).anyMatch(p -> p.distance(new Coordinate(-0.25, 10)) < ROUNDING_TOLERANCE_M);
+        assertThat(path.coordinates()).anyMatch(p -> p.distance(new Coordinate(-5.45, 10)) < ROUNDING_TOLERANCE_M);
         assertThat(path.coordinates().get(path.coordinates().size() - 1).distance(port)).isLessThan(ROUNDING_TOLERANCE_M);
         assertPathArithmetic(path);
         assertSafeOwnPrefix(path, fixture.features.get(0).getMetricGeometry());
@@ -105,12 +165,14 @@ class CorridorTerminalRoutingTest {
         assertThat(forbidden.covers(forbidden.getFactory().createPoint(exit))).isFalse();
         assertThat(rules.line(List.of(demand, exit)).intersects(forbidden)).isTrue();
         RoutePath path = terminalPath(demand, new Coordinate(-30, 10), features, fallbackCalls);
-        assertThat(path).as("the prefix must be checked against unrelated forbidden features; path=%s, official issues=%s",
-                path == null ? null : path.coordinates(),
-                path == null ? List.of() : new OfficialRouteValidator(rules)
-                        .validate(nodesFor(path), List.of(edgeFromTerminalPath(path)), features).stream()
-                        .map(RouteValidationIssue::getCode).collect(Collectors.toList())).isNull();
-        assertThat(fallbackCalls).hasValue(1);
+        // Перекрытая ближайшая стена теперь заменяется следующей допустимой нормалью.
+        assertThat(path).isNotNull();
+        assertThat(rules.line(path.coordinates()).distance(forbidden)).isGreaterThan(0);
+        assertThat(path.coordinates().get(1).x).isEqualTo(demand.x);
+        assertThat(path.coordinates().get(1).y).isLessThan(0);
+        assertThat(new OfficialRouteValidator(rules)
+                .validate(nodesFor(path), List.of(edgeFromTerminalPath(path)), features)).isEmpty();
+        assertThat(fallbackCalls).hasValue(0);
     }
 
     @Test
@@ -124,12 +186,14 @@ class CorridorTerminalRoutingTest {
     }
 
     @Test
-    void incompatiblePortAxesUseFallbackInsteadOfReturningAnObliqueConnector() throws Exception {
+    void tiltedPortAxesUseACheckedTwoBendTransitionInsteadOfAnObliqueConnector() throws Exception {
         Fixture fixture = fixture(0, 0, 0);
         AtomicInteger fallbackCalls = new AtomicInteger();
         RoutePath path = terminalPath(fixture.demand, fixture.port, fixture.features, fallbackCalls, Math.toRadians(30));
-        assertThat(path).isNull();
-        assertThat(fallbackCalls).hasValue(1);
+        assertThat(path).isNotNull();
+        assertThat(fallbackCalls).hasValue(0);
+        assertCheckedAlternative(path, new Fixture(30, fixture.transform, fixture.demand, fixture.port, fixture.features));
+        assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edgeFromTerminalPath(path))).bendCount()).isEqualTo(2);
     }
 
     @Test
@@ -144,8 +208,19 @@ class CorridorTerminalRoutingTest {
         for (double degrees : new double[] {-90.51, -0.51, 0.51, 90.51, 180.51, 270.51}) {
             AtomicInteger fallbackCalls = new AtomicInteger();
             RoutePath path = terminalPath(fixture.demand, fixture.port, fixture.features, fallbackCalls, Math.toRadians(degrees));
-            assertThat(path).as("outside tolerance at %s degrees", degrees).isNull();
-            assertThat(fallbackCalls).hasValue(1);
+            if (path == null) {
+                assertThat(fallbackCalls).hasValue(1);
+            } else {
+                // Прежний L-ввод за допуском не допускается, но новый реальный переход может существовать.
+                assertThat(fallbackCalls).hasValue(0);
+                List<Coordinate> points = path.coordinates();
+                Coordinate before = points.get(points.size() - 2), end = points.get(points.size() - 1);
+                double angle = Math.atan2(end.y - before.y, end.x - before.x) - Math.toRadians(degrees);
+                assertThat(Math.abs(Math.sin(2 * angle))).isLessThanOrEqualTo(Math.sin(Math.toRadians(1)));
+                assertThat(new OfficialRouteValidator(rules)
+                        .validate(nodesFor(path), List.of(edgeFromTerminalPath(path)), fixture.features)).isEmpty();
+                assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edgeFromTerminalPath(path))).isCompliant()).isTrue();
+            }
         }
     }
 
@@ -196,7 +271,8 @@ class CorridorTerminalRoutingTest {
             for (RoutePath path : actual) assertCheckedAlternative(path, moved);
             for (RoutePath path : expected) {
                 List<Coordinate> transformed = path.coordinates().stream().map(p -> move(p, moved.transform)).collect(Collectors.toList());
-                assertThat(actual).as("same geometry set after %s-degree rotation", degrees)
+                assertThat(actual).as("same geometry set after %s-degree rotation; expected=%s actual=%s", degrees,
+                                transformed, actual.stream().map(RoutePath::coordinates).collect(Collectors.toList()))
                         .anyMatch(candidate -> sameWithin(candidate.coordinates(), transformed, 0.003));
             }
             assertThat(moved.features.get(0).getMetricGeometry().equalsExact(original)).isTrue();
@@ -504,6 +580,7 @@ class CorridorTerminalRoutingTest {
                 router.prepare(features), (id, port, diameter, avoidance) -> null);
         assertThat(networks).as("networks at %s degrees", degrees).isNotEmpty();
         List<OrthogonalCorridorNetworkBuilder.Network> accepted = new ArrayList<>();
+        List<String> diagnostics = new ArrayList<>();
         for (OrthogonalCorridorNetworkBuilder.Network network : networks) {
             Map<String, Integer> degree = new HashMap<>();
             assertThat(network.connections()).hasSize(2).allMatch(c -> "connected".equals(c.getStatus()));
@@ -519,13 +596,15 @@ class CorridorTerminalRoutingTest {
             }
             EngineeringRouteEvaluator.Evaluation evaluation = new EngineeringRouteEvaluator().evaluate(network.edges());
             List<RouteValidationIssue> issues = new OfficialRouteValidator(rules).validate(network.nodes(), network.edges(), features);
+            diagnostics.add(issues.stream().map(issue -> issue.getCode() + ":" + issue.getSubjectId())
+                    .collect(Collectors.toList()) + "; compliant=" + evaluation.isCompliant());
             if (issues.isEmpty() && evaluation.isCompliant() && evaluation.irregularJunctionAngleCount() == 0) {
                 accepted.add(network);
             }
         }
         // Builder возвращает кандидатов, а не окончательно допущенный portfolio: наличие пригодного
         // варианта проверяем независимыми official/engineering-проверками, без требования принять все.
-        assertThat(accepted).as("independently accepted candidates at %s degrees", degrees).isNotEmpty();
+        assertThat(accepted).as("independently accepted candidates at %s degrees: %s", degrees, diagnostics).isNotEmpty();
         for (OrthogonalCorridorNetworkBuilder.Network network : accepted) {
             for (RouteEdge edge : network.edges()) {
                 List<Coordinate> points = edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate).collect(Collectors.toList());
@@ -550,7 +629,7 @@ class CorridorTerminalRoutingTest {
         List<Coordinate> points = path.coordinates();
         assertThat(points.get(0).distance(fixture.demand)).isLessThan(ROUNDING_TOLERANCE_M);
         assertThat(points.get(points.size() - 1).distance(fixture.port)).isLessThan(ROUNDING_TOLERANCE_M);
-        Coordinate expectedExit = move(new Coordinate(-0.25, 10), fixture.transform);
+        Coordinate expectedExit = move(new Coordinate(-5.45, 10), fixture.transform);
         Coordinate expectedElbow = move(new Coordinate(-30, 10), fixture.transform);
         assertThat(points).as("full facade-normal prefix must be preserved").anyMatch(p -> p.distance(expectedExit) < ROUNDING_TOLERANCE_M);
         assertThat(points).as("L elbow instead of a diagonal terminal connector").anyMatch(p -> p.distance(expectedElbow) < ROUNDING_TOLERANCE_M);

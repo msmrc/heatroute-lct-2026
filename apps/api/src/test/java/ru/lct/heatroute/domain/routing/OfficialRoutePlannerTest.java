@@ -192,7 +192,17 @@ class OfficialRoutePlannerTest {
                 candidate("cp-b", "network", 100),
                 candidate("cp-c", "network", 100)));
 
-        RouteVariant shared = planner.plan(features, topology).getVariants().stream()
+        OfficialCalculationResult result = planner.plan(features, topology);
+        result.getVariants().forEach(variant -> {
+            var evaluation = new EngineeringRouteEvaluator().evaluate(variant.getEdges());
+            assertThat(variant.getEngineeringIssues().stream()
+                    .anyMatch(issue -> "EXPERT_BEND_ANGLE_OUT_OF_RANGE".equals(issue.getCode())))
+                    .as("actual angle warnings for %s", variant.getId()).isEqualTo(evaluation.invalidAngleCount() > 0);
+            assertThat(variant.getEngineeringIssues().stream()
+                    .anyMatch(issue -> "EXPERT_BEND_SPACING_TOO_SHORT".equals(issue.getCode())))
+                    .as("actual spacing warnings for %s", variant.getId()).isEqualTo(evaluation.insufficientSpacingCount() > 0);
+        });
+        RouteVariant shared = result.getVariants().stream()
                 .filter(variant -> "balanced".equals(variant.getId()))
                 .findFirst()
                 .orElseThrow();

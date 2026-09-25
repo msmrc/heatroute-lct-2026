@@ -1,6 +1,7 @@
 package ru.lct.heatroute.domain.routing;
 
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,6 +23,8 @@ final class OfficialRoutingEnvironment {
     private final RoutingFeatureSource source;
     private final OfficialRouteGeometryRules rules;
     private final PreparedRoutingConstraints preparedWindowConstraints;
+    private final Map<OfficialRouteValidator, OfficialRouteValidator.ValidationSession> validationSessions
+            = new IdentityHashMap<>();
     private final ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex existingSupport;
     private final Map<Integer, List<Constraint>> baseByDiameter = new HashMap<>();
     private final Map<String, java.util.Optional<RoutePath>> routeCache = new HashMap<>();
@@ -59,6 +62,11 @@ final class OfficialRoutingEnvironment {
 
     RouteNode verifiedRootSupport(RouteNode root) { return existingSupport.verified(root); }
 
+    /** Сохраняет сессию точного экземпляра валидатора только на время этого окружения расчёта. */
+    OfficialRouteValidator.ValidationSession validationFor(OfficialRouteValidator validator) {
+        return validationSessions.computeIfAbsent(validator, OfficialRouteValidator::forCalculation);
+    }
+
     List<Constraint> constraints(
             int diameter,
             Set<String> exemptFeatureIds,
@@ -88,13 +96,32 @@ final class OfficialRoutingEnvironment {
         return all;
     }
 
+    /** Полное окно фактической полилинии; запрещённые буферы не нужны уже проверенной сборке секций. */
+    List<Constraint> corridorCrossingConstraints(int diameter, Envelope bounds) {
+        Envelope query = new Envelope(bounds);
+        query.expandBy(WINDOW_MARGIN_M);
+        List<Constraint> all = new java.util.ArrayList<>(rules.crossingConstraints(features, diameter));
+        all.addAll(rules.crossingConstraints(source.findInMetricWindow(query), diameter));
+        return all;
+    }
+
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgress(int diameter, Coordinate point) {
         return rules.normalEgress(featuresInWindow(point, point), diameter, point);
+    }
+
+    java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgress(
+            int diameter, Coordinate point, RouteTraversal traversal) {
+        return rules.normalEgress(featuresInWindow(point, point), diameter, point, traversal);
     }
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
             int diameter, Coordinate point, Coordinate target) {
         return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target);
+    }
+
+    java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
+            int diameter, Coordinate point, Coordinate target, RouteTraversal traversal) {
+        return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target, traversal);
     }
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
@@ -110,6 +137,13 @@ final class OfficialRoutingEnvironment {
                 maximumAlternativeEgressExtraM);
     }
 
+    java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
+            int diameter, Coordinate point, Coordinate target,
+            double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
+        return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target,
+                maximumAlternativeEgressExtraM, traversal);
+    }
+
     List<OfficialRouteGeometryRules.NormalEgress> normalEgressCandidates(
             int diameter,
             Coordinate point,
@@ -121,6 +155,13 @@ final class OfficialRoutingEnvironment {
                 point,
                 target,
                 maximumAlternativeEgressExtraM);
+    }
+
+    List<OfficialRouteGeometryRules.NormalEgress> normalEgressCandidates(
+            int diameter, Coordinate point, Coordinate target,
+            double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
+        return rules.normalEgressCandidates(featuresInWindow(point, target), diameter, point, target,
+                maximumAlternativeEgressExtraM, traversal);
     }
 
     boolean pointInsideForbiddenClearance(int diameter, Coordinate point) {
@@ -212,15 +253,21 @@ final class OfficialRoutingEnvironment {
     }
 
     /**
-     * Shares exact segment checks only while the complete ordered constraint set has the same
-     * immutable geometry and rule objects. This recognizes equivalent endpoint-clearance wrappers
-     * while retaining endpoint exemptions and dynamic route-avoidance constraints; a bounded LRU
-     * prevents exploratory candidates from retaining unbounded visibility graphs.
+     * Переиспользует проверки неизменяемых ограничений одного расчёта. Направление road/tram
+     * разделено; подготовленные ограничения сохраняют идентичность, а новые обёртки — свой смысл.
      */
     OfficialObstacleRouter.SegmentVisibilityMemo visibilityMemo(List<Constraint> constraints) {
-        ConstraintSetKey key = new ConstraintSetKey(constraints);
+        return visibilityMemo(constraints, RouteTraversal.AS_GIVEN);
+    }
+
+    OfficialObstacleRouter.SegmentVisibilityMemo visibilityMemo(
+            List<Constraint> constraints, RouteTraversal traversal) {
+        boolean directed = constraints.stream().anyMatch(constraint -> !constraint.rule().isForbidden()
+                && ru.lct.heatroute.domain.constraints.RoadCrossingClearance.supports(constraint.type()));
+        ConstraintSetKey key = new ConstraintSetKey(
+                constraints, directed ? traversal : RouteTraversal.AS_GIVEN);
         return visibilityMemos.computeIfAbsent(
-                key, ignored -> new OfficialObstacleRouter.SegmentVisibilityMemo());
+                key, ignored -> new OfficialObstacleRouter.SegmentVisibilityMemo(directed));
     }
 
     private org.locationtech.jts.geom.Envelope window(Coordinate start, Coordinate end) {
@@ -231,17 +278,15 @@ final class OfficialRoutingEnvironment {
 
     private static final class ConstraintSetKey {
         private final Constraint[] constraints;
+        private final RouteTraversal traversal;
         private final int hash;
 
-        private ConstraintSetKey(List<Constraint> constraints) {
+        private ConstraintSetKey(List<Constraint> constraints, RouteTraversal traversal) {
             this.constraints = constraints.toArray(new Constraint[0]);
-            int result = 1;
+            this.traversal = traversal;
+            int result = traversal.hashCode();
             for (Constraint constraint : this.constraints) {
-                result = 31 * result + constraint.id().hashCode();
-                result = 31 * result + constraint.type().hashCode();
-                result = 31 * result + System.identityHashCode(constraint.source());
-                result = 31 * result + System.identityHashCode(constraint.blocked());
-                result = 31 * result + System.identityHashCode(constraint.rule());
+                result = 31 * result + System.identityHashCode(constraint);
             }
             this.hash = result;
         }
@@ -255,18 +300,10 @@ final class OfficialRoutingEnvironment {
         public boolean equals(Object candidate) {
             if (this == candidate) return true;
             if (!(candidate instanceof ConstraintSetKey)) return false;
-            Constraint[] other = ((ConstraintSetKey) candidate).constraints;
-            if (constraints.length != other.length) return false;
+            ConstraintSetKey other = (ConstraintSetKey) candidate;
+            if (traversal != other.traversal || constraints.length != other.constraints.length) return false;
             for (int index = 0; index < constraints.length; index++) {
-                Constraint left = constraints[index];
-                Constraint right = other[index];
-                if (!left.id().equals(right.id())
-                        || !left.type().equals(right.type())
-                        || left.source() != right.source()
-                        || left.blocked() != right.blocked()
-                        || left.rule() != right.rule()) {
-                    return false;
-                }
+                if (constraints[index] != other.constraints[index]) return false;
             }
             return true;
         }

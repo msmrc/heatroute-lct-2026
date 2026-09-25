@@ -34,19 +34,20 @@ class PreparedRoutingConstraintsTest {
     private final WKTReader reader = new WKTReader();
 
     @Test
-    void matchesFreshPreparationForEveryOfficialDiameterAndReusesOnlyThreeOksClearances() throws Exception {
+    void matchesFreshPreparationForEveryOfficialDiameterWithoutReusingNarrowerClearance() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 feature("z", "park", "POLYGON ((0 0, 8 0, 8 8, 0 8, 0 0))"),
                 feature("b", "oks", "POLYGON ((20 20, 24 20, 24 24, 20 24, 20 20))"),
-                feature("a", "road", "LINESTRING (40 0, 40 80)"),
+                feature("a", "road", "POLYGON ((39 0, 41 0, 41 80, 39 80, 39 0))"),
                 feature("n", "heat_network", "LINESTRING (0 -20, 80 -20)"));
 
         for (int diameter : DIAMETERS) {
             assertEquivalent(reference.baseConstraints(features, diameter), prepared.prepare(features, diameter));
         }
 
-        assertThat(rules.compilations).isEqualTo(6);
-        assertThat(prepared.retainedEntryCount()).isEqualTo(6);
+        // G2: два forbidden и road имеют ДУ-зависимый осевой buffer; heat_network пока общий.
+        assertThat(rules.compilations).isEqualTo(3 * 18 + 1);
+        assertThat(prepared.retainedEntryCount()).isEqualTo(3 * 18 + 1);
     }
 
     @Test
@@ -174,15 +175,40 @@ class PreparedRoutingConstraintsTest {
         assertThatThrownBy(() -> prepared.prepare(List.of(building), 101))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage("new-network diameter must be an official DU");
         List<ImportedOfficialFeature> ignoredOrIndependent = List.of(
-                feature("road", "road", "POINT (0 0)"), feature("park", "park", "POINT (0 0)"),
+                feature("cable", "power_cable", "LINESTRING (0 0, 10 0)"),
                 feature("empty", "oks", "POLYGON EMPTY"), feature("unknown", "unknown", "POINT (0 0)"),
                 new ImportedOfficialFeature("null", "oks_existing", null, null),
                 new ImportedOfficialFeature("consumer", "consumer", null, reader.read("POINT (0 0)")));
         for (int diameter : new int[] {0, 101, -1}) {
+            assertThatThrownBy(() -> prepared.prepare(List.of(feature("park", "park", "POINT (0 0)")), diameter))
+                    .isInstanceOf(IllegalArgumentException.class);
             assertEquivalent(reference.baseConstraints(ignoredOrIndependent, diameter),
                     prepared.prepare(ignoredOrIndependent, diameter));
         }
         assertThat(prepared.prepare(List.of(), 0)).isEmpty();
+    }
+
+    @Test
+    void rejectsUnsupportedRoadAndTramDiametersEvenAfterPreparationHit() throws Exception {
+        for (String type : List.of("road", "tram_tracks")) {
+            List<ImportedOfficialFeature> features = List.of(
+                    feature(type, type, "POLYGON ((0 0, 20 0, 20 6, 0 6, 0 0))"));
+            Constraint valid = prepared.prepare(features, 100).get(0);
+            int entries = prepared.retainedEntryCount();
+            long coordinates = prepared.retainedCoordinateCount();
+            // G2: отступ special также включает W/2, поэтому cache-hit не разрешает неизвестный ДУ.
+            for (int diameter : new int[] {0, 101, -1, 101}) {
+                assertThatThrownBy(() -> reference.baseConstraints(features, diameter))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("new-network diameter must be an official DU");
+                assertThatThrownBy(() -> prepared.prepare(features, diameter))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessage("new-network diameter must be an official DU");
+            }
+            assertThat(prepared.retainedEntryCount()).isEqualTo(entries);
+            assertThat(prepared.retainedCoordinateCount()).isEqualTo(coordinates);
+            assertThat(prepared.prepare(features, 100).get(0)).isSameAs(valid);
+        }
     }
 
     @Test
@@ -277,13 +303,14 @@ class PreparedRoutingConstraintsTest {
 
     @Test
     void constraintsWithoutBlockedGeometryReserveOnlyTheirOwnedSource() throws Exception {
-        ImportedOfficialFeature road = feature("road", "road", "LINESTRING (0 0, 20 0)");
+        // Road/tram теперь имеют buffer; у power_cable по действующему контракту его ещё нет.
+        ImportedOfficialFeature cable = feature("cable", "power_cable", "LINESTRING (0 0, 20 0)");
         PreparedRoutingConstraints bounded = new PreparedRoutingConstraints(rules, 8, 2);
-        Constraint constraint = bounded.prepare(List.of(road), 100).get(0);
+        Constraint constraint = bounded.prepare(List.of(cable), 100).get(0);
         assertThat(constraint.blocked()).isNull();
         assertThat(constraint.segmentIndexCoordinateReservation()).isZero();
         assertThat(bounded.retainedCoordinateCount()).isEqualTo(2);
-        assertThat(bounded.prepare(List.of(road), 100).get(0)).isSameAs(constraint);
+        assertThat(bounded.prepare(List.of(cable), 100).get(0)).isSameAs(constraint);
     }
 
     @Test
@@ -337,7 +364,7 @@ class PreparedRoutingConstraintsTest {
         List<ImportedOfficialFeature> features = List.of(
                 feature("building", "oks", "POLYGON ((0 0, 8 0, 8 8, 0 8, 0 0))"),
                 feature("park", "park", "POLYGON ((20 0, 25 0, 25 10, 20 10, 20 0))"),
-                feature("road", "road", "LINESTRING (-10 -10, 30 30)"));
+                feature("road", "road", "POLYGON ((-11 -9, -9 -11, 31 29, 29 31, -11 -9))"));
         Random random = new Random(49001);
         for (int diameter : new int[] {100, 500, 900}) {
             for (int trial = 0; trial < 150; trial++) {
@@ -354,7 +381,8 @@ class PreparedRoutingConstraintsTest {
                         .isEqualTo(reference.pointInsideForbiddenClearance(start, reference.index(expected)));
             }
         }
-        assertThat(rules.compilations).isEqualTo(5);
+        // Building, park и road готовятся по одному разу для каждого из трёх ДУ.
+        assertThat(rules.compilations).isEqualTo(9);
     }
 
     private ImportedOfficialFeature feature(String id, String type, String wkt) throws Exception {

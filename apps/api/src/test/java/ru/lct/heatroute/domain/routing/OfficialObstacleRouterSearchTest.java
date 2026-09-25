@@ -277,12 +277,21 @@ class OfficialObstacleRouterSearchTest {
         Object widened = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPath",
                 widenedGraph, constraints, RoutePreference.SHORTEST,
                 widenedGraph.get(0), widenedGraph.get(1), memo);
+        int checksAfterWidening = countingRules.visibilityChecks;
+        Object repeated = ReflectionTestUtils.invokeMethod(countingRouter, "shortestPath",
+                widenedGraph, constraints, RoutePreference.SHORTEST,
+                widenedGraph.get(0), widenedGraph.get(1), memo);
 
-        assertThat((List<?>) ReflectionTestUtils.getField(first, "coordinates")).hasSize(2);
-        assertThat((List<?>) ReflectionTestUtils.getField(widened, "coordinates")).hasSize(2);
+        assertThat(ReflectionTestUtils.getField(first, "coordinates")).isEqualTo(firstGraph);
+        assertThat(ReflectionTestUtils.getField(widened, "coordinates")).isEqualTo(firstGraph);
+        assertThat(ReflectionTestUtils.getField(repeated, "coordinates")).isEqualTo(firstGraph);
         assertThat(ReflectionTestUtils.getField(first, "evaluatedPairCount")).isEqualTo(1L);
-        assertThat(ReflectionTestUtils.getField(widened, "evaluatedPairCount")).isEqualTo(0L);
-        assertThat(countingRules.visibilityChecks).isEqualTo(1);
+        // Новый узел может требовать новых рёбер: повторно проверяться не должны уже известные.
+        assertThat(countingRules.segmentChecks.get(firstGraph)).isEqualTo(1);
+        assertThat(countingRules.segmentChecks).hasSizeGreaterThan(1);
+        assertThat(countingRules.segmentChecks.values()).allMatch(checks -> checks == 1);
+        assertThat(ReflectionTestUtils.getField(repeated, "evaluatedPairCount")).isEqualTo(0L);
+        assertThat(countingRules.visibilityChecks).isEqualTo(checksAfterWidening);
     }
 
     @Test
@@ -299,7 +308,7 @@ class OfficialObstacleRouterSearchTest {
         ConstraintIndex index = rules.index(constraints);
         Coordinate start = new Coordinate(0, 0);
         Coordinate boundary = new Coordinate(constraints.get(0).blocked().getEnvelopeInternal().getMinX(), 0);
-        Coordinate publishedClearance = new Coordinate(39, 0);
+        Coordinate publishedClearance = new Coordinate(38.745, 0); // 40 - R1 - W100/2.
 
         assertThat(rules.pointInsideForbiddenClearance(boundary, index)).isTrue();
         assertThat(rules.segmentAllowed(start, boundary, index)).isFalse();
@@ -593,6 +602,7 @@ class OfficialObstacleRouterSearchTest {
 
     private static final class VisibilityCounter extends OfficialRouteGeometryRules {
         private final Set<Coordinate> blockedEndpoints;
+        private final Map<List<Coordinate>, Integer> segmentChecks = new HashMap<>();
         private int visibilityChecks;
         private int blockedEndpointChecks;
 
@@ -604,6 +614,7 @@ class OfficialObstacleRouterSearchTest {
         @Override
         boolean segmentAllowed(Coordinate start, Coordinate end, ConstraintIndex constraints) {
             visibilityChecks++;
+            segmentChecks.merge(List.of(new Coordinate(start), new Coordinate(end)), 1, Integer::sum);
             if (blockedEndpoints.contains(start) || blockedEndpoints.contains(end)) {
                 blockedEndpointChecks++;
             }

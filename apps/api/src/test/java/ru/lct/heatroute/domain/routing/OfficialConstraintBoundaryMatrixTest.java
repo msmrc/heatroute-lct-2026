@@ -30,9 +30,10 @@ class OfficialConstraintBoundaryMatrixTest {
             List<OfficialRouteGeometryRules.Constraint> constraints = rules.baseConstraints(
                     List.of(restriction), 100);
 
-            assertThat(rules.lineAllowed(horizontal(2.01), constraints)).as(type + " positive").isTrue();
-            assertThat(rules.lineAllowed(horizontal(2.0), constraints)).as(type + " boundary").isTrue();
-            assertThat(rules.lineAllowed(horizontal(1.99), constraints)).as(type + " negative").isFalse();
+            // ДУ100: R=1 м, W/2=0.255 м; граница полигона y=1.
+            assertThat(rules.lineAllowed(horizontal(2.256), constraints)).as(type + " positive").isTrue();
+            assertThat(rules.lineAllowed(horizontal(2.255), constraints)).as(type + " boundary").isTrue();
+            assertThat(rules.lineAllowed(horizontal(2.254), constraints)).as(type + " negative").isFalse();
         }
     }
 
@@ -40,15 +41,17 @@ class OfficialConstraintBoundaryMatrixTest {
     void coversPositiveBoundaryAndNegativeCasesForEveryOksDiameterBand() throws Exception {
         ImportedOfficialFeature building = feature(
                 "oks_existing", "oks", "POLYGON ((-1 -1, 1 -1, 1 1, -1 1, -1 -1))", "{}");
-        assertDynamicClearance(building, 400, 5.0);
-        assertDynamicClearance(building, 500, 7.0);
-        assertDynamicClearance(building, 900, 9.0);
+        int[] diameters = {50,65,80,100,125,150,200,250,300,400,500,600,700,800,900,1000,1200,1400};
+        double[] axialM = {5.2,5.215,5.235,5.255,5.3,5.325,5.44,5.525,5.575,5.685,
+                7.835,7.925,8.025,8.125,10.225,10.325,10.55,10.725};
+        for (int i = 0; i < diameters.length; i++) assertDynamicClearance(building, diameters[i], axialM[i]);
     }
 
     @Test
     void coversAngleAndSpecialSectionBoundariesForRoadAndTramRows() throws Exception {
         for (String type : ANGLED_SPECIAL) {
-            ImportedOfficialFeature restriction = restriction(type, "LINESTRING (-20 0, 20 0)");
+            // Официальные road/tram — polygon: ширина 2 м плюс 3 м с каждой стороны.
+            ImportedOfficialFeature restriction = restriction(type, "POLYGON ((-20 -1,20 -1,20 1,-20 1,-20 -1))");
             LineString positive = (LineString) reader.read("LINESTRING (0 -10, 0 10)");
             LineString boundary = (LineString) reader.read("LINESTRING (-10 -10, 10 10)");
             LineString negative = (LineString) reader.read("LINESTRING (-10 -9.9, 10 9.9)");
@@ -61,7 +64,7 @@ class OfficialConstraintBoundaryMatrixTest {
             assertThat(rules.sections(positive, constraints)).filteredOn(section -> "special".equals(section.getKind()))
                     .singleElement().satisfies(section -> {
                         assertThat(section.getRestrictionType()).isEqualTo(type);
-                        assertThat(section.getLengthM()).isEqualByComparingTo("6.000");
+                        assertThat(section.getLengthM()).isEqualByComparingTo("8.000");
                     });
         }
     }

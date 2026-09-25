@@ -137,9 +137,12 @@ public class OfficialGeoJsonExporter {
         ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex support =
                 new ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex(inputFeatures);
         Map<JsonNode, Map<String, Integer>> chamberDiameters = new java.util.IdentityHashMap<>();
+        SavedForbiddenClearanceAssessment spatial = new SavedForbiddenClearanceAssessment(inputFeatures);
         // Проверяем все выбранные варианты до передачи первой feature потребителю потока.
         for (JsonNode variant : variants) {
             chamberDiameters.put(variant, SavedChamberAssessment.verify(variant, support, economics));
+            SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog);
+            spatial.verify(variant);
         }
         for (JsonNode variant : variants) {
             appendVariant(output, variant, inputById, allowMissingTieInDiameter, chamberDiameters.get(variant));
@@ -666,6 +669,17 @@ public class OfficialGeoJsonExporter {
             BigDecimal overlapLength = segmentLength.multiply(overlapEnd.subtract(overlapStart))
                     .divide(segmentEnd.subtract(segmentStart), 12, RoundingMode.HALF_UP);
             length = length.add(overlapLength);
+            if (hasDepthProfile(depthProfile)) {
+                // Смета делит цену сегмента по миллиметровым станциям профиля глубины.
+                // Геометрическая длина выше остаётся независимой от округления ценового интервала.
+                BigDecimal pricedStart = segmentStart.setScale(3, RoundingMode.HALF_UP);
+                BigDecimal pricedEnd = segmentEnd.setScale(3, RoundingMode.HALF_UP);
+                overlapStart = pricedStart.max(pieceStart.setScale(3, RoundingMode.HALF_UP));
+                overlapEnd = pricedEnd.min(pieceEnd.setScale(3, RoundingMode.HALF_UP));
+                if (overlapEnd.compareTo(overlapStart) <= 0) continue;
+                overlapLength = segmentLength.multiply(overlapEnd.subtract(overlapStart))
+                        .divide(pricedEnd.subtract(pricedStart), 12, RoundingMode.HALF_UP);
+            }
             cost = cost.add(economicsCalculator.constructionSegmentCost(
                     pipe, overlapLength, crossing,
                     averageDepth(depthProfile, overlapStart, overlapEnd), BigDecimal.ONE));
@@ -813,9 +827,11 @@ public class OfficialGeoJsonExporter {
     }
 
     private double coordinateDistance(JsonNode left, JsonNode right) {
+        // Вычитаем метрические координаты до перехода к double, как в калькуляторе сметы.
+        // Иначе перенос в UTM меняет доли длины и округление цены на границе полкопейки.
         return Math.hypot(
-                right.path("xm").asDouble() - left.path("xm").asDouble(),
-                right.path("ym").asDouble() - left.path("ym").asDouble());
+                right.path("xm").decimalValue().subtract(left.path("xm").decimalValue()).doubleValue(),
+                right.path("ym").decimalValue().subtract(left.path("ym").decimalValue()).doubleValue());
     }
 
     private static final class ExportPieceMeasure {

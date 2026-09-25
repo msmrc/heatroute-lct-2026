@@ -11,6 +11,9 @@ Web36/scripts37/lint/typecheckPASS. Статическое review без зам�
 Живые targets: full79session51226→`.tooling/source79-build.RQBOQ4/apps/api/target`,
 full78session46700→`.tooling/source78-build.X5TXbQ/apps/api/target`,
 roads77session2599→`.tooling/source77-build.FeShm8/apps/api/target`. Не изменять их до завершения.
+Дополнительно запущен roads79session69123, runner `.tooling/scenario79.Vhd4HA`, тот же target79:
+**не очищать target79 после full79 до окончания roads79**. Лог `source79-roads.log`, вход239features
+проверен по SHA в79. Fresh results ещё нет; все четыре процесса подтверждены живыми.
 Следом явная all-role engineering проверка свежего79 (cheapest не покрыт текущими assertions),
 roads79/native smoke и сравнение с экспертом. Source79 не является принятым релизом;
 runtime61/VPS/compact/G2/scale/Compose/R не изменены. Осталось4%лимита, сохраняем checkpoint.

@@ -59,9 +59,15 @@ portfolio выберет ту же сеть.** Третий плохой уго�
   `source79-full.log`, `source79-result.json` после assertions, `source79-diagnostic.json` до них.
 - Full78session46700 ещё работает на `.tooling/source78-build.X5TXbQ/apps/api/target`.
 - Roads77session2599 ещё работает на `.tooling/source77-build.FeShm8/apps/api/target`.
+- Запущен fresh roads79session69123, runner `.tooling/scenario79.Vhd4HA`, на том же frozen
+  target79 после завершения компиляции full79. **Target79 не очищать и после окончания full79,
+  пока roads79 не завершится.** Вход239features с SHA`acac7a6885f53faa360becde85bcfea6571eb01c60bcf106da7b2c378918125b`.
+  Лог `source79-roads.log`, принятый bundle `source79-roads-result.json`, диагностика до
+  assertions — `source79-roads-result.json.diagnostic.json`. Процесс подтверждён живым,
+  результаты ещё отсутствуют. Это domain fixture, не HTTP/PostGIS/scale.
 - Не перезаписывать эти targets, не дублировать тихий расчёт. Все логи в `.tooling/intake-20260925/`.
 - У dataset/helper quality assertions нет cheapest engineering: проверить все три роли явно,
-  даже если accepted JSON появился. Затем свежий roads79, качество/подключения/strict export,
+  даже если accepted JSON появился. Дождаться roads79, проверить качество/подключения/strict export,
   сопоставимые изображения и native HTTP→DB→export. До этого runtime61/VPS не обновлять.
 
 На сохранении checkpoint осталось4%недельного лимита. Код/точные границы проверок сохраняются

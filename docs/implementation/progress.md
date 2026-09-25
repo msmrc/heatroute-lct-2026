@@ -8,6 +8,8 @@
 scoped59PASS, web36/scripts37/lint/typecheckPASS, независимое bounded static review без замечаний.
 Повтор доводки saved75 на79:6/6exactPASS,shortest/cheapest2068,786м/0bad angles; **не fresh79**.
 Full79session51226 запущен; full78session46700/roads77session2599 ещё работают, targets frozen.
+Дополнительно fresh roads79session69123 запущен на compiled target79; этот target остаётся
+замороженным и после full79 до завершения roads79. Вход проверен по SHA, результат ещё не получен.
 Нужен fresh all-role quality (включая cheapest), roads79 и native smoke. Runtime61/VPS не менялись.
 Релиз/compact/G2/Compose/scale/R/цель не закрыты;4%недельного лимита, checkpoint в Git.
 

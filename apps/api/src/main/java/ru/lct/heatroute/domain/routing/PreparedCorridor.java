@@ -161,6 +161,8 @@ final class PreparedCorridor {
         }
         LineString line = rules.line(rounded);
         boolean atRoot = isRoot(rounded.get(0)) || isRoot(rounded.get(rounded.size() - 1));
+        // Видимость звена допускает часть crossing; готовый путь обязан содержать весь special.
+        if (!rules.lineAllowed(line, atRoot ? rootIndex : strictIndex)) return null;
         return new RoutePath(rounded, rules.sections(line, atRoot ? rootConstraints : constraints), line.getLength());
     }
 

@@ -24,15 +24,20 @@ class OfficialObstacleRouterFallbackTest {
 
     @Test
     void skipsIdenticalPocketGraphsAfterAllOrdinaryCorridorsFail() throws Exception {
-        // Линейная дорога: пересечение слишком пологое, полигональных порталов и карманов нет.
-        List<ImportedOfficialFeature> features = List.of(restriction("road", "road",
-                "LINESTRING (50 -1000,50 1000)"));
+        // Недоступное звено без дополнительных узлов: все три ordinary/pocket графа одинаковы.
+        // Линейная road не подходит для этой синтетики: её нет в официальном polygon-контракте.
+        OfficialObstacleRouter unavailable = new OfficialObstacleRouter(new OfficialRouteGeometryRules(
+                new OfficialConstraintCatalog(), new OfficialCrossingGeometry()) {
+            @Override boolean segmentAllowed(Coordinate start, Coordinate end, ConstraintIndex constraints) {
+                return false;
+            }
+        });
         Coordinate start = new Coordinate(0, -100);
         Coordinate end = new Coordinate(100, 1000);
         for (int repeat = 0; repeat < 2; repeat++) {
-            OfficialRoutingEnvironment environment = router.prepare(features);
+            OfficialRoutingEnvironment environment = unavailable.prepare(List.of());
 
-            assertThat(router.find(start, end, 100, environment, Set.of(), RoutePreference.SHORTEST)).isNull();
+            assertThat(unavailable.find(start, end, 100, environment, Set.of(), RoutePreference.SHORTEST)).isNull();
 
             assertSearchCount(environment, 3);
             assertThat(ReflectionTestUtils.getField(environment, "visibilityPairChecks")).isEqualTo(3L);
@@ -82,7 +87,8 @@ class OfficialObstacleRouterFallbackTest {
         assertThat(rejectingRouter.find(new Coordinate(0, 0), new Coordinate(100, 0), 100,
                 environment, Set.of(), RoutePreference.SHORTEST)).isNull();
 
-        assertThat(rejectingRules.validationAttempts).isEqualTo(3);
+        // Каждый ordinary граф проверяет shortcut и исходный путь; pocket повторно не ищется.
+        assertThat(rejectingRules.validationAttempts).isEqualTo(6);
         assertSearchCount(environment, 3);
     }
 

@@ -1,5 +1,27 @@
 # Handoff — Артём / PM / developer
 
+## Следующий checkpoint72: road/tram + atomic special sections
+
+Сначала [PRIMARY_ROUTING_72.md](PRIMARY_ROUTING_72.md). Финальный быстрый Maven1049cases/
+1046PASS/0fail/0error/3scale skip (3долгих класса исключены);web36/scripts37/lint/typecheckPASS.
+Предыдущий broad22190 завершён; его2fixture failures/2rounding errors исправлены и повторены.
+Review3findings исправленRED→GREEN; export-agent38new+42existingPASS, оба агента закрыты.
+Target compiled72; следующийclean/fullбезисключений. Fresh71 PNG создан и просмотрен;
+full72/roads/native/Compose/scale остаются обязательными. Особый открытый риск — special
+через границу логических рёбер. Runtime61 неизменён, цель не завершена.
+
+## Актуализация25.09 ~05:28MSK: full71 завершён, идёт G2 fix72
+
+Приоритет над историческими записями ниже: session28562 завершилась exit1 только из-за
+прежнего compact-control.969cases/965PASS/1failure/0errors/3scale skipped. Fresh original
+fixture513,704с;17/17,shortest/cheapest2068,786м/11камер/22поворота/283006479,92₽,
+depth/strict export3ролей PASS. Snapshot `source71-surefire-reports/`,accepted
+`source71-result.json`, before-assertions diagnostic отдельно. Target можно пересобирать.
+
+Uncommitted72: road/tram clearance/actualboundaryangle/protective3m/порталы; новыеfocused
+тесты, exporter guard интегрируется. Полного72/fresh/roads/native пока нет. Runtime61 сохранён.
+Не принимать source71 strict export за доказательство G2: он воспроизведённо пропускает отступ.
+
 ## Текущий source71: bounded terminal shortening, ещё не fresh
 
 Сначала [PRIMARY_ROUTING_71.md](PRIMARY_ROUTING_71.md).125focusedPASS, реальный80→60RED→GREEN.

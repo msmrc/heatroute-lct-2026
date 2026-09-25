@@ -173,8 +173,8 @@ class OfficialRouteValidatorPreparationTest {
         ImportedOfficialFeature park = feature("same", "park", BUILDING);
         ImportedOfficialFeature remotePark = feature("same", "park",
                 "POLYGON ((-5 1995, 5 1995, 5 2005, -5 2005, -5 1995))");
-        ImportedOfficialFeature road = feature("same", "road", "LINESTRING (0 -50, 0 50)");
-        ImportedOfficialFeature acuteRoad = feature("same", "road", "LINESTRING (-20 -5, 20 5)");
+        ImportedOfficialFeature road = feature("same", "road", "POLYGON ((-1 -50,1 -50,1 50,-1 50,-1 -50))");
+        ImportedOfficialFeature acuteRoad = feature("same", "road", "POLYGON ((-20 -6,20 4,20 6,-20 -4,-20 -6))");
         ImportedOfficialFeature water = feature("same", "water", BUILDING);
         List<ImportedOfficialFeature> sourceFeatures = new ArrayList<>(List.of(
                 water, acuteRoad, park, remotePark, road, park));
@@ -186,8 +186,11 @@ class OfficialRouteValidatorPreparationTest {
         List<RouteValidationIssue> issues = assertEquivalent(windowSession, nodes(near, null, false), List.of(near), nearWindow);
         assertThat(issues).extracting(RouteValidationIssue::getMessage).containsExactly(
                 "Route violates park clearance at same", "Route violates park clearance at same",
-                "Route violates water clearance at same", "Route crosses road below the minimum angle",
-                "Crossing of road is not split into a special section", "Crossing of road is not split into a special section");
+                "Route violates water clearance at same", "Route violates road crossing/clearance at same",
+                "Crossing of road is not split into a special section");
+        assertThat(issues).extracting(RouteValidationIssue::getCode).containsExactly(
+                "FORBIDDEN_CLEARANCE_VIOLATION", "FORBIDDEN_CLEARANCE_VIOLATION", "FORBIDDEN_CLEARANCE_VIOLATION",
+                "SPECIAL_CROSSING_ANGLE_VIOLATION", "SPECIAL_CROSSING_SECTION_MISSING");
         RouteEdge far = edge(50, "LINESTRING (-30 2000, 30 2000)");
         assertThat(assertEquivalent(windowSession, nodes(far, null, false), List.of(far), window(environment, far)))
                 .extracting(RouteValidationIssue::getCode).containsExactly("FORBIDDEN_CLEARANCE_VIOLATION");

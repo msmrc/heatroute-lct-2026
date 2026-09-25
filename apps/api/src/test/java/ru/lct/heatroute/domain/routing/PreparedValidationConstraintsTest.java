@@ -125,27 +125,36 @@ class PreparedValidationConstraintsTest {
     }
 
     @Test
-    void specialConstraintsUseSourceEnvelopeAndPreserveAngleAndSectionIssues() throws Exception {
+    void roadConstraintsUseClearanceEnvelopeAndPreserveAngleAndSectionIssues() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
-                feature("same", "road", "LINESTRING (0 -10, 0 10)"),
-                feature("same", "road", "LINESTRING (-20 -5, 20 5)"));
+                feature("same", "road", "POLYGON ((-1 -10, 1 -10, 1 10, -1 10, -1 -10))"),
+                feature("same", "road", "POLYGON ((-20 -6, 20 4, 20 6, -20 -4, -20 -6))"));
         LineString crossing = line("LINESTRING (-30 0, 30 0)");
-        List<Constraint> selected = prepared.prepareIntersecting(features, 101, crossing.getEnvelopeInternal());
+        // Перпендикулярный проход и проход под углом <45° к настоящей границе; снаружи есть прямые 3 м.
+        List<Constraint> selected = prepared.prepareIntersecting(features, 100, crossing.getEnvelopeInternal());
         assertThat(selected).hasSize(2);
-        assertThat(assertIssues(features, 101, crossing, selected)).extracting(RouteValidationIssue::getCode)
+        assertThat(assertIssues(features, 100, crossing, selected)).extracting(RouteValidationIssue::getCode)
                 .contains("SPECIAL_CROSSING_ANGLE_VIOLATION", "SPECIAL_CROSSING_SECTION_MISSING");
-        // Участок в пределах special extension, но без пересечения исходного объекта.
+        // Два метра от полигона: дальше осевого отступа ДУ100 1.755 м; protective 3 м не радиус buffer.
         LineString outside = line("LINESTRING (-30 12, 30 12)");
-        assertThat(prepared.prepareIntersecting(features, 101, outside.getEnvelopeInternal())).isEmpty();
-        assertThat(assertIssues(features, 101, outside, List.of())).isEmpty();
-        assertThat(prepared.preparedForbiddenCount()).isZero();
+        assertThat(prepared.prepareIntersecting(features, 100, outside.getEnvelopeInternal())).isEmpty();
+        assertThat(assertIssues(features, 100, outside, List.of())).isEmpty();
+        LineString nearby = line("LINESTRING (-30 11.7, 30 11.7)");
+        assertThat(features.get(0).getMetricGeometry().getEnvelopeInternal()
+                .intersects(nearby.getEnvelopeInternal())).isFalse();
+        List<Constraint> neighbours = prepared.prepareIntersecting(features, 100, nearby.getEnvelopeInternal());
+        assertThat(neighbours).hasSize(1);
+        assertThat(assertIssues(features, 100, nearby, neighbours)).isNotEmpty();
+        // Счётчик учитывает и road-buffer; одинаковый typed ID с разной геометрией требует пересборки.
+        assertThat(prepared.preparedForbiddenCount()).isEqualTo(6L);
     }
 
     @Test
-    void farForbiddenFeaturesStillValidateDiameterAndFailuresAreNotRetained() throws Exception {
+    void farClearanceFeaturesStillValidateDiameterAndFailuresAreNotRetained() throws Exception {
         Envelope query = new Envelope(-10, 10, -10, 10);
-        for (String type : List.of("oks", "park", "water")) {
-            List<ImportedOfficialFeature> features = List.of(feature(type, type, "POINT (1000 1000)"));
+        for (String type : List.of("oks", "park", "water", "road", "tram_tracks")) {
+            List<ImportedOfficialFeature> features = List.of(feature(type, type,
+                    "POLYGON ((1000 1000, 1020 1000, 1020 1006, 1000 1006, 1000 1000))"));
             assertThat(prepared.prepareIntersecting(features, 50, query)).isEmpty();
             long successful = prepared.preparedForbiddenCount();
             int records = prepared.retainedMetadataCount();
@@ -194,7 +203,7 @@ class PreparedValidationConstraintsTest {
         ImportedOfficialFeature first = feature("same", "park", "POINT (0 0)");
         ImportedOfficialFeature second = feature("same", "park", "POINT (2 0)");
         ImportedOfficialFeature earlier = feature("a", "park", "POINT (4 0)");
-        ImportedOfficialFeature road = feature("same", "road", "LINESTRING (6 -10, 6 10)");
+        ImportedOfficialFeature road = feature("same", "road", "POLYGON ((5 -10, 7 -10, 7 10, 5 10, 5 -10))");
         LineString route = line("LINESTRING (-20 0, 20 0)");
         for (List<ImportedOfficialFeature> features : List.of(
                 List.of(second, road, first, earlier, first), List.of(road, first, second, second, earlier))) {

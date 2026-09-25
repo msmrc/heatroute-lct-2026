@@ -140,6 +140,7 @@ public class OfficialGeoJsonExporter {
         // Проверяем все выбранные варианты до передачи первой feature потребителю потока.
         for (JsonNode variant : variants) {
             chamberDiameters.put(variant, SavedChamberAssessment.verify(variant, support, economics));
+            SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog);
         }
         for (JsonNode variant : variants) {
             appendVariant(output, variant, inputById, allowMissingTieInDiameter, chamberDiameters.get(variant));

@@ -93,7 +93,7 @@ class PreparedCorridorTest {
     void exemptsOnlyTheSelectedHeatNetworkAndKeepsOtherCrossingSections() throws Exception {
         ImportedOfficialFeature network = new ImportedOfficialFeature("target", "heat_network", new ObjectMapper().createObjectNode(),
                 new WKTReader().read("LINESTRING (0 -20,0 20)"));
-        ImportedOfficialFeature road = feature("target", "road", "LINESTRING (10 -20,10 20)");
+        ImportedOfficialFeature road = feature("target", "road", "POLYGON ((9 -20,11 -20,11 20,9 20,9 -20))");
         Coordinate root = new Coordinate(0, 0), end = new Coordinate(20, 0);
         PreparedCorridor corridor = new PreparedCorridor(rules, rules.baseConstraints(List.of(network, road), 100), root, "target");
         assertSymmetric(corridor, root, end, true);
@@ -346,13 +346,14 @@ class PreparedCorridorTest {
                     List.of(network("offset", "LINESTRING (0 " + offset + ",20 " + offset + ")")), null);
             assertSymmetric(corridor, root, new Coordinate(20, 0), offset > 0.001);
         }
-        // Такой же угол у дороги не должен включать теплосетевую эвристику.
+        // Polygon road с отступом не должна включать теплосетевую эвристику совпадения осей.
+        ImportedOfficialFeature road = feature("road", "road", "POLYGON ((0 3,20 3,20 9,0 9,0 3))");
         PreparedCorridor roadOnly = networkCorridor(root,
-                List.of(feature("road", "road", "LINESTRING (0 0,20 0)")), null);
+                List.of(road), null);
         assertSymmetric(roadOnly, root, new Coordinate(-20, 0), true);
         assertThat(roadOnly.edgeAllowed(root, new Coordinate(20, 1))).isEqualTo(
                 rules.segmentAllowed(root, new Coordinate(20, 1),
-                        rules.baseConstraints(List.of(feature("road", "road", "LINESTRING (0 0,20 0)")), 100)));
+                        rules.baseConstraints(List.of(road), 100)));
     }
 
     @Test

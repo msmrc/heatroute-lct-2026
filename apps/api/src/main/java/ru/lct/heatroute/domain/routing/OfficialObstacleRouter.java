@@ -411,10 +411,8 @@ public class OfficialObstacleRouter {
                         if (checked != null) return checked;
                     }
                     // Не теряем найденный допустимый путь, если округление нового shortcut его испортило.
-                    if (previous != null) {
-                        RoutePath control = headingCheckedPath(search.coordinates, constraints, constraintIndex, previous);
-                        if (control != null) return control;
-                    }
+                    RoutePath control = headingCheckedPath(search.coordinates, constraints, constraintIndex, previous);
+                    if (control != null) return control;
                 }
             }
         }
@@ -636,9 +634,9 @@ public class OfficialObstacleRouter {
     private RoutePath headingCheckedPath(List<Coordinate> coordinates, List<Constraint> constraints,
             ConstraintIndex index, Coordinate previous) {
         RoutePath candidate = path(coordinates, constraints);
-        if (previous == null) return candidate;
         LineString line = rules.line(candidate.coordinates());
-        return turnsAllowed(candidate.coordinates(), previous) && line.isSimple() && rules.lineAllowed(line, index)
+        return (previous == null || turnsAllowed(candidate.coordinates(), previous))
+                && line.isSimple() && rules.lineAllowed(line, index)
                 ? candidate : null;
     }
 
@@ -706,7 +704,7 @@ public class OfficialObstacleRouter {
         for (Constraint constraint : constraints.query(corridor)) {
             if (!constraint.rule().isForbidden()) {
                 addSpecialCrossingPortals(result, constraint, directLine, corridor);
-                continue;
+                if (constraint.blocked() == null) continue;
             }
             if (!constraint.blocked().getEnvelopeInternal().intersects(corridor)
                     || !constraint.blocked().isWithinDistance(directLine, expansionM)) {
@@ -820,8 +818,12 @@ public class OfficialObstacleRouter {
             minimumProjection = Math.min(minimumProjection, projection);
             maximumProjection = Math.max(maximumProjection, projection);
         }
-        double before = minimumProjection - anchorProjection - SPECIAL_CROSSING_PORTAL_MARGIN_M;
-        double after = maximumProjection - anchorProjection + SPECIAL_CROSSING_PORTAL_MARGIN_M;
+        // Повороты не должны попадать внутрь прямого protective special за краем дороги.
+        double protective = constraint.rule().getSpecialExtensionM() == null ? 0
+                : constraint.rule().getSpecialExtensionM().doubleValue();
+        double margin = Math.max(protective, constraint.clearanceM()) + SPECIAL_CROSSING_PORTAL_MARGIN_M;
+        double before = minimumProjection - anchorProjection - margin;
+        double after = maximumProjection - anchorProjection + margin;
         result.add(new Coordinate(anchor.x + normalX * before, anchor.y + normalY * before));
         result.add(new Coordinate(anchor.x + normalX * after, anchor.y + normalY * after));
     }
@@ -907,7 +909,7 @@ public class OfficialObstacleRouter {
                 : (millimetresX[0] - roundedPrevious.getXM().movePointRight(3).doubleValue()) / 1000.0;
         double initialY = previous == null ? 0
                 : (millimetresY[0] - roundedPrevious.getYM().movePointRight(3).doubleValue()) / 1000.0;
-        VisibilityCache visibility = new VisibilityCache(size);
+        VisibilityCache visibility = new VisibilityCache(size, constraints.hasRoadCrossings());
         // Несвязность геометрического графа запрещает любой направленный путь. Проверяем
         // меньший фронт с двух концов, прежде чем раскрывать дорогие состояния направлений.
         if (!visibility.connectsEndpoints(nodes, constraints, blockedNodes)) {
@@ -969,7 +971,9 @@ public class OfficialObstacleRouter {
                 if ((candidate + 1e-9 < currentBest
                         || (Math.abs(candidate - currentBest) <= 1e-9
                                 && (priorState < 0 || currentState < priorState)))
-                        && visibility.isVisible(state.node, next, nodes, constraints)) {
+                        && visibility.isVisible(state.node, next, nodes, constraints)
+                        && (state.previous < 0 && previous == null || rules.specialTurnAllowed(
+                                state.previous < 0 ? previous : nodes.get(state.previous), current, target, constraints))) {
                     states.improve(nextState, candidate, currentState);
                     queue.add(new State(
                             state.node,
@@ -1434,15 +1438,18 @@ public class OfficialObstacleRouter {
     private final class VisibilityCache {
         private final int nodeCount;
         private final byte[] values;
+        private final byte[] reverseValues;
         private long evaluatedPairCount;
 
-        private VisibilityCache(int nodeCount) {
+        private VisibilityCache(int nodeCount, boolean directed) {
             this.nodeCount = nodeCount;
             this.values = new byte[nodeCount * (nodeCount - 1) / 2];
+            // У road/tram важна точка входа: обратное направление проверяется отдельно.
+            this.reverseValues = directed ? new byte[values.length] : values;
         }
 
         private boolean isKnownBlocked(int first, int second) {
-            return values[index(first, second)] == 2;
+            return (first < second ? values : reverseValues)[index(first, second)] == 2;
         }
 
         private boolean connectsEndpoints(List<Coordinate> nodes, ConstraintIndex constraints, boolean[] blockedNodes) {
@@ -1460,7 +1467,8 @@ public class OfficialObstacleRouter {
                 int current = front.removeFirst();
                 for (int next = 0; next < nodeCount; next++) {
                     if (blockedNodes[next] || own[next]) continue;
-                    if (isVisible(current, next, nodes, constraints)) {
+                    if (forward ? isVisible(current, next, nodes, constraints)
+                            : isVisible(next, current, nodes, constraints)) {
                         if (other[next]) return true;
                         own[next] = true;
                         front.addLast(next);
@@ -1484,13 +1492,14 @@ public class OfficialObstacleRouter {
             int left = Math.min(first, second);
             int right = Math.max(first, second);
             int index = index(left, right);
-            byte cached = values[index];
+            byte[] direction = first < second ? values : reverseValues;
+            byte cached = direction[index];
             if (cached == 0) {
                 ensureNotCancelled();
-                cached = rules.segmentAllowed(nodes.get(left), nodes.get(right), constraints)
+                cached = rules.segmentAllowed(nodes.get(first), nodes.get(second), constraints)
                         ? (byte) 1
                         : (byte) 2;
-                values[index] = cached;
+                direction[index] = cached;
                 evaluatedPairCount++;
             }
             return cached == 1;

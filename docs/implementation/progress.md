@@ -1,5 +1,27 @@
 # Current implementation progress
 
+## 2026-09-25 — source72: завершён быстрый gate исправленного road/tram patch
+
+[PRIMARY_ROUTING_72.md](PRIMARY_ROUTING_72.md):1049cases/1046PASS/0fail/0error/3scale skip,
+106классов; исключены3долгих original/corridor/compact класса, поэтому это не full gate.
+Web36/scripts37/lint/typecheckPASS. Independent review выявил3ошибки в новом коде — bounds
+rotatedbuffer,depth retry,phantom entry; исправлены с RED→GREEN. Export38new+42existingPASS,
+включая oblique millimetre sections; отступы не ослаблены. Код готов к clean/full проверке.
+Fetch подтвердил origin/master28c7059. Runtime61/VPS не менялись, G2/R/цель открыты.
+
+## 2026-09-25 — fresh71 подтверждён, G2 road/tram fix72 в работе
+
+Clean71:969cases/965PASS/1failure(compact-control)/0errors/3scale skip. Fresh original
+fixture513,704с,17/17,shortest/cheapest2068,786м/11камер/22поворота/0expert/283006479,92₽;
+balanced2192,523м/14камер/25поворотов. Depth и strict export3ролей PASS. Accepted bundle и
+snapshot71 сохранены; target больше не занят71. [Evidence](PRIMARY_ROUTING_71.md).
+
+Correctness72 (ещё не принятая версия): новые road/tram RED для search/final/export;
+интегрируются DU-зависимые отступы, реальные границы polygon, локальные прямые special3м,
+защитные порталы и повторная проверка экспортируемых секций.32новых geometry/preparation
+focused PASS, ещё2navigation/6fallback PASS отдельным запуском. Полных gates72 пока нет.
+Runtime61/Compose/scale/roads72/compact goal не закрыты; [G2](G2_SPECIAL_CLEARANCE.md) открыт.
+
 ## 2026-09-25 — source71: короткие вводы после выбора готовых ролей
 
 [PRIMARY_ROUTING_71.md](PRIMARY_ROUTING_71.md): отдельный bounded local-pass после relocation,

@@ -24,6 +24,7 @@ import ru.lct.heatroute.domain.constraints.OfficialAxisClearance;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.constraints.SpatialConstraintRule;
+import ru.lct.heatroute.domain.constraints.RoadCrossingClearance;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 @Component
@@ -38,6 +39,7 @@ public class OfficialRouteGeometryRules {
     private final OfficialConstraintCatalog catalog;
     private final OfficialCrossingGeometry crossingGeometry;
     private final OfficialAxisClearance axisClearance;
+    private final RoadCrossingClearance roadCrossings = new RoadCrossingClearance();
     private final BuildingWallNormals wallNormals = new BuildingWallNormals();
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
@@ -72,8 +74,8 @@ public class OfficialRouteGeometryRules {
                 continue;
             }
             Geometry blocked = null;
-            if (rule.isForbidden()) {
-                BigDecimal clearance = preparationClearanceM(type, diameter);
+            BigDecimal clearance = preparationClearanceM(type, diameter);
+            if (clearance != null) {
                 // Equality with the published minimum clearance is legal. Shrinking only by a
                 // numerical epsilon keeps the prepared-geometry fast path and excludes a pure
                 // tangential touch from the blocked region.
@@ -81,7 +83,8 @@ public class OfficialRouteGeometryRules {
                         0.0, clearance.doubleValue() - CLEARANCE_BOUNDARY_EPSILON_M);
                 blocked = source.buffer(blockedClearance, 4);
             }
-            result.add(new Constraint(feature.getFeatureId(), type, source, blocked, rule));
+            result.add(new Constraint(feature.getFeatureId(), type, source, blocked, rule,
+                    clearance == null ? 0 : clearance.doubleValue()));
         }
         sortConstraints(result);
         return result;
@@ -90,7 +93,7 @@ public class OfficialRouteGeometryRules {
     /** Called only after an input geometry has passed the null/empty checks. */
     BigDecimal preparationClearanceM(String type, int diameter) {
         SpatialConstraintRule rule = catalog.find(type).orElse(null);
-        if (rule == null || !rule.isForbidden()) {
+        if (rule == null || (!rule.isForbidden() && !RoadCrossingClearance.supports(type))) {
             return null;
         }
         return axisClearance.axisClearanceM(type, diameter, null);
@@ -232,7 +235,9 @@ public class OfficialRouteGeometryRules {
             SpatialConstraintRule rule = type == null ? null : catalog.find(type).orElse(null);
             Geometry source = feature.getMetricGeometry();
             if (rule == null || source == null || source.isEmpty()) continue;
-            Constraint constraint = new Constraint(feature.getFeatureId(), type, source, null, rule);
+            BigDecimal preparedClearance = preparationClearanceM(type, diameter);
+            Constraint constraint = new Constraint(feature.getFeatureId(), type, source, null, rule,
+                    preparedClearance == null ? 0 : preparedClearance.doubleValue());
             if (egress.exempts(constraint)) {
                 if ("oks".equals(type) && !ownApproachAllowed(egress, leg, source, diameter)) return false;
                 continue;
@@ -493,6 +498,12 @@ public class OfficialRouteGeometryRules {
                 }
                 continue;
             }
+            if (RoadCrossingClearance.supports(constraint.type)) {
+                if (!roadCrossings.segmentAllowed(segment, constraint.source, constraint.clearanceM,
+                        constraint.rule.getMinimumCrossingAngleDegrees().doubleValue(),
+                        constraint.rule.getSpecialExtensionM().doubleValue())) return false;
+                continue;
+            }
             if (constraint.rule.getMinimumCrossingAngleDegrees() != null
                     && hasSpecialCrossing(segment, constraint)
                     && !meetsCrossingAngle(segment, constraint)) {
@@ -522,13 +533,43 @@ public class OfficialRouteGeometryRules {
                 return false;
             }
         }
+        for (Constraint constraint : constraints.query(line.getEnvelopeInternal())) {
+            if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)
+                    && !roadAssessment(line, constraint).isAllowed()) {
+                return false;
+            }
+        }
         return true;
+    }
+
+    /** Отдельный поворот графа не может прервать обязательный прямой road/tram special. */
+    boolean specialTurnAllowed(Coordinate before, Coordinate at, Coordinate after, ConstraintIndex constraints) {
+        for (Constraint constraint : constraints.roads) {
+            double extension = constraint.rule.getSpecialExtensionM().doubleValue();
+            org.locationtech.jts.geom.Envelope bounds = constraint.source.getEnvelopeInternal();
+            if (at.x < bounds.getMinX() - extension || at.x > bounds.getMaxX() + extension
+                    || at.y < bounds.getMinY() - extension || at.y > bounds.getMaxY() + extension) continue;
+            if (!roadCrossings.turnAllowed(before, at, after, constraint.source, extension)) return false;
+        }
+        return true;
+    }
+
+    private RoadCrossingClearance.Assessment roadAssessment(LineString route, Constraint constraint) {
+        return roadCrossings.assess(route, constraint.source, constraint.clearanceM,
+                constraint.rule.getMinimumCrossingAngleDegrees().doubleValue(),
+                constraint.rule.getSpecialExtensionM().doubleValue());
     }
 
     List<RouteSection> sections(LineString route, List<Constraint> constraints) {
         LengthIndexedLine indexed = new LengthIndexedLine(route);
         List<Span> spans = new ArrayList<>();
         for (Constraint constraint : constraints) {
+            if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)) {
+                for (RoadCrossingClearance.Interval interval : roadAssessment(route, constraint).getIntervals()) {
+                    spans.add(new Span(interval.getStartM(), interval.getEndM(), constraint, interval.getAngleDegrees()));
+                }
+                continue;
+            }
             if (constraint.rule.isForbidden() || !hasSpecialCrossing(route, constraint)) {
                 continue;
             }
@@ -549,11 +590,11 @@ public class OfficialRouteGeometryRules {
                 .thenComparing(span -> span.constraint.type)
                 .thenComparing(span -> span.constraint.id));
 
-        List<MergedSpan> merged = mergeSpans(spans);
         List<Double> cuts = new ArrayList<>();
         cuts.add(indexed.getStartIndex());
         cuts.add(indexed.getEndIndex());
-        for (MergedSpan span : merged) {
+        // §4: общая часть пересечений — отдельная секция, не весь union с общими атрибутами.
+        for (Span span : spans) {
             cuts.add(span.start);
             cuts.add(span.end);
         }
@@ -562,42 +603,29 @@ public class OfficialRouteGeometryRules {
         for (int index = 0; index < cuts.size() - 1; index++) {
             double start = cuts.get(index);
             double end = cuts.get(index + 1);
-            if (end - start <= EPSILON_M) {
+            if (end - start <= CLEARANCE_BOUNDARY_EPSILON_M) {
                 continue;
             }
             double middle = (start + end) / 2.0;
-            MergedSpan active = merged.stream()
-                    .filter(span -> middle >= span.start - EPSILON_M && middle <= span.end + EPSILON_M)
-                    .findFirst()
-                    .orElse(null);
+            List<Span> active = spans.stream()
+                    .filter(span -> middle >= span.start && middle <= span.end)
+                    .collect(Collectors.toList());
             Geometry extracted = indexed.extractLine(start, end);
             List<RouteCoordinate> coordinates = routeCoordinates(extracted.getCoordinates());
-            if (active == null) {
+            if (active.isEmpty()) {
                 result.add(new RouteSection("base", null, null, coordinates, extracted.getLength(), null));
             } else {
-                String types = active.spans.stream().map(span -> span.constraint.type).distinct()
+                String types = active.stream().map(span -> span.constraint.type).distinct()
                         .collect(Collectors.joining("+"));
-                String ids = active.spans.stream().map(span -> span.constraint.id).distinct()
+                String ids = active.stream().map(span -> span.constraint.id).distinct()
                         .collect(Collectors.joining("+"));
-                double angle = active.spans.stream().mapToDouble(span -> span.angle).min().orElse(90.0);
+                double angle = active.stream().mapToDouble(span -> span.angle).min().orElse(90.0);
                 result.add(new RouteSection("special", types, ids, coordinates, extracted.getLength(), angle));
             }
         }
         if (result.isEmpty()) {
             result.add(new RouteSection(
                     "base", null, null, routeCoordinates(route.getCoordinates()), route.getLength(), null));
-        }
-        return result;
-    }
-
-    private List<MergedSpan> mergeSpans(List<Span> spans) {
-        List<MergedSpan> result = new ArrayList<>();
-        for (Span span : spans) {
-            if (result.isEmpty() || span.start > result.get(result.size() - 1).end + EPSILON_M) {
-                result.add(new MergedSpan(span));
-            } else {
-                result.get(result.size() - 1).add(span);
-            }
         }
         return result;
     }
@@ -609,6 +637,22 @@ public class OfficialRouteGeometryRules {
         List<RouteValidationIssue> issues = new ArrayList<>(validateForbidden(edge, route, constraints));
         for (Constraint constraint : constraints) {
             if (constraint.rule.isForbidden()) {
+                continue;
+            }
+            if (RoadCrossingClearance.supports(constraint.type)) {
+                RoadCrossingClearance.Assessment assessment = roadAssessment(route, constraint);
+                if (!assessment.isAllowed()) {
+                    issues.add(issue(assessment.getFailureCode(), edge.getId(),
+                            "Route violates " + constraint.type + " crossing/clearance at " + constraint.id));
+                }
+                if (!assessment.getIntervals().isEmpty() && edge.getSections().stream()
+                        .filter(section -> "special".equals(section.getKind()))
+                        .map(RouteSection::getRestrictionId).filter(java.util.Objects::nonNull)
+                        .flatMap(value -> java.util.Arrays.stream(value.split("\\+")))
+                        .noneMatch(constraint.id::equals)) {
+                    issues.add(issue("SPECIAL_CROSSING_SECTION_MISSING", edge.getId(),
+                            "Crossing of " + constraint.type + " is not split into a special section"));
+                }
                 continue;
             }
             if (!constraint.rule.isForbidden() && hasSpecialCrossing(route, constraint)) {
@@ -796,7 +840,7 @@ public class OfficialRouteGeometryRules {
         for (Coordinate coordinate : coordinates) {
             RouteCoordinate next = new RouteCoordinate(coordinate.x, coordinate.y);
             if (result.isEmpty()
-                    || result.get(result.size() - 1).toCoordinate().distance(next.toCoordinate()) > EPSILON_M) {
+                    || !result.get(result.size() - 1).toCoordinate().equals2D(next.toCoordinate())) {
                 result.add(next);
             }
         }
@@ -817,6 +861,7 @@ public class OfficialRouteGeometryRules {
         private volatile PreparedSegmentIntersection segmentIntersection;
         private volatile boolean segmentIntersectionInitialized;
         private final SpatialConstraintRule rule;
+        private final double clearanceM;
 
         private Constraint(
                 String id,
@@ -824,6 +869,11 @@ public class OfficialRouteGeometryRules {
                 Geometry source,
                 Geometry blocked,
                 SpatialConstraintRule rule) {
+            this(id, type, source, blocked, rule, 0);
+        }
+
+        private Constraint(String id, String type, Geometry source, Geometry blocked,
+                SpatialConstraintRule rule, double clearanceM) {
             this.id = id;
             this.type = type;
             this.source = source;
@@ -831,6 +881,7 @@ public class OfficialRouteGeometryRules {
             this.preparedBlocked = blocked == null ? null : PreparedGeometryFactory.prepare(blocked);
             this.segmentIndexCoordinateReservation = PreparedSegmentIntersection.additionalCoordinateReservation(blocked);
             this.rule = rule;
+            this.clearanceM = clearanceM;
         }
 
         String id() { return id; }
@@ -840,6 +891,7 @@ public class OfficialRouteGeometryRules {
         PreparedGeometry preparedBlocked() { return preparedBlocked; }
         long segmentIndexCoordinateReservation() { return segmentIndexCoordinateReservation; }
         SpatialConstraintRule rule() { return rule; }
+        double clearanceM() { return clearanceM; }
 
         private boolean intersectsBlocked(LineString line) {
             ensureIntersectionActive();
@@ -904,24 +956,39 @@ public class OfficialRouteGeometryRules {
         // На малых наборах отбор и упорядочивание кандидатов дороже линейного обхода.
         private static final int LINEAR_SCAN_THRESHOLD = 128;
         private final List<Constraint> all;
+        private final List<Constraint> roads;
         private final STRtree tree;
 
         private ConstraintIndex(List<Constraint> constraints) {
             all = List.copyOf(constraints);
+            roads = all.stream().filter(item -> !item.rule.isForbidden()
+                    && RoadCrossingClearance.supports(item.type)).collect(Collectors.toList());
             if (constraints.size() < LINEAR_SCAN_THRESHOLD) {
                 tree = null;
             } else {
                 tree = new STRtree();
                 for (int ordinal = 0; ordinal < all.size(); ordinal++) {
                     Constraint constraint = all.get(ordinal);
-                    Geometry indexed = constraint.rule.isForbidden() ? constraint.blocked : constraint.source;
+                    Geometry indexed = constraint.blocked != null ? constraint.blocked : constraint.source;
                     if (indexed != null && !indexed.isEmpty()) {
-                        tree.insert(indexed.getEnvelopeInternal(), ordinal);
+                        org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope(
+                                indexed.getEnvelopeInternal());
+                        // Полигональный buffer приближает дуги внутрь. Для точного road-clearance
+                        // envelope расширяется по source на полный радиус, в том числе после поворота.
+                        if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)) {
+                            org.locationtech.jts.geom.Envelope exact = new org.locationtech.jts.geom.Envelope(
+                                    constraint.source.getEnvelopeInternal());
+                            exact.expandBy(constraint.clearanceM);
+                            bounds.expandToInclude(exact);
+                        }
+                        tree.insert(bounds, ordinal);
                     }
                 }
                 tree.build();
             }
         }
+
+        boolean hasRoadCrossings() { return !roads.isEmpty(); }
 
         @SuppressWarnings("unchecked")
         List<Constraint> query(org.locationtech.jts.geom.Envelope envelope) {
@@ -966,20 +1033,4 @@ public class OfficialRouteGeometryRules {
         }
     }
 
-    private static final class MergedSpan {
-        private final double start;
-        private double end;
-        private final List<Span> spans = new ArrayList<>();
-
-        private MergedSpan(Span first) {
-            start = first.start;
-            end = first.end;
-            spans.add(first);
-        }
-
-        private void add(Span next) {
-            end = Math.max(end, next.end);
-            spans.add(next);
-        }
-    }
 }

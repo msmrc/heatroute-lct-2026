@@ -28,7 +28,7 @@ import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.ConstraintIndex;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
-/** Сверяет подготовку одного поиска с прежним построением узлов и полным выбором пути. */
+/** Сверяет подготовку одного поиска с независимой пересборкой узлов по действующему контракту. */
 class OfficialObstacleRouterPreparationTest {
     private static final double[] EXPANSIONS = {75, 200, 600};
     private static final String BLOCK = "POLYGON ((40 -10,60 -10,60 10,40 10,40 -10))";
@@ -58,6 +58,28 @@ class OfficialObstacleRouterPreparationTest {
             if (first.size() > 2) first.get(2).x += 1000;
             assertExactCoordinates(legacyNodes(scenario.start, scenario.end, index, 75, true),
                     preparedNodes(scenario.start, scenario.end, index, 75, true, preparation));
+        }
+    }
+
+    @Test
+    void roadAndTramPortalsIncludeProtectiveStraightAndFinalDiameterClearance() throws Exception {
+        for (String type : List.of("road", "tram_tracks")) {
+            for (int diameter : new int[] {100, 1400}) {
+                Constraint constraint = rules.baseConstraints(List.of(feature(type, type,
+                        read("POLYGON ((75 -100,80 -100,80 100,75 100,75 -100))"))), diameter).get(0);
+                Coordinate start = new Coordinate(0, 0), end = new Coordinate(100, 70);
+                Envelope corridor = new Envelope(start, end);
+                corridor.expandBy(75);
+                List<Coordinate> portals = new ArrayList<>();
+                call("addSpecialCrossingPortals", portals, constraint, rules.line(List.of(start, end)), corridor);
+                // max(3, R+W/2)+0.25: ДУ100 ограничен прямыми 3 м, ДУ1400 — отступом 3.225 м.
+                double margin = diameter == 100 ? 3.25 : 3.475;
+                assertExactCoordinates(List.of(new Coordinate(80 + margin, 54.25),
+                        new Coordinate(75 - margin, 54.25)), portals);
+                ConstraintIndex index = rules.index(List.of(constraint));
+                assertExactCoordinates(legacyNodes(start, end, index, 75, true),
+                        preparedNodes(start, end, index, 75, true, preparation()));
+            }
         }
     }
 
@@ -226,8 +248,8 @@ class OfficialObstacleRouterPreparationTest {
         assertThat(preparation.prepare(constraint)).isSameAs(completed);
     }
 
-    // Frozen pre-preparation navigation loop. Unchanged pocket/portal/support helpers are shared;
-    // the buffer and hull are deliberately recomputed on every pass, independently of the new context.
+    // Независимая пересборка buffer/hull на каждом проходе сохраняет точный порядок узлов.
+    // G2 добавляет обход road-buffer после порталов с выносом max(3,clearance)+0.25.
     private List<Coordinate> legacyNodes(Coordinate start, Coordinate end, ConstraintIndex constraints,
             double expansion, boolean pockets) {
         List<Coordinate> result = new ArrayList<>(List.of(new Coordinate(start), new Coordinate(end)));
@@ -237,7 +259,7 @@ class OfficialObstacleRouterPreparationTest {
         for (Constraint constraint : constraints.query(corridor)) {
             if (!constraint.rule().isForbidden()) {
                 call("addSpecialCrossingPortals", result, constraint, direct, corridor);
-                continue;
+                if (constraint.blocked() == null) continue;
             }
             if (!constraint.blocked().getEnvelopeInternal().intersects(corridor)
                     || !constraint.blocked().isWithinDistance(direct, expansion)) continue;

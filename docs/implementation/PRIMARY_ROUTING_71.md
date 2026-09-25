@@ -3,7 +3,8 @@
 Дата:25.09.2026. Ветка `codex/routing-63-geometry`, work in progress.
 Код `0d4d462` отправлен, remote SHA проверен. Full compiled70 завершён:951cases/947PASS/
 1failure(compact-control)/3skip, fresh500,035с,exact variants69/strict export3ролей PASS.
-Его snapshot сохранён. Clean/full/fresh71 запущен отдельно; результат ещё не получен.
+Его snapshot сохранён. Clean/full/fresh71 завершён:969cases/965PASS/1failure(compact-control)/
+0errors/3scale skip; original fresh fixture513,704с,17/17,strict export3ролей PASS.
 Runtime61/master/VPS сохранены.
 
 ## Воспроизведённый пробел
@@ -60,11 +61,24 @@ Evidence `source71-selected-terminal-replay.log/json`.
 production rank/export не менялся. Это по-прежнему **не fresh71**.
 Web36/scripts37/lint/typecheck PASS (`source71-web.log`).
 
+## Полный fresh71: подтверждение результата
+
+Clean Java11/Xmx1g/CPU2 закончен25.09.2026 ~05:27MSK.969cases,965PASS,1failure,0errors,
+3scale skipped. Единственный RED — `OfficialCorridorControlRecoveryTest`, прежняя цель
+≤13камер/<1860м; порог не менялся. Исходный dataset fixture513,704с (включает проверки/export).
+Во время запуска были короткие isolated probes/compiles: это не изолированный SLA benchmark.
+
+Accepted `source71-result.json`:shortest/cheapest2068,786м,11новых камер,22поворота,
+283006479,92₽;balanced2192,523м,14камер,25поворотов,302839881,84₽. Все17/17,
+нет validation/sizing/engineering issues, включённая глубина и strict export3ролей PASS.
+Это свежая генерация, не replay. Логи `source71-full.log`, snapshot `source71-surefire-reports/`;
+`source71-diagnostic.json` по-прежнему отдельный before-assertions артефакт.
+
 ## До принятия
 
 - [x] Component/integration focused tests, budgets/cancellation/no-loss/ошибочные предложения.
 - [x] Replay фактических трёх ролей через новый production helper, strict export.
-- [ ] Full clean/fresh71 после завершения и snapshot70; не переносить gate70 на71.
+- [x] Full clean/fresh71 завершён, snapshot71 сохранён; один известный compact RED не закрыт.
 - [ ] Новый roads+kindergarten fresh/export; source69 был1054,672с/17of17/3rolesPASS.
 - [ ] Сопоставимые изображения и метрики всех ролей; не выдавать replay за fresh.
 - [x] Web36/scripts37/lint/typecheck.

@@ -221,7 +221,7 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void overlappingSpecialCrossingsBecomeOneUnionSection() throws Exception {
+    void overlappingSpecialCrossingsSplitAtCommonFragmentBoundaries() throws Exception {
         ImportedOfficialFeature road = restriction(
                 "road", "road-1", "POLYGON ((40 -30, 60 -30, 60 30, 40 30, 40 -30))");
         ImportedOfficialFeature cable = restriction(
@@ -236,10 +236,12 @@ class OfficialObstacleRouterTest {
                 RoutePreference.SHORTEST);
 
         assertThat(route).isNotNull();
-        assertThat(route.sections()).filteredOn(section -> "special".equals(section.getKind()))
-                .singleElement()
-                .extracting(RouteSection::getRestrictionType, RouteSection::getRestrictionId)
-                .containsExactly("road+power_cable", "road-1+cable-1");
+        assertThat(route.sections()).extracting(RouteSection::getKind)
+                .containsExactly("base", "special", "special", "special", "base");
+        assertThat(route.sections().subList(1, 4)).extracting(RouteSection::getRestrictionType)
+                .containsExactly("road", "road+power_cable", "road");
+        assertThat(route.sections().subList(1, 4)).extracting(RouteSection::getRestrictionId)
+                .containsExactly("road-1", "road-1+cable-1", "road-1");
     }
 
     @Test

@@ -129,14 +129,20 @@ class OfficialRouteValidatorGeometryBatchTest {
     void preservesSpecialCrossingAndMissingSectionDiagnostics() throws Exception {
         var attributes = mapper.createObjectNode().put("restriction_type", "road");
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature(
-                "road", "restriction", attributes, new WKTReader().read("LINESTRING (0 -50, 0 50)")));
+                "road", "restriction", attributes,
+                new WKTReader().read("POLYGON ((-1 -50, 1 -50, 1 50, -1 50, -1 -50))")));
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
+        // G2 измеряет угол по границе полигона; оба прохода имеют полные защитные прямые 3 м.
         addEdge(nodes, edges, "crossing", 50, null, false, "LINESTRING (-20 -20, 20 20)");
-        addEdge(nodes, edges, "acute", 50, null, false, "LINESTRING (-1 -20, 1 20)");
+        addEdge(nodes, edges, "acute", 50, null, false, "LINESTRING (-10 15, 10 45)");
         List<RouteValidationIssue> actual = assertEquivalent(nodes, edges, features);
         assertThat(actual).extracting(RouteValidationIssue::getCode)
                 .contains("SPECIAL_CROSSING_ANGLE_VIOLATION", "SPECIAL_CROSSING_SECTION_MISSING");
+        assertThat(actual).filteredOn(issue -> "SPECIAL_CROSSING_ANGLE_VIOLATION".equals(issue.getCode()))
+                .extracting(RouteValidationIssue::getSubjectId).containsExactly("acute");
+        assertThat(actual).filteredOn(issue -> "SPECIAL_CROSSING_SECTION_MISSING".equals(issue.getCode()))
+                .extracting(RouteValidationIssue::getSubjectId).containsExactly("crossing");
     }
 
     private List<RouteValidationIssue> assertEquivalent(

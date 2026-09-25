@@ -4,6 +4,18 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Текущий source72, WIP:** [G2 road/tram/atomic sections](PRIMARY_ROUTING_72.md).
+После focused263PASS исправлены3review findings и округление oblique секций.
+Финальный быстрый Maven1049cases/1046PASS/0fail/0error/3skip (исключены3долгих класса),
+web36/scripts37/lint/typecheckPASS. Full/fresh/roads/native/scale ещё не приняты;
+нет claim о готовности G2/R. Runtime61 остаётся прежним.
+
+**Последняя проверенная база — fresh71:** clean969cases/965PASS/1compact failure/0errors/
+3scale skip; исходный dataset fixture513,704с,17/17,strict export3ролей PASS.
+shortest/cheapest2068,786м/11новых камер/22поворота/283006479,92₽. Snapshot71 сохранён.
+Далее correctness72 road/tram: пока focused, не новый accepted build и не закрытие G2.
+Runtime61 не менялся. [Подробности71](PRIMARY_ROUTING_71.md).
+
 **Текущий source71, WIP:** [короткие допустимые вводы](PRIMARY_ROUTING_71.md).
 Bounded local-pass после relocation с полным пересчётом и сохранением исходных ролей.
 Focused125PASS; production-helper replay69 даёт2068,786м/11камер/22поворота/0expert у

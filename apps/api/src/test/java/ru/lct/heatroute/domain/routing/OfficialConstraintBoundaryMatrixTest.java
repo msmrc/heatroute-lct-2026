@@ -50,7 +50,8 @@ class OfficialConstraintBoundaryMatrixTest {
     @Test
     void coversAngleAndSpecialSectionBoundariesForRoadAndTramRows() throws Exception {
         for (String type : ANGLED_SPECIAL) {
-            ImportedOfficialFeature restriction = restriction(type, "LINESTRING (-20 0, 20 0)");
+            // Официальные road/tram — polygon: ширина 2 м плюс 3 м с каждой стороны.
+            ImportedOfficialFeature restriction = restriction(type, "POLYGON ((-20 -1,20 -1,20 1,-20 1,-20 -1))");
             LineString positive = (LineString) reader.read("LINESTRING (0 -10, 0 10)");
             LineString boundary = (LineString) reader.read("LINESTRING (-10 -10, 10 10)");
             LineString negative = (LineString) reader.read("LINESTRING (-10 -9.9, 10 9.9)");
@@ -63,7 +64,7 @@ class OfficialConstraintBoundaryMatrixTest {
             assertThat(rules.sections(positive, constraints)).filteredOn(section -> "special".equals(section.getKind()))
                     .singleElement().satisfies(section -> {
                         assertThat(section.getRestrictionType()).isEqualTo(type);
-                        assertThat(section.getLengthM()).isEqualByComparingTo("6.000");
+                        assertThat(section.getLengthM()).isEqualByComparingTo("8.000");
                     });
         }
     }

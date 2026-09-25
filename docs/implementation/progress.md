@@ -1,9 +1,25 @@
 # Current implementation progress
 
+## 2026-09-25 — full74 завершён; final-ДУ retention исправлен в75
+
+Full конечных74session37091:1114cases/1110PASS/1прежний compact failure/0errors/3scale skip;
+fresh532,720с,17/17,strict export3ролей PASS; все variants точно как73. Отчёты/accepted сохранены.
+Ранний pre-budget74 тоже завершён (1113cases/1109PASS/1failure/3skip), хранится отдельно.
+
+[Source75](PRIMARY_ROUTING_75.md): whole-road проверка готового ввода вместо двух обрезанных
+проверок. Реальный2RED/4controls→GREEN,15постоянных regression tests, independent review24PASS;
+сохранение исходного объекта и локальность льгот подтверждены. Финальный быстрый Maven
+1125cases/1122PASS/0fail/0error/3scale skip;web36/scripts37/lint/typecheckPASS.
+Clean/full75session70380 и fresh roads75session70338 работают на одном отдельном snapshot
+`.tooling/source75-build.9a8BDz/apps/api`; его target заморожен для обоих. Roads72session19058
+по-прежнему использует основнойtarget. Не смешивать diagnostic до assertions с accepted output.
+Все агенты75 завершены. Fetch подтвердил origin/master28c7059, новых upstream commits нет.
+Fresh75/compact/G2/native/Compose/scale/runtime/R и полная цель ещё не закрыты.
+
 ## 2026-09-25 — full73 завершён; performance74 проходит полный gate
 
 Full73session8395:1080cases/1076PASS/1прежний compact failure/0errors/3scale skip.
-Fresh533,933с,17/17,strict export3ролей PASS, все значения variants совпали с72.
+Fresh529,767с (весь класс533,933с),17/17,strict export3ролей PASS, все значения variants совпали с72.
 Accepted73 и snapshot reports сохранены; отдельный roads73 не запускался.
 
 [Source74](PRIMARY_ROUTING_74.md): индекс road/tram-интервалов только в поиске, bounded

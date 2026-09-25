@@ -5,7 +5,7 @@
 Код `c4749e1` pushed, remote SHA `c4749e1a38d2611b86a47186e2d7f8f199840936` проверен.
 **Clean/full73 без исключений session8395 завершён**:1080cases/1076PASS/1compact failure/
 0errors/3scale skipped. Отчёты сохранены в `source73-full-reports/`; исходный dataset
-fixture533,933с,17/17,strict export3ролей PASS. Все значения variants совпали с72, включая
+fixture529,767с (весь класс из2тестов533,933с),17/17,strict export3ролей PASS. Все значения variants совпали с72, включая
 геометрию, ДУ, секции, depth и смету. Это не улучшение compact/скорости; время при параллельном
 roads72 не является SLA. Accepted `source73-result.json` получен после assertions;
 `source73-diagnostic.json` отдельно. Основной target всё ещё обслуживает roads72session19058.

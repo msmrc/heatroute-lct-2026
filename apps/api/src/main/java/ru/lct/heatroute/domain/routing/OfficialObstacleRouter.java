@@ -239,6 +239,36 @@ public class OfficialObstacleRouter {
                 acceptedRoutes, egress::exempts);
     }
 
+    /** Сохранение готового ввода: локальные льготы проверяются по частям, road/tram — по целому ребру. */
+    boolean terminalRouteAllowed(List<Coordinate> coordinates, int diameter,
+            OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds,
+            List<LineString> acceptedRoutes, OfficialRouteGeometryRules.NormalEgress egress) {
+        ensureNotCancelled();
+        if (coordinates.size() < 2) return false;
+        Coordinate start = coordinates.get(0), end = coordinates.get(coordinates.size() - 1);
+        Coordinate adjacent = coordinates.get(coordinates.size() - 2);
+        Envelope bounds = new Envelope();
+        coordinates.forEach(bounds::expandToInclude);
+        // Техническая вершина не является существующей врезкой и не ослабляет чужой отступ.
+        List<Constraint> outside = new ArrayList<>(rules.applicableConstraints(
+                environment.corridorConstraints(diameter, bounds), exemptFeatureIds, start, end));
+        outside.addAll(rules.applicableConstraints(rules.routeAvoidanceConstraints(acceptedRoutes),
+                Collections.emptySet(), start, end));
+        ConstraintIndex outsideIndex = rules.index(outside);
+        ConstraintIndex terminalIndex = rules.index(outside.stream().filter(constraint -> !egress.exempts(constraint))
+                .collect(java.util.stream.Collectors.toList()));
+        if (rules.pointInsideForbiddenClearance(start, outsideIndex)
+                || rules.pointInsideForbiddenClearance(adjacent, outsideIndex)
+                || rules.pointInsideForbiddenClearance(end, terminalIndex)) return false;
+        LineString complete = rules.line(coordinates);
+        return complete.isSimple()
+                && (coordinates.size() == 2 || rules.provisionalSegmentsAllowed(
+                        rules.line(coordinates.subList(0, coordinates.size() - 1)), outsideIndex))
+                && rules.provisionalSegmentsAllowed(rules.line(List.of(adjacent, end)), terminalIndex)
+                // Угол входа направленный: не разворачиваем готовое ребро ради проверки ввода.
+                && rules.completeRoadCrossingsAllowed(complete, outsideIndex);
+    }
+
     private boolean lineAllowed(
             List<Coordinate> coordinates,
             int diameter,

@@ -69,24 +69,29 @@ Evidence (ignored, корень `.tooling`):
 
 ## Живые проверки и следующий scope
 
-Clean/full74 без исключений запущен в snapshot `.tooling/source74-build.OwIzxd/apps/api`,
-**session16835**, лог `intake-20260925/source74-full.log`. Это версия до последней корректировки
-packed-memory reservation, не полный gate конечных исходников. Не менять его target до завершения.
-Accepted `source74-result.json` появится только после assertions; `source74-diagnostic.json`
-пишется до них и не означает PASS. Сохранить reports перед следующим Maven, сравнить все
-поля variants с73 и strict export. Последние исходники заморожены отдельно в
+Clean/full74 до packed-budget correction **завершён** (session16835), snapshot
+`.tooling/source74-build.OwIzxd/apps/api`, лог `intake-20260925/source74-full.log`.
+1113cases/1109PASS/1прежний compact failure/0errors/3scale skip. Отчёты сохранены в
+`source74-pre-budget-full-reports/`; fixture556,274с (класс из2тестов560,574с).
+Accepted `source74-result.json` получен после assertions;17/17/strict export3ролей PASS,
+**все значения variants точно совпали с73**. `source74-diagnostic.json` отдельно.
+Параллельный wall-time не доказывает ускорение, локальный microbenchmark его не заменяет.
+Это не полный gate последней поправки памяти. Конечные исходники74 заморожены отдельно в
 `.tooling/source74-final-build.mgNqTd/apps/api`; быстрый Maven `source74-fast-final.log`
 session87838 завершён1110cases/1107PASS/3skip, отчёты сохранены.
-**Полный конечный snapshot session37091 уже запущен**, `source74-final-full.log`, отдельные
-`source74-final-result.json`/`source74-final-diagnostic.json`. Не менять его target. Не смешивать
-с первым pre-budget прогоном. Затем нужен fresh roads74, а не replay результата.
+**Полный конечный snapshot session37091 завершён**:1114cases/1110PASS/1прежний compact failure/
+0errors/3scale skip; fixture532,720с (concave4,169с). `source74-final-full-reports/` сохранён,
+accepted `source74-final-result.json` получен после assertions;17/17/strict export3ролей PASS.
+Все значения variants точно совпали с73. Diagnostic отдельно, не подмена accepted результата.
+Оба snapshot74 теперь свободны. Fresh roads74 не запускался: новый roads75 проверяет также
+следующее correctness-исправление; это не измерение одной только оптимизации74.
 
 Fresh roads72 **session19058/PID33818** всё ещё работает на основном `apps/api/target`,
 который пока нельзя перезаписывать. Не перезапускать тихий живой процесс с нуля. Эти замеры
 при параллельной нагрузке не подтверждают SLA. Fresh roads73 не выполнялся.
 
 Full73 завершён:1080cases/1076PASS/1прежний compact failure/0errors/3scale skip; исходный
-fixture533,933с,17/17 и strict export3ролей PASS. Все значения variants совпали с72:
+fixture529,767с (класс533,933с),17/17 и strict export3ролей PASS. Все значения variants совпали с72:
 shortest/cheapest2068,786м/11новых камер/22поворота/283006479,92₽; balanced2192,523м/
 14камер/25поворотов. Ручная схема Евгения1913,859м/11узловых маркеров — ориентир, не сертификат норм.
 
@@ -95,6 +100,5 @@ G2 других коммуникаций; compact-control (<1860м/≤13каме
 свежего roads+kindergarten; native/Compose/scale и приёмка всего пользовательского процесса.
 Этот checkpoint не закрывает цель «как у Евгения и быстро».
 
-Следующая независимая работа: агент Chandrasekhar (`01a0d696-7e7c-7a92-89fe-11b7be8475f5`)
-воспроизводит final-ДУ retention только в ignored `.tooling/final-du75-*`, без изменений
-production/целевых target. Получить его настоящий RED перед следующим correctness patch.
+Следующий correctness patch — [source75](PRIMARY_ROUTING_75.md): final-ДУ retention
+воспроизведён и исправляется отдельно от этого performance checkpoint. Не смешивать версии.

@@ -4608,23 +4608,16 @@ public class OfficialRoutePlanner {
                                     target)
                             .orElse(null)
                     : null;
-            List<Coordinate> routePrefix = edge.getCoordinates().stream()
+            List<Coordinate> completeRoute = edge.getCoordinates().stream()
                     .map(RouteCoordinate::toCoordinate)
                     .collect(Collectors.toCollection(ArrayList::new));
-            if (egress != null && !routePrefix.isEmpty()) {
-                routePrefix.remove(routePrefix.size() - 1);
-            }
             Set<String> exemptions = endpointFeatureIds(edge, nodesById);
-            boolean validAtFinalDiameter = obstacleRouter.lineAllowed(
-                    routePrefix,
-                    edge.getDiameter(),
-                    routingEnvironment,
-                    exemptions,
-                    acceptedRoutes);
-            if (validAtFinalDiameter && (egress == null || (hasMandatoryEgress(edge, egress)
-                    && obstacleRouter.terminalApproachAllowed(approach,
-                            downstream.getCoordinate().toCoordinate(), edge.getDiameter(),
-                            routingEnvironment, exemptions, acceptedRoutes, egress)))) {
+            boolean validAtFinalDiameter = egress == null
+                    ? obstacleRouter.lineAllowed(completeRoute, edge.getDiameter(), routingEnvironment,
+                            exemptions, acceptedRoutes)
+                    : hasMandatoryEgress(edge, egress) && obstacleRouter.terminalRouteAllowed(
+                            completeRoute, edge.getDiameter(), routingEnvironment, exemptions, acceptedRoutes, egress);
+            if (validAtFinalDiameter) {
                 result.add(edge);
                 acceptedRoutes.add(routeLine(edge));
                 continue;

@@ -4,14 +4,14 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
-**Приоритетная актуализация — source74 WIP:** [поиск road/tram](PRIMARY_ROUTING_74.md).
-123focusedPASS; fast Maven1110cases/1107PASS/0fail/0error/3scale skip;
-web36/scripts37/lint/typecheckPASS. Full/fresh73 завершён:1080cases/1076PASS/1compact failure/
-0errors/3scale skip, исходный fixture533,933с,17/17,strict export3ролей PASS; variants как72.
-Два numerical RED нового ускоренного пути исправлены fallback, финальные нормы не ослаблены.
-Clean/full конечных74session37091 работает в отдельном snapshot; предыдущий pre-budget
-full74session16835 также жив; roads72session19058 — на основномtarget. Не перезаписывать
-занятые target. Нет fresh74/road74/end-to-end speed claim;
+**Приоритетная актуализация — source75 WIP:** [final-ДУ retention](PRIMARY_ROUTING_75.md).
+Реальный RED потери допустимого ввода исправлен;15новых regression tests и независимое review.
+Fast Maven1125cases/1122PASS/0fail/0error/3scale skip;web36/scripts37/lint/typecheckPASS.
+Full/fresh конечных74 завершён:1114cases/1110PASS/1compact failure/0errors/3scale skip;
+fixture532,720с,17/17,strict export3ролей PASS, все variants как73. Ускорение всего расчёта
+пока не доказано; предыдущий fixture73 —529,767с,533,933с было временем класса из2тестов.
+Теперь full75session70380 и fresh roads75session70338 используют один отдельный snapshot;
+roads72session19058 — основнойtarget. Не перезаписывать занятые target. Fresh75 ещё не принят.
 G2/compact/native/Compose/scale/R и цель остаются открытыми. Runtime61/VPS не менялись.
 Ниже — история предыдущих checkpoint, а не текущие статусы запущенных процессов.
 

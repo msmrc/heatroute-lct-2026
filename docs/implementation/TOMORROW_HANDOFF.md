@@ -1,30 +1,36 @@
 # Handoff — Артём / PM / developer
 
-## Приоритетная актуализация: source74 / full73 завершён
+## Приоритетная актуализация: source75 / full74 завершён
 
-Сначала [PRIMARY_ROUTING_74.md](PRIMARY_ROUTING_74.md).123focusedPASS, быстрый Maven1110cases/
-1107PASS/0fail/0error/3scale skip; web36/scripts37/lint/typecheckPASS. Ускоренный road/tram
-поиск ограничен текущим расчётом; numerical RED исправлены, полный guard/export не ослаблен.
-Это не accepted fresh74 и не end-to-end speed claim.
+Сначала [PRIMARY_ROUTING_75.md](PRIMARY_ROUTING_75.md). Final-ДУ retention исправлен по
+реальному RED,15постоянных tests, независимое review24PASS. Финальный быстрый Maven:
+1125cases/1122PASS/0fail/0error/3scale skip;web36/scripts37/lint/typecheckPASS.
+Это ещё не accepted fresh75; не объявлять compact/speed/G2/R готовыми.
 
-Clean/full конечных74 **session37091** без исключений работает в отдельном snapshot
-`.tooling/source74-final-build.mgNqTd/apps/api`; не менять его target. Лог `source74-final-full.log`,
-accepted `source74-final-result.json`/before-assertions `source74-final-diagnostic.json` различать.
-Fast reports сохранены в `source74-fast-final-reports/`. После завершения сохранить full reports,
-сравнить все значения variants с73, проверить3экспорта, затем fresh roads74. Ранний full74
-session16835 в `.tooling/source74-build.OwIzxd/apps/api` всё ещё жив; он не содержит последнюю
-поправку memory reservation для packed-double. Его отчёты/`source74-result.json` не выдавать
-за full конечных исходников. Оба snapshot target не перезаписывать.
+**Один snapshot75 заморожен для двух живых задач:** `.tooling/source75-build.9a8BDz/apps/api`.
+Не запускать там новый Maven и не менять target до завершения **обоих**:
 
-Full73session8395 завершён:1080cases/1076PASS/1compact failure/0errors/3scale skip;
-fresh533,933с,17/17/strict export3ролей PASS, все variants как72. Accepted73/full reports сохранены.
-Но **основной** `apps/api/target` ещё занят roads72session19058/PID33818. Не clean/не перезапускать
-его с нуля: процесс живой, JFR подтвердил CPU-поиск. Параллельное время не является SLA.
-Fresh roads73 не выполнялся. Runtime61/VPS неизменены. Final-ДУ retention, crossing через
-логические рёбра, другие G2 коммуникации, compact-control, native/Compose/scale открыты.
-Agent Chandrasekhar `01a0d696-7e7c-7a92-89fe-11b7be8475f5` сейчас делает только isolated
-RED для final-ДУ retention; получить результат, не дублировать работу и не менять production
-по предположению. Записывает только `.tooling/final-du75-*`, live target не затрагивает.
+1. Clean/full75 **session70380**, `source75-full.log`, accepted `source75-result.json`,
+   before-assertions `source75-diagnostic.json` отдельно.
+2. Fresh roads75 **session70338**, runner `.tooling/scenario75.VxnM8P`, `source75-roads.log`,
+   accepted `source75-roads-result.json`, before-assertions `source75-roads-result.json.diagnostic.json`.
+
+Fast75 reports сохранены в `source75-fast-final-reports/`; после full сохранить отдельный
+snapshot, сравнить результат с74/72 и проверить качество cheapest дополнительно к helper.
+Новый результат нарисовать рядом с Евгением в том же масштабе. Следующая гипотеза A* pruning
+описана в75 и пока не реализована; сначала measured/equivalence tests, не ограничивать качество.
+
+Full конечных74session37091 завершён:1114cases/1110PASS/1compact failure/0errors/3scale skip,
+fixture532,720с,17/17/strict export3ролей PASS, все variants точно как73. Accepted
+`source74-final-result.json`, отчёты `source74-final-full-reports/`; оба snapshot74 свободны.
+Ранний pre-budget74session16835 завершён и сохранён отдельно, не подмена конечного gate.
+Время fixture73 исправлено:529,767с;533,933с — весь класс из2тестов.
+
+**Основной** `apps/api/target` всё ещё занят roads72session19058/PID33818. Не clean/не
+перезапускать с нуля: процесс живой, CPU-поиск. Параллельное время не является SLA.
+Fresh roads73/74 отдельно не выполнялся. Runtime61/VPS неизменены. Logical crossing chains,
+остальные G2, compact/native/Compose/scale открыты. Все агенты75 завершены и закрыты.
+Fetch подтвердил origin/master28c7059, новых upstream commits нет.
 Старые блоки ниже — история, не действующие указания о живых сессиях.
 
 ## Следующий checkpoint72: road/tram + atomic special sections

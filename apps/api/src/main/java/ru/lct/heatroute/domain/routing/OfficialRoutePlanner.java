@@ -2318,7 +2318,14 @@ public class OfficialRoutePlanner {
             List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
             boolean reconstructionRequired, OfficialRoutingEnvironment environment) {
         List<RouteVariant> alternatives = new ArrayList<>(selected);
-        for (RouteVariant original : selected) {
+        RouteVariant repaired = repairLateEconomicWinner(selected, demands, features, parameters,
+                reconstructionRequired, environment);
+        List<RouteVariant> relocationSeeds = selected;
+        if (repaired != null) {
+            alternatives.add(repaired);
+            relocationSeeds = new FinishedRouteVariantSelector().select(alternatives, parameters.isDepthEnabled());
+        }
+        for (RouteVariant original : relocationSeeds) {
             RouteVariant improved = relocateFinishedChambers(original, demands, features,
                     parameters, reconstructionRequired, environment);
             if (improved == original) continue;
@@ -2332,6 +2339,36 @@ public class OfficialRoutePlanner {
                     engineeringEvaluator.evaluate(improved.getEdges()).bendCount());
         }
         return new FinishedRouteVariantSelector().select(alternatives, parameters.isDepthEnabled());
+    }
+
+    /**
+     * Поздний победитель по цене мог не попасть в раннюю доводку engineering-черновиков.
+     * Пробуем один дополнительный repair без перестройки зон; исходные роли сохраняются.
+     * Принимаем только полный экспертно допустимый результат не длиннее и не дороже исходного.
+     */
+    private RouteVariant repairLateEconomicWinner(List<RouteVariant> selected, List<Demand> demands,
+            List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
+            boolean reconstructionRequired, OfficialRoutingEnvironment environment) {
+        RouteVariant source = selected.stream().filter(variant -> "cheapest".equals(variant.getId()))
+                .findFirst().orElse(null);
+        if (source == null || !source.isValid() || source.getEconomics() == null
+                || !source.getEconomics().isComplete() || source.getEconomics().getCalculatedCost() == null
+                || engineeringEvaluator.evaluate(source.getEdges()).isCompliant()) return null;
+        VariantDraft draft = regularizeEngineeringDraft(
+                new VariantDraft(source.getNodes(), source.getEdges(), source.getConnections()), demands, environment, false);
+        RouteVariant candidate = withEngineeringAssessment(finish("selected-engineering-repair", "engineering",
+                draft, features, parameters, reconstructionRequired, environment));
+        if (!candidate.isValid() || !candidate.getEngineeringIssues().isEmpty()
+                || candidate.getEconomics() == null || !candidate.getEconomics().isComplete()
+                || candidate.getEconomics().getCalculatedCost() == null
+                || candidate.getConnectedDemandCount() != source.getConnectedDemandCount()
+                || candidate.getTotalLengthM().compareTo(source.getTotalLengthM()) > 0
+                || candidate.getEconomics().getCalculatedCost().compareTo(source.getEconomics().getCalculatedCost()) > 0
+                || (parameters.isDepthEnabled() && candidate.getEdges().stream().anyMatch(edge ->
+                        edge.getDepthProfile() == null || !edge.getDepthProfile().isComplete()
+                                || !edge.getDepthProfile().getIssues().isEmpty()))) return null;
+        logVariantSummary(candidate);
+        return candidate;
     }
 
     /**

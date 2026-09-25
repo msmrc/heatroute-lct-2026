@@ -12,6 +12,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
@@ -33,6 +35,75 @@ class FinalizedTerminalShortenerTest {
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry()));
     private final OfficialVariantEconomicsCalculator economics = new OfficialVariantEconomicsCalculator(
             new OfficialPipeCatalog(), new OfficialEconomics());
+
+    @ParameterizedTest
+    @ValueSource(doubles = {-0.02, -1.75})
+    void cheaperShorterLeafMustNotCreateNearlyParallelRaysAtItsChamber(double secondLeafY) {
+        RouteVariant seed = control();
+        List<RouteNode> nodes = new ArrayList<>(seed.getNodes());
+        RouteNode second = nodes.get(3);
+        nodes.set(3, new RouteNode(second.getId(), second.getNodeType(), new RouteCoordinate(20, secondLeafY),
+                second.isChamber(), second.isRoot(), second.getBaseIncidentSections(), second.getTargetId()));
+        List<RouteEdge> edges = new ArrayList<>(seed.getEdges());
+        edges.set(2, edge("leaf-2", "camera", "demand-2", 1, path(0, 0, 20, secondLeafY)));
+        RouteVariant baseline = evaluated(nodes, edges, seed.getConnections());
+        assertThat(baseline.isValid()).isTrue();
+        assertThat(engineering.evaluate(baseline.getEdges()).isCompliant()).isTrue();
+        AtomicInteger finishes = new AtomicInteger();
+
+        RouteVariant result = shortener.improve(baseline, false, this::directAlternative, (current, proposed) -> {
+            finishes.incrementAndGet();
+            RouteVariant candidate = finish(current, proposed);
+            assertThat(candidate.isValid()).isTrue();
+            assertThat(candidate.getEconomics().getCalculatedCost()).isLessThan(baseline.getEconomics().getCalculatedCost());
+            assertThat(candidate.getTotalLengthM()).isLessThan(baseline.getTotalLengthM());
+            var before = engineering.evaluate(baseline.getEdges());
+            var after = engineering.evaluate(candidate.getEdges());
+            assertThat(after.isCompliant()).isTrue();
+            assertThat(after.bendCount()).isLessThan(before.bendCount());
+            assertThat(after.totalJunctionAngleDeviation()).isGreaterThan(before.totalJunctionAngleDeviation());
+            if (secondLeafY == -0.02) assertThat(after.irregularJunctionAngleCount()).isGreaterThan(before.irregularJunctionAngleCount());
+            else assertThat(after.irregularJunctionAngleCount()).isEqualTo(before.irregularJunctionAngleCount());
+            return candidate;
+        });
+
+        assertThat(finishes.get()).isPositive();
+        assertThat(result).isSameAs(baseline);
+    }
+
+    @Test
+    void fewerIrregularPairsCannotHideCollapseOfTheMinimumJunctionAngle() {
+        RouteVariant seed = control();
+        List<RouteNode> nodes = new ArrayList<>(seed.getNodes());
+        RouteNode root = nodes.get(0);
+        nodes.set(0, new RouteNode(root.getId(), root.getNodeType(), new RouteCoordinate(-20, 20),
+                true, true, root.getBaseIncidentSections(), root.getTargetId(), root.getExistingIncidentDiameter()));
+        nodes.set(3, new RouteNode("demand-2", "demand_connection", new RouteCoordinate(20, -0.02),
+                false, false, 0, "point-2"));
+        List<RouteEdge> edges = List.of(
+                edge("trunk", "root", "camera", 2, path(-20, 20, 0, 0)),
+                edge("leaf-1", "camera", "demand-1", 1, path(0, 0, 2.929, 7.071, 20, 0)),
+                edge("leaf-2", "camera", "demand-2", 1, path(0, 0, 20, -0.02)));
+        RouteVariant baseline = evaluated(nodes, edges, seed.getConnections());
+        assertThat(baseline.isValid()).isTrue();
+        assertThat(engineering.evaluate(edges).isCompliant()).isTrue();
+        AtomicInteger finishes = new AtomicInteger();
+        RouteVariant result = shortener.improve(baseline, false, this::directAlternative, (current, proposed) -> {
+            finishes.incrementAndGet();
+            RouteVariant candidate = finish(current, proposed);
+            assertThat(candidate.isValid()).isTrue();
+            var before = engineering.evaluate(current.getEdges());
+            var after = engineering.evaluate(candidate.getEdges());
+            assertThat(after.isCompliant()).isTrue();
+            assertThat(after.bendCount()).isLessThan(before.bendCount());
+            assertThat(after.irregularJunctionAngleCount()).isLessThan(before.irregularJunctionAngleCount());
+            assertThat(after.totalJunctionAngleDeviation()).isCloseTo(before.totalJunctionAngleDeviation(),
+                    org.assertj.core.api.Assertions.within(1e-7));
+            return candidate;
+        });
+        assertThat(finishes.get()).isPositive();
+        assertThat(result).isSameAs(baseline);
+    }
 
     @Test
     void shortensValidatedControlFromEightyToSixtyWithoutMutatingBaseline() {

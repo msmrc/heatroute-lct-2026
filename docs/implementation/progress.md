@@ -1,5 +1,23 @@
 # Current implementation progress
 
+## 2026-09-25 — source86: export preflight камер и защита углов вводов
+
+[Checkpoint86](PRIMARY_ROUTING_86.md): экспертные правила камер повторно проверяются по
+фактической геометрии на всех входах exporter, также для старых run; JSON чтения не меняется.
+24новыхexport cases:17RED→24GREEN. Исправлена economics fixture без камеры с сохранением
+прежних денежных assertions. Shortener сохраняет углы каждой камеры:3RED→3GREEN,16контролейPASS.
+Fast1338cases/1335PASS/0fail/0error/3skip,125классов; reports сохранены отдельно,
+Java snapshot `.tooling/source86-gates.6VYRoA` совпал с checkout. Web36+37/lint/typecheckPASS;
+full86 ещё нет.
+Full84 завершён1292/1288PASS/1compactFAIL/3skip, original747,231с, strict exportPASS;
+структурно variants83==84. Full85session20838/roads83session12884 пока живы.
+Локальный rebuild83 убрал обе почти параллельные пары:2089,610м/284667513,88₽/17of17/11новых
+камер, все независимые проверки и exportPASS; +1,007%длины/+0,587%цены. Компактный prototype
+воспроизвёл его за8попыток, но ни генерация, ни tradeoff policy ещё не подключены к production.
+Shortener не создавал эти конкретные старые пары — подтверждено историей69/71/83.
+Следом direct-link gap и bounded no_route recovery; exact own-OKS corner search gap отдельно.
+Runtime61/VPS прежние; native/Compose/scale/R/G/качество/скорость открыты. Ниже история.
+
 ## 2026-09-25 — source85: экспертное уточнение по камерам
 
 [Правила и evidence](PRIMARY_ROUTING_85.md): ввод ОКС начинается в камере, между камерами

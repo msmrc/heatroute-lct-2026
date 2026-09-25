@@ -61,7 +61,8 @@ final class FinalizedTerminalShortener {
                             || candidate.getEconomics().getCalculatedCost()
                                     .compareTo(current.getEconomics().getCalculatedCost()) > 0) continue;
                     EngineeringRouteEvaluator.Evaluation next = engineering.evaluate(candidate.getEdges());
-                    if (!next.isCompliant() || next.bendCount() > evaluation.bendCount()) continue;
+                    if (!next.isCompliant() || next.bendCount() > evaluation.bendCount()
+                            || !next.preservesJunctionQualityOf(evaluation)) continue;
                     current = candidate;
                     evaluation = next;
                     break;

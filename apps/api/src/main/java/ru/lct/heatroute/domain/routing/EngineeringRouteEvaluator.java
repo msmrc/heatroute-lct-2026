@@ -31,6 +31,7 @@ final class EngineeringRouteEvaluator {
         double preferredAngleDeviation = 0.0;
         int irregularJunctionAngleCount = 0;
         double totalJunctionAngleDeviation = 0.0;
+        Map<String, Double> minimumJunctionAngles = new LinkedHashMap<>();
         Set<String> nonCompliantEdgeIds = new LinkedHashSet<>();
         Map<String, List<IncidentDirection>> directionsByNode = new LinkedHashMap<>();
 
@@ -56,7 +57,8 @@ final class EngineeringRouteEvaluator {
             }
         }
 
-        for (List<IncidentDirection> directions : directionsByNode.values()) {
+        for (Map.Entry<String, List<IncidentDirection>> entry : directionsByNode.entrySet()) {
+            List<IncidentDirection> directions = entry.getValue();
             if (directions.size() == 2) {
                 double internalAngle = angleBetween(directions.get(0), directions.get(1));
                 if (isStraight(internalAngle)) {
@@ -79,6 +81,7 @@ final class EngineeringRouteEvaluator {
             for (int left = 0; left < directions.size(); left++) {
                 for (int right = left + 1; right < directions.size(); right++) {
                     double angle = angleBetween(directions.get(left), directions.get(right));
+                    minimumJunctionAngles.merge(entry.getKey(), angle, Math::min);
                     double deviation = preferredJunctionAngleDeviation(angle);
                     totalJunctionAngleDeviation += deviation;
                     if (deviation > ANGLE_EPSILON_DEGREES) {
@@ -97,6 +100,7 @@ final class EngineeringRouteEvaluator {
                 preferredAngleDeviation,
                 irregularJunctionAngleCount,
                 totalJunctionAngleDeviation,
+                minimumJunctionAngles,
                 nonCompliantEdgeIds);
     }
 
@@ -324,6 +328,7 @@ final class EngineeringRouteEvaluator {
         private final double preferredAngleDeviation;
         private final int irregularJunctionAngleCount;
         private final double totalJunctionAngleDeviation;
+        private final Map<String, Double> minimumJunctionAngles;
         private final Set<String> nonCompliantEdgeIds;
 
         private Evaluation(
@@ -334,6 +339,7 @@ final class EngineeringRouteEvaluator {
                 double preferredAngleDeviation,
                 int irregularJunctionAngleCount,
                 double totalJunctionAngleDeviation,
+                Map<String, Double> minimumJunctionAngles,
                 Set<String> nonCompliantEdgeIds) {
             this.bendCount = bendCount;
             this.invalidAngleCount = invalidAngleCount;
@@ -342,6 +348,7 @@ final class EngineeringRouteEvaluator {
             this.preferredAngleDeviation = preferredAngleDeviation;
             this.irregularJunctionAngleCount = irregularJunctionAngleCount;
             this.totalJunctionAngleDeviation = totalJunctionAngleDeviation;
+            this.minimumJunctionAngles = Collections.unmodifiableMap(new LinkedHashMap<>(minimumJunctionAngles));
             this.nonCompliantEdgeIds = Collections.unmodifiableSet(new LinkedHashSet<>(nonCompliantEdgeIds));
         }
 
@@ -352,6 +359,21 @@ final class EngineeringRouteEvaluator {
         double preferredAngleDeviation() { return preferredAngleDeviation; }
         int irregularJunctionAngleCount() { return irregularJunctionAngleCount; }
         double totalJunctionAngleDeviation() { return totalJunctionAngleDeviation; }
+        /**
+         * Укорачивание ввода не должно ухудшать лучи камеры. Минимум сравниваем по каждому узлу:
+         * улучшение другой камеры или общего счётчика не оправдывает почти совпадающие выходы.
+         * Допуск 0,5° уже используется evaluator для округлённой геометрии; это не новая норма СП.
+         */
+        boolean preservesJunctionQualityOf(Evaluation before) {
+            if (irregularJunctionAngleCount > before.irregularJunctionAngleCount
+                    || totalJunctionAngleDeviation > before.totalJunctionAngleDeviation + 1e-7) return false;
+            for (Map.Entry<String, Double> entry : before.minimumJunctionAngles.entrySet()) {
+                Double current = minimumJunctionAngles.get(entry.getKey());
+                if (current == null || !Double.isFinite(current)
+                        || current + ANGLE_EPSILON_DEGREES < entry.getValue()) return false;
+            }
+            return true;
+        }
         Set<String> nonCompliantEdgeIds() { return nonCompliantEdgeIds; }
         boolean isCompliant() {
             return invalidAngleCount == 0 && insufficientSpacingCount == 0;

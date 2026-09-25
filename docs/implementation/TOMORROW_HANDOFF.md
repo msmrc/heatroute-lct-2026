@@ -1,5 +1,31 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source86 — preflight сохранённого экспорта и углы камер
+
+Сначала [PRIMARY_ROUTING_86.md](PRIMARY_ROUTING_86.md). Export независимо применяет правило10м
+и начало ввода в камере по фактическим полилиниям; старые неверные run требуют перерасчёта,
+но остаются читаемыми. Shortener не портит углы камеры.27новыхслучаев, fast1338/1335PASS/3skip,
+0fail/errors; reports `.tooling/intake-20260925/source86-final-fast-reports/`.
+Snapshot86 `.tooling/source86-gates.6VYRoA` побайтно проверен; пока только fast,
+web36+37/lint/typecheckPASS, лог `source86-web.log`.
+Full84 завершён exit1:1288PASS/1compactFAIL/3skip, original747,231с/strict exportPASS;
+его target свободен, отчёты `source84-full-reports/`, accepted `source84-result.json`.
+Живы full85session20838 (`.tooling/source85-gates.QFTwHj/apps/api/target`) и
+roads83session12884 (`.tooling/scenario83.zYg3LZ`); не менять targets и не дублировать jobs.
+
+Положительный локальный rebuild83:2089,610м/284667513,88₽/26bends/17of17/11новыхкамер,
+без почти параллельных выходов, min20,18388м, independent strict exportPASS. Не fresh86.
+Компактный prototype воспроизвёл ровно те же nodes/edges за8попыток. Main не менял policy
+ради допуска цены/длины; candidate offer и acceptance policy — отдельная следующая работа.
+Evidence `.tooling/source83-joint-audit.febI2W/EVIDENCE.md`.
+Arendt получил только `CorridorLinkApproaches`+новыйtest: checked direct-tail gap; Mill —
+`OfficialRoutePlanner`+новыйtest/helper: bounded coverage completion для no_route.
+Оба изменения для следующего checkpoint, не часть проверенного86; не смешивать targets.
+Отдельный unresolved exact own-OKS corner guard описан в
+`.tooling/roads-regression-audit.4mZZNB/EVIDENCE.txt`; не ослаблять final validator.
+Runtime61/VPS не трогались. Полный86, roads17/17, compact, скорость/native/Compose/scale/R/G
+не приняты. Все live-статусы ниже — история, актуален этот реестр.
+
 ## Актуально: source85 — новое уточнение по камерам
 
 Сначала [PRIMARY_ROUTING_85.md](PRIMARY_ROUTING_85.md). Не копировать ручной маршрут:

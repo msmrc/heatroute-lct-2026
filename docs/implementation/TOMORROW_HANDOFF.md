@@ -2,6 +2,12 @@
 
 ## Следующий checkpoint72: road/tram + atomic special sections
 
+Код **`a410259` pushed**,remote SHA проверен. Теперь работает **clean/full72 session53894**,
+лог `source72-full.log`,без исключений,Java11/Xmx1g/CPU2. НЕ менятьtarget/не запускатьMaven
+до завершения. Затем snapshot reports, accepted `source72-result.json`/before-assertions
+diagnostic различать; fresh metrics/export/PNG, далее roads72/native. Последующий docs-only
+commit не меняет замороженный compiled72.
+
 Сначала [PRIMARY_ROUTING_72.md](PRIMARY_ROUTING_72.md). Финальный быстрый Maven1049cases/
 1046PASS/0fail/0error/3scale skip (3долгих класса исключены);web36/scripts37/lint/typecheckPASS.
 Предыдущий broad22190 завершён; его2fixture failures/2rounding errors исправлены и повторены.
@@ -9,6 +15,8 @@ Review3findings исправленRED→GREEN; export-agent38new+42existingPASS,
 Target compiled72; следующийclean/fullбезисключений. Fresh71 PNG создан и просмотрен;
 full72/roads/native/Compose/scale остаются обязательными. Особый открытый риск — special
 через границу логических рёбер. Runtime61 неизменён, цель не завершена.
+Read-only recheck старого roads69 уже выявил8нарушенныхрёбер уshortest/cheapest:
+7непрямыхspecial,1боковойотступ1,467297<1,755м. Это неfresh72; новая генерация обязательна.
 
 ## Актуализация25.09 ~05:28MSK: full71 завершён, идёт G2 fix72
 

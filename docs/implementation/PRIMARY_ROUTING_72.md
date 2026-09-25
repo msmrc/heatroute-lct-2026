@@ -3,6 +3,10 @@
 Дата25.09.2026. Ветка `codex/routing-63-geometry`. **Work in progress, не acceptance G2**.
 Последняя полностью прогнанная база — [source71](PRIMARY_ROUTING_71.md); runtime остаётся61.
 Fetch origin повторён:master по-прежнему `28c7059`, новых изменений Артёма нет.
+Код `a410259` отправлен, remote SHA `a410259e580740ae8b2995fc169dacceb724b099` проверен.
+Clean/full72 **без исключённых тестов** запущен отдельно (`source72-full.log`,session53894).
+Target занят compiled72: до завершения не запускать Maven/не перезаписывать классы.
+Accepted output `source72-result.json` появится только после fixture assertions; diagnostic отдельно.
 
 ## Основание и реальные RED
 
@@ -72,6 +76,15 @@ Polygon; invalid DU теперь обязан отклоняться и у road.
 - Изображение **fresh71**, не72: `.tooling/intake-20260925/source71-cheapest-comparison/side-by-side.png`,
   просмотрено;2068,786м/11новых камер/17of17 vs reference1913,859м/11узловых маркеров.
   Reference не сертифицирован по новым проверкам. Оба изображения — одинаковые рамка/масштаб.
+
+## Диагностическая перепроверка старого roads69
+
+Только read-only primitive recheck, **не fresh72, не принятый результат**. В прежних
+shortest/cheapest roads69 найдено8рёбер с нарушениями среди94road-ограничений:7непрямых
+special/защитныхчастей и1недостаточный боковой отступ (ось1,467297м приДУ100требуемых1,755м).
+Это объясняет, почему прежний17/17/strict export69 нельзя использовать как доказательствоG2.
+`source72-old-roads-audit.log`,bounded ignored helper `RoadResultAudit.java`; вход не изменялся.
+Нужна новая генерация с правилами72, а не перерисовка/принятие прежнего JSON.
 
 ## Что ещё обязательно проверить
 

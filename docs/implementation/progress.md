@@ -1,5 +1,13 @@
 # Current implementation progress
 
+## 2026-09-25 — source72 отправлен; clean/full запущен
+
+`a410259` pushed,remote SHA проверен. Clean/full без исключений запущенsession53894,
+`source72-full.log`;target не перезаписывать до завершения. Fast1049cases/1046PASS/3skip
+не заменяетfull;accepted72 ещё не получен. Read-only audit старогоroads69 обнаружил8невалидных
+рёбер уshortest/cheapest (7непрямыхspecial+1отступ), поэтому прежнийexport69не доказываетG2.
+[Текущий evidence и следующие gates](PRIMARY_ROUTING_72.md). Runtime61 не обновлялся.
+
 ## 2026-09-25 — source72: завершён быстрый gate исправленного road/tram patch
 
 [PRIMARY_ROUTING_72.md](PRIMARY_ROUTING_72.md):1049cases/1046PASS/0fail/0error/3scale skip,

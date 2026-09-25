@@ -9,6 +9,7 @@
 Финальный быстрый Maven1049cases/1046PASS/0fail/0error/3skip (исключены3долгих класса),
 web36/scripts37/lint/typecheckPASS. Full/fresh/roads/native/scale ещё не приняты;
 нет claim о готовности G2/R. Runtime61 остаётся прежним.
+Код `a410259` отправлен; clean/full72 запущен без исключений,accepted72 ещё нет.
 
 **Последняя проверенная база — fresh71:** clean969cases/965PASS/1compact failure/0errors/
 3scale skip; исходный dataset fixture513,704с,17/17,strict export3ролей PASS.

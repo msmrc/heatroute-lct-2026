@@ -61,7 +61,7 @@ final class OrthogonalCorridorNetworkBuilder {
                 double angle = base + direction * Math.PI / 2;
                 Coordinate target = new Coordinate(terminal.point.x + 200 * Math.cos(angle), terminal.point.y + 200 * Math.sin(angle));
                 List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
-                        diameter, terminal.point, target, RoutePlannerTuning.stable().getEngineeringEgressExtraM());
+                        diameter, terminal.point, target, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED);
                 for (int i = 0; i < Math.min(16, egresses.size()); i++) {
                     Coordinate start = egresses.get(i).start(), exit = egresses.get(i).exit();
                     if (start.distance(exit) > 0.01) axes.add(Math.atan2(exit.y - start.y, exit.x - start.x));
@@ -132,7 +132,7 @@ final class OrthogonalCorridorNetworkBuilder {
                     Coordinate target = new Coordinate(terminal.point.x + 200 * Math.cos(angle),
                             terminal.point.y + 200 * Math.sin(angle));
                     Coordinate anchor = environment.normalEgressTowards(anchorDiameter, terminal.point, target,
-                                    RoutePlannerTuning.stable().getEngineeringEgressExtraM())
+                                    RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED)
                             .map(OfficialRouteGeometryRules.NormalEgress::exit).orElse(terminal.point);
                     if (exits.stream().noneMatch(existing -> existing.distance(anchor) < 0.01)) {
                         exits.add(anchor);

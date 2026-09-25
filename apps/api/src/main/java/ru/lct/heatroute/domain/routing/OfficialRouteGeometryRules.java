@@ -2,10 +2,12 @@ package ru.lct.heatroute.domain.routing;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -118,7 +120,13 @@ public class OfficialRouteGeometryRules {
     }
 
     ConstraintIndex index(List<Constraint> constraints) {
-        return new ConstraintIndex(constraints);
+        return new ConstraintIndex(constraints, RouteTraversal.AS_GIVEN);
+    }
+
+    /** Направление относится к road/tram-проверкам запроса, а не к общим исходным ограничениям. */
+    ConstraintIndex index(List<Constraint> constraints, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        return traversal == RouteTraversal.AS_GIVEN ? index(constraints) : new ConstraintIndex(constraints, traversal);
     }
 
     List<Constraint> applicableConstraints(
@@ -158,8 +166,17 @@ public class OfficialRouteGeometryRules {
     /** Ближайший допустимый прямой выход по нормали с полным наружным отступом до поворота. */
     Optional<NormalEgress> normalEgress(
             List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
-        return nearestLegalNormalEgresses(features, diameter, connectionPoint).stream()
-                .map(egress -> withNavigationMargin(egress, features, diameter)).findFirst();
+        return nearestLegalNormalEgresses(features, diameter, connectionPoint, RouteTraversal.AS_GIVEN).stream()
+                .map(egress -> withNavigationMargin(egress, features, diameter, RouteTraversal.AS_GIVEN)).findFirst();
+    }
+
+    /** Геометрия нормали остаётся наружной; REVERSED проверяет физический ввод к подключению. */
+    Optional<NormalEgress> normalEgress(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return normalEgress(features, diameter, connectionPoint);
+        return nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal).stream()
+                .map(egress -> withNavigationMargin(egress, features, diameter, traversal)).findFirst();
     }
 
     /** Цель разрешает только равенство расстояний до стен, не подменяя нормаль лучом на камеру. */
@@ -170,16 +187,48 @@ public class OfficialRouteGeometryRules {
 
     Optional<NormalEgress> normalEgressTowards(
             List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return normalEgressTowards(features, diameter, connectionPoint, target);
+        return normalEgressCandidates(features, diameter, connectionPoint, target, 0, traversal).stream().findFirst();
+    }
+
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
             Coordinate target, double maximumAlternativeEgressExtraM) {
         return normalEgressTowards(features, diameter, connectionPoint, target);
+    }
+
+    Optional<NormalEgress> normalEgressTowards(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return normalEgressTowards(
+                features, diameter, connectionPoint, target, maximumAlternativeEgressExtraM);
+        return normalEgressTowards(features, diameter, connectionPoint, target, traversal);
     }
 
     /** Дальняя стена доступна только если все более близкие полные вводы перекрыты препятствиями. */
     List<NormalEgress> normalEgressCandidates(
             List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
             Coordinate target, double maximumAlternativeEgressExtraM) {
-        List<NormalEgress> result = nearestLegalNormalEgresses(features, diameter, connectionPoint).stream()
-                .map(egress -> withNavigationMargin(egress, features, diameter))
+        return directedNormalEgressCandidates(features, diameter, connectionPoint, target, RouteTraversal.AS_GIVEN);
+    }
+
+    List<NormalEgress> normalEgressCandidates(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return normalEgressCandidates(
+                features, diameter, connectionPoint, target, maximumAlternativeEgressExtraM);
+        return directedNormalEgressCandidates(features, diameter, connectionPoint, target, traversal);
+    }
+
+    private List<NormalEgress> directedNormalEgressCandidates(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            Coordinate target, RouteTraversal traversal) {
+        List<NormalEgress> result = nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal).stream()
+                .map(egress -> withNavigationMargin(egress, features, diameter, traversal))
                 .collect(Collectors.toCollection(ArrayList::new));
         result.sort(Comparator.comparingDouble((NormalEgress exit) -> exit.exit().distance(target))
                 .thenComparing(NormalEgress::oksId)
@@ -188,7 +237,7 @@ public class OfficialRouteGeometryRules {
     }
 
     private List<NormalEgress> nearestLegalNormalEgresses(
-            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint, RouteTraversal traversal) {
         List<ImportedOfficialFeature> containing = containingOksFeatures(features, diameter, connectionPoint);
         if (containing.isEmpty()) return List.of();
         double clearance = axisClearance.axisClearanceM("oks", diameter, null).doubleValue();
@@ -210,7 +259,7 @@ public class OfficialRouteGeometryRules {
             if (wall.wallDistanceM > nearestLegalDistance + EPSILON_M) break;
             NormalEgress extended = extendAcrossContainingSocialAreas(
                     features, diameter, Optional.of(wall.egress)).orElseThrow();
-            if (!terminalLegAllowed(extended, features, diameter)) continue;
+            if (!terminalLegAllowed(extended, features, diameter, traversal)) continue;
             nearestLegalDistance = Math.min(nearestLegalDistance, wall.wallDistanceM);
             addDistinctEgress(result, extended);
         }
@@ -219,7 +268,7 @@ public class OfficialRouteGeometryRules {
 
     /** Запас помогает поиску и округлению, но не отменяет допустимую ближайшую стену. */
     private NormalEgress withNavigationMargin(
-            NormalEgress required, List<ImportedOfficialFeature> features, int diameter) {
+            NormalEgress required, List<ImportedOfficialFeature> features, int diameter, RouteTraversal traversal) {
         double length = required.start.distance(required.exit);
         double factor = (length + NORMAL_EGRESS_MARGIN_M) / length;
         Coordinate exit = new Coordinate(
@@ -227,11 +276,12 @@ public class OfficialRouteGeometryRules {
                 required.start.y + (required.exit.y - required.start.y) * factor);
         NormalEgress preferred = new NormalEgress(required.oksId, required.start, exit,
                 required.socialAreaIds);
-        return terminalLegAllowed(preferred, features, diameter) ? preferred : required;
+        return terminalLegAllowed(preferred, features, diameter, traversal) ? preferred : required;
     }
 
     /** Проверяет весь ввод без полигональной аппроксимации чужих запрещённых отступов. */
-    private boolean terminalLegAllowed(NormalEgress egress, List<ImportedOfficialFeature> features, int diameter) {
+    private boolean terminalLegAllowed(NormalEgress egress, List<ImportedOfficialFeature> features,
+            int diameter, RouteTraversal traversal) {
         LineString leg = line(List.of(egress.start(), egress.exit()));
         for (ImportedOfficialFeature feature : features) {
             String type = constraintType(feature);
@@ -254,10 +304,14 @@ public class OfficialRouteGeometryRules {
                         && (leg.intersects(source)
                             || leg.distance(source) < clearance - CLEARANCE_BOUNDARY_EPSILON_M)) return false;
             } else if (RoadCrossingClearance.supports(type)) {
-                // Точка выхода из ОКС — не конец теплопровода; начало при этом уже фиксировано.
-                if (!roadCrossings.terminalPrefixAllowed(leg, source, constraint.clearanceM,
-                        rule.getMinimumCrossingAngleDegrees().doubleValue(),
-                        rule.getSpecialExtensionM().doubleValue())) return false;
+                // Подключение фиксировано, наружный порт открыт: входящий ввод является суффиксом.
+                double angle = rule.getMinimumCrossingAngleDegrees().doubleValue();
+                double extension = rule.getSpecialExtensionM().doubleValue();
+                boolean allowed = traversal == RouteTraversal.AS_GIVEN
+                        ? roadCrossings.terminalPrefixAllowed(leg, source, constraint.clearanceM, angle, extension)
+                        : roadCrossings.terminalSuffixAllowed(
+                                (LineString) leg.reverse(), source, constraint.clearanceM, angle, extension);
+                if (!allowed) return false;
             } else if (!lineAllowed(leg, index(List.of(constraint)))) {
                 return false;
             }
@@ -420,7 +474,8 @@ public class OfficialRouteGeometryRules {
         Coordinate adjacent = route.getCoordinateN(route.getNumPoints() - 2);
         List<ImportedOfficialFeature> containing = containingOksFeatures(features, diameter, connectionPoint);
         if (containing.isEmpty()) return;
-        List<NormalEgress> expected = nearestLegalNormalEgresses(features, diameter, connectionPoint);
+        List<NormalEgress> expected = nearestLegalNormalEgresses(
+                features, diameter, connectionPoint, RouteTraversal.REVERSED);
         LineString actualLeg = line(List.of(endpoint, adjacent));
         boolean valid = expected.stream().anyMatch(egress -> followsNormal(endpoint, adjacent, egress)
                 && containing.stream().filter(feature -> feature.getFeatureId().equals(egress.oksId))
@@ -548,6 +603,7 @@ public class OfficialRouteGeometryRules {
             return false;
         }
         LineString segment = geometryFactory.createLineString(new Coordinate[] {start, end});
+        LineString roadSegment = null;
         for (Constraint constraint : constraints.query(segment.getEnvelopeInternal())) {
             if (constraint.rule.isForbidden()) {
                 if (joinedContactsChecked && constraint.joinedContact != null) continue;
@@ -557,7 +613,9 @@ public class OfficialRouteGeometryRules {
                 continue;
             }
             if (RoadCrossingClearance.supports(constraint.type)) {
-                if (!constraint.roadSegmentAllowed(segment, roadCrossings)) return false;
+                if (roadSegment == null) roadSegment = constraints.traversal() == RouteTraversal.AS_GIVEN
+                        ? segment : (LineString) segment.reverse();
+                if (!constraint.roadSegmentAllowed(roadSegment, roadCrossings)) return false;
                 continue;
             }
             if (constraint.rule.getMinimumCrossingAngleDegrees() != null
@@ -621,10 +679,12 @@ public class OfficialRouteGeometryRules {
 
     /** Проверяет road/tram на всей физической полилинии, включая обязательный ввод. */
     boolean completeRoadCrossingsAllowed(LineString line, ConstraintIndex constraints) {
+        LineString physicalLine = null;
         for (Constraint constraint : constraints.query(line.getEnvelopeInternal())) {
-            if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)
-                    && !roadAssessment(line, constraint).isAllowed()) {
-                return false;
+            if (!constraint.rule.isForbidden() && RoadCrossingClearance.supports(constraint.type)) {
+                if (physicalLine == null) physicalLine = constraints.traversal() == RouteTraversal.AS_GIVEN
+                        ? line : (LineString) line.reverse();
+                if (!roadAssessment(physicalLine, constraint).isAllowed()) return false;
             }
         }
         return true;
@@ -646,6 +706,23 @@ public class OfficialRouteGeometryRules {
         return roadCrossings.assess(route, constraint.source, constraint.clearanceM,
                 constraint.rule.getMinimumCrossingAngleDegrees().doubleValue(),
                 constraint.rule.getSpecialExtensionM().doubleValue());
+    }
+
+    /** Возвращает порядок построения, но интервалы и углы берёт из физического направления ребра. */
+    List<RouteSection> sections(LineString route, List<Constraint> constraints, RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        if (traversal == RouteTraversal.AS_GIVEN) return sections(route, constraints);
+        List<RouteSection> physicalSections = sections((LineString) route.reverse(), constraints);
+        List<RouteSection> result = new ArrayList<>(physicalSections.size());
+        for (int index = physicalSections.size() - 1; index >= 0; index--) {
+            RouteSection section = physicalSections.get(index);
+            List<RouteCoordinate> coordinates = new ArrayList<>(section.getCoordinates());
+            Collections.reverse(coordinates);
+            result.add(new RouteSection(section.getKind(), section.getRestrictionType(), section.getRestrictionId(),
+                    coordinates, section.getLengthM().doubleValue(), section.getCrossingAngleDegrees() == null
+                            ? null : section.getCrossingAngleDegrees().doubleValue()));
+        }
+        return result;
     }
 
     List<RouteSection> sections(LineString route, List<Constraint> constraints) {
@@ -1075,6 +1152,7 @@ public class OfficialRouteGeometryRules {
     }
 
     static final class ConstraintIndex {
+        private final RouteTraversal traversal;
         private final boolean hasJoinedContacts;
         // На малых наборах отбор и упорядочивание кандидатов дороже линейного обхода.
         private static final int LINEAR_SCAN_THRESHOLD = 128;
@@ -1082,7 +1160,8 @@ public class OfficialRouteGeometryRules {
         private final List<Constraint> roads;
         private final STRtree tree;
 
-        private ConstraintIndex(List<Constraint> constraints) {
+        private ConstraintIndex(List<Constraint> constraints, RouteTraversal traversal) {
+            this.traversal = Objects.requireNonNull(traversal, "Route traversal is required");
             all = List.copyOf(constraints);
             hasJoinedContacts = all.stream().anyMatch(item -> item.joinedContact != null);
             roads = all.stream().filter(item -> !item.rule.isForbidden()
@@ -1111,6 +1190,8 @@ public class OfficialRouteGeometryRules {
                 tree.build();
             }
         }
+
+        RouteTraversal traversal() { return traversal; }
 
         boolean hasRoadCrossings() { return !roads.isEmpty(); }
 

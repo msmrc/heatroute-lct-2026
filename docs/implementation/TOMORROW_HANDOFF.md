@@ -1,5 +1,24 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: correctness78; качество77 ещё не принято
+
+Сначала [PRIMARY_ROUTING_78.md](PRIMARY_ROUTING_78.md). Terminal direction/normal/sections
+исправлены вместе;50новых tests, конечный clean/fast1216cases/1213PASS/0fail/0error/3skip,
+web36/scripts37/lint/typecheckPASS. Последний transitive-crossing reviewer finding исправлен
+и закреплён тестами. Scope не включает все nonterminal reversal/undirected trunk callers.
+
+**Живые процессы:** full78session46700 на `.tooling/source78-build.X5TXbQ/apps/api/target`;
+roads77session2599 на `.tooling/source77-build.FeShm8/apps/api/target`. Оба target заморожены.
+Логи/accepted/diagnostics — `.tooling/intake-20260925/`; дождаться, не дублировать расчёты.
+Все агенты завершены. Main runtime61/VPS неизменны, full78 ещё не принят.
+
+Следующий quality bugfix: `PRESERVE_VALID` отказывает ранее официально допустимой ветви из-за
+поискового буфера accepted-route;77 разблокировал repair и добавил плохие углы. Bounded75/77
+trace это подтвердил для двух ветвей; весь portfolio/третий угол ещё не объяснены. В78 это
+**не исправлено**. Нужен regression и authoritative final-ДУ preservation, не ослабление
+официальных отступов и не исключение целых соседних трасс. Затем fresh all-role quality.
+На последней проверке оставалось6%недельного лимита; изменения сохраняются checkpoint'ом.
+
 ## Приоритетная актуализация: full77 завершён, quality regression открыт
 
 Full77:1170cases/1166PASS/1compactFAIL/3skip;fixture526,533с/17of17/strict exportPASS.

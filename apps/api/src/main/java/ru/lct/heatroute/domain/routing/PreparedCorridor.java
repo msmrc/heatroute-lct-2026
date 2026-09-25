@@ -40,6 +40,11 @@ final class PreparedCorridor {
 
     PreparedCorridor(OfficialRouteGeometryRules rules, List<Constraint> constraints,
             Coordinate root, String targetId) {
+        this(rules, constraints, root, targetId, RouteTraversal.AS_GIVEN);
+    }
+
+    PreparedCorridor(OfficialRouteGeometryRules rules, List<Constraint> constraints,
+            Coordinate root, String targetId, RouteTraversal traversal) {
         this.rules = Objects.requireNonNull(rules, "Corridor geometry rules are required");
         this.constraints = List.copyOf(constraints);
         requireFinite(root);
@@ -62,8 +67,8 @@ final class PreparedCorridor {
                         && "heat_network".equals(constraint.type()) && !constraint.rule().isForbidden()))
                 .collect(Collectors.toList());
         this.rootConstraints = rules.applicableConstraints(rootBase, Set.of(), root, root);
-        strictIndex = rules.index(this.constraints);
-        rootIndex = rules.index(rootConstraints);
+        strictIndex = rules.index(this.constraints, traversal);
+        rootIndex = rules.index(rootConstraints, traversal);
     }
 
     boolean pointAllowed(Coordinate point) {
@@ -179,7 +184,7 @@ final class PreparedCorridor {
             LineString fullLine = rules.line(complete);
             if (!rules.completeRoadCrossingsAllowed(fullLine, index)) return null;
         }
-        return new RoutePath(rounded, rules.sections(line, atRoot ? rootConstraints : constraints), line.getLength());
+        return new RoutePath(rounded, rules.sections(line, atRoot ? rootConstraints : constraints, index.traversal()), line.getLength());
     }
 
     private boolean isRoot(Coordinate point) { return point.distance(root) <= ROOT_ROUNDING_TOLERANCE_M; }

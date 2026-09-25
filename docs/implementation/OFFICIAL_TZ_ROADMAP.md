@@ -4,6 +4,13 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Приоритетная актуализация — source78:** [направление terminal и sections](PRIMARY_ROUTING_78.md).
+50новых regression tests; конечный clean/fast1216cases/1213PASS/0fail/0error/3scale skip,
+web36/scripts37/lint/typecheckPASS. Full78session46700 и roads77session2599 ещё работают
+на отдельных frozen targets. Релиз/quality не принят: regression77 cheapest/shortest остаётся,
+bounded trace подтвердил mismatch preservation versus search avoidance. Runtime61/VPS прежние;
+compact/G2/native/Compose/scale/R/цель открыты. Точные gates и следующий bugfix — в78/handoff.
+
 **Приоритетная актуализация — source77:** [shared-junction repair](PRIMARY_ROUTING_77.md).
 Full77 завершён1170cases/1166PASS/1compactFAIL/3skip;17/17/strict exportPASS, но **регрессия
 engineering cheapest:3плохих угла**, shortest стал длиннее. Не обновлять runtime на77.

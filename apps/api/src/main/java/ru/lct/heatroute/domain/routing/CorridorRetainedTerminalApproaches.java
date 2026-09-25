@@ -76,11 +76,13 @@ final class CorridorRetainedTerminalApproaches {
             double orientation, OfficialObstacleRouter router, OfficialRoutingEnvironment environment, List<RouteEdge> retained) {
         if (edge.getCoordinates().size() < 2 || edge.getCoordinates().size() > MAX_SOURCE_POINTS) return List.of();
         List<Coordinate> source = edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate).collect(Collectors.toList());
-        if (!terminal.getId().equals(edge.getUpstreamNodeId())) Collections.reverse(source);
+        RouteTraversal traversal = terminal.getId().equals(edge.getUpstreamNodeId())
+                ? RouteTraversal.AS_GIVEN : RouteTraversal.REVERSED;
+        if (traversal == RouteTraversal.REVERSED) Collections.reverse(source);
         if (source.stream().anyMatch(point -> !finite(point))
                 || source.get(0).distance(terminal.getCoordinate().toCoordinate()) > 0.001) return List.of();
         List<NormalEgress> egresses = environment.normalEgressCandidates(edge.getDiameter(), source.get(0), source.get(1),
-                RoutePlannerTuning.stable().getEngineeringEgressExtraM());
+                RoutePlannerTuning.stable().getEngineeringEgressExtraM(), traversal);
         NormalEgress egress = null;
         List<Coordinate> outside = source;
         if (!egresses.isEmpty()) {
@@ -123,7 +125,7 @@ final class CorridorRetainedTerminalApproaches {
         Envelope bounds = new Envelope();
         tails.forEach(points -> points.forEach(bounds::expandToInclude));
         if (egress != null) bounds.expandToInclude(egress.start());
-        PreparedCorridor checks = router.prepareCorridor(edge.getDiameter(), environment, bounds, outside.get(0), null);
+        PreparedCorridor checks = router.prepareCorridor(edge.getDiameter(), environment, bounds, outside.get(0), null, traversal);
         List<RoutePath> paths = new ArrayList<>();
         Set<List<Coordinate>> checkedTails = new HashSet<>();
         for (List<Coordinate> points : tails) {
@@ -136,7 +138,7 @@ final class CorridorRetainedTerminalApproaches {
             RoutePath path = egress == null ? checks.path(points) : checks.pathAfter(egress.start(), points);
             if (path == null) continue;
             if (egress == null && path.coordinates().stream().anyMatch(point -> !checks.pointAllowed(point))) continue;
-            if (egress != null) path = router.withCheckedTerminalPrefix(egress, path, edge.getDiameter(), environment);
+            if (egress != null) path = router.withCheckedTerminalPrefix(egress, path, edge.getDiameter(), environment, traversal);
             if (sound(path, edge.getDiameter()) && CorridorJunctionAssignment.clearsRetained(path, terminal.getId(), retained)) {
                 addDistinct(paths, path);
             }

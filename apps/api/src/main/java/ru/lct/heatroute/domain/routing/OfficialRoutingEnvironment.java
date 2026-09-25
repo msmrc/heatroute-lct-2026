@@ -92,9 +92,19 @@ final class OfficialRoutingEnvironment {
         return rules.normalEgress(featuresInWindow(point, point), diameter, point);
     }
 
+    java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgress(
+            int diameter, Coordinate point, RouteTraversal traversal) {
+        return rules.normalEgress(featuresInWindow(point, point), diameter, point, traversal);
+    }
+
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
             int diameter, Coordinate point, Coordinate target) {
         return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target);
+    }
+
+    java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
+            int diameter, Coordinate point, Coordinate target, RouteTraversal traversal) {
+        return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target, traversal);
     }
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
@@ -110,6 +120,13 @@ final class OfficialRoutingEnvironment {
                 maximumAlternativeEgressExtraM);
     }
 
+    java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
+            int diameter, Coordinate point, Coordinate target,
+            double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
+        return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target,
+                maximumAlternativeEgressExtraM, traversal);
+    }
+
     List<OfficialRouteGeometryRules.NormalEgress> normalEgressCandidates(
             int diameter,
             Coordinate point,
@@ -121,6 +138,13 @@ final class OfficialRoutingEnvironment {
                 point,
                 target,
                 maximumAlternativeEgressExtraM);
+    }
+
+    List<OfficialRouteGeometryRules.NormalEgress> normalEgressCandidates(
+            int diameter, Coordinate point, Coordinate target,
+            double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
+        return rules.normalEgressCandidates(featuresInWindow(point, target), diameter, point, target,
+                maximumAlternativeEgressExtraM, traversal);
     }
 
     boolean pointInsideForbiddenClearance(int diameter, Coordinate point) {

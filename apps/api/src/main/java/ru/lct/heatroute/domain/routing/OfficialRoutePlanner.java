@@ -1230,7 +1230,7 @@ public class OfficialRoutePlanner {
                         demand, waypoint, diameter, routingEnvironment,
                         exemptFeatureIds, preference, acceptedRoutes);
                 if (approach != null) {
-                    RoutePath perpendicular = obstacleRouter.withCheckedTerminalSuffix(
+                    RoutePath perpendicular = obstacleRouter.withCheckedDemandSuffix(
                             approach, coordinate, diameter, routingEnvironment, exemptFeatureIds, acceptedRoutes);
                     if (perpendicular != null) {
                         return perpendicular;
@@ -1351,11 +1351,11 @@ public class OfficialRoutePlanner {
             Coordinate target, int diameter, OfficialRoutingEnvironment environment,
             Set<String> exemptions, RoutePreference preference, List<LineString> acceptedRoutes) {
         if (egress == null) return obstacleRouter.find(demand.coordinate, target, diameter,
-                environment, exemptions, preference, acceptedRoutes);
+                environment, exemptions, preference, acceptedRoutes, RouteTraversal.REVERSED);
         RoutePath outside = obstacleRouter.findAfter(egress.start(), egress.exit(), target, diameter,
-                environment, exemptions, preference, acceptedRoutes);
+                environment, exemptions, preference, acceptedRoutes, RouteTraversal.REVERSED);
         return outside == null ? null : obstacleRouter.withCheckedTerminalPrefix(
-                egress, outside, diameter, environment, exemptions, acceptedRoutes);
+                egress, outside, diameter, environment, exemptions, acceptedRoutes, RouteTraversal.REVERSED);
     }
 
     private boolean sameEgress(
@@ -1597,18 +1597,16 @@ public class OfficialRoutePlanner {
                         .thenComparingDouble(point -> point.x).thenComparingDouble(point -> point.y))
                 .limit(MAX_ADDITIONAL_CHAMBER_APPROACHES).collect(Collectors.toList());
         for (Coordinate waypoint : waypoints) {
-            if (!obstacleRouter.lineAllowed(List.of(waypoint, junction), diameter, environment, Set.of(), avoidance)) continue;
+            if (!obstacleRouter.lineAllowed(List.of(waypoint, junction), diameter, environment, Set.of(), avoidance,
+                    RouteTraversal.REVERSED)) continue;
             RoutePath suffix = obstacleRouter.find(waypoint, junction, diameter, environment,
-                    Set.of(), preference, avoidance);
+                    Set.of(), preference, avoidance, RouteTraversal.REVERSED);
             if (suffix == null || suffix.coordinates().size() != 2) continue;
             RoutePath approach = routeDemandTowards(demand, waypoint, diameter, environment, avoidance, preference);
             if (approach == null) continue;
-            List<Coordinate> coordinates = new ArrayList<>(approach.coordinates());
-            coordinates.add(suffix.coordinates().get(1));
-            List<RouteSection> sections = new ArrayList<>(approach.sections());
-            sections.addAll(suffix.sections());
-            RoutePath path = new RoutePath(coordinates, sections, approach.lengthM() + suffix.lengthM());
-            if (constructibleAdditionalRay(junction, path, incident)) result.add(path);
+            RoutePath path = obstacleRouter.withCheckedDemandSuffix(approach, junction, diameter,
+                    environment, Set.of(), avoidance);
+            if (path != null && constructibleAdditionalRay(junction, path, incident)) result.add(path);
         }
         return result;
     }
@@ -1713,7 +1711,7 @@ public class OfficialRoutePlanner {
         if (approach == null) {
             return shortest;
         }
-        RoutePath perpendicular = obstacleRouter.withCheckedTerminalSuffix(
+        RoutePath perpendicular = obstacleRouter.withCheckedDemandSuffix(
                 approach, junction, diameter, routingEnvironment, Collections.emptySet(), acceptedRoutes);
         if (perpendicular == null || perpendicular.lengthM() > shortest.lengthM() * 1.05) {
             return shortest;
@@ -1736,7 +1734,7 @@ public class OfficialRoutePlanner {
                 ? coordinates.get(coordinates.size() - 2).toCoordinate()
                 : edge.getCoordinates().get(0).toCoordinate();
         OfficialRouteGeometryRules.NormalEgress egress = routingEnvironment.normalEgressTowards(
-                        diameter, downstream.getCoordinate().toCoordinate(), approach)
+                        diameter, downstream.getCoordinate().toCoordinate(), approach, RouteTraversal.REVERSED)
                 .orElse(null);
         if (egress == null) {
             return false;
@@ -3342,7 +3340,7 @@ public class OfficialRoutePlanner {
                             branchDiameter,
                             entry.getValue().coordinate,
                             axisEnd,
-                            tuning.getEngineeringEgressExtraM()).stream()
+                            tuning.getEngineeringEgressExtraM(), RouteTraversal.REVERSED).stream()
                     .limit(3)
                     .collect(Collectors.toList());
             for (OfficialRouteGeometryRules.NormalEgress exit : exits) {
@@ -3672,7 +3670,7 @@ public class OfficialRoutePlanner {
                         diameter,
                         demand.coordinate,
                         target,
-                        tuning.getEngineeringEgressExtraM()).stream()
+                        tuning.getEngineeringEgressExtraM(), RouteTraversal.REVERSED).stream()
                         .limit(tuning.getMaximumEngineeringEgressCandidates())
                         .collect(Collectors.toList());
         if (egressCandidates.isEmpty()) {
@@ -3700,7 +3698,7 @@ public class OfficialRoutePlanner {
                         routingEnvironment,
                         Collections.emptySet(),
                         preference,
-                        acceptedRoutes);
+                        acceptedRoutes, RouteTraversal.REVERSED);
                 if (path == null) {
                     continue;
                 }
@@ -3709,10 +3707,10 @@ public class OfficialRoutePlanner {
                         diameter,
                         routingEnvironment,
                         Collections.emptySet(),
-                        acceptedRoutes);
+                        acceptedRoutes, RouteTraversal.REVERSED);
                 RoutePath withEgress = obstacleRouter.withCheckedTerminalPrefix(egress,
                         regularized == null ? path : regularized, diameter, routingEnvironment,
-                        Set.of(), acceptedRoutes);
+                        Set.of(), acceptedRoutes, RouteTraversal.REVERSED);
                 if (withEgress == null) continue;
                 String signature = withEgress.coordinates().stream()
                         .map(coordinate -> Math.round(coordinate.x * 1000.0)
@@ -4602,7 +4600,7 @@ public class OfficialRoutePlanner {
                     ? routingEnvironment.normalEgressTowards(
                                     edge.getDiameter(),
                                     downstream.getCoordinate().toCoordinate(),
-                                    target)
+                                    target, RouteTraversal.REVERSED)
                             .orElse(null)
                     : null;
             List<Coordinate> completeRoute = edge.getCoordinates().stream()
@@ -4623,17 +4621,18 @@ public class OfficialRoutePlanner {
                     ? routingEnvironment.normalEgressTowards(
                                     edge.getDiameter(),
                                     downstream.getCoordinate().toCoordinate(),
-                                    upstream.getCoordinate().toCoordinate())
+                                    upstream.getCoordinate().toCoordinate(), RouteTraversal.REVERSED)
                             .orElse(null)
                     : null;
             RoutePath rerouted = egress == null
                     ? obstacleRouter.find(upstream.getCoordinate().toCoordinate(), downstream.getCoordinate().toCoordinate(),
                             edge.getDiameter(), routingEnvironment, exemptions, RoutePreference.SHORTEST, acceptedRoutes)
                     : obstacleRouter.findAfter(egress.start(), egress.exit(), upstream.getCoordinate().toCoordinate(),
-                            edge.getDiameter(), routingEnvironment, exemptions, RoutePreference.SHORTEST, acceptedRoutes);
+                            edge.getDiameter(), routingEnvironment, exemptions, RoutePreference.SHORTEST, acceptedRoutes,
+                            RouteTraversal.REVERSED);
             RoutePath finalPath = rerouted == null || egress == null ? rerouted
                     : obstacleRouter.withCheckedTerminalPrefix(egress, rerouted, edge.getDiameter(),
-                            routingEnvironment, exemptions, acceptedRoutes);
+                            routingEnvironment, exemptions, acceptedRoutes, RouteTraversal.REVERSED);
             if (finalPath == null) {
                 result.add(edge);
                 continue;
@@ -4753,7 +4752,7 @@ public class OfficialRoutePlanner {
             OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgressTowards(
                             edge.getDiameter(),
                             downstream.getCoordinate().toCoordinate(),
-                            upstream.getCoordinate().toCoordinate())
+                            upstream.getCoordinate().toCoordinate(), RouteTraversal.REVERSED)
                     .orElse(null);
             Coordinate rerouteEnd = egress == null
                     ? downstream.getCoordinate().toCoordinate()
@@ -4763,12 +4762,12 @@ public class OfficialRoutePlanner {
                             edge.getDiameter(), environment, exemptions, failedUtilityIds, acceptedRoutes)
                     : obstacleRouter.findAfterAvoidingDepthConflicts(egress.start(), egress.exit(),
                             upstream.getCoordinate().toCoordinate(), edge.getDiameter(), environment,
-                            exemptions, failedUtilityIds, acceptedRoutes);
+                            exemptions, failedUtilityIds, acceptedRoutes, RouteTraversal.REVERSED);
             if (rerouted == null || rerouted.lengthM() <= MIN_EDGE_LENGTH_M) continue;
             RoutePath completed = egress == null
                     ? rerouted
                     : obstacleRouter.withCheckedTerminalPrefix(egress, rerouted, edge.getDiameter(),
-                            environment, exemptions, acceptedRoutes);
+                            environment, exemptions, acceptedRoutes, RouteTraversal.REVERSED);
             if (completed == null) continue;
             if (egress != null) completed = completed.reversed();
             RouteEdge candidate = routeEdge(
@@ -4886,7 +4885,7 @@ public class OfficialRoutePlanner {
                     OfficialRouteGeometryRules.NormalEgress egress = routingEnvironment
                             .normalEgressTowards(
                                     diameterFor(resolvedFlow), coordinate, approachTarget,
-                                    DEFAULT_EGRESS_EXTRA_M)
+                                    DEFAULT_EGRESS_EXTRA_M, RouteTraversal.REVERSED)
                             .orElse(null);
                     return new Demand(
                             demandId,
@@ -5035,7 +5034,7 @@ public class OfficialRoutePlanner {
                 Coordinate approachTarget,
                 double maximumAlternativeEgressExtraM) {
             return environment.normalEgressTowards(
-                            diameter, coordinate, approachTarget, maximumAlternativeEgressExtraM)
+                            diameter, coordinate, approachTarget, maximumAlternativeEgressExtraM, RouteTraversal.REVERSED)
                     .orElse(egress);
         }
 

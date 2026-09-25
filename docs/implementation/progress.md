@@ -1,5 +1,18 @@
 # Current implementation progress
 
+## 2026-09-25 — correctness78: incoming terminal/normal/sections
+
+[Source78](PRIMARY_ROUTING_78.md): явное физическое направление без смены порядка поиска;
+normal selection, depth/final-ДУ repair, corridor terminal и sections согласованы с stored
+root→demand. Demand suffix сохраняет локальный own-OKS ввод. Reviewer finding транзитивного
+straight continuation через связанные компоненты исправлен без расширения допусков.
+50новыхtests; конечный clean/fast1216cases/1213PASS/0fail/0error/3scale skip;web36/scripts37/
+lint/typecheckPASS. Snapshot exact. Full78session46700 запущен; roads77session2599 продолжается.
+Quality regression77 не исправлен: trace выявил, что синтетический accepted-route buffer
+отвергает ранее final-valid ветви, после чего успешный repair добавляет плохие углы. Следом
+нужен отдельный PRESERVE_VALID regression/fix и fresh all-role quality. Ускорение query-sort
+пока только micro-гипотеза. Runtime61/VPS/compact/G2/native/Compose/scale/R/цель не закрыты.
+
 ## 2026-09-25 — source77: shared-junction repair
 
 **Итог full77:**1170cases/1166PASS/1compactFAIL/0errors/3skip;fixture526,533с/17of17/

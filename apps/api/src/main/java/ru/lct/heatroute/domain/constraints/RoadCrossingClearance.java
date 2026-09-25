@@ -137,6 +137,22 @@ public final class RoadCrossingClearance {
     /** Кандидат прямого ввода: возможен незавершённый выход, но начало защиты не достраивается назад. */
     public boolean terminalPrefixAllowed(LineString prefix, Geometry source, double clearanceM,
             double minimumAngleDegrees, double extensionM) {
+        return terminalPartAllowed(prefix, source, clearanceM, minimumAngleDegrees, extensionM, false);
+    }
+
+    /**
+     * Входящий ввод outer→demand: продолжение возможно только перед outer, не за demand.
+     * Встреченный переход продолжается по той же оси до реальной границы road/tram:
+     * обрезка порта внутри дороги не скрывает недопустимый угол её дальнего входа.
+     */
+    public boolean terminalSuffixAllowed(LineString suffix, Geometry source, double clearanceM,
+            double minimumAngleDegrees, double extensionM) {
+        ensureActive();
+        return terminalPartAllowed(suffix.reverse(), source, clearanceM, minimumAngleDegrees, extensionM, true);
+    }
+
+    private boolean terminalPartAllowed(LineString prefix, Geometry source, double clearanceM,
+            double minimumAngleDegrees, double extensionM, boolean incoming) {
         ensureActive();
         if (farEnough(prefix, source, clearanceM)) return true;
         if (source.getDimension() != 2 || prefix.getNumPoints() != 2) return false;
@@ -146,25 +162,45 @@ public final class RoadCrossingClearance {
         LengthIndexedLine indexed = new LengthIndexedLine(prefix);
         // До следующего входа возможна незавершённая защитная часть, в том числе
         // после уже законченного crossing. Позади реального начала продолжения нет.
-        LineString forward = prefix.getFactory().createLineString(new Coordinate[] {a,
-                new Coordinate(b.x + (b.x - a.x) * extensionM / length,
-                        b.y + (b.y - a.y) * extensionM / length)});
+        Coordinate extendedEnd = new Coordinate(b.x + (b.x - a.x) * extensionM / length,
+                b.y + (b.y - a.y) * extensionM / length);
+        if (incoming) {
+            // Пересечение, уже задетое обязательным вводом, нельзя завершить поворотом внутри
+            // road/special. Находим его дальнюю границу по исходному полигону, не по порту + 3 м.
+            // Следующие независимые компоненты по-прежнему отсеиваются до проверки угла ниже.
+            Envelope bounds = source.getEnvelopeInternal();
+            double ux = (b.x - a.x) / length, uy = (b.y - a.y) / length;
+            double farX = ux >= 0 ? bounds.getMaxX() : bounds.getMinX();
+            double farY = uy >= 0 ? bounds.getMaxY() : bounds.getMinY();
+            double forwardLength = Math.max(length + extensionM, (farX - a.x) * ux + (farY - a.y) * uy + extensionM);
+            extendedEnd = new Coordinate(a.x + (b.x - a.x) * forwardLength / length,
+                    a.y + (b.y - a.y) * forwardLength / length);
+        }
+        LineString forward = prefix.getFactory().createLineString(new Coordinate[] {a, extendedEnd});
         List<Interval> spans = crossings(forward, source, new LengthIndexedLine(forward));
         double cursor = 0;
+        double forcedStraightReach = length;
         for (Interval crossing : spans) {
             // Не навязываем ещё не пересечённый объект, если фактический хвост уже допустим.
-            if (crossing.startM >= length - EPSILON_M && (cursor >= length - EPSILON_M
+            double requiredReach = incoming ? forcedStraightReach : length;
+            if (crossing.startM >= requiredReach - EPSILON_M && (cursor >= length - EPSILON_M
                     || farEnough(indexed.extractLine(cursor, length), source, clearanceM))) return true;
             // Начало ввода уже фиксировано: наружное продолжение может завершить выход,
             // но не добавить отсутствующий защитный отрезок позади подключения.
             if (crossing.startM < extensionM - EPSILON_M) return false;
-            Coordinate hit = new Coordinate(a.x + (b.x - a.x) * crossing.startM / length,
-                    a.y + (b.y - a.y) * crossing.startM / length);
+            // Геометрия проверки направлена от фиксированного demand наружу. У входящего
+            // ребра реальный вход — дальний конец crossing, а не его ближняя граница.
+            double entry = incoming ? crossing.endM : crossing.startM;
+            Coordinate hit = new Coordinate(a.x + (b.x - a.x) * entry / length,
+                    a.y + (b.y - a.y) * entry / length);
             if (boundaryAngle(source, hit, a, b) + ANGLE_EPSILON_DEGREES < minimumAngleDegrees) return false;
             double start = Math.min(length, Math.max(0, crossing.startM - extensionM));
             if (start > cursor + EPSILON_M && !farEnough(indexed.extractLine(cursor, start), source, clearanceM)) {
                 return false;
             }
+            // Следующий компонент внутри обязательного прямого продолжения тоже неизбежен.
+            // Не обрезаем эту границу портом; цепочка связанных crossings замыкается транзитивно.
+            if (incoming) forcedStraightReach = Math.max(forcedStraightReach, crossing.endM + extensionM);
             cursor = Math.max(cursor, Math.min(length, crossing.endM + extensionM));
         }
         return cursor >= length - EPSILON_M || farEnough(indexed.extractLine(cursor, length), source, clearanceM);

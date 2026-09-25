@@ -54,7 +54,7 @@ final class CorridorTerminalRouter {
         RoutePath straightAlternative = null;
         double rejectedShortestM = Double.POSITIVE_INFINITY;
         List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
-                diameter, point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM());
+                diameter, point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED);
         for (OfficialRouteGeometryRules.NormalEgress egress : egresses) {
             if (Thread.currentThread().isInterrupted()) throw new CancellationException("Corridor terminal cancelled");
             Coordinate exit = egress.exit();
@@ -78,7 +78,7 @@ final class CorridorTerminalRouter {
             coordinates.add(port);
             RoutePath outside = checkedOutside(coordinates, egress, diameter);
             if (outside == null) continue;
-            RoutePath candidate = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment);
+            RoutePath candidate = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment, RouteTraversal.REVERSED);
             if (candidate == null) {
                 double prefixM = new RouteCoordinate(point.x, point.y).toCoordinate()
                         .distance(outside.coordinates().get(0));
@@ -140,7 +140,7 @@ final class CorridorTerminalRouter {
         RoutePath original = includeFallback ? route(id, new Coordinate(start), new Coordinate(end), diameter) : null;
         ensureActive();
         List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
-                diameter, start, end, RoutePlannerTuning.stable().getEngineeringEgressExtraM());
+                diameter, start, end, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED);
         RoutePath control = checkedControl(original, start, end, diameter, egresses);
         List<RoutePath> candidates = new ArrayList<>();
         if (egresses.isEmpty()) addFreeSpaceAlternatives(candidates, start, end, diameter, clearance);
@@ -221,7 +221,7 @@ final class CorridorTerminalRouter {
             if (!finiteMetric(coordinate)) return null;
             bounds.expandToInclude(coordinate);
         }
-        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, point, null);
+        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, point, null, RouteTraversal.REVERSED);
         // PreparedCorridor умеет локальный выход существующего корня из setback. Здесь корня
         // теплосети нет, поэтому запрещаем такое послабление и до, и после округления координат.
         for (Coordinate coordinate : coordinates) if (!checks.pointAllowed(coordinate)) return null;
@@ -239,7 +239,7 @@ final class CorridorTerminalRouter {
         if (!axisAligned(coordinates.get(coordinates.size() - 2), coordinates.get(coordinates.size() - 1))) return null;
         RoutePath outside = checkedOutside(coordinates, egress, diameter);
         if (outside == null) return null;
-        RoutePath full = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment);
+        RoutePath full = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment, RouteTraversal.REVERSED);
         if (!soundGeometry(full, diameter)) return null;
         List<Coordinate> points = full.coordinates();
         return axisAligned(points.get(points.size() - 2), points.get(points.size() - 1)) ? full : null;
@@ -261,7 +261,7 @@ final class CorridorTerminalRouter {
         Envelope bounds = new Envelope();
         coordinates.forEach(bounds::expandToInclude);
         bounds.expandToInclude(egress.start());
-        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, egress.exit(), null);
+        PreparedCorridor checks = router.prepareCorridor(diameter, environment, bounds, egress.exit(), null, RouteTraversal.REVERSED);
         return checks.pathAfter(egress.start(), coordinates);
     }
 
@@ -282,7 +282,7 @@ final class CorridorTerminalRouter {
             if (!points.get(1).equals2D(roundedExit)) continue;
             RoutePath outside = checkedOutside(points.subList(1, points.size()), egress, diameter);
             if (outside == null) continue;
-            RoutePath checked = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment);
+            RoutePath checked = router.withCheckedCorridorTerminalPrefix(egress, outside, diameter, environment, RouteTraversal.REVERSED);
             if (soundGeometry(checked, diameter) && sameGeometry(original, checked)) return checked;
         }
         return null;

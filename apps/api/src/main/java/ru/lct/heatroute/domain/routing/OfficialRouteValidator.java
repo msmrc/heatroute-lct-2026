@@ -188,7 +188,8 @@ public class OfficialRouteValidator {
                                     features,
                                     diameter,
                                     connectionPoint,
-                                    route.getCoordinateN(route.getNumPoints() - 2))
+                                    route.getCoordinateN(route.getNumPoints() - 2),
+                                    RouteTraversal.REVERSED)
                             .orElse(null)
                     : null;
             if (egress == null) {

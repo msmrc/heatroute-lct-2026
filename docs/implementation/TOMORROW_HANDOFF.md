@@ -1,6 +1,20 @@
 # Handoff — Артём / PM / developer
 
-## Текущий source65: наклонные вводы, общий quality gate открыт
+## Текущий source66: 11 камер у cheapest, общий quality gate открыт
+
+Сначала [PRIMARY_ROUTING_66.md](PRIMARY_ROUTING_66.md). Код `8d58875` / `3c50437` в origin,
+ветка `codex/routing-63-geometry`. Исходная aggregate-DU сетка сохранена; вторая добавляет
+достижимые индивидуальные вводы без снижения отступов ствола. Synthetic79,0→≤63,05м,
+rotation/UTM precision fix, focused55/55PASS. Web36/scripts37/lint/typecheckPASS.
+Clean full914:910PASS/1failure/0errors/3skip; failure — прежний compact-control.
+Fresh652,482с/17of17/strict export всех3ролей PASS. Cheapest2092,274м/11новых камер,
+1существующий корень/24поворота/285145228,70₽/1неподходящий угол; balanced/shortest всё ещё
+2192,523м/14/25/0expert. Меньше камер и дешевле65, но чуть длиннее и заметно медленнее;
+это не общий no-loss PASS. PNG66/Evgeny просмотрен. Сначала устранить оставшийся угол179,426°
+на реальной геометрии, затем fresh whole gate. Отдельный патч подготовки obstacle buffer/hull
+ещё не принят, не путать его с compiled66. Локальный JAR61 и VPS не менялись.
+
+## Предыдущий source65: наклонные вводы, общий quality gate открыт
 
 Сначала [PRIMARY_ROUTING_65.md](PRIMARY_ROUTING_65.md). Код `aff1dcf` в origin,
 ветка `codex/routing-63-geometry`; master и работающий JAR61 не менялись. Ограниченные

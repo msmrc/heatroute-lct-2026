@@ -4,6 +4,10 @@
 **Дата аудита:** 15 сентября 2026 года
 **Последнее обновление:** 25 сентября 2026 года
 
+**Результат full78:**1220cases/1216PASS/1compactFAIL/3skip, fixture599,957с;17/17/strict
+exportPASS, но cheapest сохранил3плохих угла. [Подробности78](PRIMARY_ROUTING_78.md).
+Full79/roads77/roads79 ещё выполняются; runtime61/VPS не менялись. Это не принятый quality gate.
+
 **Приоритетная актуализация — source79:** [whole-network preservation](PRIMARY_ROUTING_79.md).
 Устранена воспроизведённая порча уже допустимого incumbent из-за поискового буфера:6новыхtests,
 clean/fast1222cases/1219PASS/0fail/0error/3skip, scoped59PASS, saved75 доводка6/6exactPASS.

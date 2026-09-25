@@ -57,7 +57,9 @@ portfolio выберет ту же сеть.** Третий плохой уго�
 
 - Clean/full79session51226: `.tooling/source79-build.RQBOQ4/apps/api/target` заморожен;
   `source79-full.log`, `source79-result.json` после assertions, `source79-diagnostic.json` до них.
-- Full78session46700 ещё работает на `.tooling/source78-build.X5TXbQ/apps/api/target`.
+- Full78session46700 **завершён**:1220cases/1216PASS/1compactFAIL/3skip, fixture599,957с.
+  Все17подключений/strict exportPASS, но cheapest те же3плохих угла;balanced/shortest2194,257/
+  2194,034м/14камер. Подробности в [78](PRIMARY_ROUTING_78.md); target78 больше не занят.
 - Roads77session2599 ещё работает на `.tooling/source77-build.FeShm8/apps/api/target`.
 - Запущен fresh roads79session69123, runner `.tooling/scenario79.Vhd4HA`, на том же frozen
   target79 после завершения компиляции full79. **Target79 не очищать и после окончания full79,

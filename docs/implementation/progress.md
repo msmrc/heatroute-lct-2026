@@ -1,5 +1,13 @@
 # Current implementation progress
 
+## 2026-09-25 — контрольный full78 завершён, проверка79 продолжается
+
+1220cases/1216PASS/1compactFAIL/0errors/3skip;fixture599,957с.17/17, geometry/sizing/depth/
+economics/strict export3ролейPASS. Cheapest2073,965м/11камер/3bad angles, как77;
+balanced/shortest2194,257/2194,034м/14камер/0expert. Улучшение качества/скорости не подтверждено.
+Full78session46700 завершён, target78 свободен. Full79session51226/roads77session2599/
+roads79session69123 продолжаются на frozen targets. Runtime61/VPS/compact/R/цель не закрыты.
+
 ## 2026-09-25 — correctness79: whole-network preservation
 
 [Source79](PRIMARY_ROUTING_79.md): `PRESERVE_VALID` сохраняет целиком независимо проверенную

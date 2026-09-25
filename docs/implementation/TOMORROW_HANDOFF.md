@@ -2,6 +2,10 @@
 
 ## Актуально: source79 — не перестраивать целиком допустимую сеть
 
+**Обновление:** full78session46700 завершён1220cases/1216PASS/1compactFAIL/3skip;17of17/strict
+exportPASS, но cheapest3bad angles остаются. Target78 свободен. Full79session51226 и оба
+roads77session2599/roads79session69123 продолжают работать; их targets не изменять.
+
 Сначала [PRIMARY_ROUTING_79.md](PRIMARY_ROUTING_79.md). `PRESERVE_VALID` сохраняет все рёбра
 после независимой полной проверки сети при окончательных ДУ; поисковые буферы новых замен
 не ослаблены. 6новыхtests,3REDна78→PASS79; clean/fast1222cases/1219PASS/0fail/0error/3skip.

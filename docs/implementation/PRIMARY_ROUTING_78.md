@@ -69,11 +69,28 @@ outgoing prefix к обратной линии. Если наружный пор
 1209-case gate ещё не включал последние три continuation-теста и четыре own-suffix-теста.
 Не подменять ими конечные1216cases. Это correctness checkpoint, не подтверждённое ускорение.
 
-## Живые проверки и границы scope
+## Полный78 завершён: регрессия качества остаётся
 
-- **Clean/full78session46700**, `.tooling/source78-build.X5TXbQ/apps/api`, лог
+Full78session46700 завершён exit1: **1220cases /1216PASS /1compact failure /0errors /3scale skip**.
+Original fixture599,957с, concave4,628с. Геометрия/sizing/depth/economics и strict export всех3ролей
+прошли; `source78-result.json` существует после assertions. Это не all-role engineering gate.
+
+| Роль78 | Подключения | Длина, м | Новые камеры | Стоимость, ₽ | Expert issues |
+| --- | ---: | ---: | ---: | ---: | --- |
+| balanced | 17/17 | 2194,257 | 14 | 303008556,70 | 0 |
+| shortest | 17/17 | 2194,034 | 14 | 302986864,36 | 0 |
+| cheapest | 17/17 | 2073,965 | 11 | 283374789,18 | те же3плохих угла, что77 |
+
+Cheapest не исправлен направлением terminal. Balanced/shortest стали ещё на1,734м длиннее77.
+Не выдавать78 за улучшение качества/скорости и не обновлять runtime. Сравнение времени идёт
+при параллельных проверках и не является изолированным benchmark. Reports сохранены в
+`intake-20260925/source78-full-reports/`; следующая проверка — [whole-network retention79](PRIMARY_ROUTING_79.md).
+
+## Проверки и границы scope
+
+- **Clean/full78session46700 завершён**, `.tooling/source78-build.X5TXbQ/apps/api`, лог
   `.tooling/intake-20260925/source78-full.log`; `source78-result.json` после assertions,
-  `source78-diagnostic.json` до них. Target заморожен до завершения. Accepted78 ещё нет.
+  `source78-diagnostic.json` до них. Target больше не занят full78; результаты перечислены выше.
 - **Fresh roads77session2599**, `.tooling/scenario77.iPcahu`, использует frozen
   `.tooling/source77-build.FeShm8/apps/api/target`; лог `source77-roads.log`.
   Не перезаписывать target и не перезапускать тихий процесс. Engineering cheapest проверять

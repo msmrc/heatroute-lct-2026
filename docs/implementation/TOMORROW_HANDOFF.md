@@ -1,5 +1,17 @@
 # Handoff — Артём / PM / developer
 
+## 2026-09-27 — source99: depth/export объединены, общий fast PASS
+
+[Совместные исправления99](PRIMARY_ROUTING_99.md): source-derived special coverage,
+нулевая запись при нарушении, opaque ID и реальные локальные контакты врезки для глубины
+и сметы. Frozen final1: 2221 PASS / 3 scale skip / 0 failures/errors, 188 классов.
+Все source hashes совпадают с main; независимые семь exporter controls PASS.
+Joint replay на точных final1 classes: 8/8 individual и 4/4 ALL PASS; все12 выходных SHA
+побайтно совпали с98, исходники/classes неизменны. Новый full99/deploy не запускается:
+подтверждённый utility-horizontal gap и вопрос о подходах к пересечениям остаются открыты.
+Независимая reference-геометрия отступов подготовлена и проверена, production её не использует.
+VPS95, R/G и цель открыты.
+
 ## 2026-09-27 — найден геометрический пробел; deployment удерживается
 
 Source98 full tests GREEN не являются полной приёмкой. Отдельный utility-clearance audit

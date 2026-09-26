@@ -40,8 +40,10 @@ final class SavedSpecialClearanceAssessment {
     private final RoadCrossingClearance crossing = new RoadCrossingClearance();
     private final Map<String, Restriction> restrictions = new LinkedHashMap<>();
     private final STRtree index = new STRtree();
+    private final Map<JsonNode, Set<String>> resolvedSourceIds;
 
-    private SavedSpecialClearanceAssessment(Collection<ImportedOfficialFeature> inputs, OfficialPipeCatalog pipes) {
+    private SavedSpecialClearanceAssessment(Collection<ImportedOfficialFeature> inputs, OfficialPipeCatalog pipes, Map<JsonNode, Set<String>> resolvedSourceIds) {
+        this.resolvedSourceIds = resolvedSourceIds;
         clearance = new OfficialAxisClearance(pipes, catalog);
         for (ImportedOfficialFeature feature : inputs) {
             ensureActive();
@@ -59,9 +61,9 @@ final class SavedSpecialClearanceAssessment {
     }
 
     /** Вызывается после проверки связности сохранённой геометрии и до первой feature любого варианта. */
-    static void verify(JsonNode variant, Collection<ImportedOfficialFeature> inputs, OfficialPipeCatalog pipes) {
+    static void verify(JsonNode variant, Collection<ImportedOfficialFeature> inputs, OfficialPipeCatalog pipes, Map<JsonNode, Set<String>> resolvedSourceIds) {
         try {
-            SavedSpecialClearanceAssessment assessment = new SavedSpecialClearanceAssessment(inputs, pipes);
+            SavedSpecialClearanceAssessment assessment = new SavedSpecialClearanceAssessment(inputs, pipes, resolvedSourceIds);
             for (JsonNode edge : variant.path("edges")) {
                 ensureActive();
                 assessment.verifyEdge(edge);
@@ -115,7 +117,7 @@ final class SavedSpecialClearanceAssessment {
         for (JsonNode section : sections) {
             ensureActive();
             Set<String> types = tokens(section.path("restriction_type"));
-            Set<String> ids = tokens(section.path("restriction_id"));
+            Set<String> ids = resolvedSourceIds.getOrDefault(section, Set.of());
             boolean special = "special".equals(section.path("kind").asText());
             Set<String> resolvedTypes = new LinkedHashSet<>();
             for (String id : ids) {
@@ -157,7 +159,7 @@ final class SavedSpecialClearanceAssessment {
                 points.add(coordinate);
             }
             spans.add(new SectionSpan(start, station, "special".equals(section.path("kind").asText()),
-                    tokens(section.path("restriction_type")), tokens(section.path("restriction_id"))));
+                    tokens(section.path("restriction_type")), resolvedSourceIds.getOrDefault(section, Set.of())));
         }
         return new SavedPath(geometryFactory.createLineString(points.toArray(new Coordinate[0])), spans);
     }

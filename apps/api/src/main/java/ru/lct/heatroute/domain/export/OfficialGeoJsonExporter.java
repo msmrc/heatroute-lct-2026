@@ -158,9 +158,11 @@ public class OfficialGeoJsonExporter {
         // Проверяем все выбранные варианты до передачи первой feature потребителю потока.
         for (JsonNode variant : variants) {
             chamberDiameters.put(variant, SavedChamberAssessment.verify(variant, support, economics));
-            SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog);
-            spatial.verify(variant);
             SavedDepthAssessment.verify(variant, inputFeatures, pipeCatalog, parameters);
+            Map<JsonNode, java.util.Set<String>> specialSources =
+                    SavedSpecialSectionAssessment.verify(variant, inputFeatures, pipeCatalog);
+            SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog, specialSources);
+            spatial.verify(variant);
         }
         for (JsonNode variant : variants) {
             appendVariant(output, variant, inputById, allowMissingTieInDiameter, chamberDiameters.get(variant));

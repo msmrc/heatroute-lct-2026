@@ -25,6 +25,7 @@ import ru.lct.heatroute.domain.engineering.PipeCatalogEntry;
 import ru.lct.heatroute.domain.routing.RouteCoordinate;
 import ru.lct.heatroute.domain.routing.RouteEdge;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
+import ru.lct.heatroute.domain.topology.ExistingSourceContact;
 
 /** Проецирует существующие коммуникации на станции нового ребра в метрах. */
 @Component
@@ -153,7 +154,9 @@ public class OfficialDepthCrossingExtractor {
                 edge.getCoordinates().stream()
                         .map(RouteCoordinate::toCoordinate)
                         .toArray(Coordinate[]::new);
-        double total = geometryFactory.createLineString(points).getLength();
+        LineString route = geometryFactory.createLineString(points);
+        LengthIndexedLine indexed = new LengthIndexedLine(route);
+        double total = route.getLength();
         if (total == 0) {
             return new DepthCrossingExtraction(crossings, issues);
         }
@@ -198,15 +201,28 @@ public class OfficialDepthCrossingExtractor {
             }
             List<BigDecimal> actualStations = new ArrayList<>();
             List<BigDecimal[]> plateaus = new ArrayList<>();
-            for (double[] range : merged) {
+            for (int rangeIndex = 0; rangeIndex < merged.size(); rangeIndex++) {
+                double[] range = merged.get(rangeIndex);
+                // Врезка исключает только крайнее точечное событие, не повторный контакт
+                // того же источника и не протяжённое совпадение линий.
+                boolean pointContact = range[0] == range[1];
                 boolean sourceStart =
-                        "heat_network".equals(type)
+                        pointContact
+                                && rangeIndex == 0
+                                && "heat_network".equals(type)
                                 && upstreamHeatIds.contains(feature.getFeatureId())
-                                && range[0] <= ENDPOINT_EPSILON_M;
+                                && range[0] <= ENDPOINT_EPSILON_M
+                                && ExistingSourceContact.liesOnNearestSegment(
+                                        feature.getMetricGeometry(), points[0], indexed.extractPoint(range[0]));
                 boolean sourceEnd =
-                        "heat_network".equals(type)
+                        pointContact
+                                && rangeIndex == merged.size() - 1
+                                && "heat_network".equals(type)
                                 && downstreamHeatIds.contains(feature.getFeatureId())
-                                && total - range[1] <= ENDPOINT_EPSILON_M;
+                                && total - range[1] <= ENDPOINT_EPSILON_M
+                                && ExistingSourceContact.liesOnNearestSegment(
+                                        feature.getMetricGeometry(), points[points.length - 1],
+                                        indexed.extractPoint(range[1]));
                 if (sourceStart || sourceEnd) {
                     continue;
                 }

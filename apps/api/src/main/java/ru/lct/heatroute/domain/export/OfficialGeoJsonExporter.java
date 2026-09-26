@@ -30,6 +30,7 @@ import ru.lct.heatroute.domain.engineering.PipeCatalogEntry;
 import ru.lct.heatroute.domain.engineering.SpecialCrossingType;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.input.OfficialGeoJsonInspector;
+import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 @Component
@@ -65,54 +66,70 @@ public class OfficialGeoJsonExporter {
     }
 
     public ObjectNode export(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures) {
+        return export(calculation, inputFeatures, null);
+    }
+
+    public ObjectNode export(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
+            OfficialRunParameters parameters) {
         ObjectNode collection = objectMapper.createObjectNode();
         collection.put("type", "FeatureCollection");
         ArrayNode output = collection.putArray("features");
-        forEachFeature(calculation, inputFeatures, null, output::add);
+        forEachFeature(calculation, inputFeatures, null, parameters, output::add);
         assertValid(validator.validate(collection, allowsMissingTieInDiameter(calculation)));
         return collection;
     }
 
     public void validate(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures) {
+        validate(calculation, inputFeatures, null);
+    }
+
+    public void validate(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
+            OfficialRunParameters parameters) {
+        validateVariant(calculation, inputFeatures, null, parameters);
+    }
+
+    public void validateVariant(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures, String variantId) {
+        validateVariant(calculation, inputFeatures, variantId, null);
+    }
+
+    public void validateVariant(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
+            String variantId, OfficialRunParameters parameters) {
         OfficialOutputContractValidator.ValidationSession session = validator.begin(
                 allowsMissingTieInDiameter(calculation));
-        forEachFeature(calculation, inputFeatures, null, session::accept);
+        forEachFeature(calculation, inputFeatures, variantId, parameters, session::accept);
         assertValid(session.finish());
     }
 
-    public void validateVariant(
-            JsonNode calculation,
-            List<ImportedOfficialFeature> inputFeatures,
-            String variantId) {
-        OfficialOutputContractValidator.ValidationSession session = validator.begin(
-                allowsMissingTieInDiameter(calculation));
-        forEachFeature(calculation, inputFeatures, variantId, session::accept);
-        assertValid(session.finish());
+    public void writeValidated(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
+            OutputStream outputStream) throws IOException {
+        writeValidated(calculation, inputFeatures, null, outputStream);
     }
 
-    public void writeValidated(
-            JsonNode calculation,
-            List<ImportedOfficialFeature> inputFeatures,
-            OutputStream outputStream) throws IOException {
-        streamWriter.writeFeatureCollection(
-                outputStream,
-                output -> forEachFeature(calculation, inputFeatures, null, output));
+    /** Проверяет весь экспорт, включая последнюю сумму, до записи первого байта. */
+    public void writeValidated(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
+            OfficialRunParameters parameters, OutputStream outputStream) throws IOException {
+        validate(calculation, inputFeatures, parameters);
+        streamWriter.writeFeatureCollection(outputStream,
+                output -> forEachFeature(calculation, inputFeatures, null, parameters, output));
     }
 
-    public void writeValidatedVariant(
-            JsonNode calculation,
-            List<ImportedOfficialFeature> inputFeatures,
-            String variantId,
-            OutputStream outputStream) throws IOException {
-        streamWriter.writeFeatureCollection(
-                outputStream,
-                output -> forEachFeature(calculation, inputFeatures, variantId, output));
+    public void writeValidatedVariant(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
+            String variantId, OutputStream outputStream) throws IOException {
+        writeValidatedVariant(calculation, inputFeatures, variantId, null, outputStream);
+    }
+
+    public void writeValidatedVariant(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
+            String variantId, OfficialRunParameters parameters, OutputStream outputStream) throws IOException {
+        validateVariant(calculation, inputFeatures, variantId, parameters);
+        streamWriter.writeFeatureCollection(outputStream,
+                output -> forEachFeature(calculation, inputFeatures, variantId, parameters, output));
     }
 
     private void forEachFeature(
             JsonNode calculation,
             List<ImportedOfficialFeature> inputFeatures,
             String selectedVariantId,
+            OfficialRunParameters parameters,
             Consumer<ObjectNode> output) {
         Map<String, ImportedOfficialFeature> inputById = inputFeatures.stream().collect(Collectors.toMap(
                 ImportedOfficialFeature::getFeatureId,
@@ -143,6 +160,7 @@ public class OfficialGeoJsonExporter {
             chamberDiameters.put(variant, SavedChamberAssessment.verify(variant, support, economics));
             SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog);
             spatial.verify(variant);
+            SavedDepthAssessment.verify(variant, inputFeatures, pipeCatalog, parameters);
         }
         for (JsonNode variant : variants) {
             appendVariant(output, variant, inputById, allowMissingTieInDiameter, chamberDiameters.get(variant));
@@ -670,19 +688,18 @@ public class OfficialGeoJsonExporter {
                     .divide(segmentEnd.subtract(segmentStart), 12, RoundingMode.HALF_UP);
             length = length.add(overlapLength);
             if (hasDepthProfile(depthProfile)) {
-                // Смета делит цену сегмента по миллиметровым станциям профиля глубины.
-                // Геометрическая длина выше остаётся независимой от округления ценового интервала.
-                BigDecimal pricedStart = segmentStart.setScale(3, RoundingMode.HALF_UP);
-                BigDecimal pricedEnd = segmentEnd.setScale(3, RoundingMode.HALF_UP);
-                overlapStart = pricedStart.max(pieceStart.setScale(3, RoundingMode.HALF_UP));
-                overlapEnd = pricedEnd.min(pieceEnd.setScale(3, RoundingMode.HALF_UP));
-                if (overlapEnd.compareTo(overlapStart) <= 0) continue;
-                overlapLength = segmentLength.multiply(overlapEnd.subtract(overlapStart))
-                        .divide(pricedEnd.subtract(pricedStart), 12, RoundingMode.HALF_UP);
+                List<BigDecimal> priceCuts = depthPriceCuts(depthProfile, overlapStart, overlapEnd);
+                for (int part = 1; part < priceCuts.size(); part++) {
+                    BigDecimal from = priceCuts.get(part - 1), to = priceCuts.get(part);
+                    BigDecimal pricedLength = segmentLength.multiply(to.subtract(from))
+                            .divide(segmentEnd.subtract(segmentStart), 12, RoundingMode.HALF_UP);
+                    cost = cost.add(economicsCalculator.constructionSegmentCost(pipe, pricedLength, crossing,
+                            averageDepth(depthProfile, from, to), BigDecimal.ONE));
+                }
+            } else {
+                cost = cost.add(economicsCalculator.constructionSegmentCost(
+                        pipe, overlapLength, crossing, TWO_DIMENSIONAL_DEPTH_M, BigDecimal.ONE));
             }
-            cost = cost.add(economicsCalculator.constructionSegmentCost(
-                    pipe, overlapLength, crossing,
-                    averageDepth(depthProfile, overlapStart, overlapEnd), BigDecimal.ONE));
         }
         return new ExportPieceMeasure(length, cost);
     }
@@ -719,6 +736,23 @@ public class OfficialGeoJsonExporter {
             if (station.compareTo(start) > 0 && station.compareTo(end) < 0) cuts.add(station);
         });
         cuts.add(end);
+        return new ArrayList<>(cuts);
+    }
+
+    /** Ценовой порог не создаёт вершину геометрии: он может лежать ближе1мм к границе секции. */
+    private List<BigDecimal> depthPriceCuts(JsonNode profile, BigDecimal start, BigDecimal end) {
+        java.util.SortedSet<BigDecimal> cuts = new java.util.TreeSet<>(profileCuts(profile, start, end));
+        // Kdepth changes formula at h=3 even when a saved lawful segment has no vertex there.
+        JsonNode points = profile.path("points");
+        for (int i = 1; i < points.size(); i++) {
+            BigDecimal a = points.path(i - 1).path("depth_m").decimalValue().subtract(TWO_DIMENSIONAL_DEPTH_M);
+            BigDecimal b = points.path(i).path("depth_m").decimalValue().subtract(TWO_DIMENSIONAL_DEPTH_M);
+            if (a.signum() * b.signum() >= 0) continue;
+            BigDecimal left = points.path(i - 1).path("station_m").decimalValue();
+            BigDecimal right = points.path(i).path("station_m").decimalValue();
+            BigDecimal cut = left.add(right.subtract(left).multiply(a.negate()).divide(b.subtract(a), 18, RoundingMode.HALF_UP));
+            if (cut.compareTo(start) > 0 && cut.compareTo(end) < 0) cuts.add(cut);
+        }
         return new ArrayList<>(cuts);
     }
 
@@ -786,12 +820,11 @@ public class OfficialGeoJsonExporter {
             if (station.compareTo(rightStation) > 0) continue;
             BigDecimal run = rightStation.subtract(leftStation);
             if (run.signum() == 0) return left.path("depth_m").decimalValue();
-            BigDecimal fraction = station.subtract(leftStation).divide(run, 12, RoundingMode.HALF_UP);
+            BigDecimal fraction = station.subtract(leftStation).divide(run, 18, RoundingMode.HALF_UP);
             return left.path("depth_m").decimalValue().add(
                     right.path("depth_m").decimalValue()
                             .subtract(left.path("depth_m").decimalValue())
-                            .multiply(fraction))
-                    .setScale(3, RoundingMode.HALF_UP);
+                            .multiply(fraction));
         }
         return points.path(points.size() - 1).path("depth_m").decimalValue();
     }
@@ -814,8 +847,7 @@ public class OfficialGeoJsonExporter {
                     .divide(new BigDecimal("2"), 12, RoundingMode.HALF_UP);
             integral = integral.add(mean.multiply(right.subtract(left)));
         }
-        return integral.divide(end.subtract(start), 12, RoundingMode.HALF_UP)
-                .setScale(3, RoundingMode.HALF_UP);
+        return integral.divide(end.subtract(start), 12, RoundingMode.HALF_UP);
     }
 
     private double coordinateLength(JsonNode coordinates) {

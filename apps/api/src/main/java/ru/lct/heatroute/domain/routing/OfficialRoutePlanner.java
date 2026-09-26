@@ -4817,6 +4817,15 @@ public class OfficialRoutePlanner {
                 featuresForEdges(features, profiledEdges, routingEnvironment)));
         issues.addAll(chamberValidator.validate(nodes, profiledEdges, routingEnvironment::existingDirections));
         issues.addAll(ExpertRouteBendRules.validate(nodes, profiledEdges));
+        if (parameters.isDepthEnabled()) {
+            for (RouteEdge edge : profiledEdges) {
+                if (edge.getDepthProfile() == null || !edge.getDepthProfile().isComplete()
+                        || !edge.getDepthProfile().getIssues().isEmpty()) {
+                    issues.add(new RouteValidationIssue("DEPTH_PROFILE_INCOMPLETE", edge.getId(),
+                            "Final depth-enabled edge lacks a complete independently checked profile"));
+                }
+            }
+        }
         // The amended official contract explicitly excludes reconstruction of existing assets.
         ExistingNetworkReconstructionResult reconstruction = ExistingNetworkReconstructionResult.empty();
         VariantEconomics economics = economicsCalculator.calculate(
@@ -5112,19 +5121,14 @@ public class OfficialRoutePlanner {
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
             OfficialRunParameters parameters) {
-        Map<String, RouteNode> nodesById = nodes.stream().collect(Collectors.toMap(
-                RouteNode::getId,
-                node -> node,
-                (left, right) -> left,
-                LinkedHashMap::new));
-        return edges.stream()
-                .map(edge -> withDepthProfile(edge, depthPlanner.plan(
-                        edge,
-                        features,
-                        parameters.getMinimumDepthM(),
-                        parameters.getMaximumDepthM(),
-                        endpointFeatureIds(edge, nodesById))))
-                .collect(Collectors.toList());
+        Map<String, Set<String>> nodeTieIns = new LinkedHashMap<>();
+        for (RouteNode node : nodes) {
+            if (node.isRoot() && node.getTargetId() != null) {
+                nodeTieIns.put(node.getId(), Set.of(node.getTargetId()));
+            }
+        }
+        return depthPlanner.planNetwork(edges, features, parameters.getMinimumDepthM(),
+                parameters.getMaximumDepthM(), nodeTieIns, Map.of());
     }
 
     List<ImportedOfficialFeature> featuresForEdges(
@@ -5150,6 +5154,11 @@ public class OfficialRoutePlanner {
             List<RouteEdge> sizedEdges,
             List<ImportedOfficialFeature> features,
             OfficialRunParameters parameters) {
+        List<RouteEdge> networkProfiles = withDepthProfiles(nodes, sizedEdges, features, parameters);
+        if (networkProfiles.stream().allMatch(edge -> edge.getDepthProfile() != null
+                && edge.getDepthProfile().isComplete() && edge.getDepthProfile().getIssues().isEmpty())) {
+            return sizedEdges;
+        }
         Map<String, RouteNode> nodesById = nodes.stream().collect(Collectors.toMap(
                 RouteNode::getId,
                 node -> node,
@@ -5160,12 +5169,8 @@ public class OfficialRoutePlanner {
         for (int index = 0; index < result.size(); index++) {
             RouteEdge edge = result.get(index);
             Set<String> exemptions = endpointFeatureIds(edge, nodesById);
-            DepthProfileResult profile = depthPlanner.plan(
-                    edge,
-                    features,
-                    parameters.getMinimumDepthM(),
-                    parameters.getMaximumDepthM(),
-                    exemptions);
+            DepthProfileResult profile = withDepthProfiles(nodes, List.of(edge), features, parameters)
+                    .get(0).getDepthProfile();
             if (profile.isComplete()) continue;
             Set<String> failedUtilityIds = profile.getIssues().stream()
                     .map(issue -> issue.getCrossingId())
@@ -5186,12 +5191,8 @@ public class OfficialRoutePlanner {
                     completed,
                     edge.getFlowTph(),
                     edge.getDiameter());
-            DepthProfileResult candidateProfile = depthPlanner.plan(
-                    candidate,
-                    features,
-                    parameters.getMinimumDepthM(),
-                    parameters.getMaximumDepthM(),
-                    exemptions);
+            DepthProfileResult candidateProfile = withDepthProfiles(nodes, List.of(candidate), features, parameters)
+                    .get(0).getDepthProfile();
             if (candidateProfile.isComplete()) {
                 result.set(index, withDepthProfile(candidate, candidateProfile));
             }

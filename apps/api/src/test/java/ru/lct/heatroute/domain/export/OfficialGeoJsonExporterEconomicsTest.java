@@ -40,7 +40,7 @@ class OfficialGeoJsonExporterEconomicsTest {
     void depthBreakpointBeforeADiagonalBendPreservesSavedConstructionCost() {
         ObjectNode calculation = calculation(false, true);
         BigDecimal expected = pipeConstructionCost(calculation);
-        assertThat(expected).isEqualByComparingTo("531997.67");
+        assertThat(expected).isEqualByComparingTo("514155.40");
 
         exporter.validate(calculation, List.of());
         assertExportedCost(calculation, expected);
@@ -132,8 +132,9 @@ class OfficialGeoJsonExporterEconomicsTest {
                         new RouteSection("base", null, null, coordinates.subList(1, 3), 1.293, null))
                 : List.of(new RouteSection("base", null, null, coordinates, length, null));
         DepthProfileResult profile = depthEnabled ? new DepthProfileResult(true,
-                List.of(point("0", "3"), point("1.214", "3"), point(Double.toString(length), "4.2")),
-                List.of(), List.of(), BigDecimal.valueOf(length), BigDecimal.valueOf(length)) : null;
+                List.of(point("0", "3"), point("1.214", "3"), point(Double.toString(length), "3.12")),
+                List.of(), List.of(), BigDecimal.valueOf(1.214 + Math.hypot(length - 1.214, .12)),
+                BigDecimal.valueOf(length).add(BigDecimal.valueOf(length - 1.214).multiply(new BigDecimal(".006")))) : null;
         RouteEdge edge = new RouteEdge("edge", "start", "end", length, coordinates, sections,
                 BigDecimal.ONE, 300, profile);
         return calculation(edge);

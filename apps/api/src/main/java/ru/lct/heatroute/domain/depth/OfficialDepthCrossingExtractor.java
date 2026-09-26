@@ -87,6 +87,90 @@ public class OfficialDepthCrossingExtractor {
         return new DepthCrossingExtraction(crossings, issues);
     }
 
+    /** Full physical path extraction. Only explicitly identified heat-network tie-ins at real end nodes are exempt. */
+    public DepthCrossingExtraction extractPhysical(RouteEdge edge, List<ImportedOfficialFeature> features,
+            Set<String> upstreamHeatIds, Set<String> downstreamHeatIds) {
+        double total = edge.getCoordinates().size() < 2 ? 0 : geometryFactory.createLineString(edge.getCoordinates().stream()
+                .map(RouteCoordinate::toCoordinate).toArray(Coordinate[]::new)).getLength();
+        return extractPhysical(edge, features, upstreamHeatIds, downstreamHeatIds,
+                station -> total == 0 ? 0 : station * edge.getLengthM().doubleValue() / total);
+    }
+
+    DepthCrossingExtraction extractPhysical(RouteEdge edge, List<ImportedOfficialFeature> features,
+            Set<String> upstreamHeatIds, Set<String> downstreamHeatIds, java.util.function.DoubleUnaryOperator storedStation) {
+        List<DepthCrossing> crossings = new ArrayList<>();
+        List<DepthProfileIssue> issues = new ArrayList<>();
+        if (edge.getCoordinates().size() < 2) return new DepthCrossingExtraction(crossings, issues);
+        Coordinate[] points = edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate).toArray(Coordinate[]::new);
+        double total = geometryFactory.createLineString(points).getLength();
+        if (total == 0) return new DepthCrossingExtraction(crossings, issues);
+        for (ImportedOfficialFeature feature : features) {
+            String type = utilityType(feature);
+            if (type == null || feature.getMetricGeometry() == null || feature.getMetricGeometry().isEmpty()) continue;
+            List<double[]> ranges = new ArrayList<>();
+            double station = 0;
+            for (int i = 1; i < points.length; i++) {
+                LineString segment = geometryFactory.createLineString(new Coordinate[]{points[i - 1], points[i]});
+                double length = segment.getLength();
+                if (length == 0) continue;
+                if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException();
+                if (!segment.getEnvelopeInternal().intersects(feature.getMetricGeometry().getEnvelopeInternal())) {
+                    station += length;
+                    continue;
+                }
+                Geometry intersection = segment.intersection(feature.getMetricGeometry());
+                physicalRanges(intersection, new LengthIndexedLine(segment), station, ranges);
+                station += length;
+            }
+            ranges.sort(Comparator.comparingDouble(range -> range[0]));
+            List<double[]> merged = new ArrayList<>();
+            for (double[] range : ranges) {
+                if (!merged.isEmpty() && range[0] <= merged.get(merged.size() - 1)[1] + 1e-8)
+                    merged.get(merged.size() - 1)[1] = Math.max(merged.get(merged.size() - 1)[1], range[1]);
+                else merged.add(range.clone());
+            }
+            List<BigDecimal> actualStations = new ArrayList<>();
+            List<BigDecimal[]> plateaus = new ArrayList<>();
+            for (double[] range : merged) {
+                boolean sourceStart = "heat_network".equals(type) && upstreamHeatIds.contains(feature.getFeatureId())
+                        && range[0] <= ENDPOINT_EPSILON_M;
+                boolean sourceEnd = "heat_network".equals(type) && downstreamHeatIds.contains(feature.getFeatureId())
+                        && total - range[1] <= ENDPOINT_EPSILON_M;
+                if (sourceStart || sourceEnd) continue;
+                double physicalCrossing = (range[0] + range[1]) * 0.5;
+                actualStations.add(BigDecimal.valueOf(storedStation.applyAsDouble(physicalCrossing)).setScale(3, RoundingMode.HALF_UP));
+                // Normalize numeric projection noise before directed bounds; never shorten the physical plateau.
+                plateaus.add(new BigDecimal[]{
+                        BigDecimal.valueOf(storedStation.applyAsDouble(physicalCrossing - 2)).setScale(9, RoundingMode.HALF_UP).setScale(3, RoundingMode.FLOOR),
+                        BigDecimal.valueOf(storedStation.applyAsDouble(physicalCrossing + 2)).setScale(9, RoundingMode.HALF_UP).setScale(3, RoundingMode.CEILING)});
+            }
+            if (actualStations.isEmpty()) continue;
+            ExistingUtility utility = existingUtility(feature, type, issues);
+            if (utility == null) continue;
+            for (int i = 0; i < actualStations.size(); i++) crossings.add(new DepthCrossing(
+                    actualStations.size() == 1 ? feature.getFeatureId() : feature.getFeatureId() + "#" + (i + 1),
+                    type, actualStations.get(i), utility.topDepthM, utility.heightM,
+                    utility.rule.getVerticalClearanceM(), utility.rule.getCostMultiplier())
+                    .withPlateauInterval(plateaus.get(i)[0], plateaus.get(i)[1]));
+        }
+        crossings.sort(Comparator.comparing(DepthCrossing::getStationM).thenComparing(DepthCrossing::getId));
+        return new DepthCrossingExtraction(crossings, issues);
+    }
+
+    private void physicalRanges(Geometry geometry, LengthIndexedLine segment, double offset, List<double[]> ranges) {
+        if (geometry.isEmpty()) return;
+        if (geometry instanceof org.locationtech.jts.geom.GeometryCollection) {
+            for (int i = 0; i < geometry.getNumGeometries(); i++) physicalRanges(geometry.getGeometryN(i), segment, offset, ranges);
+            return;
+        }
+        double low = Double.POSITIVE_INFINITY, high = Double.NEGATIVE_INFINITY;
+        for (Coordinate coordinate : geometry.getCoordinates()) {
+            double value = segment.project(coordinate);
+            low = Math.min(low, value); high = Math.max(high, value);
+        }
+        if (low <= high) ranges.add(new double[]{offset + low, offset + high});
+    }
+
     private List<Double> crossingStations(
             LengthIndexedLine indexed,
             Geometry intersection,

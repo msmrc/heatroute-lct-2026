@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -143,10 +144,14 @@ class OfficialDatasetRoutingTest {
         // сумму физических объектов и обязательные повороты по готовой геометрии.
         OfficialPipeCatalog exportCatalog = new OfficialPipeCatalog();
         OfficialEconomics exportEconomics = new OfficialEconomics();
-        new OfficialGeoJsonExporter(objectMapper, exportCatalog, exportEconomics,
+        OfficialGeoJsonExporter exporter = new OfficialGeoJsonExporter(objectMapper, exportCatalog, exportEconomics,
                 new OfficialOutputContractValidator(),
-                new OfficialVariantEconomicsCalculator(exportCatalog, exportEconomics))
-                .validate(objectMapper.valueToTree(result), features);
+                new OfficialVariantEconomicsCalculator(exportCatalog, exportEconomics));
+        JsonNode savedCalculation = objectMapper.readTree(objectMapper.writeValueAsBytes(result));
+        exporter.validate(savedCalculation, features, parameters);
+        ByteArrayOutputStream exported = new ByteArrayOutputStream();
+        exporter.writeValidated(savedCalculation, features, parameters, exported);
+        assertThat(objectMapper.readTree(exported.toByteArray()).path("features").isEmpty()).isFalse();
         assertThat(demoBundle.path("run").path("parameters").path("depth_enabled").asBoolean()).isTrue();
         JsonNode demoImport = demoBundle.path("import");
         assertThat(demoImport.path("input_size_bytes").asLong()).isEqualTo(633_402L);

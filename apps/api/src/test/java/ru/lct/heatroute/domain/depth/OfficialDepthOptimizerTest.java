@@ -29,16 +29,16 @@ class OfficialDepthOptimizerTest {
         assertThat(result.isComplete()).isTrue();
         assertThat(result.getIssues()).isEmpty();
         assertThat(result.getCrossings()).singleElement().satisfies(decision -> {
-            assertThat(decision.getPassage()).isEqualTo("below");
-            assertThat(decision.getDepthM()).isEqualByComparingTo("3.7");
+            assertThat(decision.getPassage()).isEqualTo("above");
+            assertThat(decision.getDepthM()).isEqualByComparingTo("2.475");
             assertThat(decision.getPlateauStartM()).isEqualByComparingTo("48");
             assertThat(decision.getPlateauEndM()).isEqualByComparingTo("52");
-            assertThat(decision.getRampStartM()).isEqualByComparingTo("41");
-            assertThat(decision.getRampEndM()).isEqualByComparingTo("59");
-            assertThat(decision.getVerticalClearanceM()).isEqualByComparingTo("0.5");
+            assertThat(decision.getRampStartM()).isEqualByComparingTo("42.750");
+            assertThat(decision.getRampEndM()).isEqualByComparingTo("57.250");
+            assertThat(decision.getVerticalClearanceM()).isEqualByComparingTo("0.2");
         });
         assertThat(result.getPoints()).extracting(DepthProfilePoint::getStationM)
-                .containsExactly(bd("0.000"), bd("41.000"), bd("48.000"), bd("52.000"), bd("59.000"), bd("100.000"));
+                .containsExactly(bd("0.000"), bd("42.750"), bd("48.000"), bd("52.000"), bd("57.250"), bd("100.000"));
         assertThat(validator.validate(bd("100"), 50, List.of(gas), bd(".7"), bd("10"), result)).isEmpty();
     }
 
@@ -51,8 +51,8 @@ class OfficialDepthOptimizerTest {
         assertThat(result.isComplete()).isTrue();
         assertThat(result.getCrossings()).singleElement().satisfies(decision -> {
             assertThat(decision.getPassage()).isEqualTo("below");
-            assertThat(decision.getDepthM()).isEqualByComparingTo("4.2");
-            assertThat(decision.getVerticalClearanceM()).isEqualByComparingTo("0.9");
+            assertThat(decision.getDepthM()).isEqualByComparingTo("3.8");
+            assertThat(decision.getVerticalClearanceM()).isEqualByComparingTo("0.5");
         });
         assertThat(validator.validate(bd("100"), 50, List.of(power), bd(".7"), bd("8"), result)).isEmpty();
     }
@@ -81,7 +81,7 @@ class OfficialDepthOptimizerTest {
 
         assertThat(result.isComplete()).isTrue();
         assertThat(result.getIssues()).isEmpty();
-        assertThat(result.getPoints().get(0).getDepthM()).isEqualByComparingTo("4.2");
+        assertThat(result.getPoints().get(0).getDepthM()).isEqualByComparingTo("3.6");
         assertThat(result.getCrossings()).singleElement().satisfies(decision ->
                 assertThat(decision.getRampStartM()).isEqualByComparingTo("0"));
         assertThat(validator.validate(bd("30"), 50, List.of(power), bd(".7"), bd("8"), result))
@@ -100,7 +100,7 @@ class OfficialDepthOptimizerTest {
     }
 
     @Test
-    void sharesOneContinuousPlateauAcrossNearbyCrossingsAtTheSameDepth() {
+    void connectsNearbyCrossingsWithContinuousLeastCostBridge() {
         DepthCrossing first = crossing("power-1", "power", "40", ".8", "2.5", ".5", "1.15");
         DepthCrossing second = crossing("power-2", "power", "55", ".8", "2.5", ".5", "1.15");
 
@@ -110,12 +110,15 @@ class OfficialDepthOptimizerTest {
         assertThat(result.getIssues()).isEmpty();
         assertThat(result.getCrossings()).hasSize(2)
                 .allSatisfy(decision -> {
-                    assertThat(decision.getRampStartM()).isEqualByComparingTo("26");
-                    assertThat(decision.getRampEndM()).isEqualByComparingTo("69");
-                    assertThat(decision.getDepthM()).isEqualByComparingTo("4.2");
+                    assertThat(decision.getDepthM()).isEqualByComparingTo("3.8");
                 });
         assertThat(result.getPoints()).extracting(DepthProfilePoint::getStationM)
-                .containsExactly(bd("0.000"), bd("26.000"), bd("38.000"), bd("57.000"), bd("69.000"), bd("100.000"));
+                .containsExactly(bd("0.000"), bd("30.000"), bd("38.000"), bd("42.000"), bd("47.500"),
+                        bd("53.000"), bd("57.000"), bd("65.000"), bd("100.000"));
+        assertThat(result.depthAt(bd("47.5"))).isEqualByComparingTo("3.25");
+        // Exact XY/K integral of the lawful constant3.8 bridge is103.456; a shallow valley is cheaper.
+        assertThat(result.getDepthAdjustedCostMeters()).isEqualByComparingTo("103.154");
+        assertThat(result.getDepthAdjustedCostMeters()).isLessThan(bd("103.456"));
         assertThat(validator.validate(bd("100"), 50, List.of(first, second), bd(".7"), bd("8"), result))
                 .isEmpty();
     }

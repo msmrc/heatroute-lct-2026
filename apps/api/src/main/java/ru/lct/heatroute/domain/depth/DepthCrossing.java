@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 
 /** A linear-utility crossing projected to a station along one new-network edge. */
 public class DepthCrossing {
+    private final BigDecimal plateauStartM;
+    private final BigDecimal plateauEndM;
     private final String id;
     private final String type;
     private final BigDecimal stationM;
@@ -20,6 +22,16 @@ public class DepthCrossing {
             BigDecimal existingHeightM,
             BigDecimal minimumVerticalClearanceM,
             BigDecimal specialCostMultiplier) {
+        this(id, type, stationM, existingTopDepthM, existingHeightM, minimumVerticalClearanceM,
+                specialCostMultiplier, stationM.subtract(new BigDecimal("2")), stationM.add(new BigDecimal("2")));
+    }
+
+    private DepthCrossing(String id, String type, BigDecimal stationM, BigDecimal existingTopDepthM,
+            BigDecimal existingHeightM, BigDecimal minimumVerticalClearanceM, BigDecimal specialCostMultiplier,
+            BigDecimal plateauStartM, BigDecimal plateauEndM) {
+        if (plateauStartM.compareTo(plateauEndM) >= 0) throw new IllegalArgumentException("physical plateau must have positive length");
+        this.plateauStartM = plateauStartM;
+        this.plateauEndM = plateauEndM;
         this.id = required(id, "id");
         this.type = required(type, "type");
         this.stationM = positiveOrZero(stationM, "station_m");
@@ -29,6 +41,14 @@ public class DepthCrossing {
                 minimumVerticalClearanceM, "minimum_vertical_clearance_m");
         this.specialCostMultiplier = positive(specialCostMultiplier, "special_cost_multiplier");
     }
+
+    /** Source-derived bounds in stored chainage, covering two physical XY metres either side. */
+    public DepthCrossing withPlateauInterval(BigDecimal startM, BigDecimal endM) {
+        return new DepthCrossing(id, type, stationM, existingTopDepthM, existingHeightM,
+                minimumVerticalClearanceM, specialCostMultiplier, startM, endM);
+    }
+    public BigDecimal getPlateauStartM() { return plateauStartM; }
+    public BigDecimal getPlateauEndM() { return plateauEndM; }
 
     public String getId() { return id; }
     public String getType() { return type; }

@@ -148,6 +148,8 @@ public class OfficialVariantEconomicsCalculator {
         PipeCatalogEntry pipe = pipeCatalog.byDiameter(edge.getDiameter()).orElseThrow();
         DepthProfileResult profile = edge.getDepthProfile();
         if (edge.getSections().isEmpty() && edge.getCoordinates().size() < 2) {
+            if (profile != null) return segmentCost(pipe, profile, SpecialCrossingType.BASE,
+                    edge.getLengthM(), BigDecimal.ZERO, edge.getLengthM(), BigDecimal.ONE);
             return economics.newNetworkCost(
                     pipe,
                     edge.getLengthM(),
@@ -218,16 +220,13 @@ public class OfficialVariantEconomicsCalculator {
             BigDecimal bendMultiplier) {
         if (profile == null) return constructionSegmentCost(
                 pipe, segmentLength, crossing, TWO_DIMENSIONAL_DEPTH_M, bendMultiplier);
-        BigDecimal normalizedStart = start.setScale(3, RoundingMode.HALF_UP);
-        BigDecimal normalizedEnd = end.setScale(3, RoundingMode.HALF_UP);
+        BigDecimal normalizedStart = start;
+        BigDecimal normalizedEnd = end;
         if (normalizedEnd.compareTo(normalizedStart) <= 0) return BigDecimal.ZERO;
         BigDecimal result = BigDecimal.ZERO;
         NavigableSet<BigDecimal> cuts = new TreeSet<>();
         cuts.add(normalizedStart);
-        profile.getPoints().stream()
-                .map(point -> point.getStationM())
-                .filter(point -> point.compareTo(normalizedStart) > 0 && point.compareTo(normalizedEnd) < 0)
-                .forEach(cuts::add);
+        cuts.addAll(profile.costBreakpoints(normalizedStart, normalizedEnd));
         cuts.add(normalizedEnd);
         List<BigDecimal> orderedCuts = new ArrayList<>(cuts);
         for (int piece = 1; piece < orderedCuts.size(); piece++) {

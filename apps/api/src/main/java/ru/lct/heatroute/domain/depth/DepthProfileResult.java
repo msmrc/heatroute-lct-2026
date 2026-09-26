@@ -39,10 +39,15 @@ public class DepthProfileResult {
     public BigDecimal getDepthAdjustedCostMeters() { return depthAdjustedCostMeters; }
 
     public BigDecimal depthAt(BigDecimal stationM) {
+        return depthAtExact(stationM).setScale(3, RoundingMode.HALF_UP);
+    }
+
+    /** Arithmetic interpolation; intermediate values must not inherit display/storage rounding. */
+    public BigDecimal depthAtExact(BigDecimal stationM) {
         if (stationM == null || points.isEmpty()) {
             throw new IllegalArgumentException("station_m and profile points are required");
         }
-        BigDecimal station = stationM.setScale(3, RoundingMode.HALF_UP);
+        BigDecimal station = stationM;
         if (station.compareTo(points.get(0).getStationM()) < 0
                 || station.compareTo(points.get(points.size() - 1).getStationM()) > 0) {
             throw new IllegalArgumentException("station_m lies outside the depth profile");
@@ -54,17 +59,16 @@ public class DepthProfileResult {
             BigDecimal run = right.getStationM().subtract(left.getStationM());
             if (run.signum() == 0) return left.getDepthM();
             BigDecimal fraction = station.subtract(left.getStationM())
-                    .divide(run, 12, RoundingMode.HALF_UP);
+                    .divide(run, 18, RoundingMode.HALF_UP);
             return left.getDepthM().add(
-                    right.getDepthM().subtract(left.getDepthM()).multiply(fraction))
-                    .setScale(3, RoundingMode.HALF_UP);
+                    right.getDepthM().subtract(left.getDepthM()).multiply(fraction));
         }
         return points.get(points.size() - 1).getDepthM();
     }
 
     public BigDecimal averageDepth(BigDecimal startStationM, BigDecimal endStationM) {
-        BigDecimal start = startStationM.setScale(3, RoundingMode.HALF_UP);
-        BigDecimal end = endStationM.setScale(3, RoundingMode.HALF_UP);
+        BigDecimal start = startStationM;
+        BigDecimal end = endStationM;
         if (end.compareTo(start) <= 0) {
             throw new IllegalArgumentException("profile interval must have positive length");
         }
@@ -79,12 +83,30 @@ public class DepthProfileResult {
         for (int index = 1; index < stations.size(); index++) {
             BigDecimal left = stations.get(index - 1);
             BigDecimal right = stations.get(index);
-            BigDecimal average = depthAt(left).add(depthAt(right))
+            BigDecimal average = depthAtExact(left).add(depthAtExact(right))
                     .divide(new BigDecimal("2"), 12, RoundingMode.HALF_UP);
             integral = integral.add(average.multiply(right.subtract(left)));
         }
-        return integral.divide(end.subtract(start), 12, RoundingMode.HALF_UP)
-                .setScale(3, RoundingMode.HALF_UP);
+        return integral.divide(end.subtract(start), 12, RoundingMode.HALF_UP);
+    }
+
+    /** Exact arithmetic cuts include the coefficient kink at ordinary depth even for an unsplit saved profile. */
+    public List<BigDecimal> costBreakpoints(BigDecimal start, BigDecimal end) {
+        java.util.NavigableSet<BigDecimal> cuts = new java.util.TreeSet<>();
+        cuts.add(start); cuts.add(end);
+        BigDecimal ordinary = new BigDecimal("3");
+        for (DepthProfilePoint point : points) {
+            if (point.getStationM().compareTo(start) > 0 && point.getStationM().compareTo(end) < 0) cuts.add(point.getStationM());
+        }
+        for (int i = 1; i < points.size(); i++) {
+            DepthProfilePoint left = points.get(i - 1), right = points.get(i);
+            if (left.getDepthM().subtract(ordinary).signum() * right.getDepthM().subtract(ordinary).signum() >= 0) continue;
+            BigDecimal station = left.getStationM().add(right.getStationM().subtract(left.getStationM())
+                    .multiply(ordinary.subtract(left.getDepthM()))
+                    .divide(right.getDepthM().subtract(left.getDepthM()), 18, RoundingMode.HALF_UP));
+            if (station.compareTo(start) > 0 && station.compareTo(end) < 0) cuts.add(station);
+        }
+        return new ArrayList<>(cuts);
     }
 
     private static BigDecimal rounded(BigDecimal value) {

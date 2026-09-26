@@ -116,11 +116,11 @@ class OfficialDepthPlannerTest {
         assertThat(result.isComplete()).isTrue();
         assertThat(result.getCrossings()).singleElement().satisfies(decision -> {
             assertThat(decision.getCrossingId()).isEqualTo("gas");
-            assertThat(decision.getPassage()).isIn("above", "below");
+            assertThat(decision.getPassage()).isEqualTo("above");
         });
         assertThat(result.averageDepth(new BigDecimal("0"), new BigDecimal("100")))
-                .isGreaterThan(new BigDecimal("3.0"));
-        assertThat(result.depthAt(new BigDecimal("50"))).isEqualByComparingTo("3.7");
+                .isLessThan(new BigDecimal("3.0"));
+        assertThat(result.depthAt(new BigDecimal("50"))).isEqualByComparingTo("2.475");
         assertThat(objectMapper.valueToTree(result).path("profile_length_3d_m").isNumber()).isTrue();
         assertThat(objectMapper.valueToTree(result).has("profileLength3dM")).isFalse();
     }

@@ -153,6 +153,7 @@ final class OrthogonalCorridorNetworkBuilder {
                 checks::pointAllowed, checks::edgeAllowed, orientation);
         BiPredicate<Integer, Integer> directions = rootedDirections(grid, checks);
         BiPredicate<Integer, Integer> chamberArms = junctionArms(grid.points(), grid.points().size(), Map.of(), checks);
+        CorridorTreeBuilder.TurnAdmission turns = gridTurns(grid, checks);
         CorridorTerminalRouter spurs = new CorridorTerminalRouter(router, environment, terminalRouter, orientation);
         LOGGER.info("Corridor graph target={} nodes={} links={} demands={} individual_anchors={}", root.getTargetId(),
                 grid.points().size(), grid.links().size(), terminals.size(), includeIndividualAnchors);
@@ -187,7 +188,7 @@ final class OrthogonalCorridorNetworkBuilder {
             for (boolean farthestFirst : ports.size() == terminals.size() ? new boolean[] {true, false} : new boolean[0]) {
                 // Метры — поисковый штраф создания камеры, не подмена официальной сметы.
                 for (double junctionPenalty : new double[] {0, 25}) {
-                    List<int[]> tree = new CorridorTreeBuilder(chamberArms).build(grid.points(), graph.links, grid.rootIndex(),
+                    List<int[]> tree = new CorridorTreeBuilder(chamberArms, turns).build(grid.points(), graph.links, grid.rootIndex(),
                             rootCapacity, reservations, farthestFirst, junctionPenalty, 3.0, directions);
                     if (tree == null) {
                         LOGGER.info("Corridor tree unavailable target={} farthest={} junction_penalty={}",
@@ -202,7 +203,7 @@ final class OrthogonalCorridorNetworkBuilder {
                 }
             }
             for (double bendPenalty : ports.size() == terminals.size() ? new double[] {0, 3, 15} : new double[0]) {
-                List<int[]> tree = new CorridorTreeBuilder(chamberArms).buildMetricClosure(grid.points(), graph.links,
+                List<int[]> tree = new CorridorTreeBuilder(chamberArms, turns).buildMetricClosure(grid.points(), graph.links,
                         grid.rootIndex(), rootCapacity, reservations, bendPenalty);
                 Network network = tree == null ? null : compress(tree, grid, ports, root, checks, environment);
                 LOGGER.info("Corridor metric tree target={} bend_penalty={} assembled={}",
@@ -298,7 +299,7 @@ final class OrthogonalCorridorNetworkBuilder {
         for (GraphEdges graph : graphViews(links, lengths, grid, checks)) {
             List<CorridorPortSearch.Selection> trees = new ArrayList<>();
             CorridorTreeBuilder builder = new CorridorTreeBuilder(
-                    junctionArms(points, grid.points().size(), alternatives, checks));
+                    junctionArms(points, grid.points().size(), alternatives, checks), gridTurns(grid, checks));
             Map<Integer, Map<Integer, RoutePath>> paths = new LinkedHashMap<>();
             alternatives.forEach((leaf, choices) -> {
                 Map<Integer, RoutePath> leafPaths = new LinkedHashMap<>();
@@ -391,6 +392,21 @@ final class OrthogonalCorridorNetworkBuilder {
                     stablePaths.values().stream().mapToInt(Map::size).sum(), stableSeedCount);
         }
         return results;
+    }
+
+    /** Графовый поворот сохраняет обе защитные части дорожного перехода. */
+    private CorridorTreeBuilder.TurnAdmission gridTurns(OrthogonalCorridorGrid grid, PreparedCorridor checks) {
+        List<Coordinate> points = grid.points().stream()
+                .map(point -> new RouteCoordinate(point.x, point.y).toCoordinate()).collect(Collectors.toList());
+        int count = points.size();
+        Map<Long, Boolean> memo = new HashMap<>();
+        return (previous, at, next) -> {
+            // Виртуальный ввод проверяется по полной полилинии при совместном выборе вводов.
+            if (previous >= count || at >= count || next >= count) return true;
+            long key = ((long) previous * count + at) * count + next;
+            return memo.computeIfAbsent(key, ignored -> checks.turnAllowed(
+                    points.get(previous), points.get(at), points.get(next)));
+        };
     }
 
     /** Проверяет лучи будущих камер по фактическому начальному направлению ввода. */

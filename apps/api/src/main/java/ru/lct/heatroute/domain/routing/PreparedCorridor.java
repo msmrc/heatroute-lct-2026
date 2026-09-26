@@ -115,6 +115,11 @@ final class PreparedCorridor {
         return false;
     }
 
+    /** Проверяет оба округлённых луча поворота на полную защитную длину road/tram. */
+    boolean turnAllowed(Coordinate previous, Coordinate at, Coordinate next) {
+        return rules.specialTurnAllowed(previous, at, next, strictIndex);
+    }
+
     boolean edgeAllowed(Coordinate from, Coordinate to) {
         requireFinite(from);
         requireFinite(to);

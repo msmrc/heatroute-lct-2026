@@ -2,6 +2,7 @@ package ru.lct.heatroute.domain.routing;
 
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
+import org.locationtech.jts.algorithm.Orientation;
 import org.locationtech.jts.algorithm.RobustLineIntersector;
 import org.locationtech.jts.algorithm.locate.IndexedPointInAreaLocator;
 import org.locationtech.jts.geom.Coordinate;
@@ -84,7 +85,7 @@ final class PreparedSegmentIntersection {
         root = tree.getRoot();
         materializeBounds(root);
         locator = new IndexedPointInAreaLocator(owned);
-        // Завершаем ленивую подготовку до публикации: запросы используют только локальный intersector.
+        // Завершаем ленивую подготовку до публикации: последующие запросы не меняют индекс.
         locator.locate(owned.getCoordinate());
         ensureActive();
     }
@@ -101,25 +102,49 @@ final class PreparedSegmentIntersection {
         if (!envelope.intersects(bounds) || root == null) return false;
         // Если начало снаружи, вход в полигон/касание возможны только через границу любого кольца.
         if (locator.locate(start) != Location.EXTERIOR) return true;
-        return intersectsBoundary(root, bounds, start, end, new RobustLineIntersector());
+        return intersectsBoundary(root, bounds, start, end);
     }
 
     boolean usesIndex() { return indexed; }
 
     private static boolean intersectsBoundary(Boundable item, Envelope bounds,
-            Coordinate start, Coordinate end, RobustLineIntersector intersector) {
+            Coordinate start, Coordinate end) {
         if (!((Envelope) item.getBounds()).intersects(bounds)) return false;
         if (item instanceof ItemBoundable) {
             RingEdge edge = (RingEdge) ((ItemBoundable) item).getItem();
-            intersector.computeIntersection(start, end, edge.start, edge.end);
-            return intersector.hasIntersection();
+            return intersectsEdge(start, end, edge);
         }
         ensureActive();
         // Ранний выход по первому пересечению, без списка всех рёбер в envelope запроса.
         for (Object child : ((AbstractNode) item).getChildBoundables()) {
-            if (intersectsBoundary((Boundable) child, bounds, start, end, intersector)) return true;
+            if (intersectsBoundary((Boundable) child, bounds, start, end)) return true;
         }
         return false;
+    }
+
+    /**
+     * После пересечения envelopes достаточно точных знаков ориентации JTS.
+     * Координата пересечения не нужна: касания и коллинеарное наложение также запрещены.
+     */
+    private static boolean intersectsEdge(Coordinate start, Coordinate end, RingEdge edge) {
+        int first = Orientation.index(start, end, edge.start);
+        int second = Orientation.index(start, end, edge.end);
+        if (sameNonzeroSign(first, second)) return false;
+        int third = Orientation.index(edge.start, edge.end, start);
+        int fourth = Orientation.index(edge.start, edge.end, end);
+        if (sameNonzeroSign(third, fourth)) return false;
+        if (first == 0 && second == 0 && third == 0 && fourth == 0) {
+            // При underflow finite координат нулевые знаки ещё не доказывают коллинеарность.
+            // Сохраняем точный прежний JTS-ответ для этой редкой ветки и граничных наложений.
+            RobustLineIntersector fallback = new RobustLineIntersector();
+            fallback.computeIntersection(start, end, edge.start, edge.end);
+            return fallback.hasIntersection();
+        }
+        return true;
+    }
+
+    private static boolean sameNonzeroSign(int first, int second) {
+        return first > 0 && second > 0 || first < 0 && second < 0;
     }
 
     private static void addRing(STRtree tree, LineString ring) {

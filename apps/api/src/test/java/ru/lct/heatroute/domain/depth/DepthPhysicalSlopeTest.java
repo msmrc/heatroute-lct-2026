@@ -109,13 +109,30 @@ class DepthPhysicalSlopeTest {
 
     @Test
     void exactMillimetreSlopeBoundaryDoesNotDependOnLargeMetricOrigin() {
-        for (double origin : new double[]{0, 400000, 6000000}) {
-            RouteEdge edge = new RouteEdge("tiny", "a", "b", .01,
-                    List.of(new RouteCoordinate(origin + .01, 0), new RouteCoordinate(origin + .02, 0)),
-                    List.of(), BigDecimal.ONE, 50);
-            var result = planner.planNetwork(List.of(edge), List.of(), b(".7"), b("5"), Map.of(),
-                    Map.of("a", b("3"), "b", b("3.001")));
-            assertThat(result.get(0).getDepthProfile().isComplete()).as("origin=%s", origin).isTrue();
+        for (double origin : new double[] {0, 400000, 6000000}) {
+            RouteEdge edge =
+                    new RouteEdge(
+                            "tiny",
+                            "a",
+                            "b",
+                            .01,
+                            List.of(
+                                    new RouteCoordinate(origin + .01, 0),
+                                    new RouteCoordinate(origin + .02, 0)),
+                            List.of(),
+                            BigDecimal.ONE,
+                            50);
+            var result =
+                    planner.planNetwork(
+                            List.of(edge),
+                            List.of(),
+                            b(".7"),
+                            b("5"),
+                            Map.of(),
+                            Map.of("a", b("3"), "b", b("3.001")));
+            assertThat(result.get(0).getDepthProfile().isComplete())
+                    .as("origin=%s", origin)
+                    .isTrue();
         }
     }
 

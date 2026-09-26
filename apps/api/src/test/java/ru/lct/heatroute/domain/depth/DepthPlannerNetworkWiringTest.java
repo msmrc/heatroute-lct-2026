@@ -17,16 +17,21 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 class DepthPlannerNetworkWiringTest {
     private final OfficialPipeCatalog pipes = new OfficialPipeCatalog();
-    private final OfficialDepthProfileValidator validator = new OfficialDepthProfileValidator(pipes);
-    private final OfficialDepthPlanner planner = new OfficialDepthPlanner(
-            new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipes),
-            new OfficialDepthOptimizer(pipes, new OfficialEconomics()), validator);
+    private final OfficialDepthProfileValidator validator =
+            new OfficialDepthProfileValidator(pipes);
+    private final OfficialDepthPlanner planner =
+            new OfficialDepthPlanner(
+                    new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipes),
+                    new OfficialDepthOptimizer(pipes, new OfficialEconomics()),
+                    validator);
 
     @Test
     void officialPlannerUsesCommonNodeDepthAndDoesNotPinExternalSourceToThree() throws Exception {
         var features = List.of(utility("power", "power_cable", 48));
-        var input = List.of(edge("incoming", "source", "joint", 0, 50, 1400),
-                edge("outgoing", "joint", "demand", 50, 100, 50));
+        var input =
+                List.of(
+                        edge("incoming", "source", "joint", 0, 50, 1400),
+                        edge("outgoing", "joint", "demand", 50, 100, 50));
         var result = plan(input, features, Map.of());
         assertComplete(result);
         assertThat(result.get(0).getDepthProfile().depthAt(b("50"))).isEqualByComparingTo("3.4");
@@ -47,40 +52,76 @@ class DepthPlannerNetworkWiringTest {
         var gas = utility("gas", "gas_pipeline", 50);
         var road = plan(input, List.of(gas, area("road")), Map.of());
         var tram = plan(input, List.of(gas, area("tram_tracks")), Map.of());
-        assertComplete(road); assertComplete(tram);
-        assertThat(road.get(0).getDepthProfile().getCrossings().get(0).getPassage()).isEqualTo("above");
-        assertThat(tram.get(0).getDepthProfile().getCrossings().get(0).getPassage()).isEqualTo("below");
+        assertComplete(road);
+        assertComplete(tram);
+        assertThat(road.get(0).getDepthProfile().getCrossings().get(0).getPassage())
+                .isEqualTo("above");
+        assertThat(tram.get(0).getDepthProfile().getCrossings().get(0).getPassage())
+                .isEqualTo("below");
     }
 
     @Test
     void missingDiameterCannotLeavePartialProfilesAdmissible() throws Exception {
         var sized = edge("sized", "source", "joint", 0, 50, 50);
-        var unsized = new RouteEdge("unsized", "joint", "demand", 50,
-                List.of(new RouteCoordinate(50, 0), new RouteCoordinate(100, 0)), List.of(), b("2"), null);
+        var unsized =
+                new RouteEdge(
+                        "unsized",
+                        "joint",
+                        "demand",
+                        50,
+                        List.of(new RouteCoordinate(50, 0), new RouteCoordinate(100, 0)),
+                        List.of(),
+                        b("2"),
+                        null);
         assertThat(plan(List.of(sized, unsized), List.of(), Map.of()))
                 .allSatisfy(e -> assertThat(e.getDepthProfile().isComplete()).isFalse());
     }
 
-    private List<RouteEdge> plan(List<RouteEdge> edges, List<ImportedOfficialFeature> features, Map<String, BigDecimal> pins) {
+    private List<RouteEdge> plan(
+            List<RouteEdge> edges,
+            List<ImportedOfficialFeature> features,
+            Map<String, BigDecimal> pins) {
         return planner.planNetwork(edges, features, b(".7"), b("10"), Map.of(), pins);
     }
+
     private void assertComplete(List<RouteEdge> edges) {
-        assertThat(edges).allSatisfy(e -> {
-            assertThat(e.getDepthProfile().isComplete()).isTrue();
-            assertThat(e.getDepthProfile().getIssues()).isEmpty();
-        });
+        assertThat(edges)
+                .allSatisfy(
+                        e -> {
+                            assertThat(e.getDepthProfile().isComplete()).isTrue();
+                            assertThat(e.getDepthProfile().getIssues()).isEmpty();
+                        });
     }
+
     static RouteEdge edge(String id, String from, String to, double x0, double x1, int diameter) {
-        return new RouteEdge(id, from, to, x1 - x0,
-                List.of(new RouteCoordinate(x0, 0), new RouteCoordinate(x1, 0)), List.of(), b("2"), diameter);
+        return new RouteEdge(
+                id,
+                from,
+                to,
+                x1 - x0,
+                List.of(new RouteCoordinate(x0, 0), new RouteCoordinate(x1, 0)),
+                List.of(),
+                b("2"),
+                diameter);
     }
+
     static ImportedOfficialFeature utility(String id, String type, double x) throws Exception {
-        return new ImportedOfficialFeature(id, "restriction", new ObjectMapper().readTree("{\"restriction_type\":\"" + type + "\"}"),
+        return new ImportedOfficialFeature(
+                id,
+                "restriction",
+                new ObjectMapper().readTree("{\"restriction_type\":\"" + type + "\"}"),
                 new WKTReader().read("LINESTRING (" + x + " -10, " + x + " 10)"));
     }
+
     private ImportedOfficialFeature area(String type) throws Exception {
-        return new ImportedOfficialFeature(type, "restriction", new ObjectMapper().readTree("{\"restriction_type\":\"" + type + "\"}"),
+        return new ImportedOfficialFeature(
+                type,
+                "restriction",
+                new ObjectMapper().readTree("{\"restriction_type\":\"" + type + "\"}"),
                 new WKTReader().read("POLYGON ((48 -2,52 -2,52 2,48 2,48 -2))"));
     }
-    static BigDecimal b(String value) { return new BigDecimal(value); }
+
+    static BigDecimal b(String value) {
+        return new BigDecimal(value);
+    }
 }

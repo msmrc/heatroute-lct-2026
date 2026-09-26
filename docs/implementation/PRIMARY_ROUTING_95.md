@@ -33,7 +33,7 @@ Frozen `.tooling/expert95/roads-integration1`: Java 11, 1967 случаев, 196
 0 failures/errors, 3 scale skip, сумма времени классов 20,904 с. Исключены только три
 долгих dataset/control-класса. Эта копия содержит все изменения поведения, ещё со строкой
 версии 94. Финальная копия `.tooling/expert95/final1` меняет только строку на `global-tree-95`;
-на ней начаты повторный tuning gate и свежие полные расчёты. Их результат пока не заявляется.
+на ней выполнены tuning gate и свежие полные расчёты, описанные ниже.
 
 Ограниченный replay одной уникальной дорожной геометрии через реальную последовательность
 regularize → finish → engineering → mandatory chamber repair прошёл в обоих режимах глубины:
@@ -75,10 +75,28 @@ Evidence: `.tooling/expert95/roads-final1/EVIDENCE.md` и `resource-summary.json
 Web: 36 Vitest + 37 Node tests, lint/typecheck PASS. Локально pwsh и Docker отсутствуют;
 нативные Java/web проверки выполнены, VPS Compose/deploy проверяется отдельно.
 
+## Production
+
+`8147b394508d03741728d3379cc2a8f35d884ee1` развёрнут стандартным fast-forward update master.
+Перед обновлением сохранён DB backup `heatroute-20260926T005201Z-4489ffe4798e8fa5e30f7bf7e425f2079301ca11.dump`.
+Все четыре Compose-сервиса healthy; readiness, HTTPS и OpenAPI PASS.
+
+Реальный официальный import/run/export PASS. Run `9e47cc7b-f675-4700-9e11-945e9354715a`,
+job `2ff888fa-9622-4f10-82bf-94e1109a93cf`, одна попытка. Серверный lifecycle:
+00:55:22.423966–01:10:34.946388 UTC, 912,522 с; время клиента с импортом/экспортом 943,947 с.
+Это разные показатели, ни один не подменяет локальное время фаз.
+Оба варианта 17/17; cheapest rank1: 1982,087 м / 279909683,30 ₽, 13 узловых камер + 1 врезка;
+balanced rank2: 2003,009 м / 290215495,38 ₽. Экспорт 150 features / 75599 bytes,
+SHA-256 `f3bea0e04230a8758962d29e4eba48342d346c667cb3086c06b64750198622d1`.
+Изображение построено из точных вершин серверного результата и отправлено пользователю.
+Evidence: `.tooling/expert95/production-smoke-final/`, `production-overview/` и `deploy-production.log`.
+
+Серверный roads+kindergarten запущен отдельно после завершения official;
+его результат пока не заявляется. Production остаётся source95 до проверки следующей версии.
+
 ## Незакрытые проверки
 
-Compose/deploy95 и реальные серверные расчёты ещё не завершены. На VPS остаётся
-проверенный source94. Старый compact-control, scale, скорость, R/G и полная цель открыты.
+Старый compact-control, scale, скорость, R/G и полная цель открыты.
 Вопрос по буквальной границе дорожных 3 м и большим ДУ остаётся у пользователя;
 этот patch не удлиняет special и не меняет стоимость дорожного участка.
 

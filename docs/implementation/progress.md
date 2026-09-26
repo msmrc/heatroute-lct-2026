@@ -1,5 +1,14 @@
 # Current implementation progress
 
+## 2026-09-26 — production95: официальный расчёт и экспорт PASS
+
+VPS обновлён до `8147b39`, backup и все четыре Compose/readiness/HTTPS проверки PASS.
+[Серверная проверка95](PRIMARY_ROUTING_95.md): два варианта 17/17, лучший 1982,087 м,
+279909683,30 ₽, 13 узловых камер + 1 врезка. Job lifecycle 912,522 с; экспорт150 features PASS.
+Карта фактического результата отправлена. Последовательно запущен roads+kindergarten;
+результат ещё ожидается. Исправления глубины96 и ускорение пересечений проходят проверку
+отдельно; в production их пока нет. R/G, scale, компактность и полная цель остаются открыты.
+
 ## 2026-09-26 — source95: official, roads и corridor PASS; готовится deploy
 
 [Проверки95](PRIMARY_ROUTING_95.md). Код `2f5901e` отправлен в origin/master.

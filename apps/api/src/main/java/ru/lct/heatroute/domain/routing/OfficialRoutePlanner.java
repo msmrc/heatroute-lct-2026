@@ -3447,7 +3447,7 @@ public class OfficialRoutePlanner {
             }
             EngineeringRouteEvaluator.Evaluation candidateEvaluation =
                     engineeringEvaluator.evaluate(candidate.edges);
-            if (candidateEvaluation.invalidAngleCount() < currentEvaluation.invalidAngleCount()
+            if (reducesHardEngineeringViolations(candidateEvaluation, currentEvaluation)
                     && engineeringPenalty(candidateEvaluation) + LENGTH_EPSILON_M
                             < engineeringPenalty(currentEvaluation)) {
                 current = candidate;
@@ -3482,7 +3482,7 @@ public class OfficialRoutePlanner {
                     && withinEngineeringRepairCorridor(current, relocated)) {
                 EngineeringRouteEvaluator.Evaluation relocatedEvaluation =
                         engineeringEvaluator.evaluate(relocated.edges);
-                if (relocatedEvaluation.invalidAngleCount() < currentEvaluation.invalidAngleCount()) {
+                if (reducesHardEngineeringViolations(relocatedEvaluation, currentEvaluation)) {
                     current = relocated;
                     currentEvaluation = relocatedEvaluation;
                     edge = current.edges.stream()
@@ -3761,7 +3761,7 @@ public class OfficialRoutePlanner {
                             relocation.y,
                             sourceEvaluation.invalidAngleCount(),
                             candidateEvaluation.invalidAngleCount());
-                    if (candidateEvaluation.invalidAngleCount() >= sourceEvaluation.invalidAngleCount()) {
+                    if (!reducesHardEngineeringViolations(candidateEvaluation, sourceEvaluation)) {
                         continue;
                     }
                     best = best == null || engineeringRepairComparator().compare(candidate, best) < 0
@@ -4003,7 +4003,7 @@ public class OfficialRoutePlanner {
             }
             EngineeringRouteEvaluator.Evaluation candidateEvaluation =
                     engineeringEvaluator.evaluate(candidate.edges);
-            if (candidateEvaluation.invalidAngleCount() >= controlEvaluation.invalidAngleCount()) {
+            if (!reducesHardEngineeringViolations(candidateEvaluation, controlEvaluation)) {
                 continue;
             }
             best = best == null
@@ -4117,6 +4117,15 @@ public class OfficialRoutePlanner {
                 && candidateCost != null
                 && candidateCost.compareTo(controlCost.multiply(BigDecimal.valueOf(
                         1.0 + ENGINEERING_RELAXED_DEVIATION_RATIO))) <= 0;
+    }
+
+    /** Принимает уменьшение жёстких нарушений, включая расстояние при уже допустимых углах. */
+    private boolean reducesHardEngineeringViolations(
+            EngineeringRouteEvaluator.Evaluation candidate,
+            EngineeringRouteEvaluator.Evaluation control) {
+        return candidate.invalidAngleCount() < control.invalidAngleCount()
+                || candidate.invalidAngleCount() == control.invalidAngleCount()
+                        && candidate.insufficientSpacingCount() < control.insufficientSpacingCount();
     }
 
     private double engineeringPenalty(EngineeringRouteEvaluator.Evaluation evaluation) {

@@ -1,5 +1,18 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source95 — fresh official/roads выполняются
+
+[Scope95 и проверки](PRIMARY_ROUTING_95.md). Main содержит A+B+C дорожных исправлений,
+версия `global-tree-95`. Frozen `.tooling/expert95/final1` неизменяем; root выполняет
+official/tuning (session55274), roads agent — отдельный fresh full на той же копии исходников.
+Общий fast до version-only bump: 1964 PASS / 3 scale skip / 0 failures/errors.
+Правильный pipeline replay в обоих depth mode: 16 connected, одна доказанная запрещённая
+точка, 2141,981 м, все независимые проверки и export PASS. Изображение отправлено.
+На VPS пока94; его UI дополнительно проверен: две альтернативы, лучший 17/17,
+13 узловых камер. Новые depth corrections остаются isolated и пойдут отдельной версией.
+Не применять незавершённый depth prototype и naïve repair-dedup. После результатов fresh
+run — web gates, push, стандартный deploy/реальный smoke и изображения. R/G не закрыты.
+
 ## Актуально: production94 проверен, продолжается source95
 
 `master` и VPS: `4489ffe` (код94). [Production и локальная evidence](PRIMARY_ROUTING_94.md).

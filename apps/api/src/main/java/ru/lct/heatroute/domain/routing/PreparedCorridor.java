@@ -6,12 +6,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineSegment;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.operation.distance.DistanceOp;
+import ru.lct.heatroute.domain.constraints.RoadCrossingClearance;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.ConstraintIndex;
 
@@ -71,6 +73,46 @@ final class PreparedCorridor {
     boolean pointAllowed(Coordinate point) {
         requireFinite(point);
         return !rules.pointInsideForbiddenClearance(point, strictIndex);
+    }
+
+    /** Луч камеры не должен обрывать полную защитную длину дорожного перехода. */
+    boolean chamberRayAllowed(Coordinate at, Coordinate towards) {
+        Coordinate start = new RouteCoordinate(at.x, at.y).toCoordinate();
+        Coordinate next = new RouteCoordinate(towards.x, towards.y).toCoordinate();
+        double length = start.distance(next);
+        if (length <= GEOMETRY_EPSILON_M) return false;
+        for (Constraint constraint : constraints) {
+            if (!RoadCrossingClearance.supports(constraint.type())) continue;
+            double reach = constraint.rule().getSpecialExtensionM().doubleValue() - 1e-6;
+            Envelope window = new Envelope(start);
+            window.expandBy(Math.max(0, reach));
+            Geometry source = constraint.source();
+            if (!window.intersects(source.getEnvelopeInternal())) continue;
+            Geometry point = source.getFactory().createPoint(start);
+            if (source.contains(point)) return false;
+            if (point.distance(source) >= reach) continue;
+            Coordinate end = new Coordinate(start.x + (next.x - start.x) * reach / length,
+                    start.y + (next.y - start.y) * reach / length);
+            Geometry hit = source.intersection(source.getFactory().createLineString(new Coordinate[] {start, end}));
+            if (hasInteriorLength(hit, source)) return false;
+        }
+        return true;
+    }
+
+    private boolean hasInteriorLength(Geometry hit, Geometry source) {
+        if (hit instanceof LineString) {
+            Coordinate[] points = hit.getCoordinates();
+            for (int i = 1; i < points.length; i++) {
+                if (points[i - 1].distance(points[i]) <= GEOMETRY_EPSILON_M) continue;
+                Coordinate middle = new Coordinate((points[i - 1].x + points[i].x) / 2,
+                        (points[i - 1].y + points[i].y) / 2);
+                if (source.contains(source.getFactory().createPoint(middle))) return true;
+            }
+        } else if (hit instanceof GeometryCollection) {
+            for (int i = 0; i < hit.getNumGeometries(); i++)
+                if (hasInteriorLength(hit.getGeometryN(i), source)) return true;
+        }
+        return false;
     }
 
     boolean edgeAllowed(Coordinate from, Coordinate to) {

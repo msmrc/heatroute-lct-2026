@@ -152,6 +152,7 @@ final class OrthogonalCorridorNetworkBuilder {
         OrthogonalCorridorGrid grid = OrthogonalCorridorGrid.build(origin, anchors, footprints, clearance,
                 checks::pointAllowed, checks::edgeAllowed, orientation);
         BiPredicate<Integer, Integer> directions = rootedDirections(grid, checks);
+        BiPredicate<Integer, Integer> chamberArms = junctionArms(grid.points(), grid.points().size(), Map.of(), checks);
         CorridorTerminalRouter spurs = new CorridorTerminalRouter(router, environment, terminalRouter, orientation);
         LOGGER.info("Corridor graph target={} nodes={} links={} demands={} individual_anchors={}", root.getTargetId(),
                 grid.points().size(), grid.links().size(), terminals.size(), includeIndividualAnchors);
@@ -186,7 +187,7 @@ final class OrthogonalCorridorNetworkBuilder {
             for (boolean farthestFirst : ports.size() == terminals.size() ? new boolean[] {true, false} : new boolean[0]) {
                 // Метры — поисковый штраф создания камеры, не подмена официальной сметы.
                 for (double junctionPenalty : new double[] {0, 25}) {
-                    List<int[]> tree = new CorridorTreeBuilder().build(grid.points(), graph.links, grid.rootIndex(),
+                    List<int[]> tree = new CorridorTreeBuilder(chamberArms).build(grid.points(), graph.links, grid.rootIndex(),
                             rootCapacity, reservations, farthestFirst, junctionPenalty, 3.0, directions);
                     if (tree == null) {
                         LOGGER.info("Corridor tree unavailable target={} farthest={} junction_penalty={}",
@@ -201,7 +202,7 @@ final class OrthogonalCorridorNetworkBuilder {
                 }
             }
             for (double bendPenalty : ports.size() == terminals.size() ? new double[] {0, 3, 15} : new double[0]) {
-                List<int[]> tree = new CorridorTreeBuilder().buildMetricClosure(grid.points(), graph.links,
+                List<int[]> tree = new CorridorTreeBuilder(chamberArms).buildMetricClosure(grid.points(), graph.links,
                         grid.rootIndex(), rootCapacity, reservations, bendPenalty);
                 Network network = tree == null ? null : compress(tree, grid, ports, root, checks, environment);
                 LOGGER.info("Corridor metric tree target={} bend_penalty={} assembled={}",
@@ -296,7 +297,8 @@ final class OrthogonalCorridorNetworkBuilder {
         List<Network> results = new ArrayList<>();
         for (GraphEdges graph : graphViews(links, lengths, grid, checks)) {
             List<CorridorPortSearch.Selection> trees = new ArrayList<>();
-            CorridorTreeBuilder builder = new CorridorTreeBuilder();
+            CorridorTreeBuilder builder = new CorridorTreeBuilder(
+                    junctionArms(points, grid.points().size(), alternatives, checks));
             Map<Integer, Map<Integer, RoutePath>> paths = new LinkedHashMap<>();
             alternatives.forEach((leaf, choices) -> {
                 Map<Integer, RoutePath> leafPaths = new LinkedHashMap<>();
@@ -389,6 +391,24 @@ final class OrthogonalCorridorNetworkBuilder {
                     stablePaths.values().stream().mapToInt(Map::size).sum(), stableSeedCount);
         }
         return results;
+    }
+
+    /** Проверяет лучи будущих камер по фактическому начальному направлению ввода. */
+    private BiPredicate<Integer, Integer> junctionArms(List<Coordinate> points, int realPoints,
+            Map<Integer, Map<Integer, Port>> alternatives, PreparedCorridor checks) {
+        Map<Long, Boolean> memo = new HashMap<>();
+        return (from, to) -> {
+            if (from >= realPoints) return true; // Виртуальный потребитель не является физической камерой.
+            return memo.computeIfAbsent(arcKey(from, to), ignored -> {
+                Coordinate towards = points.get(to);
+                if (to >= realPoints) {
+                    List<Coordinate> path = alternatives.get(to).get(from).path.coordinates();
+                    towards = path.stream().filter(p -> p.distance(points.get(from)) > 0.001)
+                            .findFirst().orElse(points.get(from));
+                }
+                return checks.chamberRayAllowed(points.get(from), towards);
+            });
+        };
     }
 
     /** Фиксированные порты получают тот же совместный выбор путей, что и гибкий поиск. */
@@ -493,8 +513,7 @@ final class OrthogonalCorridorNetworkBuilder {
         for (int[] link : tree) {
             // Дерево ещё не ориентировано. Техническое звено может содержать только часть
             // пересечения дороги; полный допуск выполняется после сборки физической полилинии.
-            List<Coordinate> points = List.of(grid.points().get(link[0]), grid.points().get(link[1])).stream()
-                    .map(point -> new RouteCoordinate(point.x, point.y).toCoordinate()).collect(Collectors.toList());
+            List<Coordinate> points = List.of(grid.points().get(link[0]), grid.points().get(link[1]));
             add(incident, new Piece(link[0], link[1], points, false));
         }
         Map<Integer, Terminal> leaves = new HashMap<>();
@@ -551,24 +570,30 @@ final class OrthogonalCorridorNetworkBuilder {
                 int previous = from;
                 Piece current = first;
                 List<Coordinate> points = new ArrayList<>();
+                List<Coordinate> gridRun = new ArrayList<>();
                 while (true) {
                     List<Coordinate> piecePoints = new ArrayList<>(current.coordinates);
                     if (current.from != previous) java.util.Collections.reverse(piecePoints);
                     if (current.terminal) {
                         // Spur уже проверен в направлении port→demand и остаётся неизменным.
                         if (current.from != previous) return null;
+                        append(points, CorridorGridPolyline.rounded(gridRun));
+                        gridRun.clear();
+                        append(points, piecePoints);
                     } else {
                         for (int i = 1; i < piecePoints.size(); i++) {
-                            if (!checks.edgeAllowed(piecePoints.get(i - 1), piecePoints.get(i))) return null;
+                            if (!checks.edgeAllowed(new RouteCoordinate(piecePoints.get(i - 1).x, piecePoints.get(i - 1).y).toCoordinate(),
+                                    new RouteCoordinate(piecePoints.get(i).x, piecePoints.get(i).y).toCoordinate())) return null;
                         }
+                        append(gridRun, piecePoints);
                     }
-                    append(points, piecePoints);
                     if (nodes.containsKey(next)) break;
                     List<Piece> choices = incident.get(next);
                     if (choices.size() != 2) return null;
                     current = choices.get(0).other(next) == previous ? choices.get(1) : choices.get(0);
                     previous = next; next = current.other(next);
                 }
+                append(points, CorridorGridPolyline.rounded(gridRun));
                 RouteNode fromNode = nodes.get(from), toNode = nodes.get(next);
                 BigDecimal flow = flows.get(next);
                 List<Coordinate> simplified = straightPointsRemoved(points);

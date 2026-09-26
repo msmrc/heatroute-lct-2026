@@ -32,17 +32,17 @@ class OfficialNetworkSizerTest {
     }
 
     @Test
-    void promotesDiameterInsteadOfResettingLengthAtUnchangedDiameterChamber() {
+    void promotesWholeSameFlowSectionInsteadOfResettingLengthAtChamber() {
         NetworkSizingResult result = sizer.size(
                 List.of(
                         edge("a", "source", "chamber", "100"),
                         edge("b", "chamber", "oks", "100")),
                 Map.of("oks", new BigDecimal("3.5")));
 
-        assertThat(result.getEdges().get("a").getDiameter()).isEqualTo(50);
+        assertThat(result.getEdges().get("a").getDiameter()).isEqualTo(65);
         assertThat(result.getEdges().get("b").getDiameter()).isEqualTo(65);
         assertThat(result.getEdges().get("b").getContinuousSameDiameterLengthM())
-                .isEqualByComparingTo("100");
+                .isEqualByComparingTo("200");
         assertThat(result.getIssues()).extracting(NetworkSizingIssue::getCode)
                 .doesNotContain("MAX_CONTINUOUS_LENGTH_EXCEEDED");
     }

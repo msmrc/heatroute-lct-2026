@@ -16,7 +16,7 @@ class OfficialNetworkSizerContinuousLengthTest {
     private final OfficialNetworkSizer sizer = new OfficialNetworkSizer(pipes);
 
     @Test
-    void promotesPastPreviousDiameterWhenTwo182MeterEdgesWouldExceedDu65Limit() {
+    void usesOneDiameterForBoth182MeterEdgesAtUnchangedFlow() {
         NetworkSizingResult result = sizer.size(List.of(
                 edge("first", "root", "chamber", new BigDecimal("182")),
                 edge("second", "chamber", "demand", new BigDecimal("182"))),
@@ -25,11 +25,11 @@ class OfficialNetworkSizerContinuousLengthTest {
         assertThat(result.getIssues()).isEmpty();
         SizedNetworkEdge first = result.getEdges().get("first");
         SizedNetworkEdge second = result.getEdges().get("second");
-        assertThat(first.getDiameter()).isEqualTo(65);
+        assertThat(first.getDiameter()).isEqualTo(100);
         assertThat(first.getContinuousSameDiameterLengthM()).isEqualByComparingTo("182");
-        // Прежний код возвращал ещё один ДУ65 и терял первые 182 м: 364 > 245 м.
-        assertThat(second.getDiameter()).isEqualTo(80);
-        assertThat(second.getContinuousSameDiameterLengthM()).isEqualByComparingTo("182");
+        // Полная длина неизменного расхода 364 м превышает предел ДУ80 (327 м).
+        assertThat(second.getDiameter()).isEqualTo(100);
+        assertThat(second.getContinuousSameDiameterLengthM()).isEqualByComparingTo("364");
         assertThat(second.getFlowTph()).isEqualByComparingTo("3.5");
     }
 
@@ -50,13 +50,14 @@ class OfficialNetworkSizerContinuousLengthTest {
     @ParameterizedTest
     @CsvSource({"63, 65, 245", "63.001, 80, 182"})
     void acceptsExactAccumulatedBoundaryAndPromotesOneMillimeterAbove(
-            String precedingLength, int expectedDiameter, String expectedContinuousLength) {
+            String precedingLength, int expectedTrunkDiameter, String expectedContinuousLength) {
         NetworkSizingResult result = fork(new BigDecimal(precedingLength), new BigDecimal("182"),
                 new BigDecimal("3.5"), new BigDecimal("1.5"));
 
         assertThat(result.getIssues()).isEmpty();
         SizedNetworkEdge branch = result.getEdges().get("branch");
-        assertThat(branch.getDiameter()).isEqualTo(expectedDiameter);
+        assertThat(result.getEdges().get("trunk").getDiameter()).isEqualTo(expectedTrunkDiameter);
+        assertThat(branch.getDiameter()).isEqualTo(65);
         assertThat(branch.getContinuousSameDiameterLengthM()).isEqualByComparingTo(expectedContinuousLength);
     }
 
@@ -82,14 +83,15 @@ class OfficialNetworkSizerContinuousLengthTest {
             NetworkSizingResult above = fork(precedingLength.add(millimeter), branchLength, branchFlow, otherFlow);
             if (index + 1 < entries.size()) {
                 assertThat(above.getIssues()).as("above promoted DU %s boundary", promoted.getDiameter()).isEmpty();
-                assertThat(above.getEdges().get("branch").getDiameter()).isEqualTo(entries.get(index + 1).getDiameter());
-                // ДУ действительно изменился относительно предыдущего участка — отсчёт начинается заново.
+                assertThat(above.getEdges().get("trunk").getDiameter()).isEqualTo(entries.get(index + 1).getDiameter());
+                assertThat(above.getEdges().get("branch").getDiameter()).isEqualTo(promoted.getDiameter());
+                // Поднимается общий участок: ДУ к источнику не уменьшается, ветвь остаётся минимальной.
                 assertThat(above.getEdges().get("branch").getContinuousSameDiameterLengthM()).isEqualByComparingTo(branchLength);
             } else {
                 assertThat(above.isValid()).isFalse();
                 assertThat(above.getIssues()).anySatisfy(issue -> {
                     assertThat(issue.getCode()).isEqualTo("MAX_CONTINUOUS_LENGTH_EXCEEDED");
-                    assertThat(issue.getEdgeId()).isEqualTo("branch");
+                    assertThat(issue.getEdgeId()).isEqualTo("trunk");
                 });
             }
         }
@@ -104,7 +106,7 @@ class OfficialNetworkSizerContinuousLengthTest {
         assertThat(result.isValid()).isFalse();
         assertThat(result.getIssues()).anySatisfy(issue -> {
             assertThat(issue.getCode()).isEqualTo("MAX_CONTINUOUS_LENGTH_EXCEEDED");
-            assertThat(issue.getEdgeId()).isEqualTo("branch");
+            assertThat(issue.getEdgeId()).isEqualTo("trunk");
         });
     }
 

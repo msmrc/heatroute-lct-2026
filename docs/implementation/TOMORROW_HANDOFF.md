@@ -1,5 +1,22 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: production94 проверен, продолжается source95
+
+`master` и VPS: `4489ffe` (код94). [Production и локальная evidence](PRIMARY_ROUTING_94.md).
+Server run `b70713e6-6db4-49f0-a9c2-abd518d57d19` завершён:17/17, два разных варианта,
+лучший2026,585м/284512561,22₽; экспорт PASS. Сессии67953,69214,72798,91690 завершены;
+не ждать и не перезапускать их. Изображения official/roads/corridor/server отправлены.
+Roads94 FAIL0вариантов. Следующее исправление95 пока только в ignored snapshot:
+`.tooling/expert95/roads-generator/generator.patch` и clean-src;189focusedPASS,
+единственный root126 stage даёт16connected/2187,864м,4oblique chambers; выполняется
+bounded finish/mandatory repair до интеграции. Нормативный validator не ослаблять.
+Depth95 prototype отдельно: `.tooling/expert95/depth-prototype-evidence.md`,22testsGREEN,
+40500oraclecases; не подключён вproduction, нужны review/export/shared-node parity.
+Simple repair-alias dedup НЕ применять: доказано влияние сдвига ID на выбор соседей.
+Вопрос пользователя по fixed3м special остаётся без ответа; зависимые нормы не менять.
+После готовых изменений — commit/push толькоmaster, затем стандартный deploy и screenshot.
+Полная цель, roads, compact, R/G и scale не закрыты.
+
 ## Актуально: source94, 26.09.2026 — интеграция до нового полного прогона
 
 Начать с [PRIMARY_ROUTING_94.md](PRIMARY_ROUTING_94.md). Работа только на `master`,

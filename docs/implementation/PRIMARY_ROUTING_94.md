@@ -54,8 +54,10 @@ Official2/2 PASS на тех же compiled main classes: основной рас
 9149761,25₽ меньше предыдущего локального accepted93; это сравнение одинакового
 локального входа, не обещание идентичного production результата.
 Accepted bundle: `.tooling/expert94/final1/demo-verified.json`; изображение
-`final1/overview/heatroute-cheapest.png` отправлено пользователю. Roads и отдельные
-corridor-контроли ещё выполняются; release Compose/API smoke готовится. Полной приёмки нет.
+`final1/overview/heatroute-cheapest.png` отправлено пользователю. Отдельный контроль
+генератора `OfficialCorridorDatasetTest`:4/4 PASS,351,929с; существующая камера112,
+10 допущенных кандидатов, лучший2304,089м/17of17. Это дополнительный генераторный gate,
+а не победитель полного pipeline. Полной приёмки алгоритма нет.
 
 ## Свежий сценарий с дорогами и социальной территорией
 
@@ -64,7 +66,12 @@ corridor-контроли ещё выполняются; release Compose/API smo
 Из17 точек одна, ID11, находится внутри `social_area`; остальные16 имеют законные
 локальные направления ввода, что само по себе ещё не доказывает глобальный путь.
 Запрещённый ввод подавлял построение общего коридора для остальных потребителей.
-Исправление выше проверено отдельно; полный повтор готовится на едином frozen source94.
+Полный повтор на frozen94 тоже FAIL:1323,584с,0вариантов; strict exporter корректно
+отклонил результат. Partition теперь передаёт16 точек, но генератор общих коридоров
+не возвращает сети. Raw10/13/11 подключения не проходят допуск и не публикуются.
+Evidence `.tooling/expert94/roads-final1/EVIDENCE.md`, peakRSS677330944B; изображение
+`roads-final1/overview/overview.png` отправлено пользователю. Пустой результат не является
+доказательством невозможности подключения16 остальных точек.
 Исходный прогон: `.tooling/expert94/roads-preflight/EVIDENCE.md`; изображение
 `roads-preflight/overview/input-diagnostic.png` содержит только входные данные и честный
 статус0 вариантов, без нарисованной вымышленной трассы. Пользователю оно отправлено.
@@ -85,10 +92,29 @@ Google не даёт разрешения интерпретировать3м к
 До ответа зависимое инженерное правило не меняется. Focused совместимость20 + existing68 PASS,
 полная матрица146 PASS; `.tooling/expert94/road-margin/EVIDENCE.md`.
 
+## Production94
+
+Код `4489ffe4798e8fa5e30f7bf7e425f2079301ca11` отправлен в `origin/master` и развёрнут
+на VPS стандартным fast-forward/build/Compose update26.09.2026. Backup перед обновлением:
+`/opt/heatroute/backups/heatroute-20260925T220840Z-3f561c122d281e53b8d0870c82a2ede0297cab45.dump`,
+mode600. Все4сервиса healthy, readiness/HTTPS/OpenAPI PASS.
+
+Реальный import → run → export PASS. Import `f92e4ae2-fd49-47a4-a131-bdeecadef086`,
+run `b70713e6-6db4-49f0-a9c2-abd518d57d19`, job `4d34067e-1bcd-44ba-a7fc-2224e9984b34`,
+completed за первую попытку. Обе содержательные альтернативы17/17, depth complete,
+validation/engineering/sizing issues пусты. Cheapest rank1:2026,585м/284512561,22₽,
+13узловых+1врезка; balanced rank2:2047,508м/294818500,30₽. Lifecycle по серверным датам
+972,886с;1063,341с — длительность клиента smoke со всеми HTTP-шагами, не время алгоритма.
+Экспорт150features/81496bytes, SHA-256
+`2d2c9092e6da0bbf46dd0b45d27fef9bbc79a68cafbea86a300e6e799c1918c5`.
+Evidence `.tooling/expert94/production-smoke-final/`; изображение фактического server result
+`production-overview/production94.png` отправлено пользователю.
+
 ## Следующие проверки
 
-Свежий roads+kindergarten, производительность, долгие corridor-контроли и release smoke
-ещё не приняты; локальные official/экспорт/содержательные альтернативы проверены выше.
+Roads+kindergarten остаётся FAIL; нужны исправления генерации и доводки, затем новый полный
+расчёт. Производительность и scale открыты; local official/corridor и production smoke
+проверены выше, но не закрывают R/G и весь scope.
 Точка внутри запрещённой социальной территории не обязана быть подключена ценой нарушения:
 нужны доказанная причина no_route и корректная обработка остальных потребителей.
 После каждого геометрического прогона пользователю отправляется изображение результата

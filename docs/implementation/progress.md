@@ -1,5 +1,18 @@
 # Current implementation progress
 
+## 2026-09-26 — source94 развёрнут; official PASS, roads FAIL
+
+[Полная evidence](PRIMARY_ROUTING_94.md). `4489ffe` находится в `origin/master` и на VPS;
+backup + Compose/readiness/HTTPS PASS. Реальный server run/export:17/17 в двух разных
+вариантах, лучший2026,585м/284512561,22₽,13узловых+1врезка. Lifecycle972,886с,
+экспорт150features/81496bytes. Локально fast1959PASS/3scale skip, official2PASS,
+corridor4PASS, web36+37/lint/typecheckPASS. Изображения каждого полного прогона отправлены.
+Roads94 завершён0вариантов/FAIL за1323,584с. Найдены два дефекта генерации: размещение
+камеры до конца3м дорожного special и округление промежуточных точек прямой сетки.
+Isolated prototype95 даёт генераторный кандидат16подключений/2187,864м, но четыре камеры
+ещё с косыми входами; depth/export не проверены. Prototype пока не является release.
+Также готовится отдельное исправление глубины; R/G/scale/compact и полная цель открыты.
+
 ## 2026-09-26 — source94: продолжается полный аудит алгоритма
 
 [Требования, изменения и evidence](PRIMARY_ROUTING_94.md). Удалено неподтверждённое исключение

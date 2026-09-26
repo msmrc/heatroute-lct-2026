@@ -1,5 +1,18 @@
 # Current implementation progress
 
+## 2026-09-27 — найден геометрический пробел; deployment удерживается
+
+Source98 full tests GREEN не являются полной приёмкой. Отдельный utility-clearance audit
+подтвердил 12 незаконных parallel/near-miss случаев и два реальных нарушения в roads98/balanced:
+0,291177 м и 1,687579 м между осями ДУ400 при минимуме2,37 м. Оба вне всех special и вдали
+от врезки; снимок отправлен. Текущий public validator возвращает0issues, генерация тоже
+пропускает. Evidence: `.tooling/expert99/utility-horizontal-audit`.
+Правило следует из §4/ответа7 ТЗ. Отдельно пользователю задан вопрос о конфликте ±2м
+special и осевого отступа с габаритами; без ответа не вводить extension/новые исключения.
+Source99 sizing уже вmaster; source-derived saved coverage и точная локализация контакта
+врезки для depth/export ещё проверяются в ignored copies. Нового full99/deploy нет.
+VPS95, R/G и цель остаются открыты.
+
 ## 2026-09-27 — source98: полный дорожный расчёт PASS
 
 [Full roads98](PRIMARY_ROUTING_98.md) на точном PostGIS WKB и 5-аргументном

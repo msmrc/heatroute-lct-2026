@@ -1,5 +1,16 @@
 # Current implementation progress
 
+## 2026-09-26 — source95: official, roads и corridor PASS; готовится deploy
+
+[Проверки95](PRIMARY_ROUTING_95.md). Код `2f5901e` отправлен в origin/master.
+Official: 17/17, 1982,571 м, 13 узловых камер + 1 врезка, два разных варианта,
+экспорт PASS; основной тест 516,409 с. Roads: свежий полный расчёт 1305,517 с,
+два допустимых варианта 2141,981 / 2165,878 м; оба 16 connected + 1 доказанный
+no_route, штраф 102040000 ₽, независимые проверки и экспорт218 features PASS.
+Генераторный corridor4/4 PASS; fast1964 PASS / 3 scale skip; web36+37/lint/typecheck PASS.
+Изображения всех результатов отправлены. VPS пока94; следующим идёт стандартный deploy95
+и реальные import/run/export. Глубина96 разрабатывается отдельно. R/G и полная цель открыты.
+
 ## 2026-09-26 — source95: дорожные исправления прошли fast и replay
 
 [Изменения и evidence](PRIMARY_ROUTING_95.md): поиск не обрывает дорожные 3 м камерой,

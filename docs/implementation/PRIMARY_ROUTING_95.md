@@ -47,10 +47,38 @@ Evidence: `.tooling/expert95/roads-generator/EVIDENCE.md`, `SPACING_EVIDENCE.md`
 `root126-spacing1/`, `roads-integration1/`. Вход roads+kindergarten неизменён:
 SHA-256 `acac7a6885f53faa360becde85bcfea6571eb01c60bcf106da7b2c378918125b`.
 
+## Свежие полные проверки
+
+Frozen `final1` совпадает с исходниками master по всем 348 SHA. OfficialDatasetRoutingTest:
+2/2 PASS, 522,486 с класс / 516,409 с основной тест; фазы самого расчёта 514,902 с.
+Оба опубликованных варианта 17/17, без замечаний geometry/chamber/bend/sizing/depth:
+cheapest rank1 — 1982,571 м / 280596026,41 ₽, 13 узловых камер + 1 новая врезка;
+balanced rank2 — 2039,499 м / 290910174,97 ₽. Независимый экспорт PASS. Лучший результат
+короче локального94 на 43,283 м при том же количестве камер. Дополнительный tuning test PASS.
+Первый запуск был остановлен: отсутствовали параметры сохранения геометрии. Он не является
+проверкой или результатом; сохранён как `official-interrupted-no-artifact.log`. Повтор выше
+сохранил `demo-verified.json`, diagnostic и итоговое изображение.
+
+Свежий roads+kindergarten: PASS, один полный расчёт 1305,517 с, процесс 1310,406 с,
+Darwin maximum RSS 696795136 B. Фазы independent/shared/group/final —
+333,908 / 642,611 / 71,730 / 257,239 с. Два содержательных варианта, оба 16 connected
++ 1 proven no_route; причина, все 17 потребителей и штраф 102040000 ₽ сохранены.
+Balanced rank1: 2141,981 м / 412165299,95 ₽, 13 узловых камер;
+cheapest rank2: 2165,878 м / 410010678,57 ₽, 12 узловых камер. Все независимые проверки
+пусты, read-back экспорт PASS, 218 features. Проверены неизменные 348 source / 286 class SHA.
+Evidence: `.tooling/expert95/roads-final1/EVIDENCE.md` и `resource-summary.json`.
+
+Отдельный генераторный OfficialCorridorDatasetTest: 4/4 PASS, 319,314 с.
+Контроль использует существующую корневую камеру112; лучший допущенный кандидат 2311,880 м,
+17/17, 16 новых узловых камер. Это проверка отдельного генератора, не победитель полного
+планировщика. Все три итоговых изображения отправлены пользователю.
+Web: 36 Vitest + 37 Node tests, lint/typecheck PASS. Локально pwsh и Docker отсутствуют;
+нативные Java/web проверки выполнены, VPS Compose/deploy проверяется отдельно.
+
 ## Незакрытые проверки
 
-Свежие official/roads, web gate и Compose/deploy95 ещё не завершены. На VPS остаётся
-проверенный source94. Старый compact-control, scale, R/G и полная цель открыты.
+Compose/deploy95 и реальные серверные расчёты ещё не завершены. На VPS остаётся
+проверенный source94. Старый compact-control, scale, скорость, R/G и полная цель открыты.
 Вопрос по буквальной границе дорожных 3 м и большим ДУ остаётся у пользователя;
 этот patch не удлиняет special и не меняет стоимость дорожного участка.
 

@@ -1,5 +1,19 @@
 # Handoff — Артём / PM / developer
 
+## Актуально: source95 принят локально, готов к VPS update
+
+[Scope и результаты95](PRIMARY_ROUTING_95.md). Код2f5901e в origin/master; clean main.
+Official76064 и corridor27467 завершены PASS; исходный55274 остановлен из-за отсутствия
+выходного пути, не ждать его. Fresh roads тоже PASS; output `.tooling/expert95/roads-final1`.
+Official лучший1982,571 м/17of17, roads2141,981 м/16of17 + proven blocked11.
+Изображения отправлены. Все348 SHA final1 совпадают с main. Web36+37/lint/typecheck PASS.
+Далее backup/ff-only/build/Compose по VPS_DEPLOYMENT.md и два последовательных реальных
+smoke: `.tooling/expert95/production-smoke.py` (official) и `production-smoke-roads.py`.
+Оба создают POST один раз, resume GET-only; не повторять создание после сетевого сбоя.
+Depth96 готовится в isolated integration: owned patch + только3planner hunks + exporter
++ rootapplication-context.patch. Не копировать старый OfficialRoutePlanner целиком.
+До его broad/fresh проверок source96 не является релизом. R/G, scale и скорость открыты.
+
 ## Актуально: source95 — fresh official/roads выполняются
 
 [Scope95 и проверки](PRIMARY_ROUTING_95.md). Main содержит A+B+C дорожных исправлений,

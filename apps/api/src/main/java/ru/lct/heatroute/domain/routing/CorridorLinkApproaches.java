@@ -73,7 +73,7 @@ final class CorridorLinkApproaches {
             }
             addCheckedPath(paths, direct, edge, outer, junction, router, environment, traversal, angle, fixedOuterRays, junctionTargets, preserveInvalidOuterApproach);
             List<Coordinate> approaches = new ArrayList<>(List.of(junction));
-            for (double length : new double[] {2.1, 5.0}) {
+            for (double length : approachLengths(edge.getDiameter())) {
                 for (int direction = 0; direction < 4; direction++) {
                     double bearing = angle + direction * Math.PI / 2;
                     approaches.add(new Coordinate(junction.x + length * Math.cos(bearing), junction.y + length * Math.sin(bearing)));
@@ -113,7 +113,7 @@ final class CorridorLinkApproaches {
             RouteTraversal traversal, List<Coordinate> fixedOuterRays, Set<String> junctionTargets, boolean preserveInvalidOuterApproach) {
         Coordinate origin = outer.getCoordinate().toCoordinate();
         List<Coordinate> outerApproaches = new ArrayList<>();
-        for (double length : new double[] {2.1, 5.0}) {
+        for (double length : approachLengths(edge.getDiameter())) {
             if (!fixedOuterRays.isEmpty()) {
                 outerApproaches.addAll(new ChamberApproachCandidates().build(origin, fixedOuterRays, length, 180));
             } else {
@@ -122,7 +122,7 @@ final class CorridorLinkApproaches {
             }
         }
         for (Coordinate first : outerApproaches) {
-            for (double length : new double[] {2.1, 5.0}) {
+            for (double length : approachLengths(edge.getDiameter())) {
                 for (int direction = 0; direction < 4; direction++) {
                     Coordinate last = along(junction, angle + direction * Math.PI / 2, length);
                     for (int connector = 0; connector < 3; connector++) {
@@ -141,6 +141,12 @@ final class CorridorLinkApproaches {
         }
     }
 
+    /** Два ограниченных удаления от камеры, оба превышают табличный минимум данного ДУ. */
+    private static double[] approachLengths(int diameter) {
+        double minimum = ExpertChamberGeometryRules.minimumBendDistanceM(diameter);
+        return new double[] {minimum + 0.1, minimum + 3};
+    }
+
     private static Coordinate along(Coordinate origin, double angle, double length) {
         return new Coordinate(origin.x + length * Math.cos(angle), origin.y + length * Math.sin(angle));
     }
@@ -154,8 +160,8 @@ final class CorridorLinkApproaches {
         if (coordinates.size() < 2) return;
         ExpertChamberGeometryRules.PolylineSummary summary = ExpertChamberGeometryRules.summarize(coordinates.stream()
                 .map(c -> new RouteCoordinate(c.x, c.y)).collect(Collectors.toList()));
-        if (summary == null || summary.hasInvalidBendAngle() || summary.hasShortBendSpacing()
-                || summary.getLastBendDistanceM() + 1e-7 < ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M
+        if (summary == null || summary.hasInvalidBendAngle()
+                || summary.getLastBendDistanceM() + 1e-7 < ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter())
                 || !alignedWithFrame(summary.getLastDx(), summary.getLastDy(), angle)) return;
         if (outer.isChamber()) {
             if (summary.getActualLengthM() + 1e-7 < ExpertChamberRouteValidator.MIN_CHAMBER_SECTION_LENGTH_M) return;
@@ -163,7 +169,7 @@ final class CorridorLinkApproaches {
                     ? alignedWithFrame(summary.getFirstDx(), summary.getFirstDy(), angle)
                     : fixedOuterRays.stream().allMatch(ray -> ExpertChamberGeometryRules.compatibleRays(
                             summary.getFirstDx(), summary.getFirstDy(), ray.x, ray.y));
-            boolean longEnough = summary.getFirstBendDistanceM() + 1e-7 >= ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M;
+            boolean longEnough = summary.getFirstBendDistanceM() + 1e-7 >= ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter());
             if ((!normal || !longEnough) && !(preserveInvalidOuterApproach && !outer.isRoot()
                     && preservesOuterPrefix(edge, outer, coordinates))) return;
         }
@@ -181,7 +187,7 @@ final class CorridorLinkApproaches {
         if (paths.stream().noneMatch(previous -> same(previous, path))) paths.add(path);
     }
 
-    /** Сохраняет первый старый поворот с выходящим участком; прямая сохраняет первые 2 м. */
+    /** Сохраняет старый дефектный ввод до следующего ремонта; длина прямого префикса учитывает ДУ. */
     private static boolean preservesOuterPrefix(RouteEdge edge, RouteNode outer, List<Coordinate> candidate) {
         List<RouteCoordinate> source = new ArrayList<>(edge.getCoordinates());
         if (!edge.getUpstreamNodeId().equals(outer.getId())) Collections.reverse(source);
@@ -191,7 +197,7 @@ final class CorridorLinkApproaches {
         ExpertChamberGeometryRules.PolylineSummary replacement = ExpertChamberGeometryRules.summarize(rounded);
         if (replacement == null || !ExpertChamberGeometryRules.straightDirections(original.getFirstDx(), original.getFirstDy(),
                 replacement.getFirstDx(), replacement.getFirstDy())) return false;
-        double prefix = Math.min(original.getActualLengthM(), ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M
+        double prefix = Math.min(original.getActualLengthM(), ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter())
                 + (Double.isFinite(original.getFirstBendDistanceM()) ? original.getFirstBendDistanceM() : 0));
         if (replacement.getActualLengthM() + 1e-7 < prefix) return false;
         GeometryFactory geometries = new GeometryFactory();

@@ -12,9 +12,8 @@ import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 import ru.lct.heatroute.domain.routing.ExpertChamberGeometryRules.PolylineSummary;
 
-/** Проверяет изменение направления 0–90° по ТЗ и независимое экспертное требование 2 м между поворотами. */
+/** Проверяет изменение направления 0–90° по ТЗ, включая стыки технических рёбер. */
 public final class ExpertRouteBendRules {
-    private static final double EPSILON_M = 1e-7;
     private static final double ENDPOINT_TOLERANCE_M = 0.01;
 
     private ExpertRouteBendRules() { }
@@ -45,7 +44,6 @@ public final class ExpertRouteBendRules {
             if (summary == null) add(issues, undefined(edge.getId()));
             else {
                 if (summary.hasInvalidBendAngle()) add(issues, badAngle(edge.getId()));
-                if (summary.hasShortBendSpacing()) add(issues, tooClose(edge.getId()));
             }
         }
         Set<String> visited = new HashSet<>();
@@ -68,7 +66,6 @@ public final class ExpertRouteBendRules {
             Map<String, List<RouteEdge>> incident, Function<RouteEdge, PolylineSummary> summaries,
             Set<String> visited, Map<String, RouteValidationIssue> issues) {
         RouteNode at = start;
-        double position = 0, lastBend = Double.NaN;
         Direction arrival = null;
         while (visited.add(edge.getId())) {
             ensureActive();
@@ -84,19 +81,7 @@ public final class ExpertRouteBendRules {
                 if (!ExpertChamberGeometryRules.allowsBend(arrival.dx, arrival.dy, outward.dx, outward.dy)) {
                     add(issues, badAngle(at.getId()));
                 }
-                if (Double.isFinite(lastBend) && position - lastBend + EPSILON_M < ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M) {
-                    add(issues, tooClose(at.getId()));
-                }
-                lastBend = position;
             }
-            if (Double.isFinite(outward.nearestBendM)) {
-                if (Double.isFinite(lastBend)
-                        && position + outward.nearestBendM - lastBend + EPSILON_M < ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M) {
-                    add(issues, tooClose(edge.getId()));
-                }
-                lastBend = position + summary.getActualLengthM() - far.nearestBendM;
-            }
-            position += summary.getActualLengthM();
             List<RouteEdge> connected = incident.getOrDefault(nextId, List.of());
             if (next.isChamber() || connected.size() != 2) return;
             // Техническое разбиение не должно обнулять накопленное направление прямого хода:
@@ -126,10 +111,6 @@ public final class ExpertRouteBendRules {
     private static RouteValidationIssue badAngle(String subject) {
         return new RouteValidationIssue("EXPERT_ROUTE_BEND_ANGLE_INVALID", subject,
                 "Изменение направления теплосети не должно превышать 90° по §2.1 ТЗ");
-    }
-    private static RouteValidationIssue tooClose(String subject) {
-        return new RouteValidationIssue("EXPERT_ROUTE_BENDS_TOO_CLOSE", subject,
-                "Между соседними поворотами требуется не менее 2 м по фактической полилинии");
     }
     private static RouteValidationIssue undefined(String subject) {
         return new RouteValidationIssue("EXPERT_ROUTE_BEND_GEOMETRY_UNCHECKABLE", subject,

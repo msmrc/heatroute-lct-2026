@@ -25,7 +25,6 @@ final class CorridorTerminalRouter {
     private static final int MAX_ALTERNATIVE_EGRESSES = 16;
     private static final int MAX_CONTROL_POINTS = 512;
     private static final double ROUNDING_MARGIN_M = 0.02;
-    private static final double MIN_TWO_BEND_LEG_M = EngineeringRouteEvaluator.MIN_BEND_SPACING_M + ROUNDING_MARGIN_M;
     private static final GeometryFactory GEOMETRIES = new GeometryFactory();
     private final OfficialObstacleRouter router;
     private final OfficialRoutingEnvironment environment;
@@ -157,7 +156,7 @@ final class CorridorTerminalRouter {
                 addDistinct(candidates, checkedStraightContinuation(egress, end, diameter));
             }
             for (List<Coordinate> coordinates : NormalCorridorTransitions.build(
-                    start, exit, end, orientation, MIN_TWO_BEND_LEG_M)) {
+                    start, exit, end, orientation, minimumApproachM(diameter))) {
                 addDistinct(candidates, checkedGenerated(egress, coordinates, diameter));
             }
             if (t > required + 0.01) {
@@ -166,16 +165,15 @@ final class CorridorTerminalRouter {
                 outside.add(end);
                 addDistinct(candidates, checkedGenerated(egress, outside, diameter));
             }
-            // Поперечная полка находится между двумя поворотами: проверяем 2 м с запасом
-            // на округление, а затем заново проверяем фактическую геометрию evaluator'ом.
-            if (projection.distance(end) < MIN_TWO_BEND_LEG_M) continue;
-            double margin = Math.max(clearance + 0.5, MIN_TWO_BEND_LEG_M);
+            // Поперечная полка может быть короткой; табличная длина относится к хвосту у камеры.
+            if (projection.distance(end) <= 0.001) continue;
+            double margin = Math.max(clearance + 0.5, minimumApproachM(diameter));
             double minimumH = required + margin;
             double[] heights = {minimumH, t - margin, (minimumH + t) / 2,
                 Math.max(minimumH, t + margin), Math.max(minimumH, t + 2 * margin)};
             for (double h : heights) {
                 ensureActive();
-                if (!Double.isFinite(h) || h < minimumH || Math.abs(h - t) < MIN_TWO_BEND_LEG_M) continue;
+                if (!Double.isFinite(h) || h < minimumH || Math.abs(h - t) < minimumApproachM(diameter)) continue;
                 Coordinate elbow1 = new Coordinate(start.x + nx * h, start.y + ny * h);
                 Coordinate elbow2 = new Coordinate(end.x + nx * (h - t), end.y + ny * (h - t));
                 addDistinct(candidates, checkedGenerated(egress, List.of(exit, elbow1, elbow2, end), diameter));
@@ -188,7 +186,7 @@ final class CorridorTerminalRouter {
     /** Для точки вне ОКС нет нормального префикса: весь L/Z-путь проверяется без endpoint-исключений. */
     private void addFreeSpaceAlternatives(List<RoutePath> candidates, Coordinate point, Coordinate port,
             int diameter, double clearance) {
-        double margin = Math.max(clearance + 0.5, MIN_TWO_BEND_LEG_M);
+        double margin = Math.max(clearance + 0.5, minimumApproachM(diameter));
         for (int direction = 0; direction < 4; direction++) {
             ensureActive();
             double angle = orientation + direction * Math.PI / 2;
@@ -201,12 +199,12 @@ final class CorridorTerminalRouter {
                 points.add(port);
                 addDistinct(candidates, checkedFreeSpace(points, point, diameter, true));
             }
-            if (projection.distance(port) < MIN_TWO_BEND_LEG_M) continue;
+            if (projection.distance(port) <= 0.001) continue;
             double[] heights = {margin, t - margin, (margin + t) / 2,
                 Math.max(margin, t + margin), Math.max(margin, t + 2 * margin)};
             for (double h : heights) {
                 ensureActive();
-                if (!Double.isFinite(h) || h < margin || Math.abs(h - t) < MIN_TWO_BEND_LEG_M) continue;
+                if (!Double.isFinite(h) || h < margin || Math.abs(h - t) < minimumApproachM(diameter)) continue;
                 Coordinate elbow1 = new Coordinate(point.x + nx * h, point.y + ny * h);
                 Coordinate elbow2 = new Coordinate(port.x + nx * (h - t), port.y + ny * (h - t));
                 addDistinct(candidates, checkedFreeSpace(List.of(point, elbow1, elbow2, port), point, diameter, true));
@@ -286,6 +284,11 @@ final class CorridorTerminalRouter {
             if (soundGeometry(checked, diameter) && sameGeometry(original, checked)) return checked;
         }
         return null;
+    }
+
+    /** Запас округления относится только к последнему прямому подходу камеры. */
+    private static double minimumApproachM(int diameter) {
+        return ExpertChamberGeometryRules.minimumBendDistanceM(diameter) + ROUNDING_MARGIN_M;
     }
 
     private boolean soundGeometry(RoutePath path, int diameter) {

@@ -2,12 +2,14 @@ package ru.lct.heatroute.domain.routing;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.function.IntFunction;
@@ -19,7 +21,7 @@ import org.locationtech.jts.geom.Point;
 
 /**
  * Выбирает совместимые подходы к общей камере: разные лучи, без наложений и скрытых пересечений.
- * Камерные лучи занимают перпендикулярные оси; до реального поворота сохраняется минимум 2 м.
+ * Камерные лучи занимают перпендикулярные оси; прямой подход определяется ДУ каждого участка.
  * Препятствия проверяет поставщик путей; итоговая сеть всё равно проходит независимый validator.
  */
 final class CorridorJunctionAssignment {
@@ -49,20 +51,41 @@ final class CorridorJunctionAssignment {
         return true;
     }
 
-    /** Пути направлены внешний узел → камера; ответ сохраняет порядок внешних узлов. */
+    /**
+     * Предварительный геометрический выбор без sizing использует общий нижний предел 2 м.
+     * Готовые участки обязаны вызывать перегрузку с ДУ; порядок внешних узлов сохраняется.
+     */
     static List<RoutePath> choose(Coordinate junction, List<List<RoutePath>> alternatives) {
+        return chooseWithMinimums(junction, alternatives, Collections.nCopies(
+                alternatives == null ? 0 : alternatives.size(), ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M));
+    }
+
+    /** Готовые участки проверяются по собственным ДУ, без максимума по соседним лучам. */
+    static List<RoutePath> choose(Coordinate junction, List<List<RoutePath>> alternatives, List<Integer> diameters) {
+        if (alternatives == null || diameters == null || diameters.size() != alternatives.size()
+                || diameters.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("One actual diameter per branch is required");
+        }
+        List<Double> minimums = new ArrayList<>();
+        for (int diameter : diameters) minimums.add(ExpertChamberGeometryRules.minimumBendDistanceM(diameter));
+        return chooseWithMinimums(junction, alternatives, minimums);
+    }
+
+    private static List<RoutePath> chooseWithMinimums(Coordinate junction, List<List<RoutePath>> alternatives,
+            List<Double> minimums) {
         ensureActive();
         if (junction == null || !Double.isFinite(junction.x) || !Double.isFinite(junction.y)
                 || alternatives == null || alternatives.size() < 2 || alternatives.size() > 4) {
             throw new IllegalArgumentException("Finite junction and two to four branches required");
         }
         List<List<Approach>> choices = new ArrayList<>();
-        for (List<RoutePath> branch : alternatives) {
+        for (int branchIndex = 0; branchIndex < alternatives.size(); branchIndex++) {
+            List<RoutePath> branch = alternatives.get(branchIndex);
             if (branch == null || branch.size() > 8) throw new IllegalArgumentException("At most eight paths per branch");
             List<Approach> paths = new ArrayList<>();
             for (RoutePath path : branch) {
                 ensureActive();
-                Approach approach = prepare(junction, path);
+                Approach approach = prepare(junction, path, minimums.get(branchIndex));
                 if (approach != null) paths.add(approach);
             }
             if (paths.isEmpty()) return null;
@@ -78,9 +101,14 @@ final class CorridorJunctionAssignment {
         return List.copyOf(result);
     }
 
-    /** Доводка и первоначальная сборка используют одну нормаль камеры. */
+    /** Геометрический выбор без sizing; окончательная доводка передаёт ДУ каждого участка. */
     static List<RoutePath> choosePrecise(Coordinate junction, List<List<RoutePath>> alternatives) {
         return choose(junction, alternatives);
+    }
+
+    /** Точный совместный выбор сохраняет табличный подход каждого фактического ДУ. */
+    static List<RoutePath> choosePrecise(Coordinate junction, List<List<RoutePath>> alternatives, List<Integer> diameters) {
+        return choose(junction, alternatives, diameters);
     }
 
     /**
@@ -99,7 +127,7 @@ final class CorridorJunctionAssignment {
         return new PortSearch(controls, attachments, grid, alternatives).choose();
     }
 
-    private static Approach prepare(Coordinate junction, RoutePath path) {
+    private static Approach prepare(Coordinate junction, RoutePath path, double minimum) {
         if (path == null || path.coordinates().size() < 2 || path.coordinates().size() > 1000) {
             throw new IllegalArgumentException("A path requires 2..1000 coordinates");
         }
@@ -115,8 +143,8 @@ final class CorridorJunctionAssignment {
         if (!line.isSimple() || line.isClosed() || !Double.isFinite(line.getLength()) || line.getLength() <= 0) return null;
         ExpertChamberGeometryRules.PolylineSummary summary = ExpertChamberGeometryRules.summarize(coordinates.stream()
                 .map(c -> new RouteCoordinate(c.x, c.y)).collect(java.util.stream.Collectors.toList()));
-        if (summary == null || summary.hasInvalidBendAngle() || summary.hasShortBendSpacing()
-                || summary.getLastBendDistanceM() + 1e-7 < ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M) return null;
+        if (summary == null || summary.hasInvalidBendAngle()
+                || summary.getLastBendDistanceM() + 1e-7 < minimum) return null;
         return new Approach(path, line, -summary.getLastDx(), -summary.getLastDy());
     }
 

@@ -406,13 +406,6 @@ public class OfficialRoutePlanner {
                     evaluation.invalidAngleCount()
                             + " bend angles are outside the official 90-180 degree range"));
         }
-        if (evaluation.insufficientSpacingCount() > 0) {
-            issues.add(new RouteValidationIssue(
-                    "EXPERT_BEND_SPACING_TOO_SHORT",
-                    affectedEdges,
-                    evaluation.insufficientSpacingCount()
-                            + " consecutive bend pairs are less than 2 m apart"));
-        }
         issues.addAll(chamberValidator.validate(variant.getNodes(), variant.getEdges()));
         return variant.withEngineeringIssues(issues);
     }
@@ -1386,7 +1379,7 @@ public class OfficialRoutePlanner {
                     obstacleRouter, routingEnvironment, exemptFeatureIds, acceptedRoutes);
             if (local != null) return local;
             List<Coordinate> approaches = new ArrayList<>(new ChamberApproachCandidates().build(
-                    coordinate, rays, CHAMBER_APPROACH_LENGTH_M, JUNCTION_ANGLE_TOLERANCE_DEGREES));
+                    coordinate, rays, chamberApproachLength(diameter), JUNCTION_ANGLE_TOLERANCE_DEGREES));
             approaches.sort(Comparator.comparingDouble(point -> point.distance(demand.routingStart())));
             for (Coordinate waypoint : approaches) {
                 RoutePath approach = routeDemand(
@@ -1395,7 +1388,7 @@ public class OfficialRoutePlanner {
                 if (approach != null) {
                     RoutePath perpendicular = obstacleRouter.withCheckedDemandSuffix(
                             approach, coordinate, diameter, routingEnvironment, exemptFeatureIds, acceptedRoutes);
-                    if (perpendicular != null && normalEnd(perpendicular, rays)) {
+                    if (perpendicular != null && normalEnd(perpendicular, rays, diameter)) {
                         return perpendicular;
                     }
                 }
@@ -1407,18 +1400,24 @@ public class OfficialRoutePlanner {
                 exemptFeatureIds, preference, acceptedRoutes);
     }
 
-    private boolean normalEnd(RoutePath path, List<Coordinate> rays) {
+    private boolean normalEnd(RoutePath path, List<Coordinate> rays, int diameter) {
         ExpertChamberGeometryRules.PolylineSummary geometry = ExpertChamberGeometryRules.summarize(
                 path.coordinates().stream().map(point -> new RouteCoordinate(point.x, point.y)).collect(Collectors.toList()));
-        return geometry != null && geometry.getLastBendDistanceM() >= ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M
+        return geometry != null && geometry.getLastBendDistanceM() + 1e-7 >= ExpertChamberGeometryRules.minimumBendDistanceM(diameter)
                 && rays.stream().allMatch(ray -> ExpertChamberGeometryRules.compatibleRays(
                         -geometry.getLastDx(), -geometry.getLastDy(), ray.x, ray.y));
+    }
+
+    /** Поисковый запас не уменьшает табличный прямой подход камеры. */
+    private double chamberApproachLength(int diameter) {
+        return Math.max(CHAMBER_APPROACH_LENGTH_M,
+                ExpertChamberGeometryRules.minimumBendDistanceM(diameter) + 0.01);
     }
 
     private Coordinate perpendicularApproachWaypoint(
             LineString supportingNetwork,
             Coordinate tieIn,
-            Coordinate origin) {
+            Coordinate origin, int diameter) {
         LengthIndexedLine indexed = new LengthIndexedLine(supportingNetwork);
         double index = indexed.project(tieIn);
         double beforeIndex = Math.max(0.0, index - 1.0);
@@ -1435,11 +1434,11 @@ public class OfficialRoutePlanner {
             return null;
         }
         Coordinate left = new Coordinate(
-                tieIn.x - dy / length * CHAMBER_APPROACH_LENGTH_M,
-                tieIn.y + dx / length * CHAMBER_APPROACH_LENGTH_M);
+                tieIn.x - dy / length * chamberApproachLength(diameter),
+                tieIn.y + dx / length * chamberApproachLength(diameter));
         Coordinate right = new Coordinate(
-                tieIn.x + dy / length * CHAMBER_APPROACH_LENGTH_M,
-                tieIn.y - dx / length * CHAMBER_APPROACH_LENGTH_M);
+                tieIn.x + dy / length * chamberApproachLength(diameter),
+                tieIn.y - dx / length * chamberApproachLength(diameter));
         return origin.distance(left) <= origin.distance(right) ? left : right;
     }
 
@@ -1637,7 +1636,7 @@ public class OfficialRoutePlanner {
             if (branch.lengthM() <= MIN_EDGE_LENGTH_M) {
                 continue;
             }
-            List<RoutePath> branches = !constructibleAdditionalRay(junctionCoordinate, branch, incidentEdges)
+            List<RoutePath> branches = !constructibleAdditionalRay(junctionCoordinate, branch, incidentEdges, diameter)
                     ? constructibleBranchApproaches(demand, junctionCoordinate, diameter, incidentEdges,
                             routingEnvironment, acceptedRoutes, preference)
                     : List.of(branch);
@@ -1754,7 +1753,7 @@ public class OfficialRoutePlanner {
         if (local != null) result.add(local);
         // Дополнительные подходы расширяют прежний поиск; ограничиваем только новую локальную ветку.
         List<Coordinate> waypoints = new ChamberApproachCandidates().build(
-                junction, rays, CHAMBER_APPROACH_LENGTH_M, JUNCTION_ANGLE_TOLERANCE_DEGREES).stream()
+                junction, rays, chamberApproachLength(diameter), JUNCTION_ANGLE_TOLERANCE_DEGREES).stream()
                 .sorted(Comparator.comparingDouble((Coordinate point) -> point.distance(demand.routingStart()))
                         .thenComparingDouble(point -> point.x).thenComparingDouble(point -> point.y))
                 .limit(MAX_ADDITIONAL_CHAMBER_APPROACHES).collect(Collectors.toList());
@@ -1768,7 +1767,7 @@ public class OfficialRoutePlanner {
             if (approach == null) continue;
             RoutePath path = obstacleRouter.withCheckedDemandSuffix(approach, junction, diameter,
                     environment, Set.of(), avoidance);
-            if (path != null && constructibleAdditionalRay(junction, path, incident)) result.add(path);
+            if (path != null && constructibleAdditionalRay(junction, path, incident, diameter)) result.add(path);
         }
         return result;
     }
@@ -1780,10 +1779,10 @@ public class OfficialRoutePlanner {
     private boolean constructibleAdditionalRay(
             Coordinate junction,
             RoutePath branch,
-            List<RouteEdge> incidentEdges) {
+            List<RouteEdge> incidentEdges, int diameter) {
         List<Coordinate> rays = incidentEdges.stream().map(edge -> rayAtNode(edge, junction))
                 .filter(java.util.Objects::nonNull).collect(Collectors.toList());
-        return rays.size() == incidentEdges.size() && normalEnd(branch, rays);
+        return rays.size() == incidentEdges.size() && normalEnd(branch, rays, diameter);
     }
 
     private Coordinate rayAtPathEnd(RoutePath path, Coordinate junction) {
@@ -1817,18 +1816,18 @@ public class OfficialRoutePlanner {
             OfficialRoutingEnvironment environment, List<LineString> avoidance, RoutePath shortest) {
         List<Coordinate> rays = List.of(rayAtPathEnd(split.upstream(), junction),
                 rayAtPathEnd(split.downstream().reversed(), junction));
-        if (normalEnd(shortest, rays)) return shortest;
+        if (normalEnd(shortest, rays, diameter)) return shortest;
         RoutePath local = RootChamberApproaches.best(demand.coordinate, junction, rays, diameter,
                 obstacleRouter, environment, Set.of(), avoidance);
         if (local != null) return local;
         for (Coordinate waypoint : new ChamberApproachCandidates().build(junction, rays,
-                CHAMBER_APPROACH_LENGTH_M, JUNCTION_ANGLE_TOLERANCE_DEGREES)) {
+                chamberApproachLength(diameter), JUNCTION_ANGLE_TOLERANCE_DEGREES)) {
             RoutePath approach = routeDemand(demand, waypoint, diameter, environment, Set.of(),
                     RoutePreference.SHORTEST, avoidance);
             if (approach == null) continue;
             RoutePath path = obstacleRouter.withCheckedDemandSuffix(approach, junction, diameter,
                     environment, Set.of(), avoidance);
-            if (path != null && normalEnd(path, rays)) return path;
+            if (path != null && normalEnd(path, rays, diameter)) return path;
         }
         return null;
     }
@@ -2165,7 +2164,7 @@ public class OfficialRoutePlanner {
         }
         Coordinate treeCoordinate = treeNode.getCoordinate().toCoordinate();
         Coordinate waypoint = perpendicularApproachWaypoint(
-                supportingLine, projected, treeCoordinate);
+                supportingLine, projected, treeCoordinate, rootEdge.getDiameter());
         if (waypoint == null) {
             return null;
         }
@@ -2192,7 +2191,7 @@ public class OfficialRoutePlanner {
                 .filter(edge -> !edge.getId().equals(rootEdge.getId()))
                 .collect(Collectors.toList());
         if (!constructibleAdditionalRay(
-                treeCoordinate, treeToTieIn.reversed(), remainingAtTreeNode)) {
+                treeCoordinate, treeToTieIn.reversed(), remainingAtTreeNode, rootEdge.getDiameter())) {
             treeToTieIn = constructibleTieInPath(
                     projected,
                     waypoint,
@@ -2215,7 +2214,7 @@ public class OfficialRoutePlanner {
             return null;
         }
         if (!constructibleAdditionalRay(
-                treeCoordinate, treeToTieIn.reversed(), remainingAtTreeNode)) {
+                treeCoordinate, treeToTieIn.reversed(), remainingAtTreeNode, rootEdge.getDiameter())) {
             return null;
         }
         VariantDraft result = source.copy();
@@ -2251,7 +2250,7 @@ public class OfficialRoutePlanner {
             List<LineString> acceptedRoutes) {
         Coordinate treeCoordinate = treeNode.getCoordinate().toCoordinate();
         for (Coordinate treeApproach : constructibleApproachWaypoints(
-                treeCoordinate, tieInApproach, existingTreeRays)) {
+                treeCoordinate, tieInApproach, existingTreeRays, diameter)) {
             RoutePath betweenApproaches = obstacleRouter.find(
                     tieInApproach,
                     treeApproach,
@@ -2267,7 +2266,7 @@ public class OfficialRoutePlanner {
                     .withMandatoryPrefix(tieIn)
                     .withMandatorySuffix(treeCoordinate);
             if (constructibleAdditionalRay(
-                    treeCoordinate, candidate, existingTreeRays)
+                    treeCoordinate, candidate, existingTreeRays, diameter)
                     && obstacleRouter.lineAllowed(
                             candidate.coordinates(),
                             diameter,
@@ -2283,7 +2282,7 @@ public class OfficialRoutePlanner {
     private List<Coordinate> constructibleApproachWaypoints(
             Coordinate junction,
             Coordinate origin,
-            List<RouteEdge> existingEdges) {
+            List<RouteEdge> existingEdges, int diameter) {
         List<Coordinate> candidates = new ArrayList<>();
         for (RouteEdge edge : existingEdges) {
             Coordinate existingRay = rayAtNode(edge, junction);
@@ -2294,8 +2293,8 @@ public class OfficialRoutePlanner {
             for (int eighthTurn = 1; eighthTurn < 8; eighthTurn++) {
                 double angle = baseAngle + eighthTurn * Math.PI / 4.0;
                 Coordinate candidate = new Coordinate(
-                        junction.x + Math.cos(angle) * CHAMBER_APPROACH_LENGTH_M,
-                        junction.y + Math.sin(angle) * CHAMBER_APPROACH_LENGTH_M);
+                        junction.x + Math.cos(angle) * chamberApproachLength(diameter),
+                        junction.y + Math.sin(angle) * chamberApproachLength(diameter));
                 Coordinate candidateRay = ray(junction, candidate);
                 boolean constructible = candidateRay != null && existingEdges.stream()
                         .map(existing -> rayAtNode(existing, junction))
@@ -3284,7 +3283,7 @@ public class OfficialRoutePlanner {
                             obstacleRouter, routingEnvironment, result.edges);
                 }
                 alternatives = alternatives.stream()
-                        .filter(path -> existingJunctionRays.isEmpty() || normalEnd(path, existingJunctionRays))
+                        .filter(path -> existingJunctionRays.isEmpty() || normalEnd(path, existingJunctionRays, edge.getDiameter()))
                         .filter(path -> CorridorJunctionAssignment.clearsRetained(path, outerNodeId, result.edges))
                         .collect(Collectors.toList());
                 if (alternatives.isEmpty()) {
@@ -3330,8 +3329,10 @@ public class OfficialRoutePlanner {
         }
         if (orthogonalApproaches) {
             List<RoutePath> chosen = approachChoices.size() == 1 ? List.of(approachChoices.get(0).get(0)) : preciseChamber
-                    ? CorridorJunctionAssignment.choosePrecise(coordinate, approachChoices)
-                    : CorridorJunctionAssignment.choose(coordinate, approachChoices);
+                    ? CorridorJunctionAssignment.choosePrecise(coordinate, approachChoices,
+                            outerEdges.stream().map(RouteEdge::getDiameter).collect(Collectors.toList()))
+                    : CorridorJunctionAssignment.choose(coordinate, approachChoices,
+                            outerEdges.stream().map(RouteEdge::getDiameter).collect(Collectors.toList()));
             if (chosen == null && preciseChamber && !mergedNode.isRoot()) {
                 // Локальные хвосты могут не предлагать свободный луч четырёхходовой камеры.
                 // Дополнительный поиск запускается один раз на терминал лишь после отказа назначения.
@@ -3350,7 +3351,8 @@ public class OfficialRoutePlanner {
                     }
                     approachChoices.set(i, extended);
                 }
-                chosen = CorridorJunctionAssignment.choosePrecise(coordinate, approachChoices);
+                chosen = CorridorJunctionAssignment.choosePrecise(coordinate, approachChoices,
+                            outerEdges.stream().map(RouteEdge::getDiameter).collect(Collectors.toList()));
             }
             if (chosen == null) {
                 LOGGER.debug("Corridor merge incompatible approaches counts={} x={} y={}",
@@ -3723,7 +3725,7 @@ public class OfficialRoutePlanner {
                     .collect(Collectors.toList());
             for (OfficialRouteGeometryRules.NormalEgress exit : exits) {
                 Coordinate projected = closestPointOnLine(axisStart, axisEnd, exit.exit());
-                if (projected.distance(axisStart) < EngineeringRouteEvaluator.MIN_BEND_SPACING_M
+                if (projected.distance(axisStart) <= MIN_EDGE_LENGTH_M
                         || projected.distance(axisEnd) < 0.10
                         || projected.distance(axisEnd) > MAX_CHAMBER_MERGE_RELOCATION_M) {
                     continue;
@@ -3793,7 +3795,7 @@ public class OfficialRoutePlanner {
             Coordinate candidate = new Coordinate(
                     projected.x + unitX * offset,
                     projected.y + unitY * offset);
-            if (candidate.distance(axisStart) < EngineeringRouteEvaluator.MIN_BEND_SPACING_M
+            if (candidate.distance(axisStart) <= MIN_EDGE_LENGTH_M
                     || candidate.distance(axisEnd) > MAX_CHAMBER_MERGE_RELOCATION_M
                     || routingEnvironment.pointInsideForbiddenClearance(diameter, candidate)) {
                 continue;
@@ -4119,7 +4121,7 @@ public class OfficialRoutePlanner {
                         1.0 + ENGINEERING_RELAXED_DEVIATION_RATIO))) <= 0;
     }
 
-    /** Принимает уменьшение жёстких нарушений, включая расстояние при уже допустимых углах. */
+    /** Сначала уменьшает запрещённые углы; при равенстве допускает мягкое улучшение расстояния. */
     private boolean reducesHardEngineeringViolations(
             EngineeringRouteEvaluator.Evaluation candidate,
             EngineeringRouteEvaluator.Evaluation control) {

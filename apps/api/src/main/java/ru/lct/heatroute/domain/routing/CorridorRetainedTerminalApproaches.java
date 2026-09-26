@@ -123,7 +123,8 @@ final class CorridorRetainedTerminalApproaches {
                 List<Coordinate> prefix = outside.subList(0, cut + 1);
                 addTail(tails, prefix, List.of(junction));
                 List<Coordinate> approaches = new ArrayList<>(List.of(junction));
-                for (double length : new double[] {2.1, 5.0}) {
+                for (double length : new double[] {ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter()) + 0.1,
+                        ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter()) + 3}) {
                     for (int direction = 0; direction < 4; direction++) {
                         double angle = orientation + direction * Math.PI / 2;
                         approaches.add(new Coordinate(junction.x + length * Math.cos(angle), junction.y + length * Math.sin(angle)));

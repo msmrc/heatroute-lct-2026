@@ -8,22 +8,23 @@ import org.locationtech.jts.geom.Coordinate;
 /**
  * Соединяет нормальный выход из ОКС с осью коридора, даже если фасад повёрнут относительно неё.
  * Среднее звено двухповоротного подхода образует с конечной осью 90° или, для наклонной нормали, 45°.
- * Внутренние углы 90–135°, между двумя изгибами не меньше minimumLegM. Это предложения геометрии:
+ * Конечный прямой подход к камере не короче minimumApproachM. Расстояние между
+ * внутренними поворотами не ограничивается нормативом. Это предложения геометрии:
  * препятствия, округление, фактические углы и весь обязательный ввод проверяет вызывающий код.
  */
 final class NormalCorridorTransitions {
     private static final double MAX_TURN_COSINE = Math.sqrt(0.5);
-    // Погрешность аналитического пересечения лучей в UTM, не ослабление финальных 2 м.
+    // Погрешность аналитического пересечения лучей в UTM, не ослабление табличного подхода камеры.
     // Без неё ровно минимальное смещение пропадает после поворота/переноса координат.
     private static final double INTERSECTION_LENGTH_EPSILON_M = 1e-8;
 
     private NormalCorridorTransitions() { }
 
     static List<List<Coordinate>> build(Coordinate start, Coordinate exit, Coordinate port,
-            double orientation, double minimumLegM) {
+            double orientation, double minimumApproachM) {
         requireFinite(start); requireFinite(exit); requireFinite(port);
-        if (!Double.isFinite(orientation) || !Double.isFinite(minimumLegM) || minimumLegM < 2.0) {
-            throw new IllegalArgumentException("Finite orientation and at least two-metre legs required");
+        if (!Double.isFinite(orientation) || !Double.isFinite(minimumApproachM) || minimumApproachM < 2.0) {
+            throw new IllegalArgumentException("Finite orientation and at least two-metre chamber approach required");
         }
         ensureActive();
         double required = start.distance(exit);
@@ -42,7 +43,7 @@ final class NormalCorridorTransitions {
             if (Math.abs(determinant) > 1e-8 && validTurn(-nx * rx - ny * ry)) {
                 double t = cross(dx, dy, rx, ry) / determinant;
                 double s = cross(dx, dy, nx, ny) / determinant;
-                if (t >= required + 0.01 && t <= reach && s >= minimumLegM && s <= reach) {
+                if (t >= required + 0.01 && t <= reach && s >= minimumApproachM && s <= reach) {
                     candidates.add(List.of(new Coordinate(exit), new Coordinate(start.x + nx * t, start.y + ny * t), new Coordinate(port)));
                 }
             }
@@ -59,15 +60,15 @@ final class NormalCorridorTransitions {
                     if (!validTurn(nx * wx + ny * wy)) continue;
                     double denominator = cross(nx, ny, wx, wy);
                     if (Math.abs(denominator) <= 1e-8) continue;
-                    for (double s : new double[] {minimumLegM, 5.0, 10.0, 20.0, 40.0}) {
+                    for (double s : new double[] {minimumApproachM, 5.0, 10.0, 20.0, 40.0}) {
                         ensureActive();
-                        if (s < minimumLegM) continue;
+                        if (s < minimumApproachM) continue;
                         Coordinate elbow2 = new Coordinate(port.x + rx * s, port.y + ry * s);
                         double t = cross(elbow2.x - start.x, elbow2.y - start.y, wx, wy) / denominator;
-                        if (t < required + minimumLegM - INTERSECTION_LENGTH_EPSILON_M || t > reach) continue;
+                        if (t < required + 0.01 - INTERSECTION_LENGTH_EPSILON_M || t > reach) continue;
                         Coordinate elbow1 = new Coordinate(start.x + nx * t, start.y + ny * t);
                         double q = (elbow2.x - elbow1.x) * wx + (elbow2.y - elbow1.y) * wy;
-                        if (q < minimumLegM - INTERSECTION_LENGTH_EPSILON_M || q > reach) continue;
+                        if (q < 0.01 - INTERSECTION_LENGTH_EPSILON_M || q > reach) continue;
                         candidates.add(List.of(new Coordinate(exit), elbow1, elbow2, new Coordinate(port)));
                     }
                 }

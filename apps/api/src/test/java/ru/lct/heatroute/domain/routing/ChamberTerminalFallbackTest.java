@@ -83,7 +83,6 @@ class ChamberTerminalFallbackTest {
                     .map(ChamberTerminalFallbackTest.this::coordinate).collect(Collectors.toList()));
             assertThat(summary.getFirstBendDistanceM()).isGreaterThanOrEqualTo(2);
             assertThat(summary.hasInvalidBendAngle()).isFalse();
-            assertThat(summary.hasShortBendSpacing()).isFalse();
             var egress=environment.normalEgressTowards(50,target,chamber,RouteTraversal.REVERSED).orElseThrow();
             assertThat(router.terminalRouteAllowed(flow.coordinates(),50,environment,Set.of(),List.of(),egress)).isTrue();
             assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edge("candidate","camera","demand",flow.coordinates()))).isCompliant()).isTrue();

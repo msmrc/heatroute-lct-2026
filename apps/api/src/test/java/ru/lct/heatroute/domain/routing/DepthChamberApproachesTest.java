@@ -102,14 +102,13 @@ class DepthChamberApproachesTest {
         var before = ExpertChamberGeometryRules.summarize(original.getCoordinates());
         var after = ExpertChamberGeometryRules.summarize(actual.getCoordinates());
         if (nodes.get(original.getUpstreamNodeId()).isChamber()) {
-            assertThat(after.getFirstBendDistanceM()).isGreaterThanOrEqualTo(2);
+            assertThat(after.getFirstBendDistanceM()).isGreaterThanOrEqualTo(ExpertChamberGeometryRules.minimumBendDistanceM(actual.getDiameter()));
             assertThat(ExpertChamberGeometryRules.straightDirections(before.getFirstDx(), before.getFirstDy(), after.getFirstDx(), after.getFirstDy())).isTrue();
         }
         if (nodes.get(original.getDownstreamNodeId()).isChamber()) {
-            assertThat(after.getLastBendDistanceM()).isGreaterThanOrEqualTo(2);
+            assertThat(after.getLastBendDistanceM()).isGreaterThanOrEqualTo(ExpertChamberGeometryRules.minimumBendDistanceM(actual.getDiameter()));
             assertThat(ExpertChamberGeometryRules.straightDirections(before.getLastDx(), before.getLastDy(), after.getLastDx(), after.getLastDy())).isTrue();
         }
-        assertThat(after.hasShortBendSpacing()).isFalse();
         assertThat(after.hasInvalidBendAngle()).isFalse();
     }
 

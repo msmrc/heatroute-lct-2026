@@ -12,8 +12,9 @@ import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 import org.locationtech.jts.geom.Coordinate;
 
-/** Проверяет нормали камер и минимум 2 м до ближайшего поворота по уточнению от 25.09.2026. */
+/** Проверяет нормали камер и расстояние до поворота по таблице ДУ от 27.09.2026. */
 public final class ExpertChamberGeometryRules {
+    /** Нижняя граница таблицы; для проверки конкретного участка нужен его фактический ДУ. */
     public static final double MIN_BEND_DISTANCE_M = 2.0;
     private static final double NUMERICAL_EPSILON_M = 1e-7;
     private static final double NODE_TOLERANCE_M = 0.01;
@@ -21,6 +22,24 @@ public final class ExpertChamberGeometryRules {
     private static final double MAX_ANGLE_TOLERANCE = Math.toRadians(0.1);
 
     private ExpertChamberGeometryRules() { }
+
+    /** Минимум от камеры до ближайшего реального поворота примыкающего участка. */
+    public static double minimumBendDistanceM(int diameter) {
+        switch (diameter) {
+            case 50: case 65: case 80: case 100: case 125: case 150:
+                return 2.0;
+            case 200: case 250: case 300:
+                return 3.0;
+            case 400: case 500: case 600:
+                return 4.0;
+            case 700: case 800: case 900:
+                return 5.0;
+            case 1000: case 1200: case 1400:
+                return 6.0;
+            default:
+                throw new IllegalArgumentException("Unsupported chamber approach diameter: " + diameter);
+        }
+    }
 
     /** Полная проверка метрических полилиний без зависимости от заявленных длин участков. */
     public static List<RouteValidationIssue> validate(List<RouteNode> nodes, List<RouteEdge> edges,
@@ -142,26 +161,37 @@ public final class ExpertChamberGeometryRules {
     private static void validateApproach(RouteNode chamber, RouteEdge firstEdge,
             Map<String, RouteNode> nodes, Map<String, List<RouteEdge>> incident,
             Function<RouteEdge, PolylineSummary> summaries, List<RouteValidationIssue> issues) {
+        if (firstEdge.getDiameter() == null) {
+            add(issues, undefined(chamber.getId()));
+            return;
+        }
+        final double minimumDistanceM;
+        try {
+            minimumDistanceM = minimumBendDistanceM(firstEdge.getDiameter());
+        } catch (IllegalArgumentException unsupportedDiameter) {
+            add(issues, undefined(chamber.getId()));
+            return;
+        }
         RouteNode current = chamber;
         RouteEdge edge = firstEdge;
         double distance = 0;
         Vector straightRun = new Vector(0, 0);
         Set<String> visited = new HashSet<>();
-        while (distance + NUMERICAL_EPSILON_M < MIN_BEND_DISTANCE_M) {
+        while (distance + NUMERICAL_EPSILON_M < minimumDistanceM) {
             ensureActive();
             if (!visited.add(edge.getId())) { add(issues, undefined(chamber.getId())); return; }
             PolylineSummary summary = summaries.apply(edge);
             Endpoint near = endpoint(summary, current);
             if (near == null) { add(issues, undefined(chamber.getId())); return; }
             if (Double.isFinite(near.bendDistanceM)) {
-                if (distance + near.bendDistanceM + NUMERICAL_EPSILON_M < MIN_BEND_DISTANCE_M) {
-                    add(issues, tooClose(chamber.getId()));
+                if (distance + near.bendDistanceM + NUMERICAL_EPSILON_M < minimumDistanceM) {
+                    add(issues, tooClose(chamber.getId(), firstEdge.getDiameter(), minimumDistanceM));
                 }
                 return;
             }
             distance += summary.actualLengthM;
             straightRun = new Vector(straightRun.dx + near.ray.dx, straightRun.dy + near.ray.dy);
-            if (distance + NUMERICAL_EPSILON_M >= MIN_BEND_DISTANCE_M) return;
+            if (distance + NUMERICAL_EPSILON_M >= minimumDistanceM) return;
             String nextId = edge.getUpstreamNodeId().equals(current.getId())
                     ? edge.getDownstreamNodeId() : edge.getUpstreamNodeId();
             RouteNode next = nodes.get(nextId);
@@ -174,7 +204,7 @@ public final class ExpertChamberGeometryRules {
             Endpoint far = endpoint(summary, next), outgoing = endpoint(summaries.apply(continuation), next);
             if (far == null || outgoing == null) { add(issues, undefined(chamber.getId())); return; }
             if (!sameDirection(straightRun, outgoing.ray)) {
-                add(issues, tooClose(chamber.getId()));
+                add(issues, tooClose(chamber.getId(), firstEdge.getDiameter(), minimumDistanceM));
                 return;
             }
             current = next;
@@ -207,14 +237,15 @@ public final class ExpertChamberGeometryRules {
                 + Math.asin(Math.min(1, VECTOR_ROUNDING_ERROR_M / b.length))) + 1e-12;
     }
 
-    private static RouteValidationIssue tooClose(String chamberId) {
+    private static RouteValidationIssue tooClose(String chamberId, int diameter, double minimumDistanceM) {
         return new RouteValidationIssue("EXPERT_CHAMBER_BEND_TOO_CLOSE", chamberId,
-                "Ближайший поворот должен находиться не менее чем в 2 м по трассе от тепловой камеры");
+                "Ближайший поворот участка ДУ" + diameter + " должен находиться не менее чем в "
+                        + (int) minimumDistanceM + " м по трассе от тепловой камеры");
     }
 
     private static RouteValidationIssue undefined(String subject) {
         return new RouteValidationIssue("EXPERT_CHAMBER_GEOMETRY_UNCHECKABLE", subject,
-                "Нельзя проверить направления и расстояние до поворота по фактической геометрии камеры");
+                "Нельзя проверить направления и расстояние до поворота по фактической геометрии и ДУ участка камеры");
     }
 
     private static void add(List<RouteValidationIssue> issues, RouteValidationIssue issue) {
@@ -257,6 +288,7 @@ public final class ExpertChamberGeometryRules {
         RouteCoordinate getFirstCoordinate() { return first; }
         RouteCoordinate getLastCoordinate() { return last; }
         boolean hasInvalidBendAngle() { return invalidBendAngle; }
+        /** Геометрическая характеристика для поиска; не ограничение допуска по ТЗ. */
         boolean hasShortBendSpacing() { return shortBendSpacing; }
     }
 

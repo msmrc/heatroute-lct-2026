@@ -26,7 +26,7 @@ class EngineeringRouteEvaluatorTest {
     }
 
     @Test
-    void rejectsAngleOutsideRangeAndConsecutiveBendsCloserThanTwoMetres() {
+    void rejectsAngleOutsideRangeEvenWhenSpacingAlsoHasAPreferencePenalty() {
         RouteEdge edge = edge(
                 point(0, 0),
                 point(1, 0),
@@ -79,6 +79,25 @@ class EngineeringRouteEvaluatorTest {
 
         assertThat(result.irregularJunctionAngleCount()).isPositive();
         assertThat(result.totalJunctionAngleDeviation()).isGreaterThan(0.0);
+    }
+
+    @Test
+    void shortLegalBendsDoNotPolluteTheEdgeIdsOfASeparateAngleViolation() {
+        RouteEdge legal = edge("short-legal", "legal-a", "legal-b",
+                point(0, 0), point(10, 0), point(10, .001), point(20, .001));
+        RouteEdge sharp = edge("sharp", "sharp-a", "sharp-b",
+                point(0, 10), point(10, 10), point(9, 11));
+
+        EngineeringRouteEvaluator.Evaluation legalOnly = evaluator.evaluate(List.of(legal));
+        assertThat(legalOnly.insufficientSpacingCount()).isEqualTo(1);
+        assertThat(legalOnly.isCompliant()).isTrue();
+        assertThat(legalOnly.nonCompliantEdgeIds()).isEmpty();
+
+        EngineeringRouteEvaluator.Evaluation mixed = evaluator.evaluate(List.of(legal, sharp));
+        assertThat(mixed.invalidAngleCount()).isEqualTo(1);
+        assertThat(mixed.insufficientSpacingCount()).isEqualTo(1);
+        assertThat(mixed.isCompliant()).isFalse();
+        assertThat(mixed.nonCompliantEdgeIds()).containsExactly("sharp");
     }
 
     private RouteEdge edge(RouteCoordinate... coordinates) {

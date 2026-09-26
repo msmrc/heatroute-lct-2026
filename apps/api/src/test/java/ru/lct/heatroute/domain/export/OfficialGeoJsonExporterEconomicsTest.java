@@ -17,7 +17,6 @@ import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.economics.VariantEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
-import ru.lct.heatroute.domain.engineering.SpecialCrossingType;
 import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
 import ru.lct.heatroute.domain.routing.RouteConnection;
 import ru.lct.heatroute.domain.routing.RouteCoordinate;
@@ -55,11 +54,12 @@ class OfficialGeoJsonExporterEconomicsTest {
     }
 
     @Test
-    void twoDimensionalPricingStillUsesTheOriginalSectionLengths() {
+    void twoDimensionalPricingPreservesPerLegRoundingAtTheNewLegalBendPosition() {
         ObjectNode calculation = calculation(false, false);
         BigDecimal expected = pipeConstructionCost(calculation);
-        assertThat(expected).isEqualByComparingTo(economics.newNetworkCost(pipes.byDiameter(300).orElseThrow(),
-                new BigDecimal("3.414"), SpecialCrossingType.BASE, new BigDecimal("3")));
+        // 3.414 м распределены пропорционально sqrt(2)*2.2 и .303; цена каждой части
+        // отдельно округлена до копеек при 150022 руб/м. Округление общей цены дало бы .11.
+        assertThat(expected).isEqualByComparingTo("512175.10");
         assertExportedCost(calculation, expected);
     }
 
@@ -122,14 +122,14 @@ class OfficialGeoJsonExporterEconomicsTest {
     }
 
     private ObjectNode calculation(boolean separateSections, boolean depthEnabled) {
-        // Первый диагональный отрезок длиннее 2 м; сохраняем общую сметную длину 3.414 м
+        // Первый диагональный отрезок длиннее новых 3 м для ДУ300; сохраняем сметную длину 3.414 м
         // и breakpoint 1.214 м перед поворотом, на которых воспроизводится округление цены.
         List<RouteCoordinate> coordinates = List.of(new RouteCoordinate(500000, 6100000),
-                new RouteCoordinate(500001.5, 6100001.5), new RouteCoordinate(500002.793, 6100001.5));
+                new RouteCoordinate(500002.2, 6100002.2), new RouteCoordinate(500002.503, 6100002.2));
         double length = separateSections ? 3.415 : 3.414;
         List<RouteSection> sections = separateSections
-                ? List.of(new RouteSection("base", null, null, coordinates.subList(0, 2), 2.121, null),
-                        new RouteSection("base", null, null, coordinates.subList(1, 3), 1.293, null))
+                ? List.of(new RouteSection("base", null, null, coordinates.subList(0, 2), 3.111, null),
+                        new RouteSection("base", null, null, coordinates.subList(1, 3), .303, null))
                 : List.of(new RouteSection("base", null, null, coordinates, length, null));
         DepthProfileResult profile = depthEnabled ? new DepthProfileResult(true,
                 List.of(point("0", "3"), point("1.214", "3"), point(Double.toString(length), "3.12")),

@@ -13,10 +13,10 @@ import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 
-/** Проверяет ремонт расстояния между поворотами без исходного нарушения углов. */
+/** Проверяет мягкое предпочтение расстояния без обязательного ремонта разрешённых изгибов. */
 class EngineeringSpacingRepairTest {
     @Test
-    void acceptsSpacingOnlyRepairAfterRotationAndTranslation() throws Exception {
+    void keepsLegalCloseBendsWithoutMandatoryRepairAfterRotationAndTranslation() throws Exception {
         for (double rotation : new double[] {0.0, 0.37, 1.1}) {
             for (double offset : new double[] {0.0, 410000.0}) {
                 var points = List.of(point(0, 0, rotation, offset), point(10, 0, rotation, offset),
@@ -51,7 +51,9 @@ class EngineeringSpacingRepairTest {
                                 OfficialRoutingEnvironment.class, boolean.class},
                         draft, List.of(), environment, false);
                 assertTrue(evaluator.evaluate(edges(repaired)).isCompliant(),
-                        "A spacing-only improvement must not require reducing an already zero angle count");
+                        "A short interior leg remains legal under official answers 11–12");
+                assertEquals(points, edges(repaired).get(0).getCoordinates(),
+                        "The mandatory repair must not alter a valid short interior leg");
                 assertTrue(new OfficialRouteValidator(rules).validate(nodes, edges(repaired), List.of()).isEmpty());
                 assertTrue(ExpertRouteBendRules.validate(nodes, edges(repaired)).isEmpty());
                 assertEquals(connections, field(repaired, "connections"));
@@ -60,7 +62,7 @@ class EngineeringSpacingRepairTest {
     }
 
     @Test
-    void rejectsUnchangedHardIssuesAndNewAngleViolations() throws Exception {
+    void optionalSpacingPreferenceNeverWorsensMandatoryAngles() throws Exception {
         var planner = new OfficialDatasetRoutingTest().planner();
         var spacing = evaluation(List.of(new RouteCoordinate(0, 0), new RouteCoordinate(10, 0),
                 new RouteCoordinate(10, 1), new RouteCoordinate(20, 1)));

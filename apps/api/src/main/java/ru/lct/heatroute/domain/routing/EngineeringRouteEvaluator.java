@@ -10,13 +10,15 @@ import java.util.Set;
 import org.locationtech.jts.geom.Coordinate;
 
 /**
- * Оценивает повороты по ТЗ: внутренний угол трубы 90–180° и минимум 2 м между изгибами.
+ * Оценивает повороты по ТЗ: внутренний угол трубы 90–180°.
+ * Расстояние между изгибами — показатель качества, без обязательного численного минимума (разъяснение №5).
  * Предпочтения лучей камер считаются отдельно и не меняют {@link Evaluation#isCompliant()}.
  * Официальные отступы/пересечения принадлежат каталогу; это не проверка всех требований эксперта или СП.
  */
 final class EngineeringRouteEvaluator {
     static final double MIN_INTERNAL_ANGLE_DEGREES = 90.0;
     static final double MAX_INTERNAL_ANGLE_DEGREES = 180.0;
+    // Исторический порог предпочтения генератора; не условие допустимости маршрута.
     static final double MIN_BEND_SPACING_M = 2.0;
     static final double ANGLE_EPSILON_DEGREES = 0.5;
     private static final double LENGTH_EPSILON_M = 0.01;
@@ -94,7 +96,7 @@ final class EngineeringRouteEvaluator {
             junctionPreferences.put(entry.getKey(), new JunctionPreference(nodeIrregularAngleCount, nodeExcessDeviation));
         }
 
-        int insufficientSpacingCount = evaluateSpacing(edges, directionsByNode, nonCompliantEdgeIds);
+        int insufficientSpacingCount = evaluateSpacing(edges, directionsByNode);
         return new Evaluation(
                 bendCount,
                 invalidAngleCount,
@@ -108,11 +110,10 @@ final class EngineeringRouteEvaluator {
                 nonCompliantEdgeIds);
     }
 
-    /** Проверяет соседние изгибы непрерывных цепочек; камеры степени >= 3 обрывают цепочку. */
+    /** Считает короткие звенья для предпочтения; камеры степени >= 3 обрывают цепочку. */
     private int evaluateSpacing(
             List<RouteEdge> edges,
-            Map<String, List<IncidentDirection>> directionsByNode,
-            Set<String> nonCompliantEdgeIds) {
+            Map<String, List<IncidentDirection>> directionsByNode) {
         Map<String, List<RouteEdge>> edgesByNode = new LinkedHashMap<>();
         for (RouteEdge edge : edges) {
             edgesByNode.computeIfAbsent(edge.getUpstreamNodeId(), ignored -> new ArrayList<>()).add(edge);
@@ -127,7 +128,7 @@ final class EngineeringRouteEvaluator {
             for (RouteEdge edge : entry.getValue()) {
                 if (!visited.contains(edge)) {
                     violations += evaluateSpacingChain(edge, entry.getKey(), edgesByNode,
-                            directionsByNode, visited, nonCompliantEdgeIds);
+                            directionsByNode, visited);
                 }
             }
         }
@@ -135,7 +136,7 @@ final class EngineeringRouteEvaluator {
         for (RouteEdge edge : edges) {
             if (!visited.contains(edge)) {
                 violations += evaluateSpacingChain(edge, edge.getUpstreamNodeId(), edgesByNode,
-                        directionsByNode, visited, nonCompliantEdgeIds);
+                        directionsByNode, visited);
             }
         }
         return violations;
@@ -146,10 +147,9 @@ final class EngineeringRouteEvaluator {
             String startNodeId,
             Map<String, List<RouteEdge>> edgesByNode,
             Map<String, List<IncidentDirection>> directionsByNode,
-            Set<RouteEdge> visited,
-            Set<String> nonCompliantEdgeIds) {
-        List<RouteEdge> chain = new ArrayList<>();
-        List<SpacingBend> bends = new ArrayList<>();
+            Set<RouteEdge> visited) {
+        int edgeCount = 0;
+        List<Coordinate> bends = new ArrayList<>();
         String nodeId = startNodeId;
         boolean closed = false;
         while (visited.add(edge)) {
@@ -158,18 +158,17 @@ final class EngineeringRouteEvaluator {
                 break;
             }
             boolean forward = edge.getUpstreamNodeId().equals(nodeId);
-            int edgeIndex = chain.size();
-            chain.add(edge);
-            if (edgeIndex > 0 && isSpacingBendNode(nodeId, directionsByNode)) {
+            if (edgeCount > 0 && isSpacingBendNode(nodeId, directionsByNode)) {
                 int endpoint = forward ? 0 : coordinates.size() - 1;
-                bends.add(new SpacingBend(coordinates.get(endpoint).toCoordinate(), edgeIndex - 1, edgeIndex));
+                bends.add(coordinates.get(endpoint).toCoordinate());
             }
+            edgeCount++;
             for (int offset = 1; offset + 1 < coordinates.size(); offset++) {
                 int index = forward ? offset : coordinates.size() - 1 - offset;
                 Coordinate at = coordinates.get(index).toCoordinate();
                 if (!isStraight(internalAngleDegrees(
                         coordinates.get(index - 1).toCoordinate(), at, coordinates.get(index + 1).toCoordinate()))) {
-                    bends.add(new SpacingBend(at, edgeIndex, edgeIndex));
+                    bends.add(at);
                 }
             }
             nodeId = forward ? edge.getDownstreamNodeId() : edge.getUpstreamNodeId();
@@ -181,7 +180,7 @@ final class EngineeringRouteEvaluator {
                 closed = true;
                 if (isSpacingBendNode(nodeId, directionsByNode)) {
                     int endpoint = forward ? coordinates.size() - 1 : 0;
-                    bends.add(new SpacingBend(coordinates.get(endpoint).toCoordinate(), edgeIndex, chain.size()));
+                    bends.add(coordinates.get(endpoint).toCoordinate());
                 }
                 break;
             }
@@ -189,11 +188,10 @@ final class EngineeringRouteEvaluator {
         }
         int violations = 0;
         for (int index = 1; index < bends.size(); index++) {
-            violations += checkSpacing(bends.get(index - 1), bends.get(index), chain, 0, nonCompliantEdgeIds);
+            violations += checkSpacing(bends.get(index - 1), bends.get(index));
         }
         if (closed && bends.size() > 1) {
-            violations += checkSpacing(bends.get(bends.size() - 1), bends.get(0),
-                    chain, chain.size(), nonCompliantEdgeIds);
+            violations += checkSpacing(bends.get(bends.size() - 1), bends.get(0));
         }
         return violations;
     }
@@ -204,32 +202,8 @@ final class EngineeringRouteEvaluator {
                 && !isStraight(angleBetween(directions.get(0), directions.get(1)));
     }
 
-    private int checkSpacing(
-            SpacingBend previous,
-            SpacingBend current,
-            List<RouteEdge> chain,
-            int wrapOffset,
-            Set<String> nonCompliantEdgeIds) {
-        if (previous.coordinate.distance(current.coordinate) + LENGTH_EPSILON_M >= MIN_BEND_SPACING_M) {
-            return 0;
-        }
-        // Отмечаем оба ребра узлового изгиба и все рёбра между изгибами, в том числе прямые.
-        for (int index = previous.firstEdgeIndex; index <= current.lastEdgeIndex + wrapOffset; index++) {
-            nonCompliantEdgeIds.add(chain.get(index % chain.size()).getId());
-        }
-        return 1;
-    }
-
-    private static final class SpacingBend {
-        private final Coordinate coordinate;
-        private final int firstEdgeIndex;
-        private final int lastEdgeIndex;
-
-        private SpacingBend(Coordinate coordinate, int firstEdgeIndex, int lastEdgeIndex) {
-            this.coordinate = coordinate;
-            this.firstEdgeIndex = firstEdgeIndex;
-            this.lastEdgeIndex = lastEdgeIndex;
-        }
+    private int checkSpacing(Coordinate previous, Coordinate current) {
+        return previous.distance(current) + LENGTH_EPSILON_M < MIN_BEND_SPACING_M ? 1 : 0;
     }
 
     private void addIncidentDirections(
@@ -374,6 +348,7 @@ final class EngineeringRouteEvaluator {
 
         int bendCount() { return bendCount; }
         int invalidAngleCount() { return invalidAngleCount; }
+        /** Историческая метрика предпочтения, не число нарушений ТЗ. */
         int insufficientSpacingCount() { return insufficientSpacingCount; }
         double totalAngleDeviation() { return totalAngleDeviation; }
         double preferredAngleDeviation() { return preferredAngleDeviation; }
@@ -405,7 +380,7 @@ final class EngineeringRouteEvaluator {
         }
         Set<String> nonCompliantEdgeIds() { return nonCompliantEdgeIds; }
         boolean isCompliant() {
-            return invalidAngleCount == 0 && insufficientSpacingCount == 0;
+            return invalidAngleCount == 0;
         }
     }
 }

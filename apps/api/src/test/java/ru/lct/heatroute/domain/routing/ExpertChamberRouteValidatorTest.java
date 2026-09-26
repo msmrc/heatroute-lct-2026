@@ -17,7 +17,7 @@ class ExpertChamberRouteValidatorTest {
         RouteNode a = chamber("a", 400_000, 6_000_000);
         RouteNode b = chamber("b", 400_000 + distanceM, 6_000_000);
         RouteEdge edge = new RouteEdge("edge", "a", "b", 999,
-                List.of(a.getCoordinate(), b.getCoordinate()), List.of(), null, null);
+                List.of(a.getCoordinate(), b.getCoordinate()), List.of(), null, 100);
         List<RouteValidationIssue> issues = validator.validate(List.of(a, b), List.of(edge));
         if (accepted) assertThat(issues).isEmpty();
         else if (distanceM == 0) assertThat(issues).extracting(RouteValidationIssue::getCode)
@@ -32,7 +32,7 @@ class ExpertChamberRouteValidatorTest {
         RouteNode b = chamber("b", 6, 0);
         RouteEdge bent = new RouteEdge("bent", "a", "b", 1,
                 List.of(a.getCoordinate(), new RouteCoordinate(0, 3), new RouteCoordinate(6, 3), b.getCoordinate()),
-                List.of(), null, null);
+                List.of(), null, 100);
         assertThat(validator.validate(List.of(a, b), List.of(bent))).isEmpty();
     }
 
@@ -131,6 +131,6 @@ class ExpertChamberRouteValidatorTest {
 
     private RouteEdge edge(RouteNode from, RouteNode to) {
         return new RouteEdge(from.getId() + "-" + to.getId(), from.getId(), to.getId(), 999,
-                List.of(from.getCoordinate(), to.getCoordinate()), List.of(), null, null);
+                List.of(from.getCoordinate(), to.getCoordinate()), List.of(), null, 100);
     }
 }

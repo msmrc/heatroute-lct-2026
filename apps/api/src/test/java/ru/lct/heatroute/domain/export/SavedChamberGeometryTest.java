@@ -27,7 +27,7 @@ import ru.lct.heatroute.domain.routing.RouteVariant;
 import ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
-/** Export повторно проверяет нормали и расстояние 2 м, включая округлённые выдаваемые секции. */
+/** Export повторно проверяет нормали и таблицу расстояний по ДУ, включая выдаваемые секции. */
 class SavedChamberGeometryTest {
     private final ObjectMapper mapper = new ObjectMapper().setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
     private final OfficialEconomics economics = new OfficialEconomics();
@@ -35,6 +35,28 @@ class SavedChamberGeometryTest {
     private final OfficialVariantEconomicsCalculator calculator = new OfficialVariantEconomicsCalculator(pipes, economics);
     private final OfficialGeoJsonExporter exporter = new OfficialGeoJsonExporter(mapper, pipes, economics,
             new OfficialOutputContractValidator(), calculator);
+
+    @ParameterizedTest
+    @CsvSource({"50,2", "65,2", "80,2", "100,2", "125,2", "150,2", "200,3", "250,3",
+            "300,3", "400,4", "500,4", "600,4", "700,5", "800,5", "900,5",
+            "1000,6", "1200,6", "1400,6"})
+    void storedAndEmittedCoordinatesMustRespectTheActualDiameterTable(int diameter, double minimum) {
+        for (double delta : new double[] {-0.001, 0, 0.001}) {
+            double distance = minimum + delta;
+            RouteNode c = root(), d = demand(distance, 8);
+            ObjectNode saved = saved(List.of(c, d), List.of(edge(c, d,
+                    List.of(c.getCoordinate(), point(distance, 0), d.getCoordinate()), diameter)));
+            if (delta < 0) rejectsAllExportEntryPoints(saved, "EXPERT_CHAMBER_BEND_TOO_CLOSE");
+            else assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
+        }
+        RouteNode c = root(), d = demand(minimum, 8);
+        ObjectNode saved = saved(List.of(c, d), List.of(edge(c, d,
+                List.of(c.getCoordinate(), point(minimum, 0), d.getCoordinate()), diameter)));
+        ((ObjectNode) saved.path("edges").path(0)).set("sections", mapper.valueToTree(List.of(
+                new RouteSection("base", null, null, List.of(c.getCoordinate(), point(minimum - .001, 0),
+                        point(minimum - .001, 8)), minimum + 8, null))));
+        rejectsAllExportEntryPoints(saved, "EXPERT_CHAMBER_BEND_TOO_CLOSE");
+    }
 
     @ParameterizedTest
     @CsvSource({"1.999,false", "2,true", "2.001,true", "5,true"})
@@ -94,13 +116,12 @@ class SavedChamberGeometryTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"1.999,false", "2,true", "2.001,true"})
-    void savedRunsMustKeepTwoMetresBetweenActualInternalBends(double spacing, boolean valid) {
+    @CsvSource({"0.5", "1.999", "2", "2.001"})
+    void savedRunsDoNotApplyAnUnofficialNumericMinimumBetweenBends(double spacing) {
         RouteNode c = root(), d = demand(20, spacing);
         ObjectNode saved = saved(List.of(c, d), List.of(edge(c, d,
                 List.of(c.getCoordinate(), point(10, 0), point(10, spacing), d.getCoordinate()))));
-        if (valid) assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
-        else rejectsAllExportEntryPoints(saved, "EXPERT_ROUTE_BENDS_TOO_CLOSE");
+        assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
     }
 
     @ParameterizedTest
@@ -115,18 +136,18 @@ class SavedChamberGeometryTest {
     }
 
     @Test
-    void roundedEmittedSectionsCannotReduceTheDistanceBetweenBendsBelowTwoMetres() {
+    void emittedSectionsDoNotApplyAnUnofficialNumericMinimumBetweenBends() {
         RouteNode c = root(), d = demand(20, 2);
         ObjectNode saved = saved(List.of(c, d), List.of(edge(c, d,
                 List.of(c.getCoordinate(), point(10, 0), point(10, 2), d.getCoordinate()))));
         ((ObjectNode) saved.path("edges").path(0)).set("sections", mapper.valueToTree(List.of(
                 new RouteSection("base", null, null, List.of(c.getCoordinate(), point(10, 0),
                         point(10, 1.999), point(20, 1.999)), 22, null))));
-        rejectsAllExportEntryPoints(saved, "EXPERT_ROUTE_BENDS_TOO_CLOSE");
+        assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
     }
 
     @Test
-    void technicalEdgeBoundariesDoNotResetTheDistanceBetweenStoredBends() {
+    void technicalEdgeBoundariesDoNotIntroduceANumericMinimumBetweenStoredBends() {
         RouteNode c = root(), d = demand(20, 1.999);
         RouteNode t1 = new RouteNode("t1", "technical_node", point(10, 0), false, false, 0, null);
         RouteNode t2 = new RouteNode("t2", "technical_node", point(10, 1.999), false, false, 0, null);
@@ -134,7 +155,7 @@ class SavedChamberGeometryTest {
                 edge(c, t1, List.of(c.getCoordinate(), t1.getCoordinate())),
                 edge(t1, t2, List.of(t1.getCoordinate(), t2.getCoordinate())),
                 edge(t2, d, List.of(t2.getCoordinate(), d.getCoordinate()))));
-        rejectsAllExportEntryPoints(saved, "EXPERT_ROUTE_BENDS_TOO_CLOSE");
+        assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
     }
 
     private void rejectsAllExportEntryPoints(ObjectNode saved, String code) {
@@ -175,9 +196,12 @@ class SavedChamberGeometryTest {
     }
     private RouteCoordinate point(double x, double y) { return new RouteCoordinate(400000 + x, 6000000 + y); }
     private RouteEdge edge(RouteNode a, RouteNode b, List<RouteCoordinate> path) {
+        return edge(a, b, path, 100);
+    }
+    private RouteEdge edge(RouteNode a, RouteNode b, List<RouteCoordinate> path, int diameter) {
         double length = 0;
         for (int i = 1; i < path.size(); i++) length += path.get(i - 1).toCoordinate().distance(path.get(i).toCoordinate());
-        return new RouteEdge(a.getId() + "-" + b.getId(), a.getId(), b.getId(), length, path, List.of(), BigDecimal.ONE, 100);
+        return new RouteEdge(a.getId() + "-" + b.getId(), a.getId(), b.getId(), length, path, List.of(), BigDecimal.ONE, diameter);
     }
     private ExistingNetworkSupportIndex support() { return new ExistingNetworkSupportIndex(List.of()); }
 }

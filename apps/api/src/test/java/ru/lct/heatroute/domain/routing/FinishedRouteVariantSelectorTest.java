@@ -149,18 +149,18 @@ class FinishedRouteVariantSelectorTest {
     }
 
     @Test
-    void shortestCannotExchangeExistingAngleIssuesForNewSpacingIssues() {
+    void shortestCannotTradeLengthForMoreAngleViolations() {
         RouteVariant shortest = variant("shortest", "shortest", 100, 300, 1, false);
         List<RouteCoordinate> coordinates = List.of(new RouteCoordinate(0, 0), new RouteCoordinate(10, 0),
-                new RouteCoordinate(10, 1), new RouteCoordinate(20, 1));
-        RouteVariant spacingFailure = withSingleGeometry(
-                variant("portfolio-0", "engineering", 21, 200, 1, true), coordinates);
+                new RouteCoordinate(5, 5), new RouteCoordinate(15, 5));
+        RouteVariant moreSharpBends = withSingleGeometry(
+                variant("portfolio-0", "engineering", 27, 200, 1, true), coordinates);
         assertThat(evaluator.evaluate(shortest.getEdges()).invalidAngleCount()).isEqualTo(1);
-        assertThat(evaluator.evaluate(shortest.getEdges()).insufficientSpacingCount()).isZero();
-        assertThat(evaluator.evaluate(spacingFailure.getEdges()).invalidAngleCount()).isZero();
-        assertThat(evaluator.evaluate(spacingFailure.getEdges()).insufficientSpacingCount()).isEqualTo(1);
+        assertThat(evaluator.evaluate(moreSharpBends.getEdges()).invalidAngleCount()).isEqualTo(2);
+        assertThat(evaluator.evaluate(moreSharpBends.getEdges()).insufficientSpacingCount()).isZero();
+        assertThat(moreSharpBends.getTotalLengthM()).isLessThan(shortest.getTotalLengthM());
 
-        List<RouteVariant> selected = selector.select(List.of(shortest, spacingFailure));
+        List<RouteVariant> selected = selector.select(List.of(shortest, moreSharpBends));
 
         assertSource(role(selected, "shortest"), shortest);
     }

@@ -536,7 +536,7 @@ public class OfficialObstacleRouter {
             if (following != null) nodes = headingNavigationNodes(nodes, following, end, start);
             SegmentVisibilityMemo visibility = new SegmentVisibilityMemo(index.hasRoadCrossings());
             SearchResult search = shortestPath(nodes, index, RoutePreference.SHORTEST, start, end, previous,
-                    visibility, index, null, null, visibility, null, following, ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M);
+                    visibility, index, null, null, visibility, null, following, 0);
             environment.recordVisibilitySearch(nodes.size(), expansion, search.evaluatedPairCount, search.rejectedTurns);
             if (search.coordinates.isEmpty()) continue;
             for (List<Coordinate> middle : List.of(normalize(search.coordinates, index, previous), search.coordinates)) {
@@ -1394,8 +1394,8 @@ public class OfficialObstacleRouter {
                     continue;
                 }
                 Coordinate target = nodes.get(next);
-                // Для обхода глубины оставляем 2м между поворотами. Полный граф видимости
-                // позволяет пропустить лишние коллинеарные точки вместо коротких звеньев.
+                // Необязательный поисковый предел не задаёт норматив между поворотами.
+                // Прямые подходы камер проверяются отдельно по фактическому ДУ.
                 boolean freeTerminalLink = state.node == 0 && previous == null || next == 1 && following == null;
                 if (minimumSegmentM > 0 && !freeTerminalLink
                         && current.distance(target) + 1e-7 < minimumSegmentM) continue;

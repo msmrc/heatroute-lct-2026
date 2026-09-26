@@ -298,7 +298,7 @@ class CorridorTerminalRoutingTest {
     }
 
     @Test
-    void twoElbowAlternativesRespectActualBendSpacingAfterRounding() throws Exception {
+    void twoElbowAlternativesKeepCameraApproachAndAllowShortInteriorLegs() throws Exception {
         Fixture base = fixture(0, 0, 0);
         for (double separation : new double[] {0.5, 1.98, 2.1}) {
             Fixture fixture = new Fixture(0, base.transform, base.demand, new Coordinate(-30, 10 + separation), base.features);
@@ -309,11 +309,13 @@ class CorridorTerminalRoutingTest {
             for (RoutePath path : paths) {
                 assertCheckedAlternative(path, fixture);
                 EngineeringRouteEvaluator.Evaluation evaluation = new EngineeringRouteEvaluator().evaluate(List.of(edgeFromTerminalPath(path)));
-                assertThat(evaluation.insufficientSpacingCount()).isZero();
+                ExpertChamberGeometryRules.PolylineSummary summary = ExpertChamberGeometryRules.summarize(
+                        edgeFromTerminalPath(path).getCoordinates());
+                assertThat(summary.getLastBendDistanceM()).isGreaterThanOrEqualTo(
+                        ExpertChamberGeometryRules.minimumBendDistanceM(50));
                 if (evaluation.bendCount() == 2) twoBends++;
             }
-            if (separation < 2) assertThat(twoBends).isZero();
-            else assertThat(twoBends).isPositive();
+            assertThat(twoBends).isPositive();
         }
     }
 

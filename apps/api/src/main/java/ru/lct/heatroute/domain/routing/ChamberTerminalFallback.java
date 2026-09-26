@@ -13,7 +13,6 @@ import org.locationtech.jts.geom.GeometryFactory;
  * сети учитываются полностью. Ответ направлен потребитель→камера для совместного выбора лучей.
  */
 final class ChamberTerminalFallback {
-    private static final double APPROACH_M = ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M + 0.1;
     private static final GeometryFactory GEOMETRIES = new GeometryFactory();
 
     private ChamberTerminalFallback() { }
@@ -27,6 +26,8 @@ final class ChamberTerminalFallback {
                 || !terminal.getId().equals(edge.getDownstreamNodeId()) || terminal.isChamber()) {
             throw new IllegalArgumentException("Finite chamber and downstream demand required");
         }
+        double minimum = ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter());
+        double approachM = minimum + 0.1;
         Coordinate target = terminal.getCoordinate().toCoordinate();
         OfficialRouteGeometryRules.NormalEgress normal = environment.normalEgressTowards(
                 edge.getDiameter(), target, chamber, RouteTraversal.REVERSED).orElse(null);
@@ -38,19 +39,19 @@ final class ChamberTerminalFallback {
         for (int ray = 0; ray < 4; ray++) {
             if (Thread.currentThread().isInterrupted()) throw new CancellationException("Chamber terminal search cancelled");
             double angle = orientation + ray * Math.PI / 2;
-            Coordinate approach = new RouteCoordinate(chamber.x + APPROACH_M * Math.cos(angle),
-                    chamber.y + APPROACH_M * Math.sin(angle)).toCoordinate();
+            Coordinate approach = new RouteCoordinate(chamber.x + approachM * Math.cos(angle),
+                    chamber.y + approachM * Math.sin(angle)).toCoordinate();
             RoutePath path = router.findChamberTerminalApproach(chamber, approach, target, edge.getDiameter(),
-                    environment, avoidance, normal, ChamberTerminalFallback::validApproach);
+                    environment, avoidance, normal, candidate -> validApproach(candidate, minimum));
             if (path != null) result.add(path.reversed());
         }
         return List.copyOf(result);
     }
 
-    private static boolean validApproach(RoutePath path) {
+    private static boolean validApproach(RoutePath path, double minimum) {
         ExpertChamberGeometryRules.PolylineSummary summary = ExpertChamberGeometryRules.summarize(
                 path.coordinates().stream().map(point -> new RouteCoordinate(point.x, point.y)).collect(Collectors.toList()));
-        return summary != null && !summary.hasInvalidBendAngle() && !summary.hasShortBendSpacing()
-                && summary.getFirstBendDistanceM() + 1e-7 >= ExpertChamberGeometryRules.MIN_BEND_DISTANCE_M;
+        return summary != null && !summary.hasInvalidBendAngle()
+                && summary.getFirstBendDistanceM() + 1e-7 >= minimum;
     }
 }

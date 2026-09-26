@@ -16,6 +16,7 @@ final class RootChamberApproaches {
             OfficialObstacleRouter router, OfficialRoutingEnvironment environment, Set<String> exemptions,
             List<LineString> avoidance) {
         if (existingRays.isEmpty()) return null;
+        double minimum = ExpertChamberGeometryRules.minimumBendDistanceM(diameter);
         double orientation = Math.atan2(existingRays.get(0).y, existingRays.get(0).x);
         List<List<Coordinate>> offers = new ArrayList<>();
         offers.add(List.of(demand, chamber));
@@ -24,14 +25,14 @@ final class RootChamberApproaches {
             double x = Math.cos(angle), y = Math.sin(angle);
             double projection = (demand.x - chamber.x) * x + (demand.y - chamber.y) * y;
             Coordinate elbow = new Coordinate(chamber.x + x * projection, chamber.y + y * projection);
-            if (elbow.distance(demand) > 0.01 && elbow.distance(chamber) >= 2.01) {
+            if (elbow.distance(demand) > 0.01 && elbow.distance(chamber) >= minimum + 0.01) {
                 offers.add(List.of(demand, elbow, chamber));
             }
         }
         for (OfficialRouteGeometryRules.NormalEgress egress : environment.normalEgressCandidates(
                 diameter, demand, chamber, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED)) {
             for (List<Coordinate> outside : NormalCorridorTransitions.build(
-                    egress.start(), egress.exit(), chamber, orientation, 2.1)) {
+                    egress.start(), egress.exit(), chamber, orientation, minimum + 0.1)) {
                 List<Coordinate> points = new ArrayList<>(List.of(egress.start()));
                 points.addAll(outside);
                 offers.add(points);
@@ -48,7 +49,7 @@ final class RootChamberApproaches {
             List<RouteCoordinate> rounded = checked.coordinates().stream()
                     .map(point -> new RouteCoordinate(point.x, point.y)).collect(Collectors.toList());
             ExpertChamberGeometryRules.PolylineSummary summary = ExpertChamberGeometryRules.summarize(rounded);
-            if (summary == null || summary.getLastBendDistanceM() + 1e-7 < 2.0
+            if (summary == null || summary.getLastBendDistanceM() + 1e-7 < minimum
                     || existingRays.stream().anyMatch(ray -> !ExpertChamberGeometryRules.compatibleRays(
                             -summary.getLastDx(), -summary.getLastDy(), ray.x, ray.y))) continue;
             RouteEdge edge = new RouteEdge("root-approach", "demand", "root", checked.lengthM(),

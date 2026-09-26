@@ -20,8 +20,8 @@ class ExpertRouteBendRulesTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"1.999,false,false", "2,false,true", "2.001,false,true", "1.999,true,false", "2,true,true", "2.001,true,true"})
-    void exactSpacingBoundarySurvivesTechnicalSplitsAndReverseStorage(double spacing, boolean reversed, boolean valid) {
+    @CsvSource({"1.999,false,true", "2,false,true", "2.001,false,true", "1.999,true,true", "2,true,true", "2.001,true,true"})
+    void officialRulesDoNotSetNumericSpacingBetweenBendsAcrossTechnicalSplits(double spacing, boolean reversed, boolean valid) {
         RouteNode a = node("a", p(0, 0), true), b = node("b", p(10, 0), false);
         RouteNode c = node("c", p(10, spacing), false), d = node("d", p(20, spacing), false);
         List<RouteEdge> edges = List.of(edge(a, b, points(reversed, a.getCoordinate(), b.getCoordinate())),
@@ -29,11 +29,11 @@ class ExpertRouteBendRulesTest {
                 edge(c, d, points(reversed, c.getCoordinate(), d.getCoordinate())));
         List<RouteValidationIssue> issues = ExpertRouteBendRules.validate(List.of(d, c, b, a), edges);
         assertThat(issues.isEmpty()).isEqualTo(valid);
-        if (!valid) assertThat(issues).extracting(RouteValidationIssue::getCode).contains("EXPERT_ROUTE_BENDS_TOO_CLOSE");
+
     }
 
     @ParameterizedTest
-    @CsvSource({"1.999,false", "2,true", "2.001,true"})
+    @CsvSource({"1.999,true", "2,true", "2.001,true"})
     void internalBendsOnSeparateEdgesUseTheSumAcrossSeveralCollinearTechnicalEdges(double spacing, boolean valid) {
         RouteNode a = node("a", p(0, 0), true), b = node("b", p(10, .3), false);
         RouteNode c = node("c", p(10, 1.2), false), d = node("d", p(20, spacing), false);
@@ -68,7 +68,7 @@ class ExpertRouteBendRulesTest {
     }
 
     @Test
-    void technicalSubdivisionsCannotHideCumulativeBendsLessThanTwoMetresApart() {
+    void shortSpacingAloneDoesNotViolateOfficialBendAngles() {
         List<RouteNode> nodes = gradualDrift();
         List<RouteCoordinate> points = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
@@ -77,8 +77,7 @@ class ExpertRouteBendRulesTest {
             if (i > 0) edges.add(edge(nodes.get(i - 1), nodes.get(i), points.subList(i - 1, i + 1)));
         }
         assertThat(ExpertChamberGeometryRules.summarize(points).hasShortBendSpacing()).isTrue();
-        assertThat(ExpertRouteBendRules.validate(nodes, edges)).extracting(RouteValidationIssue::getCode)
-                .contains("EXPERT_ROUTE_BENDS_TOO_CLOSE");
+        assertThat(ExpertRouteBendRules.validate(nodes, edges)).isEmpty();
     }
 
     @Test
@@ -93,7 +92,7 @@ class ExpertRouteBendRulesTest {
     }
 
     @Test
-    void mixedPolylineAndTechnicalPartitionsKeepTheSameCloseBendRejection() {
+    void partitioningDoesNotIntroduceAnUnofficialNumericBendMinimum() {
         List<RouteNode> pathNodes = gradualDrift();
         List<RouteCoordinate> points = new ArrayList<>();
         pathNodes.forEach(node -> points.add(node.getCoordinate()));
@@ -105,8 +104,7 @@ class ExpertRouteBendRulesTest {
                         edge(b, c, points.subList(first, second + 1)),
                         edge(c, d, points.subList(second, points.size())));
                 assertThat(ExpertRouteBendRules.validate(List.of(a, b, c, d), edges))
-                        .as("technical cuts %s / %s", first, second).extracting(RouteValidationIssue::getCode)
-                        .contains("EXPERT_ROUTE_BENDS_TOO_CLOSE");
+                        .as("technical cuts %s / %s", first, second).isEmpty();
             }
         }
     }
@@ -127,7 +125,7 @@ class ExpertRouteBendRulesTest {
         return new RouteNode(id, chamber ? "new_chamber" : "technical", coordinate, chamber, chamber, 0, null);
     }
     private RouteEdge edge(RouteNode a, RouteNode b, List<RouteCoordinate> path) {
-        return new RouteEdge(a.getId() + "-" + b.getId(), a.getId(), b.getId(), 999, path, List.of(), null, null);
+        return new RouteEdge(a.getId() + "-" + b.getId(), a.getId(), b.getId(), 999, path, List.of(), null, 100);
     }
     private List<RouteCoordinate> points(boolean reversed, RouteCoordinate... coordinates) {
         List<RouteCoordinate> result = new ArrayList<>(List.of(coordinates));

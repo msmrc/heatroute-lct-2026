@@ -95,7 +95,7 @@ class ExpertChamberGeometryRulesTest {
     private RouteEdge edge(RouteNode a, RouteNode b, RouteCoordinate... path) {
         return new RouteEdge(a.getId() + "-" + b.getId(), a.getId(), b.getId(), 999,
                 path.length == 0 ? List.of(a.getCoordinate(), b.getCoordinate()) : List.of(path),
-                List.of(), null, null);
+                List.of(), null, 100);
     }
 
     private RouteCoordinate point(double x, double y) { return new RouteCoordinate(400000 + x, 6000000 + y); }

@@ -76,7 +76,7 @@ class ExistingChamberDirectionValidationTest {
     }
     private RouteEdge edge(RouteNode from, RouteNode to) {
         return new RouteEdge(from.getId() + "-" + to.getId(), from.getId(), to.getId(), 20,
-                List.of(from.getCoordinate(), to.getCoordinate()), List.of(), null, null);
+                List.of(from.getCoordinate(), to.getCoordinate()), List.of(), null, 100);
     }
     private Coordinate rotate(double x, double y, double degrees) {
         double angle = Math.toRadians(degrees);

@@ -12,8 +12,12 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import ru.lct.heatroute.domain.depth.DepthProfilePoint;
+import ru.lct.heatroute.domain.depth.DepthProfileResult;
+import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.economics.VariantEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
+import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.reconstruction.ExistingNetworkReconstructionResult;
 
 /** Границы локального поиска: callback предлагает сети, допуск и выбор выполняет настоящий компонент. */
@@ -118,7 +122,9 @@ class ChamberQualityRefinementSearchTest {
     @Test
     void failedOrUnchangedNeighboursDoNotConsumeAnotherPass() {
         RouteVariant seed = fixture.variant("seed", 0, false, false, false);
-        RouteVariant bad = fixture.variant("bad-spacing", 0, true, false, true);
+        RouteVariant bad = withSharpInternalBend(fixture.variant("bad-angle", 0, true, false, false));
+        assertThat(new ExpertChamberRouteValidator().validate(bad.getNodes(), bad.getEdges())).isEmpty();
+        assertThat(engineering.evaluate(bad.getEdges()).invalidAngleCount()).isPositive();
         AtomicInteger expansions = new AtomicInteger();
         assertThat(ChamberQualityRefinementSearch.improve(seed, true, current -> {
             expansions.incrementAndGet();
@@ -208,6 +214,33 @@ class ChamberQualityRefinementSearchTest {
 
     private RouteCoordinate shift(RouteCoordinate point, double y) {
         return new RouteCoordinate(point.getXM().doubleValue(), point.getYM().doubleValue() + y);
+    }
+
+    /** Сосед исправляет лучи камеры, но добавляет настоящий внутренний поворот более 90°. */
+    private RouteVariant withSharpInternalBend(RouteVariant source) {
+        List<RouteEdge> edges = new ArrayList<>(source.getEdges());
+        RouteEdge old = edges.get(1);
+        List<RouteCoordinate> points = new ArrayList<>(old.getCoordinates());
+        RouteCoordinate origin = points.get(0);
+        points.set(2, new RouteCoordinate(origin.getXM().doubleValue() - 5,
+                origin.getYM().doubleValue() + 5));
+        double lengthM = 0;
+        for (int index = 1; index < points.size(); index++) {
+            lengthM += points.get(index - 1).toCoordinate().distance(points.get(index).toCoordinate());
+        }
+        BigDecimal length = BigDecimal.valueOf(lengthM);
+        DepthProfileResult profile = new DepthProfileResult(true, List.of(
+                new DepthProfilePoint(BigDecimal.ZERO, BigDecimal.ONE),
+                new DepthProfilePoint(length, BigDecimal.ONE)), List.of(), List.of(), length, length);
+        edges.set(1, new RouteEdge(old.getId(), old.getUpstreamNodeId(), old.getDownstreamNodeId(),
+                lengthM, points, List.of(new RouteSection("base", null, null, points, lengthM, null)),
+                old.getFlowTph(), old.getDiameter(), profile));
+        VariantEconomics economics = new OfficialVariantEconomicsCalculator(
+                new OfficialPipeCatalog(), new OfficialEconomics()).calculate(
+                        source.getNodes(), edges, source.getConnections(), source.getReconstruction(), false);
+        return new RouteVariant(source.getId(), source.getStrategy(), source.getNodes(), edges,
+                source.getConnections(), edges.stream().map(RouteEdge::getLengthM).reduce(BigDecimal.ZERO, BigDecimal::add),
+                List.of(), List.of(), List.of(), source.getReconstruction(), economics, null);
     }
 
     private RouteVariant copy(RouteVariant source, List<RouteNode> nodes, List<RouteEdge> edges, List<RouteConnection> connections) {

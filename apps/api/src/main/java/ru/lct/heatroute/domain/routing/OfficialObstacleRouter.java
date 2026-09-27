@@ -298,7 +298,7 @@ public class OfficialObstacleRouter {
         coordinates.forEach(bounds::expandToInclude);
         List<Constraint> constraints = environment.corridorConstraints(diameter, bounds);
         Coordinate end = coordinates.get(coordinates.size() - 1);
-        List<Constraint> terminalConstraints = rules.applicableConstraints(
+        List<Constraint> terminalConstraints = rules.routingConstraints(
                 constraints, exemptions, egress.start(), end).stream()
                 .filter(constraint -> !egress.exempts(constraint))
                 .collect(java.util.stream.Collectors.toList());
@@ -309,7 +309,7 @@ public class OfficialObstacleRouter {
         RoutePath candidate = path(coordinates, constraints, traversal);
         LineString line = rules.line(candidate.coordinates());
         List<Coordinate> rounded = candidate.coordinates();
-        List<Constraint> outsideConstraints = new ArrayList<>(rules.applicableConstraints(constraints,
+        List<Constraint> outsideConstraints = new ArrayList<>(rules.routingConstraints(constraints,
                 exemptions, rounded.get(1), end));
         outsideConstraints.addAll(avoidance);
         ConstraintIndex terminalIndex = rules.index(terminalConstraints, traversal);
@@ -345,7 +345,7 @@ public class OfficialObstacleRouter {
         Envelope bounds = new Envelope();
         coordinates.forEach(bounds::expandToInclude);
         Coordinate start = coordinates.get(0);
-        List<Constraint> constraints = new ArrayList<>(rules.applicableConstraints(
+        List<Constraint> constraints = new ArrayList<>(rules.routingConstraints(
                 environment.corridorConstraints(diameter, bounds), exemptFeatureIds, start, end));
         constraints.addAll(rules.applicableConstraints(rules.routeAvoidanceConstraints(acceptedRoutes),
                 Collections.emptySet(), start, end));
@@ -429,7 +429,7 @@ public class OfficialObstacleRouter {
         Envelope bounds = new Envelope();
         coordinates.forEach(bounds::expandToInclude);
         // Техническая вершина не является существующей врезкой и не ослабляет чужой отступ.
-        List<Constraint> outside = new ArrayList<>(rules.applicableConstraints(
+        List<Constraint> outside = new ArrayList<>(rules.routingConstraints(
                 environment.corridorConstraints(diameter, bounds), exemptFeatureIds, start, end));
         outside.addAll(rules.applicableConstraints(preparedAvoidance == null
                         ? rules.routeAvoidanceConstraints(acceptedRoutes) : preparedAvoidance,

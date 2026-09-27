@@ -1,5 +1,18 @@
 # Current implementation progress
 
+## 2026-09-27 — source101: восстановлены оси существующих камер, local PASS
+
+[Подробный source101](PRIMARY_ROUTING_101.md): малые ошибки оцифровки исходных труб камеры
+восстанавливаются в одну ортогональную систему только в пределах 2,5°; строгие правила новых
+участков, нормали и поворота не ближе табличных 2–6 м сохранены. Льгота выбранной существующей
+теплосети ограничена локальным контактом врезки. Backend без трёх долгих dataset/control-классов:
+2 286 PASS / 3 scale skip / 0 failures/errors; затронутые controls и concave regression PASS.
+Финальный official: 1/1 PASS за 3 265,118 с. Preferred `balanced`: ТК 106, 17/17,
+2 246,661 м, 30 рёбер, 31 узел, 13 новых узловых камер + существующая корневая,
+306 352 901,79 ₽; validation/engineering/sizing issues пусты. `cheapest`: 2 277,562 м,
+304 467 987,57 ₽, те же проверки пусты. Web 36+37, lint, typecheck и build PASS;
+финальная карта отправлена. Git/deploy и production run/export выполняются следующим gate.
+
 ## 2026-09-27 — source100: актуальные правила развёрнуты, production run/export PASS
 
 [Подробный source100](PRIMARY_ROUTING_100.md): действующая редакция Google и уточнение

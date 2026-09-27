@@ -65,6 +65,17 @@ class GroupTieInNormalEligibilityTest {
                 .extracting(TieInCandidate::getTargetId).containsExactly("straight");
     }
 
+    @Test
+    void digitizedNearlyStraightExistingNetworkKeepsItsAvailableNormalSides() {
+        List<ImportedOfficialFeature> features = new ArrayList<>();
+        addChamber(features, "digitized", new Coordinate(10, 0),
+                point(18, 0, 12, 10, 0), point(-8, 0, 10.2, 10, 0));
+
+        assertThat(candidates(features, new Coordinate(0, 0),
+                new ExistingNetworkIncidence(features).countsByChamber(features)))
+                .extracting(TieInCandidate::getTargetId).containsExactly("digitized");
+    }
+
     private List<TieInCandidate> candidates(List<ImportedOfficialFeature> features, Coordinate demand,
             Map<String, Integer> incidentCounts) {
         OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(

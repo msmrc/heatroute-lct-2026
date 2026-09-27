@@ -1375,7 +1375,11 @@ public class OfficialRoutePlanner {
         RouteNode support = new RouteNode("approach-support", candidate.getTargetType(),
                 new RouteCoordinate(coordinate.x, coordinate.y), true, true, 0, candidate.getTargetId());
         Set<String> localTargets = new java.util.LinkedHashSet<>(exemptFeatureIds);
-        localTargets.addAll(routingEnvironment.existingNetworkIds(support));
+        // Existing chamber rays share the physical chamber contact. A new chamber on one
+        // selected pipe must not inherit a nearby pipe merely because digitized axes almost meet.
+        if ("heat_chamber".equals(candidate.getTargetType())) {
+            localTargets.addAll(routingEnvironment.existingNetworkIds(support));
+        }
         List<Coordinate> rays = routingEnvironment.existingDirections(support);
         if (!rays.isEmpty()) {
             RoutePath local = RootChamberApproaches.best(demand.coordinate, coordinate, rays, diameter,

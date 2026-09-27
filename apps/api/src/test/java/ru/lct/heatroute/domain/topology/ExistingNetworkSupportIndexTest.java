@@ -9,6 +9,7 @@ import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.io.WKTReader;
+import ru.lct.heatroute.domain.routing.ExpertChamberGeometryRules;
 import ru.lct.heatroute.domain.routing.RouteCoordinate;
 import ru.lct.heatroute.domain.routing.RouteNode;
 
@@ -101,6 +102,42 @@ class ExistingNetworkSupportIndexTest {
                 new RouteNode("branch", "new_branch_chamber", new RouteCoordinate(0, 0), true, false, 0, null),
                 new RouteNode("root", "existing_chamber_tie_in", new RouteCoordinate(0, 0), true, true, 2, "old-camera"))) {
             assertThat(index.verified(node)).isSameAs(node);
+        }
+    }
+
+    @Test
+    void digitizedExistingSectionsAreResolvedToOneExactSquareAxisSystem() throws Exception {
+        ExistingNetworkSupportIndex index = new ExistingNetworkSupportIndex(List.of(
+                pipe("east", "LINESTRING(0 0,20 0)", "100"),
+                pipe("north", "LINESTRING(0 0,0.349 19.997)", "100"),
+                pipe("west", "LINESTRING(0 0,-19.997 -0.628)", "100")));
+        RouteNode chamber = new RouteNode("root", "existing_chamber_tie_in", new RouteCoordinate(0, 0),
+                true, true, 3, "chamber");
+
+        List<Coordinate> directions = index.existingDirections(chamber);
+
+        assertThat(directions).hasSize(3);
+        for (int left = 0; left < directions.size(); left++) {
+            for (int right = left + 1; right < directions.size(); right++) {
+                assertThat(ExpertChamberGeometryRules.compatibleRays(
+                        directions.get(left).x, directions.get(left).y,
+                        directions.get(right).x, directions.get(right).y)).isTrue();
+            }
+        }
+    }
+
+    @Test
+    void coincidentOrMateriallyObliqueExistingSectionsAreNotInventedIntoSquareAxes() throws Exception {
+        for (String second : List.of("LINESTRING(0 0,20 0)", "LINESTRING(0 0,17.321 10)")) {
+            ExistingNetworkSupportIndex index = new ExistingNetworkSupportIndex(List.of(
+                    pipe("first", "LINESTRING(0 0,20 0)", "100"), pipe("second", second, "100")));
+            RouteNode chamber = new RouteNode("root", "existing_chamber_tie_in", new RouteCoordinate(0, 0),
+                    true, true, 2, "chamber");
+            List<Coordinate> directions = index.existingDirections(chamber);
+            assertThat(directions).hasSize(2);
+            assertThat(ExpertChamberGeometryRules.compatibleRays(
+                    directions.get(0).x, directions.get(0).y,
+                    directions.get(1).x, directions.get(1).y)).isFalse();
         }
     }
 

@@ -48,6 +48,21 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
+    void checkedSuffixRejectsTargetExemptionBeyondLocalHeatNetworkContact() throws Exception {
+        ImportedOfficialFeature existing = new ImportedOfficialFeature(
+                "network",
+                "heat_network",
+                objectMapper.readTree("{\"diameter\":100}"),
+                wktReader.read("LINESTRING (0 0, 100 0)"));
+        OfficialRoutingEnvironment environment = router.prepare(List.of(existing));
+        RoutePath overlapping = new RoutePath(
+                List.of(new Coordinate(0, 0), new Coordinate(90, 0)), List.of(), 90);
+
+        assertThat(router.withCheckedTerminalSuffix(overlapping, new Coordinate(100, 0), 50,
+                environment, Set.of("network"), List.of())).isNull();
+    }
+
+    @Test
     void routesAroundEveryForbiddenPolygonType() throws Exception {
         for (String type : List.of("park", "social_area", "prohibited_site", "water")) {
             ImportedOfficialFeature obstacle = restriction(

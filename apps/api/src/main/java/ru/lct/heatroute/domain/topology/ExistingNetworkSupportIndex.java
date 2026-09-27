@@ -24,6 +24,12 @@ import ru.lct.heatroute.domain.routing.RouteNode;
 public final class ExistingNetworkSupportIndex {
     // Совместимо с миллиметровыми координатами RouteNode и топологическим допуском 1 см.
     private static final double TOLERANCE_M = 0.01;
+    // Исходные линии официального набора расходятся с общей осью камеры до 2,06°.
+    // Исправляем только малую погрешность оцифровки; произвольную косую геометрию не принимаем.
+    private static final double MAX_DIGITIZED_AXIS_CORRECTION_RADIANS = Math.toRadians(2.5);
+    private static final double QUARTER_TURN_RADIANS = Math.PI / 2.0;
+    private static final double FULL_TURN_RADIANS = Math.PI * 2.0;
+    private static final double NUMERICAL_EPSILON = 1e-12;
     private final Map<String, Segment> byId = new HashMap<>();
     private final STRtree index = new STRtree();
     private final ExistingNetworkIncidence incidence;
@@ -122,7 +128,63 @@ public final class ExistingNetworkSupportIndex {
                 }
             }
         }
-        return List.copyOf(directions);
+        return normalizedChamberAxes(directions);
+    }
+
+    /**
+     * Восстанавливает ориентацию условного квадратного плана камеры из измеренных линий.
+     * Каждый исходный луч сохраняет свою занятую сторону, но малые независимые ошибки
+     * оцифровки не делают свободную перпендикулярную сторону математически невозможной.
+     */
+    private List<Coordinate> normalizedChamberAxes(List<Coordinate> measured) {
+        if (measured.isEmpty()) return List.of();
+        double cosine = 0.0, sine = 0.0;
+        for (Coordinate ray : measured) {
+            double angle = Math.atan2(ray.y, ray.x);
+            cosine += Math.cos(4.0 * angle);
+            sine += Math.sin(4.0 * angle);
+        }
+        if (Math.hypot(cosine, sine) <= NUMERICAL_EPSILON) return copied(measured);
+        double base = Math.atan2(sine, cosine) / 4.0;
+        boolean[] occupied = new boolean[4];
+        List<Coordinate> normalized = new ArrayList<>(measured.size());
+        for (Coordinate ray : measured) {
+            double angle = Math.atan2(ray.y, ray.x);
+            int quadrant = nearestQuadrant(angle, base);
+            double snapped = base + quadrant * QUARTER_TURN_RADIANS;
+            if (occupied[quadrant]
+                    || angularSeparation(angle, snapped) > MAX_DIGITIZED_AXIS_CORRECTION_RADIANS
+                            + NUMERICAL_EPSILON) {
+                return copied(measured);
+            }
+            occupied[quadrant] = true;
+            normalized.add(new Coordinate(Math.cos(snapped), Math.sin(snapped)));
+        }
+        return List.copyOf(normalized);
+    }
+
+    private int nearestQuadrant(double angle, double base) {
+        int nearest = 0;
+        double minimum = Double.POSITIVE_INFINITY;
+        for (int quadrant = 0; quadrant < 4; quadrant++) {
+            double separation = angularSeparation(angle, base + quadrant * QUARTER_TURN_RADIANS);
+            if (separation < minimum) {
+                minimum = separation;
+                nearest = quadrant;
+            }
+        }
+        return nearest;
+    }
+
+    private double angularSeparation(double left, double right) {
+        double difference = Math.abs(left - right) % FULL_TURN_RADIANS;
+        return Math.min(difference, FULL_TURN_RADIANS - difference);
+    }
+
+    private List<Coordinate> copied(List<Coordinate> measured) {
+        List<Coordinate> result = new ArrayList<>(measured.size());
+        measured.forEach(ray -> result.add(new Coordinate(ray)));
+        return List.copyOf(result);
     }
 
     private int diameter(Segment segment) {

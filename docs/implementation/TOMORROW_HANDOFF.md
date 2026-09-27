@@ -1,5 +1,18 @@
 # Handoff — Артём / PM / developer
 
+## 2026-09-27 — source101: исправлена исходная геометрия ТК, local PASS
+
+[Контракт и evidence source101](PRIMARY_ROUTING_101.md): существующие лучи камеры с малой
+погрешностью оцифровки до 2,5° приводятся к одной ортогональной системе; произвольная геометрия
+не принимается. Для новых участков сохранены строгий вход по нормали и поворот на табличных
+2–6 м от камеры. Глобальная льгота выбранной теплосети заменена локальным контактом врезки.
+Backend fast: 2 286 PASS / 3 scale skip / 0 failures/errors; controls и concave PASS.
+Финальный official: 1/1 PASS за 3 265,118 с. Preferred `balanced`: ТК 106, 17/17,
+2 246,661 м, 30 рёбер, 13 новых узловых камер + существующая корневая,
+306 352 901,79 ₽; validation/engineering/sizing issues пусты. `cheapest`: 2 277,562 м,
+304 467 987,57 ₽, issues пусты. Web 36+37/lint/typecheck/build PASS, карта отправлена.
+Следом: commit/push master, стандартный VPS deploy после backup и production import/run/export.
+
 ## 2026-09-27 — source100: новые правила развёрнуты, production run/export PASS
 
 [Контракт и evidence source100](PRIMARY_ROUTING_100.md): повороты 90–120°, интервалы

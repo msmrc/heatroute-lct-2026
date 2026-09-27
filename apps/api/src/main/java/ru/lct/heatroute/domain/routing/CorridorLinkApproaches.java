@@ -122,6 +122,16 @@ final class CorridorLinkApproaches {
             }
         }
         for (Coordinate first : outerApproaches) {
+            if (!fixedOuterRays.isEmpty()) {
+                double minimum = ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter());
+                for (List<Coordinate> transition : NormalCorridorTransitions.build(
+                        origin, first, junction, angle, minimum)) {
+                    List<Coordinate> points = new ArrayList<>(List.of(origin));
+                    transition.forEach(point -> append(points, point));
+                    addCheckedPath(paths, points, edge, outer, junction, router, environment,
+                            traversal, angle, fixedOuterRays, junctionTargets, preserveInvalidOuterApproach);
+                }
+            }
             for (double length : approachLengths(edge.getDiameter())) {
                 for (int direction = 0; direction < 4; direction++) {
                     Coordinate last = along(junction, angle + direction * Math.PI / 2, length);
@@ -221,6 +231,9 @@ final class CorridorLinkApproaches {
     private static boolean engineeringCompliant(RoutePath path) {
         LineString line = new GeometryFactory().createLineString(path.coordinates().toArray(new Coordinate[0]));
         if (!line.isSimple() || line.isClosed()) return false;
+        if (!OfficialRouteDeflectionRules.validatePolyline("approach", path.coordinates().stream()
+                .map(c -> new RouteCoordinate(c.x, c.y)).collect(Collectors.toList()))
+                .getIssues().isEmpty()) return false;
         RouteEdge candidate = new RouteEdge("approach", "outer", "junction", path.lengthM(),
                 path.coordinates().stream().map(c -> new RouteCoordinate(c.x, c.y)).collect(Collectors.toList()),
                 path.sections(), null, null);

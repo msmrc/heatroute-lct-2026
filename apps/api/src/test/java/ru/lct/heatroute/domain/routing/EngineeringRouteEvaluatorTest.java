@@ -11,12 +11,12 @@ class EngineeringRouteEvaluatorTest {
     private final EngineeringRouteEvaluator evaluator = new EngineeringRouteEvaluator();
 
     @Test
-    void acceptsNinetyAndOneHundredThirtyFiveDegreeInternalAngles() {
+    void acceptsNinetyAndOneHundredTwentyDegreeInternalAngles() {
         RouteEdge edge = edge(
                 point(0, 0),
                 point(2, 0),
                 point(2, 2),
-                point(4, 4));
+                point(2 + 2 * Math.cos(Math.toRadians(30)), 3));
 
         EngineeringRouteEvaluator.Evaluation result = evaluator.evaluate(List.of(edge));
 
@@ -42,8 +42,8 @@ class EngineeringRouteEvaluatorTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"89,false", "90,true", "120,true", "135,true", "150,true", "179,true", "180,true"})
-    void appliesTheOfficialZeroToNinetyDeflectionRange(double internalAngle, boolean valid) {
+    @CsvSource({"89,false", "90,true", "120,true", "120.6,false", "135,false", "150,false", "179,false", "180,true"})
+    void appliesTheUpdatedNinetyToOneHundredTwentyInternalRange(double internalAngle, boolean valid) {
         double turn = Math.toRadians(180 - internalAngle);
         EngineeringRouteEvaluator.Evaluation result = evaluator.evaluate(List.of(edge(
                 point(0, 0), point(5, 0), point(5 + 5 * Math.cos(turn), 5 * Math.sin(turn)))));
@@ -52,7 +52,7 @@ class EngineeringRouteEvaluatorTest {
     }
 
     @Test
-    void prefersCanonicalNinetyOrOneHundredThirtyFiveDegreeBendsInsideAllowedRange() {
+    void prefersTheNinetyOrOneHundredTwentyDegreeBoundariesInsideAllowedRange() {
         EngineeringRouteEvaluator.Evaluation canonical = evaluator.evaluate(List.of(edge(
                 point(0, 0),
                 point(2, 0),
@@ -60,7 +60,7 @@ class EngineeringRouteEvaluatorTest {
         EngineeringRouteEvaluator.Evaluation intermediate = evaluator.evaluate(List.of(edge(
                 point(0, 0),
                 point(2, 0),
-                point(3, 1.7320508075688772))));
+                point(2 + 2 * Math.cos(Math.toRadians(75)), 2 * Math.sin(Math.toRadians(75))))));
 
         assertThat(canonical.invalidAngleCount()).isZero();
         assertThat(intermediate.invalidAngleCount()).isZero();

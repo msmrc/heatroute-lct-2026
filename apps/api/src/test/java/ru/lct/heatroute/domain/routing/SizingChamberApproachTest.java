@@ -49,7 +49,8 @@ class SizingChamberApproachTest {
                 features, OfficialRunParameters.defaults(), false, router.prepare(features));
 
         assertThat(finished.isValid()).as("%s", finished.getValidationIssues().stream()
-                .map(RouteValidationIssue::getCode).collect(Collectors.toList())).isTrue();
+                .map(issue -> issue.getCode() + ":" + issue.getSubjectId() + ":" + issue.getMessage())
+                .collect(Collectors.toList())).isTrue();
         assertThat(finished.getConnectedDemandCount()).isEqualTo(1);
         assertThat(finished.getSizingIssues()).isEmpty();
         assertThat(finished.getEdges()).singleElement().satisfies(actual -> {

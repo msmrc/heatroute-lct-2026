@@ -160,10 +160,11 @@ class ChamberQualityRefinementSearchTest {
     }
 
     @Test
-    void rejectsMoreThanTwoFinishedNeighbours() {
+    void rejectsMoreThanSixFinishedNeighbours() {
         RouteVariant seed = fixture.variant("seed", 0, false, false, false);
         assertThatThrownBy(() -> ChamberQualityRefinementSearch.improve(seed, true,
-                current -> List.of(seed, seed, seed))).isInstanceOf(IllegalArgumentException.class);
+                current -> List.of(seed, seed, seed, seed, seed, seed, seed)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

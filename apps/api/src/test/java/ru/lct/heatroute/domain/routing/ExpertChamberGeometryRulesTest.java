@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-/** Уточнение пользователя от 25.09.2026: нормаль в камере и минимум 2 м до поворота. */
+/** Нормаль в камере и табличный минимум 2–6 м до поворота по актуальному уточнению. */
 class ExpertChamberGeometryRulesTest {
     private final ExpertChamberRouteValidator validator = new ExpertChamberRouteValidator();
 
@@ -84,6 +84,17 @@ class ExpertChamberGeometryRulesTest {
             if (fourth) { edges.add(edge(c, south)); nodes.add(south); }
             assertThat(validator.validate(nodes, edges)).extracting(RouteValidationIssue::getCode)
                     .contains("EXPERT_CHAMBER_OBLIQUE_ENTRY");
+        }
+    }
+
+    @Test
+    void chamberAxisUsesTheSamePointOneDegreeNumericToleranceForLongAndShortRays() {
+        for (double length : new double[] {.5, 10, 1000}) {
+            double accepted = Math.toRadians(90.099), rejected = Math.toRadians(90.101);
+            assertThat(ExpertChamberGeometryRules.compatibleRays(length, 0,
+                    length * Math.cos(accepted), length * Math.sin(accepted))).isTrue();
+            assertThat(ExpertChamberGeometryRules.compatibleRays(length, 0,
+                    length * Math.cos(rejected), length * Math.sin(rejected))).isFalse();
         }
     }
 

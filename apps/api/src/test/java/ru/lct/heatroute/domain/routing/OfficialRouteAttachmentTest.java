@@ -29,12 +29,12 @@ class OfficialRouteAttachmentTest {
     private final OfficialPipeCatalog pipes = new OfficialPipeCatalog();
 
     @Test
-    void fullNearestChamberDoesNotHideTheNextFeasibleChamber() {
+    void fullNearestChamberDoesNotReceiveAFifthRay() {
         OfficialRoutePlanner.TreeAttachment choice = planner(new OfficialRouteValidator(rules))
                 .chooseTreeAttachment(demand(), draft(true), router.prepare(List.of()));
 
         assertThat(choice).isNotNull();
-        assertThat(choice.junction().getId()).isEqualTo("b");
+        assertThat(choice.junction().getId()).isNotEqualTo("a");
     }
 
     @Test

@@ -54,11 +54,8 @@ class OfficialRoadCrossingGeometryTest {
                 .singleElement().satisfies(s -> assertThat(s.getLengthM()).isEqualByComparingTo("12"));
     }
 
-    @Test void fortyFiveDegreesUsesThreeMetresAlongTraceNotNormalBuffer() {
-        assertThat(allowed(100, road(), c(40, -10), c(66, 16))).isTrue();
-        assertThat(sections(100, road(), c(40, -10), c(66, 16)))
-                .filteredOn(s -> "special".equals(s.getKind())).singleElement()
-                .satisfies(s -> assertThat(s.getLengthM()).isEqualByComparingTo("14.485"));
+    @Test void obliqueRoadCrossingIsRejectedByTheUpdatedNormalRule() {
+        assertThat(allowed(100, road(), c(40, -10), c(66, 16))).isFalse();
         assertThat(allowed(400, road(), c(40, -10), c(66, 16))).isFalse();
     }
 

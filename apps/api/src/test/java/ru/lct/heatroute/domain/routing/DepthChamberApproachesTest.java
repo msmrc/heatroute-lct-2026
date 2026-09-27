@@ -22,7 +22,9 @@ class DepthChamberApproachesTest {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test void detoursFiniteGasLinesWithoutLosingTheSharedChamberNormals() {
-        List<ImportedOfficialFeature> features = List.of(gas("gas-a", -100, 5, 1, 5), gas("gas-b", 5, -100, 5, 1));
+        // The finite ends leave a real passage after the mandatory gas clearances are buffered.
+        List<ImportedOfficialFeature> features = List.of(gas("gas-a", -100, 5, -1, 5),
+                gas("gas-b", 5, -100, 5, -1));
         Map<String, RouteNode> nodes = Map.of("root", node("root", -100, 0, true), "j", node("j", 0, 0, true),
                 "a", node("a", 30, 20, false), "b", node("b", 20, 19.999, false));
         List<RouteEdge> edges = new ArrayList<>(List.of(edge("backbone", "root", "j", -100, 0, 0, 0),

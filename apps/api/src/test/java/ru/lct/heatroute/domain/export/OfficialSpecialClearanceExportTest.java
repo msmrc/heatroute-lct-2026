@@ -99,8 +99,12 @@ class OfficialSpecialClearanceExportTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"road", "tram_tracks"})
-    void accepts45DegreeDu100CrossingWith3mAlongRouteOnEachSide(String type) {
+    void appliesTheCurrentCatalogAngleToA45DegreeCrossing(String type) {
         Fixture fixture = crossing(type, true);
+        if ("road".equals(type)) {
+            assertRejected(fixture);
+            return;
+        }
         assertThat(fixture.edge.getLengthM()).isEqualByComparingTo("36.770");
         RouteSection special = fixture.edge.getSections().get(1);
         assertThat(special.getLengthM()).isEqualByComparingTo("14.485");
@@ -111,14 +115,18 @@ class OfficialSpecialClearanceExportTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"road", "tram_tracks"})
-    void acceptsObliqueDu100CrossingWithMillimetreSectionCoordinates(String type) {
-        assertObliqueCrossingAccepted(obliqueCrossing(type, false));
+    void appliesTheCurrentCatalogAngleToObliqueMillimetreSections(String type) {
+        Fixture fixture = obliqueCrossing(type, false);
+        if ("road".equals(type)) assertRejected(fixture);
+        else assertObliqueCrossingAccepted(fixture);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"road", "tram_tracks"})
-    void acceptsObliqueDu100CrossingWithRoundedSectionsAndCollinearVertex(String type) {
-        assertObliqueCrossingAccepted(obliqueCrossing(type, true));
+    void appliesTheCurrentCatalogAngleToRoundedObliqueSections(String type) {
+        Fixture fixture = obliqueCrossing(type, true);
+        if ("road".equals(type)) assertRejected(fixture);
+        else assertObliqueCrossingAccepted(fixture);
     }
 
     private void assertObliqueCrossingAccepted(Fixture fixture) {

@@ -408,10 +408,10 @@ class FinishedRouteVariantSelectorTest {
                         pathVariant("candidate", List.of(new RouteCoordinate(0, 0), new RouteCoordinate(10, 0),
                                 new RouteCoordinate(10, 10)))},
                 new RouteVariant[] {starVariant("balanced", 0, 90, 150), starVariant("candidate", 0, 95, 175)},
-                new RouteVariant[] {pathVariant("balanced", anglePath(30, 80, 112.5)),
-                        pathVariant("candidate", anglePath(30, 70, 90))},
-                new RouteVariant[] {pathVariant("balanced", anglePath(30, 90, 150)),
-                        pathVariant("candidate", anglePath(30, 112.5, 112.5))},
+                new RouteVariant[] {pathVariant("balanced", anglePath(30, 89, 105)),
+                        pathVariant("candidate", anglePath(30, 80, 90))},
+                new RouteVariant[] {pathVariant("balanced", anglePath(30, 90, 90)),
+                        pathVariant("candidate", anglePath(30, 105, 105))},
                 new RouteVariant[] {starVariant("balanced", 0, 95, 175), starVariant("candidate", 0, 100, 170)});
         for (int metric = 0; metric < pairs.size(); metric++) {
             RouteVariant baseline = withOfficialCost(pairs.get(metric)[0], 100_000_000);
@@ -436,6 +436,8 @@ class FinishedRouteVariantSelectorTest {
                 assertRoles(selected);
                 selected.forEach(result -> assertSource(result, strict));
             } else {
+                assertThat(role(selector.select(List.of(baseline, candidate)), "balanced").getEdges().get(0).getId())
+                        .as("selected source in metric case %s", metric).isEqualTo(baseline.getEdges().get(0).getId());
                 assertSource(role(selector.select(List.of(baseline, candidate)), "balanced"), baseline);
             }
         }

@@ -18,7 +18,6 @@ import org.locationtech.jts.linearref.LengthIndexedLine;
  */
 public final class RoadCrossingClearance {
     private static final double EPSILON_M = 1e-6;
-    private static final double ANGLE_EPSILON_DEGREES = 1e-7;
     // Только округление XY к ближайшему миллиметру; это не допуск уменьшения отступа.
     private static final double SECTION_ROUNDING_M = Math.sqrt(2) * 0.0005 + EPSILON_M;
 
@@ -73,7 +72,7 @@ public final class RoadCrossingClearance {
             Coordinate last = indexed.extractPoint(crossing.endM);
             // §4 задаёт угол в точке входа, а не угол продольной оси/дополнительный угол выхода.
             double angle = boundaryAngle(source, first, first, last);
-            if (angle + ANGLE_EPSILON_DEGREES < minimumAngleDegrees) {
+            if (!OfficialCrossingGeometry.satisfiesMinimumAngle(angle, minimumAngleDegrees)) {
                 return new Assessment("SPECIAL_CROSSING_ANGLE_VIOLATION", special);
             }
             special.add(new Interval(Math.max(0, start), Math.min(route.getLength(), end), angle));
@@ -129,7 +128,8 @@ public final class RoadCrossingClearance {
             // Продолжение уже начавшегося перехода не имеет новой точки входа в этом звене.
             if (span.startM <= EPSILON_M) continue;
             Coordinate hit = indexed.extractPoint(span.startM);
-            if (boundaryAngle(source, hit, a, b) + ANGLE_EPSILON_DEGREES < minimumAngleDegrees) return false;
+            if (!OfficialCrossingGeometry.satisfiesMinimumAngle(
+                    boundaryAngle(source, hit, a, b), minimumAngleDegrees)) return false;
         }
         return true;
     }
@@ -193,7 +193,8 @@ public final class RoadCrossingClearance {
             double entry = incoming ? crossing.endM : crossing.startM;
             Coordinate hit = new Coordinate(a.x + (b.x - a.x) * entry / length,
                     a.y + (b.y - a.y) * entry / length);
-            if (boundaryAngle(source, hit, a, b) + ANGLE_EPSILON_DEGREES < minimumAngleDegrees) return false;
+            if (!OfficialCrossingGeometry.satisfiesMinimumAngle(
+                    boundaryAngle(source, hit, a, b), minimumAngleDegrees)) return false;
             double start = Math.min(length, Math.max(0, crossing.startM - extensionM));
             if (start > cursor + EPSILON_M && !farEnough(indexed.extractLine(cursor, start), source, clearanceM)) {
                 return false;

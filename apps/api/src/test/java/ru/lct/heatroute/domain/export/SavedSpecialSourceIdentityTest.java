@@ -159,20 +159,17 @@ class SavedSpecialSourceIdentityTest {
                         "LINESTRING (500000 6099990,500000 6100010)",
                         "LINESTRING (500000 6100000,500000.04 6100000)",
                         "LINESTRING (500099.96 6100000,500100 6100000)")) {
-            var spans =
-                    new OfficialSpecialSectionIntervals(pipes)
-                            .extract(
-                                    List.of(edge),
-                                    List.of(source("heat-root", "heat_network", wkt)),
-                                    Map.of(
-                                            "root",
-                                            Set.of("heat-root"),
-                                            "end",
-                                            Set.of("heat-root")));
             if (wkt.contains("6099990")) {
+                var spans = new OfficialSpecialSectionIntervals(pipes).extract(
+                        List.of(edge), List.of(source("heat-root", "heat_network", wkt)),
+                        Map.of("root", Set.of("heat-root"), "end", Set.of("heat-root")));
                 org.assertj.core.api.Assertions.assertThat(spans.get("edge")).isEmpty();
             } else {
-                org.assertj.core.api.Assertions.assertThat(spans.get("edge")).hasSize(1);
+                org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        new OfficialSpecialSectionIntervals(pipes).extract(
+                                List.of(edge), List.of(source("heat-root", "heat_network", wkt)),
+                                Map.of("root", Set.of("heat-root"), "end", Set.of("heat-root"))))
+                        .hasMessageContaining("SPECIAL_SECTION_CROSSING_ANGLE");
             }
         }
     }

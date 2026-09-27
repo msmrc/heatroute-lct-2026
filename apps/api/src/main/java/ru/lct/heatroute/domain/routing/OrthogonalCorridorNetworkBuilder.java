@@ -114,8 +114,11 @@ final class OrthogonalCorridorNetworkBuilder {
         double clearance = router.buildingClearanceM(diameter);
         List<Coordinate> anchors = new ArrayList<>();
         List<List<Coordinate>> terminalAnchors = new ArrayList<>();
-        double orientation = suppliedAngle == null ? CorridorOrientation.angle(footprints,
-                terminals.stream().map(terminal -> terminal.point).collect(Collectors.toList()), origin) : suppliedAngle;
+        List<Coordinate> existingRootRays = environment.existingDirections(root);
+        double orientation = suppliedAngle != null ? suppliedAngle
+                : existingRootRays.isEmpty() ? CorridorOrientation.angle(footprints,
+                        terminals.stream().map(terminal -> terminal.point).collect(Collectors.toList()), origin)
+                : Math.atan2(existingRootRays.get(0).y, existingRootRays.get(0).x);
         Envelope bounds = new Envelope(origin);
         boolean individualAnchorAdded = false;
         for (Terminal terminal : terminals) {
@@ -616,6 +619,12 @@ final class OrthogonalCorridorNetworkBuilder {
                 if (!new GeometryFactory().createLineString(simplified.toArray(new Coordinate[0])).isSimple()) return null;
                 Integer finalDiameter = diameter(flow);
                 if (finalDiameter == null) return null;
+                boolean rootEdge = fromNode.isRoot();
+                if (rootEdge) {
+                    simplified = withRootChamberApproach(simplified, finalDiameter,
+                            environment.existingDirections(fromNode));
+                    if (simplified == null) return null;
+                }
                 Envelope bounds = new Envelope();
                 simplified.forEach(bounds::expandToInclude);
                 // Секции и целый special проверяем по полной линии и ДУ этого ребра: terminal spur
@@ -634,6 +643,51 @@ final class OrthogonalCorridorNetworkBuilder {
                 .collect(Collectors.toList());
         if (!OfficialRouteDeflectionRules.validate(new ArrayList<>(nodes.values()), edges).isEmpty()) return null;
         return new Network(new ArrayList<>(nodes.values()), edges, connections);
+    }
+
+    /** Первый поворот корневого ребра находится после табличного минимума и занимает свободный луч. */
+    private List<Coordinate> withRootChamberApproach(List<Coordinate> source, int diameter,
+            List<Coordinate> existingRays) {
+        if (source.size() < 2 || existingRays.isEmpty()) return source;
+        Coordinate root = source.get(0), towards = source.get(1);
+        double originalLength = root.distance(towards);
+        if (originalLength <= 0) return null;
+        Coordinate axis = new Coordinate(existingRays.get(0));
+        double axisLength = Math.hypot(axis.x, axis.y);
+        if (axisLength <= 0 || !Double.isFinite(axisLength)) return null;
+        axis.x /= axisLength; axis.y /= axisLength;
+        double sumX = axis.x, sumY = axis.y;
+        for (int i = 1; i < existingRays.size(); i++) {
+            Coordinate ray = existingRays.get(i);
+            double length = Math.hypot(ray.x, ray.y);
+            if (length <= 0 || !Double.isFinite(length)) return null;
+            double x = ray.x / length, y = ray.y / length;
+            if (x * axis.x + y * axis.y < 0) { x = -x; y = -y; }
+            sumX += x; sumY += y;
+        }
+        double averageLength = Math.hypot(sumX, sumY);
+        if (averageLength <= 0) return null;
+        double orientation = Math.atan2(sumY / averageLength, sumX / averageLength);
+        double minimum = ExpertChamberGeometryRules.minimumBendDistanceM(diameter) + 0.1;
+        double originalX = (towards.x - root.x) / originalLength;
+        double originalY = (towards.y - root.y) / originalLength;
+        Coordinate best = null;
+        double bestDot = -Double.MAX_VALUE;
+        for (int direction = 0; direction < 4; direction++) {
+            double angle = orientation + direction * Math.PI / 2;
+            Coordinate approach = new RouteCoordinate(root.x + minimum * Math.cos(angle),
+                    root.y + minimum * Math.sin(angle)).toCoordinate();
+            double dx = approach.x - root.x, dy = approach.y - root.y;
+            if (existingRays.stream().anyMatch(ray -> !ExpertChamberGeometryRules.compatibleRays(
+                    dx, dy, ray.x, ray.y))) continue;
+            double dot = dx * originalX + dy * originalY;
+            if (dot > bestDot) { bestDot = dot; best = approach; }
+        }
+        if (best == null) return null;
+        List<Coordinate> result = new ArrayList<>();
+        append(result, List.of(root, best));
+        append(result, source.subList(1, source.size()));
+        return result;
     }
 
     private void add(Map<Integer, List<Piece>> incident, Piece piece) {

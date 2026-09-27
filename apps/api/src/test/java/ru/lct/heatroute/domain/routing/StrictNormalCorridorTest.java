@@ -22,7 +22,7 @@ class StrictNormalCorridorTest {
     }
 
     @Test
-    void reachesOppositeSideOfTiltedNormalWithoutAGlobalSearchOrThreeBendLoop() throws Exception {
+    void reachesOppositeSideOfTiltedNormalWithoutAGlobalSearch() throws Exception {
         assertTransitions(new Coordinate(-40, 35));
     }
 
@@ -50,7 +50,7 @@ class StrictNormalCorridorTest {
                     .map(p -> new RouteCoordinate(p.x, p.y)).collect(Collectors.toList()), List.of(), null, 50);
             var evaluation = new EngineeringRouteEvaluator().evaluate(List.of(edge));
             assertThat(evaluation.isCompliant()).isTrue();
-            assertThat(evaluation.bendCount()).isLessThanOrEqualTo(2);
+            assertThat(evaluation.bendCount()).isLessThanOrEqualTo(3);
             assertThat(rules.validateMandatoryEgress(edge, rules.line(path.reversed().coordinates()),
                     features, 50)).isEmpty();
         }

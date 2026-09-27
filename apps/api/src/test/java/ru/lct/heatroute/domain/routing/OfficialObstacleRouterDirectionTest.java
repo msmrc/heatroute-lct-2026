@@ -176,11 +176,11 @@ class OfficialObstacleRouterDirectionTest {
         Fixture fixture = new Fixture(false, 90, 40);
         var normal = fixture.incomingNormal();
         double offset = normal.start().distance(normal.exit());
-        Coordinate shiftedExit = new Coordinate(normal.exit().x, normal.exit().y + offset);
+        Coordinate shiftedExit = new Coordinate(normal.start().x, normal.start().y + offset);
         Coordinate end = c(150, offset);
         RoutePath changed = path(List.of(normal.start(), shiftedExit, c(100, offset)), fixture.features);
         List<Coordinate> extended = TerminalSuffixGeometry.append(changed.coordinates(), end);
-        assertThat(extended).as("The 45-degree changed leg is not rejected merely as an illegal bend").isNotEmpty();
+        assertThat(extended).as("The changed normal uses only legal right-angle bends").isNotEmpty();
         RoutePath stored = path(extended, fixture.features).reversed();
         RouteEdge edge = edge(stored, "edge", "root", "demand");
         assertThat(validator.validate(List.of(node("root", end, true), node("demand", normal.start(), false)),

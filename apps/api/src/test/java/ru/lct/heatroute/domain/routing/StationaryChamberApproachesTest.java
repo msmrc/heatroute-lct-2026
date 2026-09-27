@@ -78,7 +78,7 @@ class StationaryChamberApproachesTest {
             var choices = List.of(List.of(east), List.of(west), List.of(tilted));
             var ordinary = CorridorJunctionAssignment.choose(junction, choices);
             var precise = CorridorJunctionAssignment.choosePrecise(junction, choices);
-            if (Math.abs(delta) < 0.001) {
+            if (Math.abs(delta) <= 0.001) {
                 assertThat(precise).hasSize(3); assertThat(ordinary).hasSize(3);
             } else {
                 assertThat(precise).isNull(); assertThat(ordinary).isNull();

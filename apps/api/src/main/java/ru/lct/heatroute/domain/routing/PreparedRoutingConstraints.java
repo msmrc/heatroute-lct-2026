@@ -63,9 +63,9 @@ final class PreparedRoutingConstraints {
             if (source == null || source.isEmpty()) {
                 continue;
             }
-            // Проверяем ДУ и при повторном использовании: осевые отступы forbidden и road/tram
-            // включают половину ширины пары; индекс не освобождает от пересчёта при новом ДУ.
-            Key key = new Key(feature.getFeatureId(), type, rules.preparationClearanceM(type, diameter));
+            // Проверяем ДУ при каждом использовании: осевые отступы учитывают ширину новой пары,
+            // а для существующей теплосети также её фактический ДУ.
+            Key key = new Key(feature.getFeatureId(), type, rules.preparationClearanceM(feature, diameter));
             Entry entry = retained.get(key);
             if (entry != null && sameGeometry(entry.constraint.source(), source)) {
                 result.add(entry.constraint);

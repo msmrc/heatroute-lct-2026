@@ -111,7 +111,10 @@ class OfficialObstacleRouterPostprocessingTest {
             for (int index = 0; index < 5; index++) {
                 Coordinate previous = source.get(source.size() - 1);
                 double length = 3 + random.nextDouble() * 20;
-                heading += (random.nextDouble() - 0.5) * Math.toRadians(170);
+                if (random.nextBoolean()) {
+                    heading += (random.nextBoolean() ? 1 : -1)
+                            * Math.toRadians(60 + random.nextDouble() * 30);
+                }
                 source.add(point(previous.x + Math.cos(heading) * length, previous.y + Math.sin(heading) * length));
             }
             assertLegal(source);

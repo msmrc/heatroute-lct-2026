@@ -116,7 +116,7 @@ class CorridorRepeatedTargetSectionTest {
                 : new Coordinate[] {point(0, 0), point(0, 50)};
         LineString existing = geometries.createLineString(existingPoints);
         ImportedOfficialFeature selected = new ImportedOfficialFeature("selected", "heat_network",
-                new ObjectMapper().createObjectNode(), existing);
+                new ObjectMapper().createObjectNode().put("diameter", 50), existing);
         List<ImportedOfficialFeature> features = List.of(selected);
         OfficialRoutingEnvironment environment = router.prepare(features);
         List<Coordinate> points = List.of(point(0, 0), point(30, 0), point(70, 0), point(100, 0));

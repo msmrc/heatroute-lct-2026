@@ -7,7 +7,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -310,9 +312,13 @@ class OfficialFinalDiameterSharedJunctionTest {
         assertThat(remoteStart.distance(root)).isGreaterThan(2);
         assertThat(approach.distance(root)).isGreaterThan(2);
         assertThat(remoteStart.distance(approach)).isGreaterThan(2);
-        RouteEdge incident = fixture.edge("sibling", "root", "other", 500, List.of(
-                root, fixture.point(-20, -20), new Coordinate(approach.x, fixture.point(0, -20).y),
-                approach, remoteStart));
+        RoutePath legalTail = router.findAfter(remoteStart, approach, root, 500,
+                router.prepare(fixture.features), Set.of(), RoutePreference.SHORTEST, List.of());
+        assertThat(legalTail).isNotNull();
+        List<Coordinate> incidentPoints = new ArrayList<>(legalTail.coordinates());
+        Collections.reverse(incidentPoints);
+        incidentPoints.add(remoteStart);
+        RouteEdge incident = fixture.edge("sibling", "root", "other", 500, incidentPoints);
         List<RouteNode> nodes = new ArrayList<>(branchNodes);
         nodes.add(new RouteNode("other", "demand_connection", new RouteCoordinate(remoteStart.x, remoteStart.y),
                 false, false, 0, null));

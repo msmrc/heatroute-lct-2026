@@ -13,10 +13,10 @@ import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 
-/** Проверяет мягкое предпочтение расстояния без обязательного ремонта разрешённых изгибов. */
+/** Проверяет обязательный ремонт расстояния между соседними изгибами. */
 class EngineeringSpacingRepairTest {
     @Test
-    void keepsLegalCloseBendsWithoutMandatoryRepairAfterRotationAndTranslation() throws Exception {
+    void repairsCloseBendsAfterRotationAndTranslation() throws Exception {
         for (double rotation : new double[] {0.0, 0.37, 1.1}) {
             for (double offset : new double[] {0.0, 410000.0}) {
                 var points = List.of(point(0, 0, rotation, offset), point(10, 0, rotation, offset),
@@ -52,8 +52,8 @@ class EngineeringSpacingRepairTest {
                         draft, List.of(), environment, false);
                 assertTrue(evaluator.evaluate(edges(repaired)).isCompliant(),
                         "A short interior leg remains legal under official answers 11–12");
-                assertEquals(points, edges(repaired).get(0).getCoordinates(),
-                        "The mandatory repair must not alter a valid short interior leg");
+                assertFalse(points.equals(edges(repaired).get(0).getCoordinates()),
+                        "The mandatory repair must replace a one-metre bend interval");
                 assertTrue(new OfficialRouteValidator(rules).validate(nodes, edges(repaired), List.of()).isEmpty());
                 assertTrue(ExpertRouteBendRules.validate(nodes, edges(repaired)).isEmpty());
                 assertEquals(connections, field(repaired, "connections"));

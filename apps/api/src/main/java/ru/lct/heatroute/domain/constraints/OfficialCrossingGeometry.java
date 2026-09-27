@@ -7,6 +7,16 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class OfficialCrossingGeometry {
+    /**
+     * Нормальное пересечение публикуется как 90°. После поворота и округления метрических
+     * координат до миллиметра оно может отличаться на сотые доли градуса, поэтому для 90°
+     * действует допуск 0,1°, а у нижних табличных границ остаётся только численная погрешность.
+     */
+    public static boolean satisfiesMinimumAngle(double actualDegrees, double minimumDegrees) {
+        double tolerance = minimumDegrees >= 89.9 ? 0.1 : 1e-7;
+        return actualDegrees + tolerance >= minimumDegrees;
+    }
+
     public LineString specialSegment(LineString route, Geometry crossedObject, double extensionM) {
         if (route == null || crossedObject == null || route.isEmpty() || crossedObject.isEmpty()) {
             throw new IllegalArgumentException("route and crossed object are required");
@@ -48,7 +58,7 @@ public class OfficialCrossingGeometry {
     }
 
     public boolean meetsMinimumAngle(LineString route, LineString crossedLine, double minimumDegrees) {
-        return acuteCrossingAngleDegrees(route, crossedLine) + 1e-9 >= minimumDegrees;
+        return satisfiesMinimumAngle(acuteCrossingAngleDegrees(route, crossedLine), minimumDegrees);
     }
 
     private double localAngle(LineString line, org.locationtech.jts.geom.Coordinate crossing) {

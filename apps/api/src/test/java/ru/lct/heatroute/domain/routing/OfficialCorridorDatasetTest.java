@@ -49,6 +49,9 @@ class OfficialCorridorDatasetTest {
         OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
         boolean finish = Boolean.parseBoolean(System.getProperty("heatroute.corridor.finish", "true"));
         OfficialRunParameters parameters = new OfficialRunParameters(null, null, finish);
+        // Полный портфель строится всегда; дорогую depth/economics-доводку выполняем на первых
+        // восьми кандидатах. Этого достаточно для сквозного допуска без умножения CI-времени.
+        int candidateLimit = Math.max(1, Integer.getInteger("heatroute.corridor.limit", 8));
         Map<String, ImportedOfficialFeature> demands = features.stream()
                 .filter(f -> "oks_connection_point".equals(f.getObjectType()))
                 .collect(Collectors.toMap(ImportedOfficialFeature::getFeatureId, f -> f));
@@ -69,6 +72,7 @@ class OfficialCorridorDatasetTest {
                         f.getMetricGeometry().getCoordinate(), new BigDecimal(f.getAttributes().path("flow_tph").asText())))
                 .collect(Collectors.toList());
         List<RouteVariant> finalized = new ArrayList<>();
+        candidateSearch:
         for (RouteNode root : roots) {
             List<OrthogonalCorridorNetworkBuilder.Network> candidates = new OrthogonalCorridorNetworkBuilder(
                     router, new OfficialPipeCatalog()).buildWithTerminalFrame(terminals, root, 4 - root.getBaseIncidentSections(), buildings, environment,
@@ -92,6 +96,8 @@ class OfficialCorridorDatasetTest {
                                 candidate.edges(), candidate.connections(), BigDecimal.valueOf(length), issues, List.of(), null, null, null);
                 variant = planner.withEngineeringAssessment(variant);
                 EngineeringRouteEvaluator.Evaluation finalGeometry = new EngineeringRouteEvaluator().evaluate(variant.getEdges());
+                List<RouteValidationIssue> chamberIssues = new ExpertChamberRouteValidator().validate(
+                        variant.getNodes(), variant.getEdges(), environment::existingDirections);
                 boolean completeDepth = !finish || variant.getEdges().stream().allMatch(edge ->
                         edge.getDepthProfile() != null && edge.getDepthProfile().isComplete()
                                 && edge.getDepthProfile().getIssues().isEmpty());
@@ -102,8 +108,11 @@ class OfficialCorridorDatasetTest {
                         + " junction_angles=" + finalGeometry.irregularJunctionAngleCount()
                         + " complete_depth=" + completeDepth
                         + " cost=" + (variant.getEconomics() == null ? null : variant.getEconomics().getCalculatedCost())
-                        + " issues=" + variant.getValidationIssues().stream().map(RouteValidationIssue::getCode).collect(Collectors.toList()));
+                        + " issues=" + variant.getValidationIssues().stream().map(RouteValidationIssue::getCode).collect(Collectors.toList())
+                        + " chamber_issues=" + chamberIssues.stream()
+                                .map(i -> i.getCode() + ":" + i.getSubjectId()).collect(Collectors.toList()));
                 finalized.add(variant);
+                if (finalized.size() >= candidateLimit) break candidateSearch;
             }
         }
         List<OfficialRoutePlanner.Demand> mergeDemands = demands.values().stream()
@@ -177,7 +186,7 @@ class OfficialCorridorDatasetTest {
                 new RouteCoordinate(at.x, at.y), true, true, incidence.countAt(at), target.getFeatureId());
     }
 
-    private boolean hasAvailableNormal(RouteNode root, OfficialRoutingEnvironment environment) {
+    static boolean hasAvailableNormal(RouteNode root, OfficialRoutingEnvironment environment) {
         List<Coordinate> rays = environment.existingDirections(root);
         if (root.getBaseIncidentSections() < 1 || root.getBaseIncidentSections() >= 4 || rays.isEmpty()) return false;
         for (int i = 0; i < rays.size(); i++) for (int j = i + 1; j < rays.size(); j++) {

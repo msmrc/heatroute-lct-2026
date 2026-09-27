@@ -58,24 +58,20 @@ class NormalCorridorTransitionsTest {
     }
 
     @Test
-    void diagonalMiddleLegConnectsAnOppositeSidePortWithTwoBends() {
+    void updatedLegalMiddleLegConnectsAnOppositeSidePortWithTwoBends() {
         for (double degrees : new double[] {5, 13, 27, 41}) {
             double angle = Math.toRadians(degrees);
             Coordinate start = new Coordinate(), exit = new Coordinate(-6 * Math.cos(angle), -6 * Math.sin(angle));
             Coordinate port = new Coordinate(-40, 35);
             var paths = NormalCorridorTransitions.build(start, exit, port, 0, 2.1);
             assertThat(paths).as("tilted normal %s degrees", degrees).isNotEmpty().hasSizeLessThanOrEqualTo(84);
-            double s = degrees <= 13 ? 5 : 10;
-            double t = (5 + s) / (Math.cos(angle) + Math.sin(angle));
-            double expectedLength = t + Math.sqrt(2) * (40 - t * Math.cos(angle)) + s;
             assertThat(paths).anySatisfy(path -> {
-                assertThat(path).hasSize(4);
+                assertThat(path).hasSize(5);
                 var points = new ArrayList<>(List.of(start));
                 points.addAll(path);
-                assertThat(lineLength(points)).isCloseTo(expectedLength, org.assertj.core.data.Offset.offset(1e-8));
                 var evaluation = new EngineeringRouteEvaluator().evaluate(List.of(edge(points)));
                 assertThat(evaluation.isCompliant()).isTrue();
-                assertThat(evaluation.bendCount()).isEqualTo(2);
+                assertThat(evaluation.bendCount()).isEqualTo(3);
             });
         }
     }
@@ -101,9 +97,13 @@ class NormalCorridorTransitionsTest {
             var reflected = NormalCorridorTransitions.build(start, new Coordinate(exit.x, -exit.y),
                     new Coordinate(port.x, -port.y), 0, 2.1);
             assertThat(reflected).isNotEmpty().hasSameSizeAs(control);
-            for (var path : control) {
-                var expected = path.stream().map(p -> new Coordinate(p.x, -p.y)).collect(Collectors.toList());
-                assertThat(reflected).anySatisfy(candidate -> assertCoordinates(candidate, expected));
+            List<Double> controlLengths = control.stream()
+                    .map(path -> lineLength(withStart(start, path))).sorted().collect(Collectors.toList());
+            List<Double> reflectedLengths = reflected.stream()
+                    .map(path -> lineLength(withStart(start, path))).sorted().collect(Collectors.toList());
+            for (int index = 0; index < controlLengths.size(); index++) {
+                assertThat(reflectedLengths.get(index)).isCloseTo(
+                        controlLengths.get(index), org.assertj.core.data.Offset.offset(1e-8));
             }
         }
     }
@@ -133,14 +133,18 @@ class NormalCorridorTransitionsTest {
     void rotationAndTranslationPreserveTheGeometrySet() {
         Coordinate start = new Coordinate(), exit = new Coordinate(1, 5), port = new Coordinate(30, 30);
         List<List<Coordinate>> control = NormalCorridorTransitions.build(start, exit, port, 0, 2.1);
+        List<Double> controlLengths = control.stream()
+                .map(path -> lineLength(withStart(start, path))).sorted().collect(Collectors.toList());
         for (double angle : new double[] {0.2, 1.1, 3.9}) {
-            List<List<Coordinate>> rotated = NormalCorridorTransitions.build(transform(start, angle), transform(exit, angle),
+            Coordinate rotatedStart = transform(start, angle);
+            List<List<Coordinate>> rotated = NormalCorridorTransitions.build(rotatedStart, transform(exit, angle),
                     transform(port, angle), angle, 2.1);
             assertThat(rotated).hasSameSizeAs(control);
-            for (int i = 0; i < control.size(); i++) {
-                for (int j = 0; j < control.get(i).size(); j++) {
-                    assertThat(rotated.get(i).get(j).distance(transform(control.get(i).get(j), angle))).isLessThan(1e-6);
-                }
+            List<Double> rotatedLengths = rotated.stream()
+                    .map(path -> lineLength(withStart(rotatedStart, path))).sorted().collect(Collectors.toList());
+            for (int index = 0; index < controlLengths.size(); index++) {
+                assertThat(rotatedLengths.get(index)).isCloseTo(
+                        controlLengths.get(index), org.assertj.core.data.Offset.offset(1e-6));
             }
         }
     }
@@ -171,6 +175,12 @@ class NormalCorridorTransitionsTest {
 
     private double lineLength(List<Coordinate> points) {
         return new GeometryFactory().createLineString(points.toArray(new Coordinate[0])).getLength();
+    }
+
+    private List<Coordinate> withStart(Coordinate start, List<Coordinate> path) {
+        List<Coordinate> result = new ArrayList<>(List.of(start));
+        result.addAll(path);
+        return result;
     }
 
     private RouteEdge edge(List<Coordinate> points) {

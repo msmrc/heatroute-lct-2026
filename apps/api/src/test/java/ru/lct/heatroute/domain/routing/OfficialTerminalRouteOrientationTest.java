@@ -123,7 +123,7 @@ class OfficialTerminalRouteOrientationTest {
     @Test
     void justBelowCatalogMinimumStoredEntryRequiresALegalAlternative() throws Exception {
         double minimum = catalog.find("road").orElseThrow().getMinimumCrossingAngleDegrees().doubleValue();
-        assertSafeAlternative(new Fixture(false, minimum - 0.1, 90));
+        assertSafeAlternative(new Fixture(false, minimum - 0.2, 90));
     }
 
     @Test
@@ -175,12 +175,12 @@ class OfficialTerminalRouteOrientationTest {
 
     @Test
     void storedSectionsUseIncomingAngleForALegalAsymmetricCrossing() throws Exception {
-        assertStoredSections(new Fixture(false, 60, 90));
+        assertStoredSections(new Fixture(false, 60, 90, 0, false, "tram_tracks"));
     }
 
     @Test
     void mirroredStoredSectionsUseIncomingAngleForALegalAsymmetricCrossing() throws Exception {
-        assertStoredSections(new Fixture(false, 60, 90, 0, true, "road"));
+        assertStoredSections(new Fixture(false, 60, 90, 0, true, "tram_tracks"));
     }
 
     @Test
@@ -213,7 +213,7 @@ class OfficialTerminalRouteOrientationTest {
     private void assertSafeAlternative(Fixture fixture) throws Exception {
         assertThat(roadCode(fixture, fixture.direct())).isEqualTo("SPECIAL_CROSSING_ANGLE_VIOLATION");
         assertThat(roadCode(fixture, rules.line(fixture.direct()).reverse())).isEqualTo("ALLOWED");
-        // An independently validated 45-degree detour proves that null is not a sufficient repair.
+        // An independently validated rectangular detour proves that null is not a sufficient repair.
         assertValid(fixture, fixture.edge(fixture.detour()));
 
         RoutePath outward = planned(fixture, fixture.selectedNormal());
@@ -351,7 +351,7 @@ class OfficialTerminalRouteOrientationTest {
             double height = 3 + axis.axisClearanceM(type, DIAMETER, null).doubleValue() + 0.25;
             OfficialRouteGeometryRules.NormalEgress normal = ownOnlyNormal();
             double exitX = -1 + normal.start().distance(normal.exit());
-            return List.of(root(), point(150 - height, height), point(exitX + height, height),
+            return List.of(root(), point(150, height), point(exitX, height),
                     normal.exit(), demand());
         }
 

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 
-/** Обязательный угол поворота по §2.1, а не экспертное предпочтение углов 90/135°. */
+/** Обязательный внутренний угол поворота 90–120° из актуального документа правил. */
 class OfficialRouteDeflectionTest {
     private static final String CODE = "ROUTE_DEFLECTION_EXCEEDED";
     private final OfficialRouteValidator structural = new OfficialRouteValidator();
@@ -18,8 +18,8 @@ class OfficialRouteDeflectionTest {
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry()));
 
     @Test
-    void rejectsInternalDeflectionsAboveNinetyForEveryVariantRole() {
-        for (double angle : new double[] {91, 135, 180}) {
+    void rejectsDeflectionsOutsideSixtyToNinetyForEveryVariantRole() {
+        for (double angle : new double[] {17, 30, 59, 91, 135, 180}) {
             List<RouteCoordinate> coordinates = turn(angle, 10);
             List<RouteNode> nodes = endpoints(coordinates);
             List<RouteEdge> edges = List.of(edge("route", "root", "end", coordinates));
@@ -35,8 +35,8 @@ class OfficialRouteDeflectionTest {
     }
 
     @Test
-    void permitsStraightAndArbitraryThirtySixtyAndNinetyDegreeTurns() {
-        for (double angle : new double[] {0, 17, 30, 60, 89, 90}) {
+    void permitsStraightAndSixtyToNinetyDegreeTurns() {
+        for (double angle : new double[] {0, 60, 75, 89, 90}) {
             List<RouteCoordinate> coordinates = turn(angle, 10);
             List<RouteNode> nodes = endpoints(coordinates);
             List<RouteEdge> edges = List.of(edge("route", "root", "end", coordinates));
@@ -48,7 +48,7 @@ class OfficialRouteDeflectionTest {
     @Test
     void detectsTheSameTurnWhenSplitAtATechnicalNodeOrDegreeTwoChamber() {
         for (String nodeType : List.of("technical_node", "new_branch_chamber")) {
-            for (double angle : new double[] {91, 135, 180}) {
+            for (double angle : new double[] {17, 30, 59, 91, 135, 180}) {
                 Network network = split(turn(angle, 10), nodeType);
                 for (List<RouteValidationIssue> issues : List.of(structural.validate(network.nodes, network.edges),
                         full.validate(network.nodes, network.edges, List.of()))) {

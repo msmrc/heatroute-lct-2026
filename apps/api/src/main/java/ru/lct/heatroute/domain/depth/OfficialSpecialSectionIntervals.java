@@ -17,6 +17,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.linearref.LengthIndexedLine;
 import ru.lct.heatroute.domain.constraints.OfficialAxisClearance;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
+import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.constraints.RoadCrossingClearance;
 import ru.lct.heatroute.domain.constraints.SpatialConstraintRule;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
@@ -32,6 +33,8 @@ public final class OfficialSpecialSectionIntervals {
     // Существующая привязка врезки допускает 5 см; исключаем только первое/последнее событие
     // точечного контакта; протяжённое наложение исключением не является.
     private static final double CONTACT_EPSILON_M = .05;
+    private static final Set<String> UTILITY_TYPES =
+            Set.of("gas_pipeline", "power_cable", "heat_network");
     private final GeometryFactory geometryFactory = new GeometryFactory();
     private final OfficialConstraintCatalog catalog = new OfficialConstraintCatalog();
     private final OfficialAxisClearance clearance;
@@ -45,7 +48,15 @@ public final class OfficialSpecialSectionIntervals {
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
             Map<String, Set<String>> nodeTieIns) {
-        return extract(edges, features, nodeTieIns, Map.of());
+        return extract(edges, features, nodeTieIns, Map.of(), false);
+    }
+
+    /** Выводит только интервалы трёх линейных коммуникаций с нормативным отступом. */
+    public Map<String, List<Interval>> extractUtilities(
+            List<RouteEdge> edges,
+            List<ImportedOfficialFeature> features,
+            Map<String, Set<String>> nodeTieIns) {
+        return extract(edges, features, nodeTieIns, Map.of(), true);
     }
 
     /**
@@ -59,14 +70,26 @@ public final class OfficialSpecialSectionIntervals {
             Map<String, Set<String>> nodeTieIns) {
         Map<String, RouteEdge> byId = new HashMap<>();
         for (RouteEdge edge : original) byId.put(edge.getId(), edge);
-        return extract(emitted, features, nodeTieIns, byId);
+        return extract(emitted, features, nodeTieIns, byId, false);
+    }
+
+    /** Повторно выводит интервалы линейных коммуникаций по фактически выдаваемой оси. */
+    public Map<String, List<Interval>> extractEmittedUtilities(
+            List<RouteEdge> original,
+            List<RouteEdge> emitted,
+            List<ImportedOfficialFeature> features,
+            Map<String, Set<String>> nodeTieIns) {
+        Map<String, RouteEdge> byId = new HashMap<>();
+        for (RouteEdge edge : original) byId.put(edge.getId(), edge);
+        return extract(emitted, features, nodeTieIns, byId, true);
     }
 
     private Map<String, List<Interval>> extract(
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
             Map<String, Set<String>> nodeTieIns,
-            Map<String, RouteEdge> originalEdges) {
+            Map<String, RouteEdge> originalEdges,
+            boolean utilitiesOnly) {
         Map<String, List<Interval>> result = new LinkedHashMap<>();
         for (DepthPhysicalChains.Chain chain :
                 DepthPhysicalChains.build(edges, nodeTieIns.keySet())) {
@@ -94,6 +117,7 @@ public final class OfficialSpecialSectionIntervals {
                                 : "restriction".equals(feature.getObjectType())
                                         ? feature.getAttributes().path("restriction_type").asText()
                                         : null;
+                if (utilitiesOnly && (type == null || !UTILITY_TYPES.contains(type))) continue;
                 SpatialConstraintRule rule = type == null ? null : catalog.find(type).orElse(null);
                 if (rule == null || rule.isForbidden()) continue;
                 Geometry source = feature.getMetricGeometry();
@@ -157,8 +181,17 @@ public final class OfficialSpecialSectionIntervals {
                                                         source,
                                                         line.getCoordinateN(
                                                                 line.getNumPoints() - 1),
-                                                        new LengthIndexedLine(line)
-                                                                .extractPoint(hit[0])))) continue;
+                                                                new LengthIndexedLine(line)
+                                                                        .extractPoint(hit[0])))) continue;
+                        if (rule.getMinimumCrossingAngleDegrees() != null
+                                && !meetsCrossingAngle(
+                                        line,
+                                        source,
+                                        (hit[0] + hit[1]) / 2,
+                                        rule.getMinimumCrossingAngleDegrees().doubleValue())) {
+                            throw new IllegalArgumentException(
+                                    "SPECIAL_SECTION_CROSSING_ANGLE: " + feature.getFeatureId());
+                        }
                         double extension = rule.getSpecialExtensionM().doubleValue();
                         double a = Math.max(0, hit[0] - extension),
                                 b = Math.min(line.getLength(), hit[1] + extension);
@@ -193,6 +226,39 @@ public final class OfficialSpecialSectionIntervals {
             }
         }
         return result;
+    }
+
+    private boolean meetsCrossingAngle(
+            LineString route,
+            Geometry source,
+            double station,
+            double minimumDegrees) {
+        Coordinate crossing = new LengthIndexedLine(route).extractPoint(station);
+        double routeAngle = localAngle(route, crossing);
+        double sourceAngle = localAngle(source, crossing);
+        double difference = Math.abs(Math.toDegrees(routeAngle - sourceAngle)) % 180.0;
+        double acute = difference > 90.0 ? 180.0 - difference : difference;
+        return OfficialCrossingGeometry.satisfiesMinimumAngle(acute, minimumDegrees);
+    }
+
+    private double localAngle(Geometry lineal, Coordinate crossing) {
+        Coordinate[] coordinates = lineal.getCoordinates();
+        double nearest = Double.POSITIVE_INFINITY;
+        double angle = 0;
+        for (int index = 0; index + 1 < coordinates.length; index++) {
+            active();
+            org.locationtech.jts.geom.LineSegment segment =
+                    new org.locationtech.jts.geom.LineSegment(coordinates[index], coordinates[index + 1]);
+            if (segment.getLength() <= 1e-9) continue;
+            double distance = segment.distance(crossing);
+            if (distance < nearest) {
+                nearest = distance;
+                angle = Math.atan2(
+                        segment.p1.y - segment.p0.y,
+                        segment.p1.x - segment.p0.x);
+            }
+        }
+        return angle;
     }
 
     private LineString originalLine(

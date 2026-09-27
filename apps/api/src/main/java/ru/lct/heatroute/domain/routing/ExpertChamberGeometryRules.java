@@ -12,18 +12,17 @@ import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 import org.locationtech.jts.geom.Coordinate;
 
-/** Проверяет нормали камер и расстояние до поворота по таблице ДУ от 27.09.2026. */
+/** Проверяет нормали камер и расстояния до поворотов по таблице ДУ от 27.09.2026. */
 public final class ExpertChamberGeometryRules {
     /** Нижняя граница таблицы; для проверки конкретного участка нужен его фактический ДУ. */
     public static final double MIN_BEND_DISTANCE_M = 2.0;
     private static final double NUMERICAL_EPSILON_M = 1e-7;
     private static final double NODE_TOLERANCE_M = 0.01;
-    private static final double VECTOR_ROUNDING_ERROR_M = Math.sqrt(2.0) * 0.001;
     private static final double MAX_ANGLE_TOLERANCE = Math.toRadians(0.1);
 
     private ExpertChamberGeometryRules() { }
 
-    /** Минимум от камеры до ближайшего реального поворота примыкающего участка. */
+    /** Минимум между поворотами и от камеры до ближайшего поворота участка. */
     public static double minimumBendDistanceM(int diameter) {
         switch (diameter) {
             case 50: case 65: case 80: case 100: case 125: case 150:
@@ -109,12 +108,12 @@ public final class ExpertChamberGeometryRules {
         return Math.abs(angle - Math.PI / 2) <= tolerance || Math.abs(angle - Math.PI) <= tolerance;
     }
 
-    /** §2.1 ТЗ разрешает изменение направления 0–90°; конфликтующее ограничение эксперта 135° не применяется. */
+    /** Актуальное правило задаёт внутренний угол 90–120°, то есть изменение направления 60–90°. */
     public static boolean allowsBend(double ax, double ay, double bx, double by) {
         Vector a = new Vector(ax, ay), b = new Vector(bx, by);
         if (!a.finite() || !b.finite()) return false;
         double angle = angle(a, b), tolerance = tolerance(a, b);
-        return angle <= Math.PI / 2 + tolerance;
+        return angle + tolerance >= Math.PI / 3 && angle <= Math.PI / 2 + tolerance;
     }
 
     static boolean straightDirections(double ax, double ay, double bx, double by) {
@@ -128,7 +127,8 @@ public final class ExpertChamberGeometryRules {
         Vector firstRay = null;
         Vector previousRun = null;
         double total = 0, firstBend = Double.POSITIVE_INFINITY, lastBend = Double.NaN;
-        boolean invalidAngle = false, shortBendSpacing = false;
+        boolean invalidAngle = false;
+        double minimumBendSpacingM = Double.POSITIVE_INFINITY;
         for (RouteCoordinate point : coordinates) {
             ensureActive();
             if (point == null) return null;
@@ -140,8 +140,8 @@ public final class ExpertChamberGeometryRules {
             if (run.length > 0 && !sameDirection(run, segment)) {
                 if (previousRun != null && !allowsBend(previousRun.dx, previousRun.dy, run.dx, run.dy)) invalidAngle = true;
                 if (!Double.isFinite(firstBend)) { firstBend = total; firstRay = run; }
-                if (Double.isFinite(lastBend) && total - lastBend + NUMERICAL_EPSILON_M < MIN_BEND_DISTANCE_M) {
-                    shortBendSpacing = true;
+                if (Double.isFinite(lastBend)) {
+                    minimumBendSpacingM = Math.min(minimumBendSpacingM, total - lastBend);
                 }
                 lastBend = total;
                 previousRun = run;
@@ -155,7 +155,8 @@ public final class ExpertChamberGeometryRules {
         if (previousRun != null && !allowsBend(previousRun.dx, previousRun.dy, lastRay.dx, lastRay.dy)) invalidAngle = true;
         if (firstRay == null) firstRay = Vector.between(first, previous);
         return new PolylineSummary(first, previous, firstRay, lastRay, total, firstBend,
-                Double.isNaN(lastBend) ? Double.POSITIVE_INFINITY : total - lastBend, invalidAngle, shortBendSpacing);
+                Double.isNaN(lastBend) ? Double.POSITIVE_INFINITY : total - lastBend,
+                invalidAngle, minimumBendSpacingM);
     }
 
     private static void validateApproach(RouteNode chamber, RouteEdge firstEdge,
@@ -231,10 +232,9 @@ public final class ExpertChamberGeometryRules {
     }
 
     private static double tolerance(Vector a, Vector b) {
-        // Погрешность только от миллиметрового округления двух векторов, без инженерного расширения угла.
-        return Math.min(MAX_ANGLE_TOLERANCE,
-                Math.asin(Math.min(1, VECTOR_ROUNDING_ERROR_M / a.length))
-                + Math.asin(Math.min(1, VECTOR_ROUNDING_ERROR_M / b.length))) + 1e-12;
+        // Исходные участки одной существующей оси сами могут расходиться после миллиметровой
+        // оцифровки. Единый предел 0,1° сохраняет транзитивную общую ось для всех лучей камеры.
+        return MAX_ANGLE_TOLERANCE + 1e-12;
     }
 
     private static RouteValidationIssue tooClose(String chamberId, int diameter, double minimumDistanceM) {
@@ -269,14 +269,14 @@ public final class ExpertChamberGeometryRules {
         private final double firstBendDistanceM;
         private final double lastBendDistanceM;
         private final boolean invalidBendAngle;
-        private final boolean shortBendSpacing;
+        private final double minimumBendSpacingM;
         private PolylineSummary(RouteCoordinate first, RouteCoordinate last, Vector firstRay, Vector lastRay,
                 double actualLengthM, double firstBendDistanceM, double lastBendDistanceM,
-                boolean invalidBendAngle, boolean shortBendSpacing) {
+                boolean invalidBendAngle, double minimumBendSpacingM) {
             this.first = first; this.last = last; this.firstRay = firstRay; this.lastRay = lastRay;
             this.actualLengthM = actualLengthM; this.firstBendDistanceM = firstBendDistanceM;
             this.lastBendDistanceM = lastBendDistanceM;
-            this.invalidBendAngle = invalidBendAngle; this.shortBendSpacing = shortBendSpacing;
+            this.invalidBendAngle = invalidBendAngle; this.minimumBendSpacingM = minimumBendSpacingM;
         }
         public double getActualLengthM() { return actualLengthM; }
         public double getFirstBendDistanceM() { return firstBendDistanceM; }
@@ -288,8 +288,10 @@ public final class ExpertChamberGeometryRules {
         RouteCoordinate getFirstCoordinate() { return first; }
         RouteCoordinate getLastCoordinate() { return last; }
         boolean hasInvalidBendAngle() { return invalidBendAngle; }
-        /** Геометрическая характеристика для поиска; не ограничение допуска по ТЗ. */
-        boolean hasShortBendSpacing() { return shortBendSpacing; }
+        double getMinimumBendSpacingM() { return minimumBendSpacingM; }
+        boolean hasShortBendSpacing() {
+            return minimumBendSpacingM + NUMERICAL_EPSILON_M < MIN_BEND_DISTANCE_M;
+        }
     }
 
     private static final class Vector {

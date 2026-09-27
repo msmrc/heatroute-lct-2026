@@ -66,11 +66,12 @@ class CorridorRoadGenerationTest {
                             point(0, -5, angle, offset), point(0, 5, angle, offset),
                             point(0, 10, angle, offset));
                     Geometry source = road(angle, offset);
-                    assertThat(guard.assess(line(raw), source, 2.075, 45, 3).isAllowed()).isTrue();
+                    double minimum = "road".equals(type) ? 90 : 45;
+                    assertThat(guard.assess(line(raw), source, 2.075, minimum, 3).isAllowed()).isTrue();
                     List<Coordinate> saved = CorridorGridPolyline.rounded(raw);
                     assertThat(corridor(source, type, raw.get(0)).completeCheckedAssembly(saved))
                             .as("%s rotation=%s offset=%s", type, angle, offset).isNotNull();
-                    assertThat(guard.assess(line(saved), source, 2.075, 45, 3).isAllowed()).isTrue();
+                    assertThat(guard.assess(line(saved), source, 2.075, minimum, 3).isAllowed()).isTrue();
                 }
             }
         }

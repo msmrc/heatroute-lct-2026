@@ -136,7 +136,7 @@ class OfficialRouteValidatorGeometryBatchTest {
         List<RouteNode> nodes = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
         // G2 измеряет угол по границе полигона; оба прохода имеют полные защитные прямые 3 м.
-        addEdge(nodes, edges, "crossing", 50, null, false, "LINESTRING (-20 -20, 20 20)");
+        addEdge(nodes, edges, "crossing", 50, null, false, "LINESTRING (-20 0, 20 0)");
         addEdge(nodes, edges, "acute", 50, null, false, "LINESTRING (-10 15, 10 45)");
         List<RouteValidationIssue> actual = assertEquivalent(nodes, edges, features);
         assertThat(actual).extracting(RouteValidationIssue::getCode)

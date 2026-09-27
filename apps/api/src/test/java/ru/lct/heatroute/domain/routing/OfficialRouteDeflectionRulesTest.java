@@ -30,7 +30,9 @@ class OfficialRouteDeflectionRulesTest {
                     double rounding = Math.min(Math.toRadians(0.1),
                             Math.asin(Math.min(1, Math.sqrt(2) * 0.001 / Math.hypot(ax, ay)))
                                     + Math.asin(Math.min(1, Math.sqrt(2) * 0.001 / Math.hypot(bx, by))));
-                    boolean expected = change <= Math.PI / 2 + rounding + 1e-12;
+                    boolean expected = change <= rounding + 1e-12
+                            || change + rounding + 1e-12 >= Math.PI / 3
+                                    && change <= Math.PI / 2 + rounding + 1e-12;
                     assertThat(OfficialRouteDeflectionRules.allowsTurn(ax, ay, bx, by))
                             .as("length=%s angle=%s rotation=%s", length, angle, rotation).isEqualTo(expected);
                 }
@@ -76,14 +78,15 @@ class OfficialRouteDeflectionRulesTest {
     }
 
     @Test
-    void isInvariantUnderReversalRotationAndMetricTranslationAtTheNinetyDegreeBoundary() {
+    void isInvariantUnderReversalRotationAndMetricTranslationAtBothUpdatedBoundaries() {
         for (double deflection : new double[] {0, 30, 60, 90, 91, 135, 180}) {
             for (double rotation : new double[] {0, 0.4, 1.7, 2.8}) {
                 List<RouteCoordinate> transformed = transform(turn(deflection, 10), rotation);
                 List<RouteCoordinate> reversed = new ArrayList<>(transformed); Collections.reverse(reversed);
                 for (List<RouteCoordinate> coordinates : List.of(transformed, reversed)) {
                     assertThat(OfficialRouteDeflectionRules.validatePolyline("edge", coordinates).getIssues().isEmpty())
-                            .as("deflection=%s rotation=%s", deflection, rotation).isEqualTo(deflection <= 90);
+                            .as("deflection=%s rotation=%s", deflection, rotation)
+                            .isEqualTo(deflection == 0 || deflection >= 60 && deflection <= 90);
                 }
             }
         }
@@ -104,8 +107,10 @@ class OfficialRouteDeflectionRulesTest {
                         var ends = List.of(first.endpoints("joint", "a"), second.endpoints("b", "joint"));
                         List<RouteValidationIssue> issues = OfficialRouteDeflectionRules.validateDegreeTwoNodes(nodes, ends);
                         assertThat(issues.isEmpty()).as("deflection=%s rotation=%s", deflection, rotation)
-                                .isEqualTo(deflection <= 90);
-                        if (deflection > 90) assertThat(issues).extracting(RouteValidationIssue::getSubjectId).containsExactly("joint");
+                                .isEqualTo(deflection == 0 || deflection >= 60 && deflection <= 90);
+                        if (deflection > 0 && (deflection < 60 || deflection > 90)) {
+                            assertThat(issues).extracting(RouteValidationIssue::getSubjectId).containsExactly("joint");
+                        }
                     }
                 }
             }
@@ -157,9 +162,11 @@ class OfficialRouteDeflectionRulesTest {
     }
 
     @Test
-    void roundingToleranceShrinksWithLegLengthAndDoesNotAllowOneDegreeOrTinyUTurns() {
+    void roundingToleranceShrinksWithLegLengthAndDoesNotAllowShallowOrExcessTurns() {
         assertThat(OfficialRouteDeflectionRules.validatePolyline("exact", turn(90, 100)).getIssues()).isEmpty();
         assertThat(OfficialRouteDeflectionRules.validatePolyline("long-small-excess", turn(90.01, 100)).getIssues())
+                .extracting(RouteValidationIssue::getCode).containsExactly(CODE);
+        assertThat(OfficialRouteDeflectionRules.validatePolyline("long-shallow", turn(59.99, 100)).getIssues())
                 .extracting(RouteValidationIssue::getCode).containsExactly(CODE);
         for (double length : new double[] {0.1, 1, 2, 100}) {
             for (double angle : new double[] {90.5, 91, 91.2055, 91.6649, 135, 180}) {

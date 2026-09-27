@@ -11,8 +11,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class ExpertRouteBendRulesTest {
     @ParameterizedTest
-    @CsvSource({"89.999,false", "90,true", "90.001,true", "134.999,true", "135,true", "135.001,true", "150,true", "180,true"})
-    void officialDeflectionAtMostNinetyOverridesTheExpertInternalAngleCeiling(double internalAngle, boolean valid) {
+    @CsvSource({"89.899,false", "89.9,true", "90,true", "119.999,true", "120,true", "120.101,false", "150,false", "180,true"})
+    void updatedInternalAngleIsNinetyToOneHundredTwentyDegrees(double internalAngle, boolean valid) {
         double turn = Math.toRadians(180 - internalAngle);
         List<RouteCoordinate> path = List.of(p(0, 0), p(1000, 0), p(1000 + 1000 * Math.cos(turn), 1000 * Math.sin(turn)));
         RouteNode a = node("a", path.get(0), true), b = node("b", path.get(2), false);
@@ -20,8 +20,8 @@ class ExpertRouteBendRulesTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"1.999,false,true", "2,false,true", "2.001,false,true", "1.999,true,true", "2,true,true", "2.001,true,true"})
-    void officialRulesDoNotSetNumericSpacingBetweenBendsAcrossTechnicalSplits(double spacing, boolean reversed, boolean valid) {
+    @CsvSource({"1.999,false,false", "2,false,true", "2.001,false,true", "1.999,true,false", "2,true,true", "2.001,true,true"})
+    void bendSpacingSurvivesTechnicalSplitsAndDirection(double spacing, boolean reversed, boolean valid) {
         RouteNode a = node("a", p(0, 0), true), b = node("b", p(10, 0), false);
         RouteNode c = node("c", p(10, spacing), false), d = node("d", p(20, spacing), false);
         List<RouteEdge> edges = List.of(edge(a, b, points(reversed, a.getCoordinate(), b.getCoordinate())),
@@ -33,7 +33,7 @@ class ExpertRouteBendRulesTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"1.999,true", "2,true", "2.001,true"})
+    @CsvSource({"1.999,false", "2,true", "2.001,true"})
     void internalBendsOnSeparateEdgesUseTheSumAcrossSeveralCollinearTechnicalEdges(double spacing, boolean valid) {
         RouteNode a = node("a", p(0, 0), true), b = node("b", p(10, .3), false);
         RouteNode c = node("c", p(10, 1.2), false), d = node("d", p(20, spacing), false);
@@ -68,7 +68,7 @@ class ExpertRouteBendRulesTest {
     }
 
     @Test
-    void shortSpacingAloneDoesNotViolateOfficialBendAngles() {
+    void shortSpacingIsReportedIndependentlyOfBendAngles() {
         List<RouteNode> nodes = gradualDrift();
         List<RouteCoordinate> points = new ArrayList<>();
         List<RouteEdge> edges = new ArrayList<>();
@@ -77,7 +77,9 @@ class ExpertRouteBendRulesTest {
             if (i > 0) edges.add(edge(nodes.get(i - 1), nodes.get(i), points.subList(i - 1, i + 1)));
         }
         assertThat(ExpertChamberGeometryRules.summarize(points).hasShortBendSpacing()).isTrue();
-        assertThat(ExpertRouteBendRules.validate(nodes, edges)).isEmpty();
+        assertThat(ExpertRouteBendRules.validate(nodes, edges))
+                .extracting(RouteValidationIssue::getCode)
+                .contains("EXPERT_ROUTE_BEND_TOO_CLOSE");
     }
 
     @Test
@@ -92,7 +94,7 @@ class ExpertRouteBendRulesTest {
     }
 
     @Test
-    void partitioningDoesNotIntroduceAnUnofficialNumericBendMinimum() {
+    void partitioningCannotHideTheUpdatedBendMinimum() {
         List<RouteNode> pathNodes = gradualDrift();
         List<RouteCoordinate> points = new ArrayList<>();
         pathNodes.forEach(node -> points.add(node.getCoordinate()));
@@ -104,9 +106,35 @@ class ExpertRouteBendRulesTest {
                         edge(b, c, points.subList(first, second + 1)),
                         edge(c, d, points.subList(second, points.size())));
                 assertThat(ExpertRouteBendRules.validate(List.of(a, b, c, d), edges))
-                        .as("technical cuts %s / %s", first, second).isEmpty();
+                        .as("technical cuts %s / %s", first, second)
+                        .extracting(RouteValidationIssue::getCode)
+                        .contains("EXPERT_ROUTE_BEND_TOO_CLOSE");
             }
         }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "50,1.999,false", "50,2,true",
+            "200,2.999,false", "200,3,true",
+            "400,3.999,false", "400,4,true",
+            "700,4.999,false", "700,5,true",
+            "1000,5.999,false", "1000,6,true"
+    })
+    void spacingBoundaryUsesTheActualDiameter(int diameter, double spacing, boolean valid) {
+        RouteNode a = node("a", p(0, 0), true), b = node("b", p(20, spacing), false);
+        RouteEdge edge = new RouteEdge(
+                "route",
+                a.getId(),
+                b.getId(),
+                999,
+                List.of(a.getCoordinate(), p(10, 0), p(10, spacing), b.getCoordinate()),
+                List.of(),
+                null,
+                diameter);
+
+        assertThat(ExpertRouteBendRules.validate(List.of(a, b), List.of(edge)).isEmpty())
+                .isEqualTo(valid);
     }
 
     private List<RouteNode> gradualDrift() {

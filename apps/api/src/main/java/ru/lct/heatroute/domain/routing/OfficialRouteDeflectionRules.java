@@ -9,12 +9,13 @@ import java.util.Map;
 import java.util.concurrent.CancellationException;
 
 /**
- * Проверяет обязательное изменение направления не более 90° по §2.1 приложения организатора.
+ * Проверяет актуальный диапазон внутреннего угла поворота 90–120°: изменение направления 60–90°.
  * Одинаково проверяет внутренние вершины и продолжение через узел степени два, независимо
  * от направления записи геометрии. Углы между ветвями камер степени три/четыре не ограничивает.
  */
 public final class OfficialRouteDeflectionRules {
     private static final double RIGHT_ANGLE = Math.PI / 2.0;
+    private static final double MINIMUM_TURN = Math.PI / 3.0;
     private static final double ENDPOINT_TOLERANCE_M = 0.01;
     // Каждая ордината округлена до 0.001 м: ошибка разности двух точек <= sqrt(2) * 0.001 м.
     private static final double VECTOR_ROUNDING_ERROR_M = Math.sqrt(2.0) * 0.001;
@@ -22,7 +23,6 @@ public final class OfficialRouteDeflectionRules {
     // На миллиметровых отрезках оценка погрешности иначе могла бы разрешить даже разворот.
     private static final double MAX_ROUNDING_TOLERANCE = Math.toRadians(0.1);
     private static final double FLOATING_POINT_TOLERANCE = 1e-12;
-    private static final double MAX_EXCESS_SINE = Math.sin(MAX_ROUNDING_TOLERANCE + FLOATING_POINT_TOLERANCE);
 
     private OfficialRouteDeflectionRules() { }
 
@@ -157,19 +157,17 @@ public final class OfficialRouteDeflectionRules {
     static boolean allowsTurn(double inX, double inY, double outX, double outY) {
         if (!Double.isFinite(inX) || !Double.isFinite(inY) || !Double.isFinite(outX) || !Double.isFinite(outY)
                 || inX == 0 && inY == 0 || outX == 0 && outY == 0) return false;
-        // Для 0..90° не нужны ни тригонометрия, ни вычисление допуска округления.
-        double dot = inX * outX + inY * outY;
-        if (dot >= 0) return true;
-        // L1-нормы не меньше евклидовых: это консервативный отказ за пределами общего
-        // верхнего допуска. Точная тригонометрия остаётся лишь в узкой полосе около 90°.
-        if (-dot > MAX_EXCESS_SINE * (Math.abs(inX) + Math.abs(inY)) * (Math.abs(outX) + Math.abs(outY))) return false;
         double inLength = Math.hypot(inX, inY), outLength = Math.hypot(outX, outY);
         if (!Double.isFinite(inLength) || !Double.isFinite(outLength)) return false;
         double ax = inX / inLength, ay = inY / inLength, bx = outX / outLength, by = outY / outLength;
         double angle = Math.atan2(Math.abs(ax * by - ay * bx), ax * bx + ay * by);
         double rounding = Math.asin(Math.min(1.0, VECTOR_ROUNDING_ERROR_M / inLength))
                 + Math.asin(Math.min(1.0, VECTOR_ROUNDING_ERROR_M / outLength));
-        return angle <= RIGHT_ANGLE + Math.min(MAX_ROUNDING_TOLERANCE, rounding) + FLOATING_POINT_TOLERANCE;
+        double tolerance = Math.min(MAX_ROUNDING_TOLERANCE, rounding) + FLOATING_POINT_TOLERANCE;
+        // Коллинеарное продолжение не является поворотом. Любой фактический поворот должен
+        // соответствовать внутреннему углу 90–120°, то есть отклонению 60–90°.
+        return angle <= tolerance
+                || angle + tolerance >= MINIMUM_TURN && angle <= RIGHT_ANGLE + tolerance;
     }
 
     private static double angle(Vector incoming, Vector outgoing) {
@@ -180,7 +178,7 @@ public final class OfficialRouteDeflectionRules {
 
     private static RouteValidationIssue exceeded(String subject, Vector incoming, Vector outgoing, String location) {
         return new RouteValidationIssue("ROUTE_DEFLECTION_EXCEEDED", subject, String.format(Locale.ROOT,
-                "Direction change %s is %.6f degrees; maximum is 90 degrees (official appendix 2.1)",
+                "Direction change %s is %.6f degrees; a bend must be 60–90 degrees (internal 90–120)",
                 location, Math.toDegrees(angle(incoming, outgoing))));
     }
 

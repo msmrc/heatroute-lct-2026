@@ -75,8 +75,8 @@ class OfficialCompliantSimplificationTest {
     void retainsLongerRouteWhenShortcutAddsMoreExpensiveSpecialConstruction() {
         List<Coordinate> coordinates = List.of(c(-200, 10), c(-180, 10), c(-180, 0),
                 c(-20, 0), c(-20, 10), c(1, 10));
-        ImportedOfficialFeature gas = new ImportedOfficialFeature("gas", "restriction",
-                json.createObjectNode().put("restriction_type", "gas_pipeline"),
+        ImportedOfficialFeature gas = new ImportedOfficialFeature("tram", "restriction",
+                json.createObjectNode().put("restriction_type", "tram_tracks"),
                 new GeometryFactory().createPolygon(new Coordinate[] {
                         c(-160, 8), c(-40, 8), c(-40, 12), c(-160, 12), c(-160, 8)}));
         List<ImportedOfficialFeature> features = List.of(gas);

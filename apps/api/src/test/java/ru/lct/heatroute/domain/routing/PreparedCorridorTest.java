@@ -417,7 +417,7 @@ class PreparedCorridorTest {
                 && "heat_network".equals(section.getRestrictionType())
                 && section.getCrossingAngleDegrees().doubleValue() == 90.0);
         // Фильтр направлений относится только к корню, не ко всем рёбрам рядом с теплосетью.
-        assertSymmetric(corridor, new Coordinate(5, -5), new Coordinate(15, 15), true);
+        assertSymmetric(corridor, new Coordinate(5, -5), new Coordinate(5, 15), true);
     }
 
     @Test

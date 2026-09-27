@@ -1,5 +1,17 @@
 # Current implementation progress
 
+## 2026-09-27 — source100: актуальные правила и полный официальный dataset PASS
+
+[Подробный source100](PRIMARY_ROUTING_100.md): действующая редакция Google и уточнение
+нормали камеры перенесены в генератор, sizing-aware validator и export preflight. Backend
+без долгого dataset: 2 287 PASS, 0 failures/errors, 3 scale skip; web 36+37, lint,
+typecheck и build PASS. Свежий corridor witness подключает 17/17: 2 823,175 м,
+30 рёбер, 13 новых камер плюс существующая корневая, пустые validation/engineering/sizing issues.
+Финальный `OfficialDatasetRoutingTest`: 2/2 PASS за 1 900,198 с. Preferred `cheapest`:
+17/17, 2 829,014 м, 29 рёбер, 12 новых узловых камер + существующая корневая,
+386 891 133,42 ₽, пустые validation/engineering/sizing issues. Карта отправлена. До push
+и VPS проверок source100 не считается развёрнутым. R9 performance/scale остаются открыты.
+
 ## 2026-09-27 — source99: depth/export объединены, общий fast PASS
 
 [Совместные исправления99](PRIMARY_ROUTING_99.md): source-derived special coverage,

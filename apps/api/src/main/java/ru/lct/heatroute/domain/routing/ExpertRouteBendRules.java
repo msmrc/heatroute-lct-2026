@@ -12,9 +12,10 @@ import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 import ru.lct.heatroute.domain.routing.ExpertChamberGeometryRules.PolylineSummary;
 
-/** Проверяет изменение направления 0–90° по ТЗ, включая стыки технических рёбер. */
+/** Проверяет углы и расстояния между поворотами, включая стыки технических рёбер. */
 public final class ExpertRouteBendRules {
     private static final double ENDPOINT_TOLERANCE_M = 0.01;
+    private static final double NUMERICAL_EPSILON_M = 1e-7;
 
     private ExpertRouteBendRules() { }
 
@@ -44,6 +45,11 @@ public final class ExpertRouteBendRules {
             if (summary == null) add(issues, undefined(edge.getId()));
             else {
                 if (summary.hasInvalidBendAngle()) add(issues, badAngle(edge.getId()));
+                Double minimum = minimumSpacing(edge);
+                if (minimum == null) add(issues, undefined(edge.getId()));
+                else if (summary.getMinimumBendSpacingM() + NUMERICAL_EPSILON_M < minimum) {
+                    add(issues, tooClose(edge.getId(), minimum));
+                }
             }
         }
         Set<String> visited = new HashSet<>();
@@ -67,28 +73,53 @@ public final class ExpertRouteBendRules {
             Set<String> visited, Map<String, RouteValidationIssue> issues) {
         RouteNode at = start;
         Direction arrival = null;
+        double distanceSinceBendM = Double.POSITIVE_INFINITY;
+        double lastBendMinimumM = 0;
         while (visited.add(edge.getId())) {
             ensureActive();
             PolylineSummary summary = summaries.apply(edge);
+            Double edgeMinimumM = minimumSpacing(edge);
             Direction outward = at(summary, at);
             String nextId = edge.getUpstreamNodeId().equals(at.getId()) ? edge.getDownstreamNodeId() : edge.getUpstreamNodeId();
             RouteNode next = nodes.get(nextId);
             Direction far = at(summary, next);
-            if (outward == null || far == null) { add(issues, undefined(edge.getId())); return; }
+            if (outward == null || far == null || edgeMinimumM == null) {
+                add(issues, undefined(edge.getId()));
+                return;
+            }
             boolean turnAtNode = false;
             if (arrival != null && !ExpertChamberGeometryRules.straightDirections(arrival.dx, arrival.dy, outward.dx, outward.dy)) {
                 turnAtNode = true;
                 if (!ExpertChamberGeometryRules.allowsBend(arrival.dx, arrival.dy, outward.dx, outward.dy)) {
                     add(issues, badAngle(at.getId()));
                 }
+                double required = Math.max(arrival.minimumSpacingM, edgeMinimumM);
+                checkSpacing(distanceSinceBendM, Math.max(lastBendMinimumM, required), at.getId(), issues);
+                distanceSinceBendM = 0;
+                lastBendMinimumM = required;
+            }
+            if (Double.isFinite(summary.getFirstBendDistanceM())) {
+                checkSpacing(
+                        distanceSinceBendM + summary.getFirstBendDistanceM(),
+                        Math.max(lastBendMinimumM, edgeMinimumM),
+                        edge.getId(),
+                        issues);
+                distanceSinceBendM = summary.getLastBendDistanceM();
+                lastBendMinimumM = edgeMinimumM;
+            } else if (Double.isFinite(distanceSinceBendM)) {
+                distanceSinceBendM += summary.getActualLengthM();
             }
             List<RouteEdge> connected = incident.getOrDefault(nextId, List.of());
             if (next.isChamber() || connected.size() != 2) return;
             // Техническое разбиение не должно обнулять накопленное направление прямого хода:
             // последовательные отклонения меньше погрешности могут вместе образовать реальный изгиб.
             arrival = arrival != null && !turnAtNode && !Double.isFinite(outward.nearestBendM)
-                    ? new Direction(arrival.dx + outward.dx, arrival.dy + outward.dy, Double.NaN)
-                    : new Direction(-far.dx, -far.dy, Double.NaN);
+                    ? new Direction(
+                            arrival.dx + outward.dx,
+                            arrival.dy + outward.dy,
+                            Double.NaN,
+                            edgeMinimumM)
+                    : new Direction(-far.dx, -far.dy, Double.NaN, edgeMinimumM);
             at = next;
             edge = connected.get(0) == edge ? connected.get(1) : connected.get(0);
         }
@@ -110,7 +141,12 @@ public final class ExpertRouteBendRules {
 
     private static RouteValidationIssue badAngle(String subject) {
         return new RouteValidationIssue("EXPERT_ROUTE_BEND_ANGLE_INVALID", subject,
-                "Изменение направления теплосети не должно превышать 90° по §2.1 ТЗ");
+                "Внутренний угол поворота теплосети должен находиться в диапазоне 90–120°");
+    }
+    private static RouteValidationIssue tooClose(String subject, double minimumM) {
+        return new RouteValidationIssue("EXPERT_ROUTE_BEND_TOO_CLOSE", subject,
+                "Соседние повороты должны находиться не ближе " + (int) minimumM
+                        + " м по трассе для фактического ДУ");
     }
     private static RouteValidationIssue undefined(String subject) {
         return new RouteValidationIssue("EXPERT_ROUTE_BEND_GEOMETRY_UNCHECKABLE", subject,
@@ -122,10 +158,33 @@ public final class ExpertRouteBendRules {
     private static void ensureActive() {
         if (Thread.currentThread().isInterrupted()) throw new CancellationException("Route bend validation cancelled");
     }
+    private static Double minimumSpacing(RouteEdge edge) {
+        if (edge.getDiameter() == null) return null;
+        try {
+            return ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter());
+        } catch (IllegalArgumentException unsupported) {
+            return null;
+        }
+    }
+    private static void checkSpacing(
+            double actualM,
+            double requiredM,
+            String subject,
+            Map<String, RouteValidationIssue> issues) {
+        if (Double.isFinite(actualM) && actualM + NUMERICAL_EPSILON_M < requiredM) {
+            add(issues, tooClose(subject, requiredM));
+        }
+    }
     private static final class Direction {
-        private final double dx, dy, nearestBendM;
+        private final double dx, dy, nearestBendM, minimumSpacingM;
         private Direction(double dx, double dy, double nearestBendM) {
-            this.dx = dx; this.dy = dy; this.nearestBendM = nearestBendM;
+            this(dx, dy, nearestBendM, 0);
+        }
+        private Direction(double dx, double dy, double nearestBendM, double minimumSpacingM) {
+            this.dx = dx;
+            this.dy = dy;
+            this.nearestBendM = nearestBendM;
+            this.minimumSpacingM = minimumSpacingM;
         }
     }
 }

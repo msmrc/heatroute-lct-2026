@@ -98,7 +98,7 @@ class OfficialDatasetRoutingTest {
                     verificationEnvironment::existingDirections))
                     .as("Final chamber sections and OKS origins: " + variant.getId()).isEmpty();
             assertThat(ExpertRouteBendRules.validate(variant.getNodes(), variant.getEdges()))
-                    .as("Final bends and continuous 2 m spacing: " + variant.getId()).isEmpty();
+                    .as("Final bends and diameter-table spacing: " + variant.getId()).isEmpty();
         });
         result.getVariants().stream().filter(variant -> "shortest".equals(variant.getId())).forEach(shortest ->
                 assertThat(result.getVariants()).allSatisfy(variant ->

@@ -151,11 +151,12 @@ class OfficialRetainedEgressTest {
     void finalDiameterPromotionStillRechecksClearanceAlongTheWholePrefix() {
         List<ImportedOfficialFeature> features = new ArrayList<>(features(0));
         features.add(new ImportedOfficialFeature("other-building", "oks_existing", json.createObjectNode(),
-                new GeometryFactory().createPolygon(points(0, -24, -9, -14, -9, -14, -1, -24, -1, -24, -9)
+                new GeometryFactory().createPolygon(points(0, -24, -7, -14, -7, -14, 1, -24, 1, -24, -7)
                         .toArray(new Coordinate[0]))));
         List<Coordinate> points = points(0, -30, -20, -30, 10, -10, 10, 10, 10);
         RouteEdge original = edge(points);
         // 6 м достаточно для ДУ400 (R+W/2=5.685 м), но не для ДУ500 (7.835 м).
+        // Нижняя грань ОКС оставляет табличные 4 м прямого выхода из корневой камеры.
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
         OfficialRoutingEnvironment environment = router.prepare(features);
         List<Coordinate> prefix = points.subList(0, points.size() - 1);
@@ -179,7 +180,8 @@ class OfficialRetainedEgressTest {
     }
 
     private void assertAccepted(RouteVariant result, List<ImportedOfficialFeature> features, boolean depth, int diameter) {
-        assertThat(result.getValidationIssues()).isEmpty();
+        assertThat(result.getValidationIssues()).extracting(issue -> issue.getCode() + ":"
+                + issue.getSubjectId() + ":" + issue.getMessage()).isEmpty();
         assertThat(result.getSizingIssues()).isEmpty();
         assertThat(result.isValid()).isTrue();
         assertThat(result.getConnectedDemandCount()).isEqualTo(1);

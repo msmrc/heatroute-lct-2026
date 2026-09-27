@@ -27,7 +27,7 @@ class OfficialConstraintRulesTest {
     void exposesExactRoadTramAndUtilityRules() {
         SpatialConstraintRule road = catalog.find("road").orElseThrow();
         assertThat(road.getHorizontalClearanceM()).isEqualByComparingTo("1.5");
-        assertThat(road.getMinimumCrossingAngleDegrees()).isEqualByComparingTo("45");
+        assertThat(road.getMinimumCrossingAngleDegrees()).isEqualByComparingTo("90");
         assertThat(road.getSpecialExtensionM()).isEqualByComparingTo("3.0");
         assertThat(road.getMinimumTopBelowSurfaceM()).isEqualByComparingTo("1.0");
         assertThat(road.getCostMultiplier()).isEqualByComparingTo("1.60");
@@ -56,11 +56,11 @@ class OfficialConstraintRulesTest {
         assertRule("prohibited_site", true, "1.0", null, null, null, null, "1.00");
         assertRule("water", true, "1.0", null, null, null, null, "1.00");
         assertRule("railway", true, "1.0", null, null, null, null, "1.00");
-        assertRule("road", false, "1.5", null, "45", "3.0", "1.0", "1.60");
+        assertRule("road", false, "1.5", null, "90", "3.0", "1.0", "1.60");
         assertRule("tram_tracks", false, "1.5", null, "45", "3.0", "1.2", "1.75");
-        assertRule("gas_pipeline", false, "2.0", "0.2", null, "2.0", null, "1.25");
-        assertRule("power_cable", false, "2.0", "0.5", null, "2.0", null, "1.15");
-        assertRule("heat_network", false, "1.0", "0.5", null, "2.0", null, "1.05");
+        assertRule("gas_pipeline", false, "2.0", "0.2", "60", "2.0", null, "1.25");
+        assertRule("power_cable", false, "2.0", "0.5", "60", "2.0", null, "1.15");
+        assertRule("heat_network", false, "1.0", "0.5", "90", "2.0", null, "1.05");
     }
 
     @Test

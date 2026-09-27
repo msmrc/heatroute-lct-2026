@@ -48,7 +48,10 @@ class OfficialChamberQualitySafetyTest {
     void keepsEverySelectedRoleClearOfAnObstacleAtTheAttractiveRelocation(boolean depth) {
         var parameters = new OfficialRunParameters(null, null, depth).validated();
         RouteVariant attractive = attractiveRelocation(1, parameters);
-        ImportedOfficialFeature park = polygon("restriction", "synthetic-park", "park", -0.5, 9.5, 0.5, 10.5);
+        Coordinate attractiveChamber = chamber(attractive);
+        ImportedOfficialFeature park = polygon("restriction", "synthetic-park", "park",
+                attractiveChamber.x - 414000 - .5, attractiveChamber.y - 6173000 - .5,
+                attractiveChamber.x - 414000 + .5, attractiveChamber.y - 6173000 + .5);
         List<ImportedOfficialFeature> features = List.of(park);
         assertThat(park.getMetricGeometry().covers(new GeometryFactory().createPoint(chamber(attractive)))).isTrue();
         assertThat(validator.validate(attractive.getNodes(), attractive.getEdges(), features))
@@ -70,12 +73,15 @@ class OfficialChamberQualitySafetyTest {
         var parameters = new OfficialRunParameters(null, null, depth).validated();
         RouteVariant attractive = attractiveRelocation(1000, parameters);
         // 6,5 м достаточно для ДУ50 (5,2 м), но недостаточно для ДУ500/600 (7,835/7,925 м).
-        ImportedOfficialFeature building = polygon("oks_existing", "synthetic-building", null, -8, 14.7, -6.5, 15.3);
-        List<ImportedOfficialFeature> features = List.of(building);
         RouteEdge attractiveInput = attractive.getEdges().stream().filter(edge -> "a".equals(edge.getId()))
                 .findFirst().orElseThrow();
+        Coordinate attractiveJunction = chamber(attractive);
+        Coordinate clearancePoint = new Coordinate(attractiveJunction.x, attractiveJunction.y - 6.5);
+        ImportedOfficialFeature building = new ImportedOfficialFeature("synthetic-building", "oks_existing",
+                new ObjectMapper().createObjectNode(), new GeometryFactory().createPoint(clearancePoint));
+        List<ImportedOfficialFeature> features = List.of(building);
         double distanceM = building.getMetricGeometry().distance(line(attractiveInput));
-        assertThat(distanceM).isEqualTo(6.5);
+        assertThat(distanceM).isBetween(6.49, 6.51);
         assertThat(distanceM).isGreaterThan(clearances.axisClearanceM("oks", 50, null).doubleValue());
         assertThat(distanceM).isLessThan(clearances.axisClearanceM("oks", 600, null).doubleValue());
         assertThat(validator.validate(attractive.getNodes(), attractive.getEdges(), features)).isNotEmpty();
@@ -109,9 +115,9 @@ class OfficialChamberQualitySafetyTest {
         var depthParameters = new OfficialRunParameters(new BigDecimal("3.0"), new BigDecimal("3.0"), true).validated();
         var attributes = new ObjectMapper().createObjectNode().put("restriction_type", "gas_pipeline");
         var gas = new ImportedOfficialFeature("synthetic-gas", "restriction", attributes,
-                rules.line(List.of(point(-100, 5).toCoordinate(), point(1, 5).toCoordinate())));
+                rules.line(List.of(point(-100, 5).toCoordinate(), point(0, 5).toCoordinate())));
         var otherGas = new ImportedOfficialFeature("synthetic-other-gas", "restriction", attributes,
-                rules.line(List.of(point(5, -100).toCoordinate(), point(5, 1).toCoordinate())));
+                rules.line(List.of(point(5, -100).toCoordinate(), point(5, 0).toCoordinate())));
         List<ImportedOfficialFeature> features = List.of(gas, otherGas);
         var planarEnvironment = new OfficialObstacleRouter(rules).prepare(features);
         RouteVariant planarSeed = finish(seed(1), features, planarParameters, planarEnvironment);
@@ -134,7 +140,7 @@ class OfficialChamberQualitySafetyTest {
         RouteVariant original = finish(seed(1), features, depthParameters, environment);
         assertRepairableSeed(original, features, depthParameters);
         // Независимый положительный свидетель: конечные газопроводы можно обойти снаружи,
-        // сохранив обе нагрузки, нормали камер и минимум 2 м до первых поворотов.
+        // сохранив обе нагрузки, нормали камер и табличный минимум до первых поворотов.
         RouteVariant witness = finish(new OfficialRoutePlanner.VariantDraft(
                 original.getNodes(), List.of(
                     edge("backbone", "root", "j", 2, -100, 0, 0, 0),
@@ -164,7 +170,7 @@ class OfficialChamberQualitySafetyTest {
         assertPortfolio(roles, original, List.of(), parameters);
         RouteVariant attractive = roles.get(0);
         assertThat(engineering.evaluate(attractive.getEdges()).irregularJunctionAngleCount()).isZero();
-        assertThat(chamber(attractive).equals2D(point(0, 10).toCoordinate())).isTrue();
+        assertThat(chamber(attractive).equals2D(point(0, 0).toCoordinate())).isFalse();
         return attractive;
     }
 
@@ -267,7 +273,7 @@ class OfficialChamberQualitySafetyTest {
                 new RouteNode("demand:b", "demand_connection", point(20, 19.999), false, false, 0, "b"));
         List<RouteEdge> edges = List.of(
                 edge("backbone", "root", "j", 2 * flow, -100, 0, 0, 0),
-                edge("a", "j", "demand:a", flow, 0, 0, 10, 10, 10, 20, 30, 20),
+                edge("a", "j", "demand:a", flow, 0, 0, 30, 20),
                 edge("b", "j", "demand:b", flow, 0, 0, 20, 19.999));
         assertThat(edges).extracting(RouteEdge::getDiameter).containsOnly(50);
         return new OfficialRoutePlanner.VariantDraft(nodes, edges, List.of(

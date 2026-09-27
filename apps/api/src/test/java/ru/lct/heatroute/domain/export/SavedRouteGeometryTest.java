@@ -105,9 +105,9 @@ class SavedRouteGeometryTest {
 
     @Test
     void equivalenceToleranceAllowsTwoMillimetresButNotThree() {
-        ObjectNode within = edge(points(0, 0, 10, 0), points(0, 0, 5, 0.002, 10, 0));
+        ObjectNode within = edge(points(0, 0, 10, 0), points(0, 0.002, 10, 0.002));
         accepted(within, coordinate(0, 0), coordinate(10, 0));
-        ObjectNode outside = edge(points(0, 0, 10, 0), points(0, 0, 5, 0.003, 10, 0));
+        ObjectNode outside = edge(points(0, 0, 10, 0), points(0, 0.003, 10, 0.003));
         rejected(outside, coordinate(0, 0), coordinate(10, 0));
     }
 
@@ -208,7 +208,7 @@ class SavedRouteGeometryTest {
     @Test
     void returnedEndpointDirectionsDescribeTheEmittedPath() {
         // Допустимое расхождение 1 мм меняет последний луч, но не эквивалентность пути.
-        ObjectNode edge = edge(points(0, 0, 10, 0), points(0, 0, 9.999, -0.001, 10, 0));
+        ObjectNode edge = edge(points(0, 0, 10, 0), points(0, 0, 10, -0.001, 10, 0));
         OfficialRouteDeflectionRules.PolylineCheck before = accepted(edge, coordinate(0, 0), coordinate(10, 0));
         OfficialRouteDeflectionRules.PolylineCheck after = OfficialRouteDeflectionRules.validatePolyline(
                 "after", List.of(coordinate(10, 0), coordinate(10, -10)));

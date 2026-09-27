@@ -122,10 +122,11 @@ class OfficialGeoJsonExporterEconomicsTest {
     }
 
     private ObjectNode calculation(boolean separateSections, boolean depthEnabled) {
-        // Первый диагональный отрезок длиннее новых 3 м для ДУ300; сохраняем сметную длину 3.414 м
+        // Первый отрезок образует разрешённый внутренний угол 120° и длиннее 3 м для ДУ300;
+        // сохраняем сметную длину 3.414 м
         // и breakpoint 1.214 м перед поворотом, на которых воспроизводится округление цены.
         List<RouteCoordinate> coordinates = List.of(new RouteCoordinate(500000, 6100000),
-                new RouteCoordinate(500002.2, 6100002.2), new RouteCoordinate(500002.503, 6100002.2));
+                new RouteCoordinate(500001.501, 6100002.725), new RouteCoordinate(500001.804, 6100002.725));
         double length = separateSections ? 3.415 : 3.414;
         List<RouteSection> sections = separateSections
                 ? List.of(new RouteSection("base", null, null, coordinates.subList(0, 2), 3.111, null),

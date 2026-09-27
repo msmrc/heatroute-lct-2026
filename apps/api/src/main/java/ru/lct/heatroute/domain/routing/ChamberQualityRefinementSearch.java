@@ -16,14 +16,14 @@ import java.util.stream.Collectors;
  */
 final class ChamberQualityRefinementSearch {
     static final int MAX_PASSES = 3;
-    static final int MAX_FINISHED_NEIGHBOURS = 2;
+    static final int MAX_FINISHED_NEIGHBOURS = 6;
     private static final BigDecimal REPAIR_LIMIT = new BigDecimal("1.05");
     private static final EngineeringRouteEvaluator ENGINEERING = new EngineeringRouteEvaluator();
     private static final ExpertChamberRouteValidator CHAMBERS = new ExpertChamberRouteValidator();
 
     private ChamberQualityRefinementSearch() { }
 
-    /** Expand возвращает не более двух полностью пересчитанных и геометрически проверенных сетей. */
+    /** Expand возвращает не более шести полностью пересчитанных и геометрически проверенных сетей. */
     static RouteVariant improve(RouteVariant seed, boolean depthEnabled,
             Function<RouteVariant, List<RouteVariant>> expand) {
         return search(seed, depthEnabled, expand).best;
@@ -65,8 +65,9 @@ final class ChamberQualityRefinementSearch {
                 int candidateRepairIssues = repairIssueCount(candidate);
                 if (!repairableSeed(candidate, depthEnabled)
                         || !sameInputsAndRoots(seed, candidate)
-                        || newChambers(candidate) > newChambers(seed)
-                        || !mandatoryRepair && (candidate.getTotalLengthM().compareTo(seed.getTotalLengthM().multiply(REPAIR_LIMIT)) > 0
+                        || newChambers(candidate) > newChambers(seed) + (mandatoryRepair ? MAX_PASSES : 0)
+                        || !mandatoryRepair && (candidate.getTotalLengthM().compareTo(
+                                seed.getTotalLengthM().multiply(REPAIR_LIMIT)) > 0
                             || candidate.getEconomics().getCalculatedCost().compareTo(
                                     seed.getEconomics().getCalculatedCost().multiply(REPAIR_LIMIT)) > 0)
                         || candidateRepairIssues > currentRepairIssues

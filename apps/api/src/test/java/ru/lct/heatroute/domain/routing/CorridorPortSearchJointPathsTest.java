@@ -72,7 +72,7 @@ class CorridorPortSearchJointPathsTest {
     }
 
     @Test
-    void retainsOldCompleteLongerPortTreeBeforeAnAdditionalSamePortRepair() {
+    void dropsAnOldCompleteTreeWhoseDegreeTwoJoinBecameIllegal() {
         List<Coordinate> points = List.of(new Coordinate(-10, 0), new Coordinate(), new Coordinate(10, -10),
                 new Coordinate(0, 10), new Coordinate(10, 10));
         List<int[]> links = List.of(new int[] {0, 1}, new int[] {1, 2}, new int[] {1, 3},
@@ -84,11 +84,9 @@ class CorridorPortSearchJointPathsTest {
                 List.of(10.0, Math.sqrt(200), 10.0, 20.0, 40.0), 3, controls,
                 (leaf, port) -> leaf == 4 && port == 1 ? List.of(overlap, east) : List.of(controls.get(leaf).get(port)),
                 (allowed, lengths) -> tree(points, allowed, lengths, controls));
-        assertThat(result).hasSize(2);
-        assertThat(result.get(0).paths()).containsEntry(3, north).containsEntry(4, detour);
-        assertThat(result.get(1).paths()).containsEntry(3, north).containsEntry(4, east);
-        assertThat(result.get(0).tree()).anyMatch(link -> contains(link, 2, 4));
-        assertThat(result.get(1).tree()).anyMatch(link -> contains(link, 1, 4));
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).paths()).containsEntry(3, north).containsEntry(4, east);
+        assertThat(result.get(0).tree()).anyMatch(link -> contains(link, 1, 4));
     }
 
     @Test

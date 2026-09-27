@@ -45,7 +45,7 @@ class PreparedRoutingConstraintsTest {
             assertEquivalent(reference.baseConstraints(features, diameter), prepared.prepare(features, diameter));
         }
 
-        // G2: два forbidden и road имеют ДУ-зависимый осевой buffer; heat_network пока общий.
+        // Здесь heat_network — restriction-фикстура без существующего ДУ, поэтому её не буферизуем.
         assertThat(rules.compilations).isEqualTo(3 * 18 + 1);
         assertThat(prepared.retainedEntryCount()).isEqualTo(3 * 18 + 1);
     }
@@ -175,7 +175,6 @@ class PreparedRoutingConstraintsTest {
         assertThatThrownBy(() -> prepared.prepare(List.of(building), 101))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage("new-network diameter must be an official DU");
         List<ImportedOfficialFeature> ignoredOrIndependent = List.of(
-                feature("cable", "power_cable", "LINESTRING (0 0, 10 0)"),
                 feature("empty", "oks", "POLYGON EMPTY"), feature("unknown", "unknown", "POINT (0 0)"),
                 new ImportedOfficialFeature("null", "oks_existing", null, null),
                 new ImportedOfficialFeature("consumer", "consumer", null, reader.read("POINT (0 0)")));
@@ -184,6 +183,10 @@ class PreparedRoutingConstraintsTest {
                     .isInstanceOf(IllegalArgumentException.class);
             assertEquivalent(reference.baseConstraints(ignoredOrIndependent, diameter),
                     prepared.prepare(ignoredOrIndependent, diameter));
+            assertThatThrownBy(() -> prepared.prepare(
+                    List.of(feature("cable", "power_cable", "LINESTRING (0 0, 10 0)")), diameter))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("new-network diameter must be an official DU");
         }
         assertThat(prepared.prepare(List.of(), 0)).isEmpty();
     }
@@ -302,15 +305,14 @@ class PreparedRoutingConstraintsTest {
     }
 
     @Test
-    void constraintsWithoutBlockedGeometryReserveOnlyTheirOwnedSource() throws Exception {
-        // Road/tram теперь имеют buffer; у power_cable по действующему контракту его ещё нет.
+    void utilityBufferParticipatesInThePreparationBudget() throws Exception {
         ImportedOfficialFeature cable = feature("cable", "power_cable", "LINESTRING (0 0, 20 0)");
         PreparedRoutingConstraints bounded = new PreparedRoutingConstraints(rules, 8, 2);
         Constraint constraint = bounded.prepare(List.of(cable), 100).get(0);
-        assertThat(constraint.blocked()).isNull();
-        assertThat(constraint.segmentIndexCoordinateReservation()).isZero();
-        assertThat(bounded.retainedCoordinateCount()).isEqualTo(2);
-        assertThat(bounded.prepare(List.of(cable), 100).get(0)).isSameAs(constraint);
+        assertThat(constraint.blocked()).isNotNull();
+        assertThat(constraint.segmentIndexCoordinateReservation()).isPositive();
+        assertThat(bounded.retainedCoordinateCount()).isZero();
+        assertThat(bounded.prepare(List.of(cable), 100).get(0)).isNotSameAs(constraint);
     }
 
     @Test

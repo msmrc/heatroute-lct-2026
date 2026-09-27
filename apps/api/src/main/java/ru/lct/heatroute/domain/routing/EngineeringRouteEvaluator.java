@@ -10,15 +10,15 @@ import java.util.Set;
 import org.locationtech.jts.geom.Coordinate;
 
 /**
- * Оценивает повороты по ТЗ: внутренний угол трубы 90–180°.
- * Расстояние между изгибами — показатель качества, без обязательного численного минимума (разъяснение №5).
+ * Оценивает повороты по актуальным правилам: внутренний угол трубы 90–120°.
+ * Точный минимум между изгибами по фактическому ДУ повторно проверяет итоговый валидатор.
  * Предпочтения лучей камер считаются отдельно и не меняют {@link Evaluation#isCompliant()}.
  * Официальные отступы/пересечения принадлежат каталогу; это не проверка всех требований эксперта или СП.
  */
 final class EngineeringRouteEvaluator {
     static final double MIN_INTERNAL_ANGLE_DEGREES = 90.0;
-    static final double MAX_INTERNAL_ANGLE_DEGREES = 180.0;
-    // Исторический порог предпочтения генератора; не условие допустимости маршрута.
+    static final double MAX_INTERNAL_ANGLE_DEGREES = 120.0;
+    // Нижняя граница таблицы; полный порог по ДУ принадлежит итоговому валидатору.
     static final double MIN_BEND_SPACING_M = 2.0;
     static final double ANGLE_EPSILON_DEGREES = 0.5;
     private static final double LENGTH_EPSILON_M = 0.01;
@@ -348,7 +348,7 @@ final class EngineeringRouteEvaluator {
 
         int bendCount() { return bendCount; }
         int invalidAngleCount() { return invalidAngleCount; }
-        /** Историческая метрика предпочтения, не число нарушений ТЗ. */
+        /** Быстрая поисковая метрика по нижней границе; итоговая проверка использует фактический ДУ. */
         int insufficientSpacingCount() { return insufficientSpacingCount; }
         double totalAngleDeviation() { return totalAngleDeviation; }
         double preferredAngleDeviation() { return preferredAngleDeviation; }
@@ -368,7 +368,10 @@ final class EngineeringRouteEvaluator {
                     || totalJunctionAngleDeviation > before.totalJunctionAngleDeviation + 1e-7) return false;
             for (Map.Entry<String, Double> entry : before.minimumJunctionAngles.entrySet()) {
                 Double current = minimumJunctionAngles.get(entry.getKey());
-                if (current == null || !Double.isFinite(current)
+                // Разделение перегруженной камеры может снизить её степень ниже трёх. У такого
+                // узла больше нет парного предпочтения лучей, что и является целью ремонта.
+                if (current == null) continue;
+                if (!Double.isFinite(current)
                         || current + ANGLE_EPSILON_DEGREES < entry.getValue()) return false;
                 JunctionPreference previousPreference = before.junctionPreferences.get(entry.getKey());
                 JunctionPreference currentPreference = junctionPreferences.get(entry.getKey());

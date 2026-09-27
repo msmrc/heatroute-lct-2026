@@ -1,5 +1,18 @@
 # Handoff — Артём / PM / developer
 
+## 2026-09-27 — source100: новые правила и полный официальный dataset PASS
+
+[Контракт и evidence source100](PRIMARY_ROUTING_100.md): повороты 90–120°, интервалы
+2–6 м по итоговому ДУ, входы камер по нормали, дороги 90°, углы линейных коммуникаций
+и горизонтальные осевые отступы реализованы во всём production pipeline. Fast backend:
+2 287 PASS / 0 failures/errors / 3 scale skip; web 36+37, lint, typecheck и build PASS.
+Corridor witness прошёл 17/17 без validation/engineering/sizing issues; карта отправлена.
+Финальный `OfficialDatasetRoutingTest`: 2/2 PASS за 1 900,198 с. Preferred `cheapest`:
+17/17, 2 829,014 м, 29 рёбер, 12 новых узловых камер + существующая корневая,
+386 891 133,42 ₽; все три списка issues пусты. Сравнительная карта отправлена. Далее:
+перепроверить origin/master, commit/push и выполнить backup + Compose smoke + реальный
+import/run/export на VPS. R9 performance/scale открыты.
+
 ## 2026-09-27 — source99: depth/export объединены, общий fast PASS
 
 [Совместные исправления99](PRIMARY_ROUTING_99.md): source-derived special coverage,

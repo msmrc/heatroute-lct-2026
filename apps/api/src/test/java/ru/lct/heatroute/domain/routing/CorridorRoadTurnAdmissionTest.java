@@ -59,7 +59,7 @@ class CorridorRoadTurnAdmissionTest {
                             builder.buildMetricClosureWeighted(points, links, weights, 0, 1, Map.of(3, 1), 0));
                     for (List<int[]> tree : trees) {
                         LineString path = path(points, tree);
-                        RoadCrossingClearance.Assessment assessment = crossing.assess(path, road, 1.8, 45, 3);
+                        RoadCrossingClearance.Assessment assessment = crossing.assess(path, road, 1.8, 90, 3);
                         if (!assessment.isAllowed()) {
                             throw new AssertionError("Rejected selected tree angle=" + angle + " offset=" + offset
                                     + " jitter=" + jitter + " code=" + assessment.getFailureCode() + " " + path);

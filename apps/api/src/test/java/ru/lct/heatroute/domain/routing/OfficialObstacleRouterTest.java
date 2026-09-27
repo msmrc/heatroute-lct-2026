@@ -302,12 +302,12 @@ class OfficialObstacleRouterTest {
     }
 
     @Test
-    void acceptsFortyFiveDegreeRoadCrossingAndRejectsBelowBoundary() throws Exception {
+    void acceptsPerpendicularRoadCrossingAndRejectsObliqueCrossing() throws Exception {
         ImportedOfficialFeature road = restriction(
                 "road", "road-1", "POLYGON ((40 -100, 60 -100, 60 100, 40 100, 40 -100))");
-        Coordinate start = new Coordinate(0, -50);
-        Coordinate exact = new Coordinate(100, 50);
-        Coordinate below = new Coordinate(100, 69.175);
+        Coordinate start = new Coordinate(0, 0);
+        Coordinate exact = new Coordinate(100, 0);
+        Coordinate below = new Coordinate(100, 10);
 
         List<OfficialRouteGeometryRules.Constraint> exactConstraints = rules.constraints(
                 List.of(road), 100, Set.of(), start, exact);
@@ -337,8 +337,8 @@ class OfficialObstacleRouterTest {
                 .filter(section -> "road".equals(section.getRestrictionType()))
                 .findFirst()
                 .orElseThrow();
-        // A simple shallow crossing now takes the bounded perpendicular fast path instead of
-        // constructing repeated visibility graphs. The official minimum of 45 degrees is retained.
+        // A shallow crossing takes the bounded perpendicular fast path instead of constructing
+        // repeated visibility graphs; the written Google rule now requires the normal.
         assertThat(roadSection.getCrossingAngleDegrees()).isEqualByComparingTo("90.000");
     }
 

@@ -109,7 +109,7 @@ class SavedChamberGeometryTest {
     @Test
     void storedAcceptedObliqueJunctionCannotBeExported() {
         RouteNode c = root(), junction = new RouteNode("junction", "new_junction_chamber", point(20, 0), true, false, 0, null);
-        RouteNode d = demand(30, 10);
+        RouteNode d = demand(25, 8.660254037844386);
         rejectsAllExportEntryPoints(saved(List.of(c, junction, d), List.of(
                 edge(c, junction, List.of(c.getCoordinate(), junction.getCoordinate())),
                 edge(junction, d, List.of(junction.getCoordinate(), d.getCoordinate())))), "EXPERT_CHAMBER_OBLIQUE_ENTRY");
@@ -117,15 +117,19 @@ class SavedChamberGeometryTest {
 
     @ParameterizedTest
     @CsvSource({"0.5", "1.999", "2", "2.001"})
-    void savedRunsDoNotApplyAnUnofficialNumericMinimumBetweenBends(double spacing) {
+    void savedRunsApplyTheUpdatedMinimumBetweenBends(double spacing) {
         RouteNode c = root(), d = demand(20, spacing);
         ObjectNode saved = saved(List.of(c, d), List.of(edge(c, d,
                 List.of(c.getCoordinate(), point(10, 0), point(10, spacing), d.getCoordinate()))));
-        assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
+        if (spacing + 1e-7 < 2) {
+            rejectsAllExportEntryPoints(saved, "EXPERT_ROUTE_BEND_TOO_CLOSE");
+        } else {
+            assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
+        }
     }
 
     @ParameterizedTest
-    @CsvSource({"89.999,false", "90,true", "135,true", "135.001,true", "150,true", "180,true"})
+    @CsvSource({"89.999,false", "90,true", "120,true", "120.001,false", "150,false", "180,true"})
     void savedRunsCannotExportAnIllegalInternalBendAngle(double angle, boolean valid) {
         double deflection = Math.toRadians(180 - angle);
         RouteNode c = root(), d = demand(1000 + 1000 * Math.cos(deflection), 1000 * Math.sin(deflection));
@@ -136,18 +140,18 @@ class SavedChamberGeometryTest {
     }
 
     @Test
-    void emittedSectionsDoNotApplyAnUnofficialNumericMinimumBetweenBends() {
+    void emittedSectionsCannotShortenTheUpdatedMinimumBetweenBends() {
         RouteNode c = root(), d = demand(20, 2);
         ObjectNode saved = saved(List.of(c, d), List.of(edge(c, d,
                 List.of(c.getCoordinate(), point(10, 0), point(10, 2), d.getCoordinate()))));
         ((ObjectNode) saved.path("edges").path(0)).set("sections", mapper.valueToTree(List.of(
                 new RouteSection("base", null, null, List.of(c.getCoordinate(), point(10, 0),
                         point(10, 1.999), point(20, 1.999)), 22, null))));
-        assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
+        rejectsAllExportEntryPoints(saved, "EXPERT_ROUTE_BEND_TOO_CLOSE");
     }
 
     @Test
-    void technicalEdgeBoundariesDoNotIntroduceANumericMinimumBetweenStoredBends() {
+    void technicalEdgeBoundariesCannotHideTheUpdatedMinimumBetweenStoredBends() {
         RouteNode c = root(), d = demand(20, 1.999);
         RouteNode t1 = new RouteNode("t1", "technical_node", point(10, 0), false, false, 0, null);
         RouteNode t2 = new RouteNode("t2", "technical_node", point(10, 1.999), false, false, 0, null);
@@ -155,7 +159,7 @@ class SavedChamberGeometryTest {
                 edge(c, t1, List.of(c.getCoordinate(), t1.getCoordinate())),
                 edge(t1, t2, List.of(t1.getCoordinate(), t2.getCoordinate())),
                 edge(t2, d, List.of(t2.getCoordinate(), d.getCoordinate()))));
-        assertThat(SavedChamberAssessment.verify(saved, support(), economics)).isEmpty();
+        rejectsAllExportEntryPoints(saved, "EXPERT_ROUTE_BEND_TOO_CLOSE");
     }
 
     private void rejectsAllExportEntryPoints(ObjectNode saved, String code) {

@@ -105,8 +105,8 @@ class OfficialRoutePlannerTest {
     @Test
     void oppositeDemandsCanUseTwoRaysOfOneExistingChamber() throws Exception {
         List<ImportedOfficialFeature> features = List.of(
-                feature("heat_network", "north", "LINESTRING (0 0, 0 100)", "{}"),
-                feature("heat_network", "south", "LINESTRING (0 -100, 0 0)", "{}"),
+                feature("heat_network", "north", "LINESTRING (0 0, 0 100)", "{\"diameter\":100}"),
+                feature("heat_network", "south", "LINESTRING (0 -100, 0 0)", "{\"diameter\":100}"),
                 feature("heat_chamber", "chamber", "POINT (0 0)", "{}"),
                 feature("oks_connection_point", "left", "POINT (-100 0)", "{\"flow_tph\":5}"),
                 feature("oks_connection_point", "right", "POINT (100 0)", "{\"flow_tph\":5}"));
@@ -125,8 +125,8 @@ class OfficialRoutePlannerTest {
     @Test
     void groupBackboneConnectsSixOppositeConsumersWithThreeBranchChambers() throws Exception {
         List<ImportedOfficialFeature> features = new java.util.ArrayList<>(List.of(
-                feature("heat_network", "north", "LINESTRING (0 0,0 100)", "{}"),
-                feature("heat_network", "south", "LINESTRING (0 -100,0 0)", "{}"),
+                feature("heat_network", "north", "LINESTRING (0 0,0 100)", "{\"diameter\":100}"),
+                feature("heat_network", "south", "LINESTRING (0 -100,0 0)", "{\"diameter\":100}"),
                 feature("heat_chamber", "chamber", "POINT (0 0)", "{}")));
         List<TieInCandidate> candidates = new java.util.ArrayList<>();
         for (int x : List.of(100, 200, 300)) {

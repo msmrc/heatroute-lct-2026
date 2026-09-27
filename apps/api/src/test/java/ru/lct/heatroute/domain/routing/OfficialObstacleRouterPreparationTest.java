@@ -261,6 +261,7 @@ class OfficialObstacleRouterPreparationTest {
         Envelope corridor = new Envelope(start, end);
         corridor.expandBy(expansion);
         LineString direct = rules.line(List.of(start, end));
+        boolean directBlocked = false;
         for (Constraint constraint : constraints.query(corridor)) {
             if (!constraint.rule().isForbidden()) {
                 call("addSpecialCrossingPortals", result, constraint, direct, corridor);
@@ -268,13 +269,34 @@ class OfficialObstacleRouterPreparationTest {
             }
             if (!constraint.blocked().getEnvelopeInternal().intersects(corridor)
                     || !constraint.blocked().isWithinDistance(direct, expansion)) continue;
+            boolean blocksDirect = constraint.rule().isForbidden() && constraint.blocked().intersects(direct);
+            directBlocked |= blocksDirect;
             Geometry boundary = constraint.blocked().buffer(0.25, 2);
             Geometry hull = boundary.convexHull();
             Coordinate[] coordinates = support(hull);
             int unique = coordinates.length > 1 && coordinates[0].equals2D(coordinates[coordinates.length - 1])
                     ? coordinates.length - 1 : coordinates.length;
             for (int i = 0; i < unique; i++) result.add(new Coordinate(coordinates[i]));
+            if (blocksDirect && Boolean.TRUE.equals(call(
+                    "endpointInsideNavigationPocket", start, end, boundary, hull))) {
+                call("addOrientedEnvelopeNavigationNodes", result, start, end, hull);
+            }
             if (pockets) call("addPocketNavigationNodes", result, start, end, constraint, boundary, hull, coordinates);
+        }
+        if (directBlocked) {
+            double dx = end.x - start.x, dy = end.y - start.y;
+            double chord = Math.hypot(dx, dy);
+            double offset = chord / (2.0 * Math.tan(Math.toRadians(60.0)));
+            double middleX = (start.x + end.x) / 2.0, middleY = (start.y + end.y) / 2.0;
+            result.add(new Coordinate(middleX - dy / chord * offset, middleY + dx / chord * offset));
+            result.add(new Coordinate(middleX + dy / chord * offset, middleY - dx / chord * offset));
+            double ux = dx / chord, uy = dy / chord, nx = -uy, ny = ux;
+            for (double side : new double[] {-1.0, 1.0}) {
+                result.add(new Coordinate(start.x + side * nx * expansion, start.y + side * ny * expansion));
+                result.add(new Coordinate(end.x + ux * expansion + side * nx * expansion,
+                        end.y + uy * expansion + side * ny * expansion));
+                result.add(new Coordinate(end.x + ux * expansion, end.y + uy * expansion));
+            }
         }
         return call("deduplicate", result);
     }
@@ -293,9 +315,18 @@ class OfficialObstacleRouterPreparationTest {
             RoutePath direct = call("headingCheckedPath", List.of(start, end), constraints, index, previous);
             if (direct != null) return direct;
         }
-        RoutePath crossing = call("directSpecialCrossing", start, end, index, constraints, (Coordinate) null);
-        if (crossing != null) {
-            RoutePath checked = call("headingCheckedPath", crossing.coordinates(), constraints, index, previous);
+        RoutePath crossing = call("directSpecialCrossing", start, end, index, constraints, previous);
+        if (crossing != null) return crossing;
+        double minimumSegmentM = ExpertChamberGeometryRules.minimumBendDistanceM(100);
+        List<List<Coordinate>> preliminary = new ArrayList<>();
+        if (previous == null) {
+            preliminary.addAll(call("rectangularChordDetours", start, end, minimumSegmentM));
+        } else {
+            preliminary.addAll(call("singleHeadingDetours", previous, start, end, minimumSegmentM));
+            preliminary.addAll(call("twoBendSingleHeadingDetours", previous, start, end, minimumSegmentM));
+        }
+        for (List<Coordinate> candidate : preliminary) {
+            RoutePath checked = call("headingCheckedPath", candidate, constraints, index, previous);
             if (checked != null) return checked;
         }
         List<List<Coordinate>> ordinary = new ArrayList<>();

@@ -67,13 +67,15 @@ public class OfficialObstacleRouter {
 
     PreparedCorridor prepareCorridor(int diameter, OfficialRoutingEnvironment environment,
             Envelope bounds, Coordinate root, String targetId) {
-        return new PreparedCorridor(rules, environment.corridorConstraints(diameter, bounds), root, targetId);
+        return new PreparedCorridor(rules, environment.corridorConstraints(diameter, bounds), root,
+                rootTargetIds(environment, root, targetId), RouteTraversal.AS_GIVEN);
     }
 
     PreparedCorridor prepareCorridor(int diameter, OfficialRoutingEnvironment environment,
             Envelope bounds, Coordinate root, String targetId, RouteTraversal traversal) {
         if (traversal == RouteTraversal.AS_GIVEN) return prepareCorridor(diameter, environment, bounds, root, targetId);
-        return new PreparedCorridor(rules, environment.corridorConstraints(diameter, bounds), root, targetId, traversal);
+        return new PreparedCorridor(rules, environment.corridorConstraints(diameter, bounds), root,
+                rootTargetIds(environment, root, targetId), traversal);
     }
 
     PreparedCorridor prepareCorridor(int diameter, OfficialRoutingEnvironment environment,
@@ -98,6 +100,14 @@ public class OfficialObstacleRouter {
     }
 
     double buildingClearanceM(int diameter) { return rules.preparationClearanceM("oks", diameter).doubleValue(); }
+
+    private Set<String> rootTargetIds(
+            OfficialRoutingEnvironment environment, Coordinate root, String targetId) {
+        if (targetId == null) return Set.of();
+        Set<String> result = new HashSet<>(environment.existingNetworkIds(root));
+        result.add(targetId);
+        return result;
+    }
 
     RouteAvoidance avoidanceFor(RouteEdge edge, List<RouteEdge> accepted, Map<String, RouteNode> nodes) {
         return rules.routeAvoidance(edge, accepted, nodes);
@@ -528,6 +538,53 @@ public class OfficialObstacleRouter {
         constraints.addAll(depth);
         ConstraintIndex index = rules.index(constraints);
         if (rules.pointInsideForbiddenClearance(start, index) || rules.pointInsideForbiddenClearance(end, index)) return null;
+        double minimumSegmentM = ExpertChamberGeometryRules.minimumBendDistanceM(diameter);
+        // Одних углов препятствий недостаточно, чтобы соединить два фиксированных луча камер
+        // разрешёнными поворотами. Сначала пробуем ограниченные аналитические переходы; каждый
+        // кандидат ниже всё равно проверяется по полному каталогу отступов и глубины.
+        List<List<Coordinate>> guided = new ArrayList<>();
+        if (previous != null && following != null) {
+            guided.addAll(parallelHeadingDetours(previous, start, end, following, minimumSegmentM));
+            guided.addAll(threeBendFixedHeadingDetours(
+                    previous, start, end, following, minimumSegmentM));
+        }
+        if (previous != null && following == null) {
+            guided.addAll(singleHeadingDetours(previous, start, end, minimumSegmentM));
+            guided.addAll(twoBendSingleHeadingDetours(previous, start, end, minimumSegmentM));
+        } else if (previous == null && following != null) {
+            for (List<Coordinate> reversed : singleHeadingDetours(following, end, start, minimumSegmentM)) {
+                List<Coordinate> forward = new ArrayList<>(reversed);
+                Collections.reverse(forward);
+                guided.add(forward);
+            }
+            for (List<Coordinate> reversed : twoBendSingleHeadingDetours(
+                    following, end, start, minimumSegmentM)) {
+                List<Coordinate> forward = new ArrayList<>(reversed);
+                Collections.reverse(forward);
+                guided.add(forward);
+            }
+        }
+        if (previous != null) {
+            double finalOrientation = following == null
+                    ? Math.atan2(end.y - start.y, end.x - start.x)
+                    : Math.atan2(following.y - end.y, following.x - end.x);
+            guided.addAll(NormalCorridorTransitions.build(
+                    previous, start, end, finalOrientation, minimumSegmentM));
+        } else if (following != null) {
+            double reverseOrientation = Math.atan2(start.y - end.y, start.x - end.x);
+            for (List<Coordinate> reversed : NormalCorridorTransitions.build(
+                    following, end, start, reverseOrientation, minimumSegmentM)) {
+                List<Coordinate> forward = new ArrayList<>(reversed);
+                Collections.reverse(forward);
+                guided.add(forward);
+            }
+        }
+        for (List<Coordinate> middle : guided) {
+            RoutePath checked = checkedDepthHeadingCandidate(middle, previous, following, diameter,
+                    environment, exemptions, routeAvoidance, depthIndex, egress, avoidance,
+                    completedAllowed);
+            if (checked != null) return checked;
+        }
         NavigationObstaclePreparation preparation = new NavigationObstaclePreparation(NAVIGATION_MARGIN_M, this::navigationCoordinates);
         for (double expansion : CORRIDOR_EXPANSIONS) {
             List<Coordinate> nodes = navigationNodes(start, end, index, expansion, true, preparation);
@@ -536,33 +593,161 @@ public class OfficialObstacleRouter {
             if (following != null) nodes = headingNavigationNodes(nodes, following, end, start);
             SegmentVisibilityMemo visibility = new SegmentVisibilityMemo(index.hasRoadCrossings());
             SearchResult search = shortestPath(nodes, index, RoutePreference.SHORTEST, start, end, previous,
-                    visibility, index, null, null, visibility, null, following, 0);
+                    visibility, index, null, null, visibility, null, following, minimumSegmentM);
             environment.recordVisibilitySearch(nodes.size(), expansion, search.evaluatedPairCount, search.rejectedTurns);
             if (search.coordinates.isEmpty()) continue;
             for (List<Coordinate> middle : List.of(normalize(search.coordinates, index, previous), search.coordinates)) {
-                List<Coordinate> complete = new ArrayList<>();
-                if (previous != null) complete.add(previous);
-                complete.addAll(middle);
-                if (following != null) complete.add(following);
-                Envelope bounds = new Envelope();
-                complete.forEach(bounds::expandToInclude);
-                List<Constraint> actual = environment.corridorConstraints(diameter, bounds);
-                RoutePath candidate = path(complete, actual);
-                LineString line = rules.line(candidate.coordinates());
-                if (!line.isSimple() || !turnsAllowed(candidate.coordinates(), null)
-                        || !rules.lineAllowed(line, depthIndex) || !completedAllowed.test(candidate)) continue;
-                List<Constraint> completeConstraints = new ArrayList<>(rules.applicableConstraints(actual, exemptions,
-                        candidate.coordinates().get(0), candidate.coordinates().get(candidate.coordinates().size() - 1)));
-                completeConstraints.addAll(routeAvoidance);
-                boolean valid = egress == null ? rules.lineAllowed(line, rules.index(completeConstraints))
-                        : terminalRouteAllowed(candidate.coordinates(), diameter, environment, exemptions, avoidance, egress);
-                if (valid) return candidate;
+                RoutePath checked = checkedDepthHeadingCandidate(middle, previous, following, diameter,
+                        environment, exemptions, routeAvoidance, depthIndex, egress, avoidance,
+                        completedAllowed);
+                if (checked != null) return checked;
             }
         }
         return null;
     }
 
-    /** Четыре угла опорного прямоугольника позволяют обойти конец трубы без частых поворотов ближе 2м. */
+    /** Продлевает фиксированный луч до точки, в которой остаток образует поворот 60–90°. */
+    private List<List<Coordinate>> singleHeadingDetours(Coordinate previous, Coordinate start,
+            Coordinate end, double minimumM) {
+        double dx = start.x - previous.x, dy = start.y - previous.y;
+        double length = Math.hypot(dx, dy);
+        dx /= length; dy /= length;
+        double ex = end.x - start.x, ey = end.y - start.y;
+        double parallel = ex * dx + ey * dy;
+        double perpendicular = Math.abs(ex * -dy + ey * dx);
+        List<List<Coordinate>> result = new ArrayList<>();
+        for (double degrees : new double[] {90, 75, 60}) {
+            double extension = degrees == 90 ? parallel
+                    : parallel - perpendicular / Math.tan(Math.toRadians(degrees));
+            if (extension + 1e-7 < minimumM) continue;
+            Coordinate elbow = new Coordinate(start.x + dx * extension, start.y + dy * extension);
+            List<Coordinate> candidate = List.of(new Coordinate(start), elbow, new Coordinate(end));
+            List<Coordinate> complete = new ArrayList<>();
+            complete.add(previous); complete.addAll(candidate);
+            if (rules.line(complete).isSimple() && turnsAllowed(complete, null)) result.add(candidate);
+        }
+        return result;
+    }
+
+    /** Поворачивает после защищённого прямого выхода камеры и добавляет ещё один законный изгиб. */
+    private List<List<Coordinate>> twoBendSingleHeadingDetours(Coordinate previous, Coordinate start,
+            Coordinate end, double minimumM) {
+        double dx = start.x - previous.x, dy = start.y - previous.y;
+        double length = Math.hypot(dx, dy);
+        dx /= length; dy /= length;
+        double ex = end.x - start.x, ey = end.y - start.y;
+        List<List<Coordinate>> result = new ArrayList<>();
+        for (int side : new int[] {-1, 1}) {
+            for (double firstDegrees : new double[] {60, 75, 90}) {
+                double radians = Math.toRadians(firstDegrees * side);
+                double firstX = dx * Math.cos(radians) - dy * Math.sin(radians);
+                double firstY = dx * Math.sin(radians) + dy * Math.cos(radians);
+                double parallel = ex * firstX + ey * firstY;
+                double perpendicular = Math.abs(ex * -firstY + ey * firstX);
+                for (double secondDegrees : new double[] {90, 75, 60}) {
+                    double firstLength = secondDegrees == 90 ? parallel
+                            : parallel - perpendicular / Math.tan(Math.toRadians(secondDegrees));
+                    if (firstLength + 1e-7 < minimumM) continue;
+                    Coordinate elbow = new Coordinate(start.x + firstX * firstLength,
+                            start.y + firstY * firstLength);
+                    List<Coordinate> candidate = List.of(new Coordinate(start), elbow, new Coordinate(end));
+                    List<Coordinate> complete = new ArrayList<>();
+                    complete.add(previous); complete.addAll(candidate);
+                    if (rules.line(complete).isSimple() && turnsAllowed(complete, null)) result.add(candidate);
+                }
+            }
+        }
+        return result;
+    }
+
+    /** Прямоугольные смещения сохраняют совпадающие или противоположные фиксированные лучи камер. */
+    private List<List<Coordinate>> parallelHeadingDetours(Coordinate previous, Coordinate start,
+            Coordinate end, Coordinate following, double minimumM) {
+        double ax = start.x - previous.x, ay = start.y - previous.y;
+        double bx = following.x - end.x, by = following.y - end.y;
+        double al = Math.hypot(ax, ay), bl = Math.hypot(bx, by);
+        ax /= al; ay /= al; bx /= bl; by /= bl;
+        List<List<Coordinate>> result = new ArrayList<>();
+        for (int side : new int[] {-1, 1}) {
+            double firstX = -ay * side, firstY = ax * side;
+            for (int finalSide : new int[] {-1, 1}) {
+                double incomingX = -by * finalSide, incomingY = bx * finalSide;
+                for (double distance : new double[] {minimumM, 5, 10, 20, 40, 75}) {
+                    Coordinate first = new Coordinate(start.x + firstX * distance,
+                            start.y + firstY * distance);
+                    Coordinate second = new Coordinate(end.x - incomingX * distance,
+                            end.y - incomingY * distance);
+                    List<Coordinate> candidate = List.of(new Coordinate(start), first, second,
+                            new Coordinate(end));
+                    List<Coordinate> complete = new ArrayList<>();
+                    complete.add(previous); complete.addAll(candidate); complete.add(following);
+                    if (rules.line(complete).isSimple() && turnsAllowed(complete, null)) result.add(candidate);
+                }
+            }
+        }
+        return result;
+    }
+
+    /** Три прямоугольных звена обходят препятствие, сохраняя фиксированные лучи обоих концов. */
+    private List<List<Coordinate>> threeBendFixedHeadingDetours(Coordinate previous, Coordinate start,
+            Coordinate end, Coordinate following, double minimumM) {
+        double ux = start.x - previous.x, uy = start.y - previous.y;
+        double vx = following.x - end.x, vy = following.y - end.y;
+        double ul = Math.hypot(ux, uy), vl = Math.hypot(vx, vy);
+        ux /= ul; uy /= ul; vx /= vl; vy /= vl;
+        double determinant = cross(ux, uy, vx, vy);
+        if (Math.abs(determinant) <= 1e-8) return List.of();
+        List<List<Coordinate>> result = new ArrayList<>();
+        for (int side : new int[] {-1, 1}) {
+            double px = -uy * side, py = ux * side;
+            for (double offset : new double[] {minimumM, 5, 10, 20, 40, 75}) {
+                if (offset + 1e-7 < minimumM) continue;
+                Coordinate first = new Coordinate(start.x + px * offset, start.y + py * offset);
+                double rx = end.x - first.x, ry = end.y - first.y;
+                double middleLength = cross(rx, ry, vx, vy) / determinant;
+                double finalLength = cross(ux, uy, rx, ry) / determinant;
+                if (middleLength + 1e-7 < minimumM || finalLength + 1e-7 < minimumM) continue;
+                Coordinate second = new Coordinate(
+                        first.x + ux * middleLength, first.y + uy * middleLength);
+                List<Coordinate> candidate = List.of(
+                        new Coordinate(start), first, second, new Coordinate(end));
+                List<Coordinate> complete = new ArrayList<>();
+                complete.add(previous); complete.addAll(candidate); complete.add(following);
+                if (rules.line(complete).isSimple() && turnsAllowed(complete, null)) result.add(candidate);
+            }
+        }
+        return result;
+    }
+
+    private static double cross(double ax, double ay, double bx, double by) {
+        return ax * by - ay * bx;
+    }
+
+    private RoutePath checkedDepthHeadingCandidate(List<Coordinate> middle, Coordinate previous,
+            Coordinate following, int diameter, OfficialRoutingEnvironment environment,
+            Set<String> exemptions, List<Constraint> routeAvoidance, ConstraintIndex depthIndex,
+            OfficialRouteGeometryRules.NormalEgress egress, RouteAvoidance avoidance,
+            java.util.function.Predicate<RoutePath> completedAllowed) {
+        List<Coordinate> complete = new ArrayList<>();
+        if (previous != null) complete.add(previous);
+        complete.addAll(middle);
+        if (following != null) complete.add(following);
+        Envelope bounds = new Envelope();
+        complete.forEach(bounds::expandToInclude);
+        List<Constraint> actual = environment.corridorConstraints(diameter, bounds);
+        RoutePath candidate = path(complete, actual);
+        LineString line = rules.line(candidate.coordinates());
+        if (!line.isSimple() || !turnsAllowed(candidate.coordinates(), null)
+                || !rules.lineAllowed(line, depthIndex) || !completedAllowed.test(candidate)) return null;
+        List<Constraint> completeConstraints = new ArrayList<>(rules.routingConstraints(actual, exemptions,
+                candidate.coordinates().get(0), candidate.coordinates().get(candidate.coordinates().size() - 1)));
+        completeConstraints.addAll(routeAvoidance);
+        boolean valid = egress == null ? rules.lineAllowed(line, rules.index(completeConstraints))
+                : terminalRouteAllowed(candidate.coordinates(), diameter, environment, exemptions, avoidance, egress);
+        return valid ? candidate : null;
+    }
+
+    /** Углы опорного прямоугольника позволяют обойти конец трубы с табличными интервалами поворотов. */
     private List<Coordinate> depthDetourNavigationNodes(List<Coordinate> nodes, List<Constraint> depth,
             Coordinate start, Coordinate end, double expansion) {
         List<Coordinate> result = new ArrayList<>(nodes);
@@ -756,6 +941,21 @@ public class OfficialObstacleRouter {
         }
         RoutePath specialCrossing = directSpecialCrossing(start, end, constraintIndex, constraints, previous);
         if (specialCrossing != null) return specialCrossing;
+        double minimumSegmentM = ExpertChamberGeometryRules.minimumBendDistanceM(diameter);
+        if (previous != null) {
+            List<List<Coordinate>> guided = new ArrayList<>();
+            guided.addAll(singleHeadingDetours(previous, start, end, minimumSegmentM));
+            guided.addAll(twoBendSingleHeadingDetours(previous, start, end, minimumSegmentM));
+            for (List<Coordinate> candidate : guided) {
+                RoutePath checked = headingCheckedPath(candidate, constraints, constraintIndex, previous);
+                if (checked != null) return checked;
+            }
+        } else {
+            for (List<Coordinate> candidate : rectangularChordDetours(start, end, minimumSegmentM)) {
+                RoutePath checked = headingCheckedPath(candidate, constraints, constraintIndex, null);
+                if (checked != null) return checked;
+            }
+        }
         // Карманы восстанавливают отсутствующий путь, но не заменяют уже допустимый hull-маршрут:
         // обычный коридор 200/600 м имеет приоритет над карманом в коридоре 75 м.
         List<List<Coordinate>> ordinaryGraphs = new ArrayList<>(CORRIDOR_EXPANSIONS.length);
@@ -782,7 +982,8 @@ public class OfficialObstacleRouter {
                 }
                 SearchResult search = shortestPath(nodes, constraintIndex, preference, start, end, previous,
                         sharedVisibility, forbiddenBaseConstraintIndex, crossingBaseConstraintIndex,
-                        dynamicConstraintIndex, baseVisibility, crossingVisibility);
+                        dynamicConstraintIndex, baseVisibility, crossingVisibility, null,
+                        minimumSegmentM);
                 environment.recordVisibilitySearch(nodes.size(), expansion, search.evaluatedPairCount, search.rejectedTurns);
                 if (!search.coordinates.isEmpty()) {
                     List<Coordinate> normalized = normalize(search.coordinates, constraintIndex, previous);
@@ -797,6 +998,27 @@ public class OfficialObstacleRouter {
             }
         }
         return null;
+    }
+
+    /** Ограниченные прямоугольные смещения обходят почти параллельное препятствие без частых изгибов. */
+    private List<List<Coordinate>> rectangularChordDetours(
+            Coordinate start, Coordinate end, double minimumM) {
+        double dx = end.x - start.x, dy = end.y - start.y;
+        double length = Math.hypot(dx, dy);
+        if (length <= OfficialRouteGeometryRules.EPSILON_M) return List.of();
+        double nx = -dy / length, ny = dx / length;
+        List<List<Coordinate>> result = new ArrayList<>();
+        for (double side : new double[] {-1, 1}) {
+            for (double distance : new double[] {minimumM, 5, 10, 20, 40, 75, 200}) {
+                if (distance + 1e-7 < minimumM) continue;
+                Coordinate first = new Coordinate(start.x + side * nx * distance,
+                        start.y + side * ny * distance);
+                Coordinate second = new Coordinate(end.x + side * nx * distance,
+                        end.y + side * ny * distance);
+                result.add(List.of(new Coordinate(start), first, second, new Coordinate(end)));
+            }
+        }
+        return result;
     }
 
     /**
@@ -1010,16 +1232,80 @@ public class OfficialObstacleRouter {
         List<Coordinate> normalized = normalize(coordinates, constraintIndex, previous);
         List<Coordinate> constructible = snapConstructibleCorners(
                 normalized, constraintIndex, RoutePreference.ENGINEERING, previous);
-        return headingCheckedPath(constructible, constraints, constraintIndex, previous);
+        double minimumM = ExpertChamberGeometryRules.minimumBendDistanceM(diameter);
+        for (List<Coordinate> candidate : List.of(
+                expandEndpointParallelTurns(constructible, minimumM, false),
+                expandEndpointParallelTurns(constructible, minimumM, true),
+                constructible)) {
+            RoutePath checked = headingCheckedPath(candidate, constraints, constraintIndex, previous);
+            if (checked != null) return checked;
+        }
+        return null;
+    }
+
+    /**
+     * Строит геометрический кандидат для короткой П-ступени у конца. Вызывающий код обязан
+     * проверить полный маршрут с локальной льготой ОКС и всеми соседними рёбрами.
+     */
+    RoutePath expandEndpointBendSpacing(List<Coordinate> coordinates, int diameter,
+            OfficialRoutingEnvironment environment) {
+        double minimumM = ExpertChamberGeometryRules.minimumBendDistanceM(diameter);
+        for (boolean reverse : new boolean[] {false, true}) {
+            List<Coordinate> expanded = expandEndpointParallelTurns(coordinates, minimumM, reverse);
+            if (expanded.size() == coordinates.size()) continue;
+            LineString line = rules.line(expanded);
+            if (!line.isSimple() || !turnsAllowed(expanded, null)) continue;
+            return path(expanded, environment.constraints(diameter, Set.of(),
+                    expanded.get(0), expanded.get(expanded.size() - 1)));
+        }
+        return null;
+    }
+
+    /** Разворачивает короткую П-ступень у конца в три прямых звена не короче табличного минимума. */
+    private List<Coordinate> expandEndpointParallelTurns(
+            List<Coordinate> source, double minimumM, boolean reverse) {
+        if (source.size() < 4) return source;
+        List<Coordinate> points = source.stream().map(Coordinate::new)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        if (reverse) Collections.reverse(points);
+        Coordinate a = points.get(0), b = points.get(1), c = points.get(2), d = points.get(3);
+        double ix = b.x - a.x, iy = b.y - a.y;
+        double mx = c.x - b.x, my = c.y - b.y;
+        double ox = d.x - c.x, oy = d.y - c.y;
+        double incoming = Math.hypot(ix, iy), middle = Math.hypot(mx, my), outgoing = Math.hypot(ox, oy);
+        if (incoming + 1e-7 < minimumM || outgoing + 1e-7 < 2 * minimumM
+                || middle >= minimumM - 1e-7 || middle <= OfficialRouteGeometryRules.EPSILON_M) return source;
+        double parallel = Math.abs(ix * oy - iy * ox) / incoming / outgoing;
+        double perpendicular = Math.abs(ix * mx + iy * my) / incoming / middle;
+        if (parallel > 1e-6 || ix * ox + iy * oy <= 0 || perpendicular > 1e-6) return source;
+        double ux = mx / middle, uy = my / middle;
+        Coordinate first = new Coordinate(b.x + ux * (middle + minimumM),
+                b.y + uy * (middle + minimumM));
+        double outX = ox / outgoing, outY = oy / outgoing;
+        Coordinate second = new Coordinate(first.x + outX * minimumM,
+                first.y + outY * minimumM);
+        Coordinate third = new Coordinate(second.x - ux * minimumM,
+                second.y - uy * minimumM);
+        List<Coordinate> expanded = new ArrayList<>();
+        expanded.add(a);
+        expanded.add(b);
+        expanded.add(first);
+        expanded.add(second);
+        expanded.add(third);
+        expanded.add(d);
+        for (int index = 4; index < points.size(); index++) expanded.add(points.get(index));
+        if (reverse) Collections.reverse(expanded);
+        return expanded;
     }
 
     /** Пространственное окно включает реальный ввод; льготы концов применяются только к наружной части. */
     private List<Constraint> searchConstraints(Coordinate start, Coordinate end, Coordinate previous,
             int diameter, OfficialRoutingEnvironment environment, Set<String> exemptions) {
-        if (previous == null) return new ArrayList<>(environment.constraints(diameter, exemptions, start, end));
+        if (previous == null) return new ArrayList<>(rules.routingConstraints(
+                environment.constraints(diameter, Set.of(), start, end), exemptions, start, end));
         Envelope bounds = new Envelope(start, end);
         bounds.expandToInclude(previous);
-        return new ArrayList<>(rules.applicableConstraints(
+        return new ArrayList<>(rules.routingConstraints(
                 environment.corridorConstraints(diameter, bounds), exemptions, start, end));
     }
 
@@ -1113,6 +1399,7 @@ public class OfficialObstacleRouter {
         Envelope corridor = new Envelope(start, end);
         corridor.expandBy(expansionM);
         LineString directLine = rules.line(List.of(start, end));
+        boolean directBlocked = false;
         for (Constraint constraint : constraints.query(corridor)) {
             if (!constraint.rule().isForbidden()) {
                 addSpecialCrossingPortals(result, constraint, directLine, corridor);
@@ -1122,6 +1409,8 @@ public class OfficialObstacleRouter {
                     || !constraint.blocked().isWithinDistance(directLine, expansionM)) {
                 continue;
             }
+            boolean blocksDirect = constraint.rule().isForbidden() && constraint.blocked().intersects(directLine);
+            directBlocked |= blocksDirect;
             NavigationObstaclePreparation.Obstacle prepared = preparation.prepare(constraint);
             Geometry bufferedBoundary = prepared.bufferedBoundary();
             Geometry navigationGeometry = prepared.hull();
@@ -1132,12 +1421,77 @@ public class OfficialObstacleRouter {
             for (int index = 0; index < uniqueCount; index++) {
                 result.add(new Coordinate(coordinates[index]));
             }
+            if (blocksDirect && endpointInsideNavigationPocket(
+                    start, end, bufferedBoundary, navigationGeometry)) {
+                addOrientedEnvelopeNavigationNodes(result, start, end, navigationGeometry);
+            }
             if (includePockets) {
                 addPocketNavigationNodes(result, start, end, constraint, bufferedBoundary,
                         navigationGeometry, coordinates);
             }
         }
+        if (directBlocked) {
+            // Вершины буфера часто дают слишком малый угол подхода. Добавляем ограниченные
+            // альтернативы с поворотом 60° и прямоугольным выносом, не ослабляя финальный допуск.
+            addExactInternalAngleCandidates(result, start, end, 120.0);
+            addOrthogonalOvershootDetourNodes(result, start, end, expansionM);
+        }
         return deduplicate(result);
+    }
+
+    private boolean endpointInsideNavigationPocket(
+            Coordinate start, Coordinate end, Geometry bufferedBoundary, Geometry navigationGeometry) {
+        for (Coordinate endpoint : new Coordinate[] {start, end}) {
+            Geometry point = navigationGeometry.getFactory().createPoint(endpoint);
+            if (navigationGeometry.covers(point) && !bufferedBoundary.covers(point)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Добавляет прямоугольные коридоры вокруг препятствия, перекрывающего прямой ход. Проекции
+     * строятся на продолжения сторон опорного прямоугольника, чтобы достигать конечной точки
+     * за его пределами законным перпендикулярным звеном.
+     */
+    private void addOrientedEnvelopeNavigationNodes(
+            List<Coordinate> result, Coordinate start, Coordinate end, Geometry navigationGeometry) {
+        Coordinate[] rectangle = new MinimumDiameter(navigationGeometry).getMinimumRectangle().getCoordinates();
+        if (rectangle.length < 4) return;
+        int unique = rectangle[0].equals2D(rectangle[rectangle.length - 1])
+                ? rectangle.length - 1 : rectangle.length;
+        for (int index = 0; index < unique; index++) {
+            result.add(new Coordinate(rectangle[index]));
+        }
+        for (int index = 0; index < unique; index++) {
+            Coordinate first = rectangle[index];
+            Coordinate second = rectangle[(index + 1) % unique];
+            addProjectionOnInfiniteLine(result, start, first, second);
+            addProjectionOnInfiniteLine(result, end, first, second);
+        }
+    }
+
+    private void addProjectionOnInfiniteLine(
+            List<Coordinate> result, Coordinate point, Coordinate first, Coordinate second) {
+        double dx = second.x - first.x, dy = second.y - first.y;
+        double squaredLength = dx * dx + dy * dy;
+        if (squaredLength <= OfficialRouteGeometryRules.EPSILON_M * OfficialRouteGeometryRules.EPSILON_M) return;
+        double factor = ((point.x - first.x) * dx + (point.y - first.y) * dy) / squaredLength;
+        result.add(new Coordinate(first.x + factor * dx, first.y + factor * dy));
+    }
+
+    private void addOrthogonalOvershootDetourNodes(
+            List<Coordinate> result, Coordinate start, Coordinate end, double offsetM) {
+        double dx = end.x - start.x, dy = end.y - start.y;
+        double length = Math.hypot(dx, dy);
+        if (length <= OfficialRouteGeometryRules.EPSILON_M || offsetM <= 0) return;
+        double ux = dx / length, uy = dy / length;
+        double nx = -uy, ny = ux;
+        for (double side : new double[] {-1.0, 1.0}) {
+            result.add(new Coordinate(start.x + side * nx * offsetM, start.y + side * ny * offsetM));
+            result.add(new Coordinate(end.x + ux * offsetM + side * nx * offsetM,
+                    end.y + uy * offsetM + side * ny * offsetM));
+            result.add(new Coordinate(end.x + ux * offsetM, end.y + uy * offsetM));
+        }
     }
 
     /**
@@ -1189,9 +1543,8 @@ public class OfficialObstacleRouter {
     }
 
     /**
-     * Adds a bounded perpendicular crossing through a polygonal road or tram restriction. Without
-     * these two nodes a shallow direct crossing is rejected, but the visibility graph has no legal
-     * place from which to enter and leave the carriageway at the required angle.
+     * Добавляет ограниченный перпендикулярный проход через дорогу/трамвай или линейную
+     * коммуникацию. Эти узлы дают графу законную локальную точку входа и выхода.
      */
     private void addSpecialCrossingPortals(
             List<Coordinate> result,
@@ -1199,36 +1552,50 @@ public class OfficialObstacleRouter {
             LineString directLine,
             Envelope corridor) {
         if (constraint.rule().getMinimumCrossingAngleDegrees() == null
-                || constraint.source().getDimension() != 2
                 || !constraint.source().getEnvelopeInternal().intersects(corridor)
                 || !constraint.source().intersects(directLine)) {
             return;
         }
-        Geometry rectangle = new MinimumDiameter(constraint.source()).getMinimumRectangle();
-        Coordinate[] rectangleCoordinates = rectangle.getCoordinates();
         LineSegment axis = null;
-        for (int index = 0; index + 1 < rectangleCoordinates.length; index++) {
-            LineSegment candidate = new LineSegment(rectangleCoordinates[index], rectangleCoordinates[index + 1]);
-            if (axis == null || candidate.getLength() > axis.getLength()) {
-                axis = candidate;
+        Geometry intersection = constraint.source().intersection(directLine);
+        Coordinate anchor = intersection.isEmpty()
+                ? constraint.source().getCentroid().getCoordinate()
+                : intersection.getCentroid().getCoordinate();
+        if (constraint.source().getDimension() == 2) {
+            Geometry rectangle = new MinimumDiameter(constraint.source()).getMinimumRectangle();
+            Coordinate[] rectangleCoordinates = rectangle.getCoordinates();
+            for (int index = 0; index + 1 < rectangleCoordinates.length; index++) {
+                LineSegment candidate = new LineSegment(
+                        rectangleCoordinates[index], rectangleCoordinates[index + 1]);
+                if (axis == null || candidate.getLength() > axis.getLength()) axis = candidate;
+            }
+        } else if (constraint.source().getDimension() == 1) {
+            double nearest = Double.POSITIVE_INFINITY;
+            Coordinate[] coordinates = constraint.source().getCoordinates();
+            for (int index = 0; index + 1 < coordinates.length; index++) {
+                LineSegment candidate = new LineSegment(coordinates[index], coordinates[index + 1]);
+                if (candidate.getLength() <= OfficialRouteGeometryRules.EPSILON_M) continue;
+                double distance = candidate.distance(anchor);
+                if (distance < nearest) {
+                    nearest = distance;
+                    axis = candidate;
+                }
             }
         }
         if (axis == null || axis.getLength() <= OfficialRouteGeometryRules.EPSILON_M) {
             return;
         }
-        Geometry intersection = constraint.source().intersection(directLine);
-        Coordinate anchor = intersection.isEmpty()
-                ? constraint.source().getCentroid().getCoordinate()
-                : intersection.getCentroid().getCoordinate();
         double normalX = -(axis.p1.y - axis.p0.y) / axis.getLength();
         double normalY = (axis.p1.x - axis.p0.x) / axis.getLength();
         double anchorProjection = anchor.x * normalX + anchor.y * normalY;
-        double minimumProjection = Double.POSITIVE_INFINITY;
-        double maximumProjection = Double.NEGATIVE_INFINITY;
-        for (Coordinate coordinate : constraint.source().getCoordinates()) {
-            double projection = coordinate.x * normalX + coordinate.y * normalY;
-            minimumProjection = Math.min(minimumProjection, projection);
-            maximumProjection = Math.max(maximumProjection, projection);
+        double minimumProjection = anchorProjection;
+        double maximumProjection = anchorProjection;
+        if (constraint.source().getDimension() == 2) {
+            for (Coordinate coordinate : constraint.source().getCoordinates()) {
+                double projection = coordinate.x * normalX + coordinate.y * normalY;
+                minimumProjection = Math.min(minimumProjection, projection);
+                maximumProjection = Math.max(maximumProjection, projection);
+            }
         }
         // Повороты не должны попадать внутрь прямого protective special за краем дороги.
         double protective = constraint.rule().getSpecialExtensionM() == null ? 0
@@ -1504,8 +1871,8 @@ public class OfficialObstacleRouter {
             return 1.0;
         }
         if (preference == RoutePreference.ENGINEERING) {
-            // TZ permits internal angles 90..180 degrees (deflections 0..90).
-            // This cost is a preference; independent geometry validation enforces the range.
+            // Действующее правило разрешает внутренние углы 90–120° (отклонение 60–90°).
+            // Это только стоимость поиска; независимая проверка ниже остаётся обязательной.
             if (angle >= EngineeringRouteEvaluator.MIN_INTERNAL_ANGLE_DEGREES
                     && angle <= EngineeringRouteEvaluator.MAX_INTERNAL_ANGLE_DEGREES) {
                 return 1.001;
@@ -1518,8 +1885,8 @@ public class OfficialObstacleRouter {
         double deviation = Math.min(
                 Math.abs(deflection - 45.0),
                 Math.min(Math.abs(deflection), Math.abs(deflection - 90.0)));
-        // This is a bounded route-search preference, not a construction tariff. Straight, 45° and
-        // 90° turns are construction-friendly; another angle must be materially shorter to win.
+        // Ограниченная эвристика разнообразия портфеля, а не строительный норматив. Исторические
+        // роли могут исследовать 45°, но обязательный turnsAllowed отклонит его в итоговой трассе.
         double normalizedDeviation = Math.min(1.0, deviation / 22.5);
         return 1.003 + 0.037 * normalizedDeviation * normalizedDeviation;
     }
@@ -1674,7 +2041,6 @@ public class OfficialObstacleRouter {
             addExactInternalAngleCandidates(result, start, end, 90.0);
             addExactInternalAngleCandidates(result, start, end, 105.0);
             addExactInternalAngleCandidates(result, start, end, 120.0);
-            addExactInternalAngleCandidates(result, start, end, 135.0);
         }
         double dx = end.x - start.x;
         double dy = end.y - start.y;

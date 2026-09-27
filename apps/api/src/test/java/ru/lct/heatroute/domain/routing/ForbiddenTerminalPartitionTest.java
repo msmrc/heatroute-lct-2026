@@ -110,8 +110,8 @@ class ForbiddenTerminalPartitionTest {
 
     private List<ImportedOfficialFeature> fixture(String type, AffineTransformation move) throws Exception {
         List<ImportedOfficialFeature> result = new ArrayList<>();
-        result.add(feature("north", "heat_network", "LINESTRING (0 0,0 200)", "{}", move));
-        result.add(feature("south", "heat_network", "LINESTRING (0 -200,0 0)", "{}", move));
+        result.add(feature("north", "heat_network", "LINESTRING (0 0,0 200)", "{\"diameter\":100}", move));
+        result.add(feature("south", "heat_network", "LINESTRING (0 -200,0 0)", "{\"diameter\":100}", move));
         result.add(feature("source", "heat_chamber", "POINT (0 0)", "{}", move));
         result.add(feature("left-own", "oks_existing", "POLYGON ((-110 -10,-90 -10,-90 10,-110 10,-110 -10))", "{}", move));
         result.add(feature("right-own", "oks_existing", "POLYGON ((90 -10,110 -10,110 10,90 10,90 -10))", "{}", move));

@@ -23,6 +23,7 @@ import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.index.ItemVisitor;
+import org.locationtech.jts.operation.distance.DistanceOp;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialAxisClearance;
@@ -38,7 +39,10 @@ public class OfficialRouteGeometryRules {
     static final double EPSILON_M = 0.01;
     static final double NORMAL_EGRESS_MARGIN_M = 0.25;
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
+    private static final double TIE_IN_CONTACT_M = 0.05;
     private static final double ROUTE_AVOIDANCE_BUFFER_M = 0.20 - CLEARANCE_BOUNDARY_EPSILON_M;
+    private static final Set<String> UTILITY_TYPES = Set.of(
+            "gas_pipeline", "power_cable", "heat_network");
     private static final Comparator<Constraint> CONSTRAINT_ORDER = Comparator
             .comparing((Constraint item) -> item.type)
             .thenComparing(item -> item.id);
@@ -81,7 +85,7 @@ public class OfficialRouteGeometryRules {
                 continue;
             }
             Geometry blocked = null;
-            BigDecimal clearance = preparationClearanceM(type, diameter);
+            BigDecimal clearance = preparationClearanceM(feature, type, diameter);
             if (clearance != null) {
                 // Equality with the published minimum clearance is legal. Shrinking only by a
                 // numerical epsilon keeps the prepared-geometry fast path and excludes a pure
@@ -113,6 +117,28 @@ public class OfficialRouteGeometryRules {
             return null;
         }
         return axisClearance.axisClearanceM(type, diameter, null);
+    }
+
+    /** Осевой отступ линейной коммуникации зависит от фактического ДУ существующей теплосети. */
+    BigDecimal preparationClearanceM(ImportedOfficialFeature feature, int diameter) {
+        String type = constraintType(feature);
+        return type == null ? null : preparationClearanceM(feature, type, diameter);
+    }
+
+    private BigDecimal preparationClearanceM(
+            ImportedOfficialFeature feature, String type, int diameter) {
+        BigDecimal ordinary = preparationClearanceM(type, diameter);
+        if (ordinary != null || !UTILITY_TYPES.contains(type)) return ordinary;
+        Integer existingHeatDu = null;
+        if ("heat_network".equals(type)) {
+            if (!feature.getAttributes().path("diameter").isIntegralNumber()) {
+                // Старые внутренние фикстуры без инженерных атрибутов не становятся
+                // маршрутизируемыми данными; строгая финальная проверка их всё равно отклоняет.
+                return null;
+            }
+            existingHeatDu = feature.getAttributes().path("diameter").intValue();
+        }
+        return axisClearance.axisClearanceM(type, diameter, existingHeatDu);
     }
 
     /** Пространственная подготовка не предполагает неизменность пользовательских реализаций правил. */
@@ -160,6 +186,23 @@ public class OfficialRouteGeometryRules {
     }
 
     /**
+     * Существующая теплосеть из списка целей получает только локальный контакт в конечной точке;
+     * остальные явно переданные объекты сохраняют прежнее полное исключение.
+     */
+    List<Constraint> routingConstraints(
+            List<Constraint> base,
+            Set<String> targetIds,
+            Coordinate start,
+            Coordinate end) {
+        List<Constraint> local = localTieInConstraints(base, targetIds, start, end);
+        Set<String> globalExemptions = new HashSet<>(targetIds);
+        for (Constraint constraint : base) {
+            if ("heat_network".equals(constraint.type)) globalExemptions.remove(constraint.id);
+        }
+        return applicableConstraints(local, globalExemptions, start, end);
+    }
+
+    /**
      * Врезка освобождает только контакт выбранной теплосети у endpoint в пределах допуска
      * координат 1 см. Повторные пересечения той же feature остаются ограничениями и special.
      * Совпадение ID дороги/ОКС с ID врезки не освобождает объект другого типа.
@@ -177,12 +220,18 @@ public class OfficialRouteGeometryRules {
                 continue;
             }
             Geometry source = constraint.source;
-            if (source.distance(startPoint) <= EPSILON_M) source = source.difference(startPoint.buffer(EPSILON_M));
+            List<Coordinate> tieIns = new ArrayList<>(constraint.utilityTieIns);
+            if (source.distance(startPoint) <= EPSILON_M) {
+                tieIns.add(new Coordinate(start));
+                source = source.difference(startPoint.buffer(EPSILON_M));
+            }
             if (!start.equals2D(end) && source.distance(endPoint) <= EPSILON_M) {
+                tieIns.add(new Coordinate(end));
                 source = source.difference(endPoint.buffer(EPSILON_M));
             }
             result.add(source == constraint.source ? constraint : new Constraint(constraint.id, constraint.type,
-                    source, constraint.blocked, constraint.rule, constraint.clearanceM, constraint.joinedContact));
+                    source, constraint.blocked, constraint.rule, constraint.clearanceM,
+                    constraint.joinedContact, tieIns));
         }
         return result;
     }
@@ -309,7 +358,7 @@ public class OfficialRouteGeometryRules {
             SpatialConstraintRule rule = type == null ? null : catalog.find(type).orElse(null);
             Geometry source = feature.getMetricGeometry();
             if (rule == null || source == null || source.isEmpty()) continue;
-            BigDecimal preparedClearance = preparationClearanceM(type, diameter);
+            BigDecimal preparedClearance = preparationClearanceM(feature, type, diameter);
             Constraint constraint = new Constraint(feature.getFeatureId(), type, source, null, rule,
                     preparedClearance == null ? 0 : preparedClearance.doubleValue());
             if (egress.exempts(constraint)) {
@@ -317,7 +366,7 @@ public class OfficialRouteGeometryRules {
                 continue;
             }
             if (rule.isForbidden()) {
-                double clearance = preparationClearanceM(type, diameter).doubleValue();
+                double clearance = preparationClearanceM(feature, type, diameter).doubleValue();
                 org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope(
                         source.getEnvelopeInternal());
                 bounds.expandBy(clearance);
@@ -571,6 +620,10 @@ public class OfficialRouteGeometryRules {
                 if (!constraint.roadSegmentAllowed(roadSegment, roadCrossings)) return false;
                 continue;
             }
+            if (UTILITY_TYPES.contains(constraint.type) && constraint.clearanceM > 0) {
+                if (!utilitySegmentAllowed(segment, constraint)) return false;
+                continue;
+            }
             if (constraint.rule.getMinimumCrossingAngleDegrees() != null) {
                 if (constraint.source.getDimension() == 2
                         && meetsPolygonCrossingAngle(segment, constraint)) {
@@ -587,13 +640,90 @@ public class OfficialRouteGeometryRules {
         return true;
     }
 
+    /**
+     * Обычный участок держит полный осевой отступ. Только буквальный special пересечения и
+     * проверенный контакт врезки могут начинать подход внутри этого отступа.
+     */
+    private boolean utilitySegmentAllowed(LineString segment, Constraint constraint) {
+        if (segment.distance(constraint.source) >= constraint.clearanceM - CLEARANCE_BOUNDARY_EPSILON_M) {
+            return true;
+        }
+        LengthIndexedLine indexed = new LengthIndexedLine(segment);
+        double length = segment.getLength();
+        List<double[]> allowed = new ArrayList<>();
+        Coordinate crossing = specialCrossingCoordinate(segment, constraint);
+        if (crossing != null) {
+            if (!meetsCrossingAngle(segment, constraint, crossing)) return false;
+            double extension = constraint.rule.getSpecialExtensionM() == null
+                    ? 0 : constraint.rule.getSpecialExtensionM().doubleValue();
+            LineString special = crossingGeometry.specialSegment(segment, constraint.source, extension);
+            double first = indexed.project(special.getCoordinateN(0));
+            double last = indexed.project(special.getCoordinateN(special.getNumPoints() - 1));
+            allowed.add(new double[] {Math.min(first, last), Math.max(first, last)});
+        }
+        Coordinate start = segment.getCoordinateN(0);
+        Coordinate end = segment.getCoordinateN(segment.getNumPoints() - 1);
+        for (Coordinate tieIn : constraint.utilityTieIns) {
+            if (start.distance(tieIn) <= EPSILON_M) {
+                allowed.add(new double[] {0, Math.min(TIE_IN_CONTACT_M, length)});
+            }
+            if (end.distance(tieIn) <= EPSILON_M) {
+                allowed.add(new double[] {Math.max(0, length - TIE_IN_CONTACT_M), length});
+            }
+        }
+        if (allowed.isEmpty()) return false;
+        allowed.sort(Comparator.comparingDouble(interval -> interval[0]));
+        List<double[]> merged = new ArrayList<>();
+        for (double[] interval : allowed) {
+            if (!merged.isEmpty() && interval[0] <= merged.get(merged.size() - 1)[1]) {
+                merged.get(merged.size() - 1)[1] = Math.max(
+                        merged.get(merged.size() - 1)[1], interval[1]);
+            } else {
+                merged.add(interval.clone());
+            }
+        }
+        double cursor = 0;
+        boolean allowedBefore = false;
+        for (double[] interval : merged) {
+            if (interval[0] > cursor && !utilityPartAllowed(indexed, cursor, interval[0],
+                    allowedBefore, true, constraint)) return false;
+            cursor = interval[1];
+            allowedBefore = true;
+        }
+        return cursor >= length || utilityPartAllowed(
+                indexed, cursor, length, allowedBefore, false, constraint);
+    }
+
+    private boolean utilityPartAllowed(
+            LengthIndexedLine indexed,
+            double start,
+            double end,
+            boolean allowedBefore,
+            boolean allowedAfter,
+            Constraint constraint) {
+        Geometry part = indexed.extractLine(start, end);
+        double distance = part.distance(constraint.source);
+        if (distance >= constraint.clearanceM - CLEARANCE_BOUNDARY_EPSILON_M) return true;
+        Coordinate[] nearest = DistanceOp.nearestPoints(part, constraint.source);
+        double station = start + new LengthIndexedLine(part).project(nearest[0]);
+        boolean atStart = allowedBefore && Math.abs(station - start) <= CLEARANCE_BOUNDARY_EPSILON_M;
+        boolean atEnd = allowedAfter && Math.abs(station - end) <= CLEARANCE_BOUNDARY_EPSILON_M;
+        if (!atStart && !atEnd) return false;
+        // Не называем протяжённое параллельное сближение граничным минимумом: после границы
+        // расстояние обязано расти к другому концу проверяемой части.
+        Coordinate far = indexed.extractPoint(atStart ? end : start);
+        return constraint.source.getFactory().createPoint(far).distance(constraint.source)
+                > distance + CLEARANCE_BOUNDARY_EPSILON_M;
+    }
+
     private boolean meetsPolygonCrossingAngle(LineString segment, Constraint constraint) {
         Coordinate start = segment.getCoordinateN(0);
         Coordinate end = segment.getCoordinateN(segment.getNumPoints() - 1);
         double routeAngle = Math.atan2(end.y - start.y, end.x - start.x);
         double difference = Math.abs(Math.toDegrees(routeAngle - constraint.sourceAxisAngle)) % 180.0;
         double angle = difference > 90.0 ? 180.0 - difference : difference;
-        return angle + 1e-9 >= constraint.rule.getMinimumCrossingAngleDegrees().doubleValue();
+        return OfficialCrossingGeometry.satisfiesMinimumAngle(
+                angle, constraint.rule.getMinimumCrossingAngleDegrees().doubleValue());
     }
 
     boolean pointInsideForbiddenClearance(Coordinate coordinate, ConstraintIndex constraints) {
@@ -1022,6 +1152,7 @@ public class OfficialRouteGeometryRules {
         private final SpatialConstraintRule rule;
         private final double clearanceM;
         private final JoinedRouteContact joinedContact;
+        private final List<Coordinate> utilityTieIns;
 
         private Constraint(
                 String id,
@@ -1039,6 +1170,12 @@ public class OfficialRouteGeometryRules {
 
         private Constraint(String id, String type, Geometry source, Geometry blocked,
                 SpatialConstraintRule rule, double clearanceM, JoinedRouteContact joinedContact) {
+            this(id, type, source, blocked, rule, clearanceM, joinedContact, List.of());
+        }
+
+        private Constraint(String id, String type, Geometry source, Geometry blocked,
+                SpatialConstraintRule rule, double clearanceM, JoinedRouteContact joinedContact,
+                List<Coordinate> utilityTieIns) {
             this.id = id;
             this.type = type;
             this.source = source;
@@ -1055,6 +1192,7 @@ public class OfficialRouteGeometryRules {
             this.rule = rule;
             this.clearanceM = clearanceM;
             this.joinedContact = joinedContact;
+            this.utilityTieIns = utilityTieIns.stream().map(Coordinate::new).collect(Collectors.toUnmodifiableList());
         }
 
         String id() { return id; }

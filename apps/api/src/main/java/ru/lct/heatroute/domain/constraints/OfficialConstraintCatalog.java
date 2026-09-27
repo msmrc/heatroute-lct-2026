@@ -39,11 +39,12 @@ public class OfficialConstraintCatalog {
         result.put("water", forbidden("water", "1.0"));
         result.put("railway", forbidden("railway", "1.0"));
         result.put("oks", forbidden("oks", "5.0"));
-        result.put("road", special("road", "1.5", null, "45", "3.0", "1.0", "1.60"));
+        result.put("road", special("road", "1.5", null, "90", "3.0", "1.0", "1.60"));
         result.put("tram_tracks", special("tram_tracks", "1.5", null, "45", "3.0", "1.2", "1.75"));
-        result.put("gas_pipeline", special("gas_pipeline", "2.0", "0.2", null, "2.0", null, "1.25"));
-        result.put("power_cable", special("power_cable", "2.0", "0.5", null, "2.0", null, "1.15"));
-        result.put("heat_network", special("heat_network", "1.0", "0.5", null, "2.0", null, "1.05"));
+        // В ТЗ направленный угол 90–120°; для ненаправленных осей линий это острый угол 60–90°.
+        result.put("gas_pipeline", special("gas_pipeline", "2.0", "0.2", "60", "2.0", null, "1.25"));
+        result.put("power_cable", special("power_cable", "2.0", "0.5", "60", "2.0", null, "1.15"));
+        result.put("heat_network", special("heat_network", "1.0", "0.5", "90", "2.0", null, "1.05"));
         return result;
     }
 

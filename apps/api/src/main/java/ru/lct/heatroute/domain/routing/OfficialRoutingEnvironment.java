@@ -66,7 +66,11 @@ final class OfficialRoutingEnvironment {
 
     Set<String> existingNetworkIds(RouteNode root) {
         if (!root.isRoot()) return Set.of();
-        org.locationtech.jts.geom.Point at = new GeometryFactory().createPoint(root.getCoordinate().toCoordinate());
+        return existingNetworkIds(root.getCoordinate().toCoordinate());
+    }
+
+    Set<String> existingNetworkIds(Coordinate coordinate) {
+        org.locationtech.jts.geom.Point at = new GeometryFactory().createPoint(coordinate);
         return features.stream().filter(feature -> "heat_network".equals(feature.getObjectType()))
                 .filter(feature -> feature.getMetricGeometry().distance(at) <= OfficialRouteGeometryRules.EPSILON_M)
                 .map(ImportedOfficialFeature::getFeatureId).collect(java.util.stream.Collectors.toSet());

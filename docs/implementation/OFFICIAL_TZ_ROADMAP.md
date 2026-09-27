@@ -1,5 +1,19 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
+## 2026-09-27 — source100: актуальные правила и полный официальный dataset PASS
+
+[Изменения и проверки source100](PRIMARY_ROUTING_100.md): углы поворота 90–120°,
+таблица 2–6 м между поворотами и до камер по итоговому ДУ, нормальные лучи камер,
+дороги 90°, линейные коммуникации и полный горизонтальный осевой отступ перенесены
+в генерацию, финальный validator и export preflight. Fast backend: 2 287 PASS,
+0 failures/errors, 3 scale skip; web 36+37, lint, typecheck и build PASS.
+Corridor witness: 17/17, 2 823,175 м, 30 рёбер, 13 новых камер и существующая корневая,
+все три списка ошибок пусты; карта отправлена. Финальный `OfficialDatasetRoutingTest`: 2/2 PASS,
+1 900,198 с. Preferred `cheapest`: 17/17, 2 829,014 м, 29 рёбер, 12 новых узловых камер
+и одна существующая корневая, 386 891 133,42 ₽; validation/engineering/sizing issues пусты.
+Итоговая сравнительная карта отправлена. До push и VPS Compose smoke source100 не объявляется
+production-релизом; R9 performance/scale и глобальный оптимум остаются открыты.
+
 ## 2026-09-27 — source99: depth/export объединены, общий fast PASS
 
 [Совместные исправления99](PRIMARY_ROUTING_99.md): source-derived special coverage,

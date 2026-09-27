@@ -28,7 +28,9 @@ class RoadSpecialBoundaryCompatibilityTest {
     void checksBaseAtTheFixedSpecialBoundaryWithoutInventingALargerExemption(
             String type, int diameter, int angle, boolean allowed, boolean rotated) {
         SpatialConstraintRule rule = catalog.find(type).orElseThrow();
-        assertThat(rule.getMinimumCrossingAngleDegrees()).isEqualByComparingTo("45");
+        int minimumAngle = "road".equals(type) ? 90 : 45;
+        assertThat(rule.getMinimumCrossingAngleDegrees())
+                .isEqualByComparingTo(Integer.toString(minimumAngle));
         assertThat(rule.getSpecialExtensionM()).isEqualByComparingTo("3");
         double clearance = clearances.axisClearanceM(type, diameter, null).doubleValue();
         double radians = Math.toRadians(angle), dx = 50 * Math.cos(radians), dy = 50 * Math.sin(radians);
@@ -38,7 +40,8 @@ class RoadSpecialBoundaryCompatibilityTest {
         LineString route = geometry.createLineString(new Coordinate[] {
             point(-dx, -dy, rotated), point(dx, dy, rotated)});
 
-        RoadCrossingClearance.Assessment assessment = crossing.assess(route, road, clearance, 45, 3);
+        RoadCrossingClearance.Assessment assessment = crossing.assess(
+                route, road, clearance, minimumAngle, 3);
         assertThat(assessment.getIntervals()).singleElement().satisfies(interval -> {
             assertThat(interval.getStartM()).isCloseTo(47, offset(1e-6));
             assertThat(interval.getEndM()).isCloseTo(53 + 6 / Math.sin(radians), offset(1e-6));
@@ -53,12 +56,17 @@ class RoadSpecialBoundaryCompatibilityTest {
     }
 
     static Stream<Arguments> sourceBoundaries() {
-        return Stream.of("road", "tram_tracks").flatMap(type -> Stream.of(false, true).flatMap(rotated -> Stream.of(
-                Arguments.of(type, 300, 45, true, rotated),
-                Arguments.of(type, 400, 45, false, rotated),
-                Arguments.of(type, 1000, 90, true, rotated),
-                Arguments.of(type, 1200, 90, false, rotated),
-                Arguments.of(type, 1400, 90, false, rotated))));
+        Stream<Arguments> road = Stream.of(false, true).flatMap(rotated -> Stream.of(
+                Arguments.of("road", 1000, 90, true, rotated),
+                Arguments.of("road", 1200, 90, false, rotated),
+                Arguments.of("road", 1400, 90, false, rotated)));
+        Stream<Arguments> tram = Stream.of(false, true).flatMap(rotated -> Stream.of(
+                Arguments.of("tram_tracks", 300, 45, true, rotated),
+                Arguments.of("tram_tracks", 400, 45, false, rotated),
+                Arguments.of("tram_tracks", 1000, 90, true, rotated),
+                Arguments.of("tram_tracks", 1200, 90, false, rotated),
+                Arguments.of("tram_tracks", 1400, 90, false, rotated)));
+        return Stream.concat(road, tram);
     }
 
     private Coordinate point(double x, double y, boolean rotated) {

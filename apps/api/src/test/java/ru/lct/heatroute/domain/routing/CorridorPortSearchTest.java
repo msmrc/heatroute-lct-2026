@@ -259,8 +259,8 @@ class CorridorPortSearchTest {
     private Fixture twoConsumers(boolean crossing, boolean alternative) {
         List<Coordinate> points = List.of(new Coordinate(-10, 0), new Coordinate(0, 0), new Coordinate(0, 20),
                 new Coordinate(-10, 20), new Coordinate(20, 0), new Coordinate(20, 20));
-        RoutePath a = crossing ? path(0, 0, 10, 10, 20, 0) : path(0, 0, 20, 0);
-        RoutePath b = crossing ? path(0, 20, 10, 10, 20, 20) : path(0, 20, 20, 20);
+        RoutePath a = crossing ? path(0, 0, 10, 17.320508, 20, 11.547005) : path(0, 0, 20, 0);
+        RoutePath b = crossing ? path(0, 20, 10, 2.679492, 20, 8.452995) : path(0, 20, 20, 20);
         RoutePath detour = path(-10, 20, -10, 30, 30, 30, 30, -10, 20, -10, 20, 0);
         Map<Integer, RoutePath> aOptions = new LinkedHashMap<>();
         aOptions.put(1, a);
@@ -285,8 +285,8 @@ class CorridorPortSearchTest {
         List<Double> lengths = new ArrayList<>();
         for (int i = 1; i <= ports; i++) {
             double x = points.get(i).x, endX = points.get(leaf).x;
-            RoutePath stub = i == ports ? path(x, 0, endX, 10)
-                    : path(x, 0, x + 4, 4, x, 4, x + 4, 0, endX, 10);
+            RoutePath stub = i == ports ? path(x, 0, x, 10, endX, 10)
+                    : path(x, 0, x, 4, x + 4, 4, x + 4, 0, x, 0, x, 10, endX, 10);
             options.put(i, stub);
             links.add(new int[] {0, i}); lengths.add(points.get(0).distance(points.get(i)));
             links.add(new int[] {leaf, i}); lengths.add(stub.lengthM());

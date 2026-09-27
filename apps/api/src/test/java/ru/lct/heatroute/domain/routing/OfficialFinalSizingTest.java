@@ -32,7 +32,7 @@ class OfficialFinalSizingTest {
     @Test
     void regularizationAcrossLengthBoundaryRequiresFinalDiameterPromotion() {
         List<Coordinate> finalCoordinates = List.of(new Coordinate(0, 0),
-                new Coordinate(85, 85 / Math.tan(Math.toRadians(67.5))), new Coordinate(170, 0));
+                new Coordinate(85, 85 * Math.tan(Math.toRadians(30))), new Coordinate(170, 0));
         LineString line = rules.line(finalCoordinates);
         RoutePath replacement = new RoutePath(finalCoordinates, rules.sections(line, List.of()), line.getLength());
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules) {

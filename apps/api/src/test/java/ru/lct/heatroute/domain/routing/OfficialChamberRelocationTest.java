@@ -73,13 +73,13 @@ class OfficialChamberRelocationTest {
     }
 
     @Test
-    void legalShallowLateWinnerDoesNotRequireEngineeringRepair() {
+    void legalLateWinnerDoesNotRequireEngineeringRepair() {
         OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", p(0, 0), true, true, 2, "support"),
                 new RouteNode("demand:one", "demand_connection", p(40, 0), false, false, 0, null));
         List<RouteEdge> edges = List.of(edge("late-edge", "root", "demand:one",
-                List.of(c(0, 0), c(20, 1), c(40, 0)), 1));
+                List.of(c(0, 0), c(0, 20), c(40, 20), c(40, 0)), 1));
         List<RouteConnection> connections = List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null));
         List<OfficialRoutePlanner.Demand> demands = List.of(
                 new OfficialRoutePlanner.Demand("one", "one", c(40, 0), BigDecimal.ONE, null));
@@ -117,7 +117,7 @@ class OfficialChamberRelocationTest {
     }
 
     @Test
-    void legalShallowObstacleDetourIsNotReplacedByUnnecessaryRepair() {
+    void legalObstacleDetourIsNotReplacedByUnnecessaryRepair() {
         OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature("park", "restriction",
                 new ObjectMapper().createObjectNode().put("restriction_type", "park"),
@@ -133,7 +133,7 @@ class OfficialChamberRelocationTest {
                 new OfficialRoutePlanner.Demand("one", "one", c(40, 0), BigDecimal.ONE, null));
         RouteVariant original = planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest",
                 new OfficialRoutePlanner.VariantDraft(nodes, List.of(edge("edge", "root", "demand:one",
-                        List.of(c(0, 0), c(20, 6), c(40, 0)), 1)), connections), features, parameters, false, environment));
+                        List.of(c(0, 0), c(0, 10), c(40, 10), c(40, 0)), 1)), connections), features, parameters, false, environment));
         assertThat(original.isValid()).isTrue();
         assertThat(original.getEngineeringIssues()).isEmpty();
         OfficialRoutePlanner.VariantDraft repaired = ReflectionTestUtils.invokeMethod(planner,
@@ -189,10 +189,10 @@ class OfficialChamberRelocationTest {
                 features, parameters, false, environment));
         RouteVariant late = planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest",
                 new OfficialRoutePlanner.VariantDraft(List.of(
-                        new RouteNode("root-one", "existing_chamber_tie_in", p(-17.5, 10), true, true, 2, "support-one"),
+                        new RouteNode("root-one", "existing_chamber_tie_in", p(-17, 10), true, true, 2, "support-one"),
                         new RouteNode("root-two", "existing_chamber_tie_in", p(0, -57.5), true, true, 2, "support-two"),
                         commonDemands.get(0), commonDemands.get(1)), List.of(
-                        edge("late-a", "root-one", "demand:one", List.of(c(-17.5, 10), c(1.25, 10.5), c(20, 10)), 1),
+                        edge("late-a", "root-one", "demand:one", List.of(c(-17, 10), c(20, 10)), 1),
                         edge("late-b", "root-two", "demand:two", List.of(c(0, -57.5), c(0, -20)), 1)), connections),
                 features, parameters, false, environment));
         assertThat(baseline.isValid()).isTrue();

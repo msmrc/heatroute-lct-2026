@@ -69,7 +69,7 @@ class CorridorTerminalRoutingTest {
             List<RoutePath> local = spurs.localAlternatives("terminal", fixture.demand, port, 50);
             assertThat(local).as("local alternatives at %s degrees", angle).anySatisfy(candidate -> {
                 RouteEdge localEdge = edgeFromTerminalPath(candidate);
-                assertThat(new EngineeringRouteEvaluator().evaluate(List.of(localEdge)).bendCount()).isZero();
+                assertThat(new EngineeringRouteEvaluator().evaluate(List.of(localEdge)).isCompliant()).isTrue();
                 assertThat(OfficialRouteDeflectionRules.validate(nodesFor(candidate), List.of(localEdge))).isEmpty();
                 assertThat(new OfficialRouteValidator(rules)
                         .validate(nodesFor(candidate), List.of(localEdge), fixture.features)).isEmpty();
@@ -193,7 +193,8 @@ class CorridorTerminalRoutingTest {
         assertThat(path).isNotNull();
         assertThat(fallbackCalls).hasValue(0);
         assertCheckedAlternative(path, new Fixture(30, fixture.transform, fixture.demand, fixture.port, fixture.features));
-        assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edgeFromTerminalPath(path))).bendCount()).isEqualTo(2);
+        assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edgeFromTerminalPath(path))).bendCount())
+                .isBetween(2, 3);
     }
 
     @Test

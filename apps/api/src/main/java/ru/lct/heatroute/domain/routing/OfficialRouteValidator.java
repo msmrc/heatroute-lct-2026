@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.locationtech.jts.geom.Coordinate;
@@ -14,6 +15,8 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import ru.lct.heatroute.domain.depth.OfficialUtilityHorizontalAssessment;
+import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.ExistingNetworkIncidence;
 
@@ -23,14 +26,25 @@ public class OfficialRouteValidator {
     private static final double TOLERANCE_M = 0.01;
     private final GeometryFactory geometryFactory = new GeometryFactory();
     private final OfficialRouteGeometryRules geometryRules;
+    private final OfficialUtilityHorizontalAssessment utilityHorizontalAssessment;
 
     public OfficialRouteValidator() {
         this.geometryRules = null;
+        this.utilityHorizontalAssessment = null;
+    }
+
+    public OfficialRouteValidator(OfficialRouteGeometryRules geometryRules) {
+        this(geometryRules, new OfficialPipeCatalog());
     }
 
     @Autowired
-    public OfficialRouteValidator(OfficialRouteGeometryRules geometryRules) {
+    public OfficialRouteValidator(
+            OfficialRouteGeometryRules geometryRules, OfficialPipeCatalog pipeCatalog) {
         this.geometryRules = geometryRules;
+        this.utilityHorizontalAssessment =
+                geometryRules == null
+                        ? null
+                        : new OfficialUtilityHorizontalAssessment(pipeCatalog);
     }
 
     public List<RouteValidationIssue> validate(List<RouteNode> nodes, List<RouteEdge> edges) {
@@ -141,6 +155,35 @@ public class OfficialRouteValidator {
             return issues;
         }
         issues.addAll(validateSpatialConstraints(nodes, edges, features, preparedConstraints, false));
+        if (issues.isEmpty() && !edges.isEmpty()) {
+            Map<String, Set<String>> tieIns = new HashMap<>();
+            for (RouteNode node : nodes) {
+                if (node.isRoot()) {
+                    tieIns.put(
+                            node.getId(),
+                            node.getTargetId() == null
+                                    ? Set.of()
+                                    : Set.of(node.getTargetId()));
+                }
+            }
+            OfficialUtilityHorizontalAssessment.Result utility =
+                    utilityHorizontalAssessment.assess(edges, features, tieIns);
+            for (OfficialUtilityHorizontalAssessment.Finding finding :
+                    utility.getOrdinaryViolations()) {
+                issues.add(
+                        issue(
+                                "UTILITY_HORIZONTAL_CLEARANCE_VIOLATION",
+                                finding.getEdgeId(),
+                                String.format(
+                                        Locale.ROOT,
+                                        "Route axis is %.6f m from %s %s at %.3f m; required %s m",
+                                        finding.getActualAxisDistanceM(),
+                                        finding.getType().getCode(),
+                                        finding.getSourceId(),
+                                        finding.getWitnessStationM(),
+                                        finding.getRequiredAxisDistanceM().toPlainString())));
+            }
+        }
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
                 .thenComparing(issue -> issue.getSubjectId() == null ? "" : issue.getSubjectId()));
         return issues;

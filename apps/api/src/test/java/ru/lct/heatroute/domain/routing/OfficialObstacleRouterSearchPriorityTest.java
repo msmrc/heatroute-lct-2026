@@ -10,7 +10,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -52,50 +51,48 @@ class OfficialObstacleRouterSearchPriorityTest {
     }
 
     @Test
-    void repeatedToleranceUpdatesToAQueuedStatePreserveItsFinalPredecessor() {
+    void updatedBendRangeRejectsTheFormerShallowToleranceChain() {
         List<Coordinate> nodes = List.of(point(0, 0), point(100, 0), point(60, 0), point(80, 0),
                 point(30, 3.7271774890266682), point(40, 3.6411182332759244),
                 point(50, 2.729823683953149), point(50, 5));
-        assertToleranceChain(nodes, 4);
+        assertRejectedToleranceChain(nodes);
     }
 
     @Test
-    void firstDiscoveryAboveTheQueuedGoalStillMattersToLaterToleranceComparisons() {
+    void reversedFormerToleranceChainIsAlsoRejectedByTheUpdatedBendRange() {
         List<Coordinate> nodes = List.of(point(0, 0), point(100, 0), point(60, 0), point(80, 0),
                 point(50, 2.7298236858644556), point(40, 3.6411182332759244),
                 point(30, 3.727177486309829), point(50, 5));
-        assertToleranceChain(nodes, 6);
+        assertRejectedToleranceChain(nodes);
     }
 
-    private void assertToleranceChain(List<Coordinate> nodes, int winner) {
+    private void assertRejectedToleranceChain(List<Coordinate> nodes) {
         int[][] edges = {{0, 4}, {4, 2}, {0, 5}, {5, 2}, {0, 6}, {6, 2}, {2, 3}, {3, 1}, {0, 7}, {7, 1}};
         ConstraintIndex constraints = rules.index(List.of());
         List<Coordinate> expected = reference(nodes, constraints, RoutePreference.LEFT, null,
                 new GraphRules(nodes, false, edges)).path;
-        assertThat(expected).containsExactly(nodes.get(0), nodes.get(winner), nodes.get(2), nodes.get(3), nodes.get(1));
-        // Каждое обновление укладывается в 1e-9, но их сумма пересекает верхнюю границу цели.
-        // Даже отложенное состояние влияет на сравнение последующих кандидатов и backtracking.
+        assertThat(expected).isEmpty();
+        // Старые координаты проверяли допуск очереди через мелкие изломы. Теперь эти изломы
+        // запрещены контрактом 60–90°, поэтому эталон и production обязаны одинаково отказать.
         assertThat(search(nodes, constraints, RoutePreference.LEFT, null, new GraphRules(nodes, false, edges)).path)
-                .containsExactlyElementsOf(expected);
+                .isEmpty();
     }
 
     @Test
-    void firstQueuedGoalCanBeImprovedByALaterPredecessor() {
+    void searchMatchesReferenceWhenOnlyOneUpdatedBendCandidateReachesGoal() {
         List<Coordinate> nodes = improvementNodes(0, 0, 0);
         GraphRules graph = improvementGraph(nodes);
         ConstraintIndex constraints = rules.index(List.of());
         ReferenceOutcome expected = reference(nodes, constraints, RoutePreference.SHORTEST, null,
                 improvementGraph(nodes));
 
-        assertThat(expected.goalCosts).hasSize(2);
-        assertThat(expected.goalCosts.get(0)).isGreaterThan(expected.goalCosts.get(1));
+        assertThat(expected.goalCosts).hasSize(1);
         assertThat(search(nodes, constraints, RoutePreference.SHORTEST, null, graph).path)
-                .containsExactly(nodes.get(0), nodes.get(3), nodes.get(1))
                 .containsExactlyElementsOf(expected.path);
     }
 
     @Test
-    void headingRoundedGoalUsesOriginalEndpointPriorityRatherThanGoalCost() {
+    void headingRoundedSearchMatchesReferenceAfterUpdatedBendFiltering() {
         for (Coordinate offset : List.of(point(0, 0), point(400000, 6000000))) {
             List<Coordinate> nodes = improvementNodes(offset.x, offset.y, 0.00049);
             List<Coordinate> rounded = rounded(nodes);
@@ -106,23 +103,16 @@ class OfficialObstacleRouterSearchPriorityTest {
             double goalHeuristic = heuristic(rounded.get(1), nodes.get(1));
 
             assertThat(goalHeuristic).isPositive();
-            assertThat(expected.goalCosts).hasSize(2);
-            assertThat(expected.goalCosts.get(0)).isGreaterThan(expected.goalCosts.get(1));
-            assertThat(expected.goalCosts.get(1) + goalHeuristic)
-                    .as("the winning goal priority exceeds the first goal COST")
-                    .isGreaterThan(expected.goalCosts.get(0));
+            assertThat(expected.goalCosts).hasSize(1);
             SearchOutcome actual = search(nodes, constraints, RoutePreference.SHORTEST, previous,
                     improvementGraph(rounded));
-            assertThat(actual.path).containsExactly(rounded.get(0), rounded.get(3), rounded.get(1))
-                    .containsExactlyElementsOf(expected.path);
-            System.out.printf(Locale.ROOT, "GOAL76 rounded offset=%s hGoal=%.12g firstCost=%.12g winningCost=%.12g pairs=%d%n",
-                    offset, goalHeuristic, expected.goalCosts.get(0), expected.goalCosts.get(1), actual.pairs);
+            assertThat(actual.path).containsExactlyElementsOf(expected.path);
         }
     }
 
     @Test
     void goalRejectedBySpecialTurnCannotSupplyAnUpperBound() {
-        List<Coordinate> nodes = List.of(point(0, 0), point(10, 0), point(9, 1), point(5, -5));
+        List<Coordinate> nodes = List.of(point(0, 0), point(10, 0), point(5, 5), point(5, -5));
         GraphRules graph = improvementGraph(nodes);
         graph.rejectedGoalPredecessor = 2;
         SearchOutcome actual = search(nodes, rules.index(List.of()), RoutePreference.SHORTEST, null, graph);
@@ -215,8 +205,8 @@ class OfficialObstacleRouterSearchPriorityTest {
     void realObstacleGeometryKeepsTheExactUnboundedSearchPathForEveryPreference() throws Exception {
         ConstraintIndex constraints = rules.index(rules.baseConstraints(List.of(feature("park",
                 "POLYGON ((4 -1, 6 -1, 6 1, 4 1, 4 -1))")), 100));
-        List<Coordinate> nodes = List.of(point(0, 0), point(10, 0), point(3, 3), point(7, 3),
-                point(3, -3), point(7, -3), point(50, 30), point(50, -30));
+        List<Coordinate> nodes = List.of(point(0, 0), point(10, 0), point(0, 6), point(10, 6),
+                point(0, -6), point(10, -6), point(50, 30), point(50, -30));
         for (RoutePreference preference : RoutePreference.values()) {
             ReferenceOutcome expected = reference(nodes, constraints, preference, null, rules);
             SearchOutcome actual = search(nodes, constraints, preference, null, rules);

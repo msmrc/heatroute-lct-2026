@@ -42,11 +42,16 @@ final class PreparedCorridor {
 
     PreparedCorridor(OfficialRouteGeometryRules rules, List<Constraint> constraints,
             Coordinate root, String targetId) {
-        this(rules, constraints, root, targetId, RouteTraversal.AS_GIVEN);
+        this(rules, constraints, root, targetId == null ? Set.of() : Set.of(targetId), RouteTraversal.AS_GIVEN);
     }
 
     PreparedCorridor(OfficialRouteGeometryRules rules, List<Constraint> constraints,
             Coordinate root, String targetId, RouteTraversal traversal) {
+        this(rules, constraints, root, targetId == null ? Set.of() : Set.of(targetId), traversal);
+    }
+
+    PreparedCorridor(OfficialRouteGeometryRules rules, List<Constraint> constraints,
+            Coordinate root, Set<String> targetIds, RouteTraversal traversal) {
         this.rules = Objects.requireNonNull(rules, "Corridor geometry rules are required");
         this.constraints = List.copyOf(constraints);
         requireFinite(root);
@@ -64,7 +69,7 @@ final class PreparedCorridor {
                 .collect(Collectors.toList());
         // Льгота только у самого контакта: дальнее пересечение той же теплосети не исчезает.
         List<Constraint> rootBase = rules.localTieInConstraints(this.constraints,
-                targetId == null ? Set.of() : Set.of(targetId), root, root);
+                targetIds, root, root);
         this.rootConstraints = rules.applicableConstraints(rootBase, Set.of(), root, root);
         strictIndex = rules.index(this.constraints, traversal);
         rootIndex = rules.index(rootConstraints, traversal);

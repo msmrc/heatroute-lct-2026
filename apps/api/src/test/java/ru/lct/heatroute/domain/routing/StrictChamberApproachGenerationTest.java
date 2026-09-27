@@ -16,7 +16,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 
-/** Генерация соблюдает нормаль камеры и фактические 2 м до поворота до независимого допуска. */
+/** Генерация соблюдает нормаль камеры и табличный интервал до поворота до независимого допуска. */
 class StrictChamberApproachGenerationTest {
     private final OfficialObstacleRouter router = new OfficialObstacleRouter(new OfficialRouteGeometryRules(
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry()));
@@ -55,12 +55,12 @@ class StrictChamberApproachGenerationTest {
     }
 
     @Test
-    void anOfficiallyAllowedShallowBodyBendKeepsItsNormalChamberEntry() {
+    void aShallowBodyBendCannotDisplaceTheLegalNormalAlternative() {
         RoutePath west = path(-20, 0, 0, 0);
         RoutePath shallow = path(10, 37.32, 0, 20, 0, 0);
         RoutePath longer = path(10, 37.32, 10, 20, 0, 20, 0, 0);
         assertThat(CorridorJunctionAssignment.choose(new Coordinate(),
-                List.of(List.of(west), List.of(shallow, longer)))).containsExactly(west, shallow);
+                List.of(List.of(west), List.of(shallow, longer)))).containsExactly(west, longer);
     }
 
     @ParameterizedTest

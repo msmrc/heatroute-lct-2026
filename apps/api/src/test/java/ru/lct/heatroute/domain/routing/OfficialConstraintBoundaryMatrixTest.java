@@ -53,8 +53,12 @@ class OfficialConstraintBoundaryMatrixTest {
             // Официальные road/tram — polygon: ширина 2 м плюс 3 м с каждой стороны.
             ImportedOfficialFeature restriction = restriction(type, "POLYGON ((-20 -1,20 -1,20 1,-20 1,-20 -1))");
             LineString positive = (LineString) reader.read("LINESTRING (0 -10, 0 10)");
-            LineString boundary = (LineString) reader.read("LINESTRING (-10 -10, 10 10)");
-            LineString negative = (LineString) reader.read("LINESTRING (-10 -9.9, 10 9.9)");
+            LineString boundary = "road".equals(type)
+                    ? positive
+                    : (LineString) reader.read("LINESTRING (-10 -10, 10 10)");
+            LineString negative = "road".equals(type)
+                    ? (LineString) reader.read("LINESTRING (-0.03 -10, 0.03 10)")
+                    : (LineString) reader.read("LINESTRING (-10 -9.9, 10 9.9)");
             List<OfficialRouteGeometryRules.Constraint> constraints = rules.baseConstraints(
                     List.of(restriction), 100);
 
@@ -73,7 +77,13 @@ class OfficialConstraintBoundaryMatrixTest {
     void coversGeneratedBoundaryAndMissingSectionCasesForEveryUtilityRow() throws Exception {
         for (String type : UTILITY_SPECIAL) {
             ImportedOfficialFeature restriction = restriction(type, "LINESTRING (-20 0, 20 0)");
-            LineString crossing = (LineString) reader.read("LINESTRING (0 -10, 0 10)");
+            boolean obliqueAllowed = "gas_pipeline".equals(type) || "power_cable".equals(type);
+            LineString crossing = (LineString) reader.read(obliqueAllowed
+                    ? "LINESTRING (-10 -17.3205080767, 10 17.3205080767)"
+                    : "LINESTRING (0 -10, 0 10)");
+            LineString below = (LineString) reader.read(obliqueAllowed
+                    ? "LINESTRING (-10 -16.9, 10 16.9)"
+                    : "LINESTRING (-0.04 -10, 0.04 10)");
             List<OfficialRouteGeometryRules.Constraint> constraints = rules.baseConstraints(
                     List.of(restriction), 100);
             List<RouteSection> sections = rules.sections(crossing, constraints);
@@ -81,6 +91,7 @@ class OfficialConstraintBoundaryMatrixTest {
             RouteEdge missing = edge(type + "-missing", crossing, List.of());
 
             assertThat(rules.lineAllowed(crossing, constraints)).as(type + " positive").isTrue();
+            assertThat(rules.lineAllowed(below, constraints)).as(type + " below angle").isFalse();
             assertThat(sections).filteredOn(section -> "special".equals(section.getKind()))
                     .singleElement().satisfies(section -> {
                         assertThat(section.getRestrictionType()).isEqualTo(type);

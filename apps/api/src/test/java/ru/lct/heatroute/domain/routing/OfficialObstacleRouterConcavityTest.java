@@ -75,7 +75,9 @@ class OfficialObstacleRouterConcavityTest {
         for (double startX : new double[] {-30, -5.1}) {
             List<Coordinate> nodes = navigationNodes(new Coordinate(startX, 50), new Coordinate(130, 50),
                     rules.baseConstraints(List.of(building), 100));
-            assertThat(nodes).hasSizeLessThanOrEqualTo(14);
+            // An ordinary convex block keeps only the bounded legal-angle helpers; oriented
+            // envelope projections are reserved for a terminal inside a concave hull.
+            assertThat(nodes).hasSizeLessThanOrEqualTo(21);
         }
     }
 

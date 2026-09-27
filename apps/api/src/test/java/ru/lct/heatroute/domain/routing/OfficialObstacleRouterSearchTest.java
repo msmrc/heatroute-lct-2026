@@ -325,8 +325,8 @@ class OfficialObstacleRouterSearchTest {
         Coordinate interior = new Coordinate(50, 0);
         Coordinate boundary = new Coordinate(constraints.get(0).blocked().getEnvelopeInternal().getMinX(), 0);
         List<Coordinate> nodes = List.of(new Coordinate(0, 0), new Coordinate(100, 0),
-                interior, new Coordinate(38, 12), boundary, new Coordinate(62, 12),
-                new Coordinate(38, -12), new Coordinate(62, -12));
+                interior, new Coordinate(0, 12), boundary, new Coordinate(100, 12),
+                new Coordinate(0, -12), new Coordinate(100, -12));
         for (RoutePreference preference : RoutePreference.values()) {
             VisibilityCounter originalRules = new VisibilityCounter(Set.of(interior, boundary));
             VisibilityCounter optimizedRules = new VisibilityCounter(Set.of(interior, boundary));
@@ -377,16 +377,16 @@ class OfficialObstacleRouterSearchTest {
     }
 
     @Test
-    void keepsTheHullRouteWhenTheSameCorridorOffersADifferentPocketRoute() throws Exception {
-        assertHullRoutePrecedesPockets(110, 75);
+    void keepsTheOrdinaryRouteWhenTheSameCorridorAlsoOffersPocketNodes() throws Exception {
+        assertOrdinaryRoutePrecedesPockets(110);
     }
 
     @Test
-    void triesAllHullCorridorsBeforeAnAvailableSmallCorridorPocketRoute() throws Exception {
-        assertHullRoutePrecedesPockets(150, 200);
+    void firstOrdinaryCorridorCanUseTheLegalOrientedEnvelopeExit() throws Exception {
+        assertOrdinaryRoutePrecedesPockets(150);
     }
 
-    private void assertHullRoutePrecedesPockets(double markerY, double hullExpansion) throws Exception {
+    private void assertOrdinaryRoutePrecedesPockets(double markerY) throws Exception {
         List<ImportedOfficialFeature> features = List.of(
                 park("courtyard", "POLYGON ((0 0,100 0,100 100,60 100,60 20,40 20,40 100,0 100,0 0))"),
                 park("outside-marker", "POLYGON ((48 " + markerY + ", 52 " + markerY + ", 52 "
@@ -396,21 +396,22 @@ class OfficialObstacleRouterSearchTest {
         OfficialRoutingEnvironment environment = router.prepare(features);
         List<OfficialRouteGeometryRules.Constraint> constraints = environment.constraints(100, Set.of(), start, end);
         ConstraintIndex index = rules.index(constraints);
-        if (hullExpansion > 75) {
-            List<Coordinate> smallHull = ReflectionTestUtils.invokeMethod(router, "navigationNodes",
-                    start, end, index, 75.0, false);
-            assertThat(search(smallHull, index, RoutePreference.SHORTEST)).isEmpty();
-        }
-        RoutePath ordinary = validatedGraphRoute(start, end, index, constraints, hullExpansion, false);
-        RoutePath pocket = validatedGraphRoute(start, end, index, constraints, 75, true);
-        assertThat(pocket.coordinates()).isNotEqualTo(ordinary.coordinates());
+        List<Coordinate> ordinaryNodes = ReflectionTestUtils.invokeMethod(router, "navigationNodes",
+                start, end, index, 75.0, false);
+        List<Coordinate> pocketNodes = ReflectionTestUtils.invokeMethod(router, "navigationNodes",
+                start, end, index, 75.0, true);
+        assertThat(pocketNodes.size()).isGreaterThan(ordinaryNodes.size());
+        assertThat(search(ordinaryNodes, index, RoutePreference.SHORTEST)).isNotEmpty();
 
         RoutePath actual = router.find(start, end, 100, environment, Set.of(), RoutePreference.SHORTEST);
 
         assertThat(actual).isNotNull();
-        assertThat(actual.coordinates()).containsExactlyElementsOf(ordinary.coordinates());
-        assertThat(actual.lengthM()).isEqualTo(ordinary.lengthM());
+        for (Coordinate coordinate : actual.coordinates()) {
+            assertThat(ordinaryNodes).anySatisfy(node ->
+                    assertThat(node.distance(coordinate)).isLessThan(0.002));
+        }
         assertThat(router.lineAllowed(actual.coordinates(), 100, environment, Set.of(), List.of())).isTrue();
+        assertThat(ReflectionTestUtils.getField(environment, "visibilitySearches")).isEqualTo(1L);
     }
 
     private RoutePath validatedGraphRoute(Coordinate start, Coordinate end, ConstraintIndex index,

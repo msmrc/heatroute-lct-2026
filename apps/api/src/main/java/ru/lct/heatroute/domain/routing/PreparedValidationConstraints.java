@@ -101,7 +101,7 @@ final class PreparedValidationConstraints {
             Geometry geometry = feature.getMetricGeometry();
             if (geometry == null || geometry.isEmpty()) continue;
             // Не пропускаем валидацию ДУ даже у далёкого объекта и при готовых bounds.
-            BigDecimal clearance = rules.preparationClearanceM(type, diameter);
+            BigDecimal clearance = rules.preparationClearanceM(feature, diameter);
             FeatureKey featureKey = new FeatureKey(feature.getFeatureId(), type);
             Source source = sources.get(featureKey);
             if (source != null && !PreparedRoutingConstraints.sameGeometry(source.geometry, geometry)) {

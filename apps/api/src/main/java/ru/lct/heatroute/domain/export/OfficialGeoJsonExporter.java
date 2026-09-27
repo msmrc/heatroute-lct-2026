@@ -162,6 +162,7 @@ public class OfficialGeoJsonExporter {
             Map<JsonNode, java.util.Set<String>> specialSources =
                     SavedSpecialSectionAssessment.verify(variant, inputFeatures, pipeCatalog);
             SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog, specialSources);
+            SavedUtilityHorizontalAssessment.verify(variant, inputFeatures, pipeCatalog);
             spatial.verify(variant);
         }
         for (JsonNode variant : variants) {

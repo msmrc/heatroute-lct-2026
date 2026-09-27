@@ -123,8 +123,8 @@ class ExpertChamberRayPreferenceTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"60, false, 1, 30", "90, true, 1, 0", "120, true, 1, 30",
-            "135, true, 1, 45", "150, true, 1, 30", "180, true, 0, 0"})
+    @CsvSource({"60, false, 1, 30", "90, true, 1, 0", "120, true, 1, 0",
+            "135, false, 1, 15", "150, false, 1, 30", "180, true, 0, 0"})
     void pipeInternalAnglesAndDegreeTwoNodesFollowTzDeflectionRange(double angle, boolean compliant, int bends, double preferred) {
         RouteCoordinate first = point(100, 0), center = point(0, 0);
         RouteCoordinate last = point(100 * Math.cos(Math.toRadians(angle)), 100 * Math.sin(Math.toRadians(angle)));
@@ -165,10 +165,10 @@ class ExpertChamberRayPreferenceTest {
     }
 
     @Test
-    void removingAChamberStillCannotMasqueradeAsPreservingItsQuality() {
+    void removingAResolvedChamberDoesNotLeaveAJunctionPreferenceToPreserve() {
         var before = evaluator.evaluate(star("camera", 0, 0, 0, 0, 90, 180));
         var after = evaluator.evaluate(List.of(edge("pipe", "left", "right", point(-10, 0), point(10, 0))));
-        assertThat(after.preservesJunctionQualityOf(before)).isFalse();
+        assertThat(after.preservesJunctionQualityOf(before)).isTrue();
     }
 
     @ParameterizedTest
@@ -247,12 +247,12 @@ class ExpertChamberRayPreferenceTest {
     }
 
     @Test
-    void identicalRaysAtANewNodeIdDoNotPreserveTheRemovedNode() {
+    void replacingAResolvedChamberDoesNotTransferTheOldNodePreference() {
         var before = evaluator.evaluate(star("original", 0, 0, 0, 0, 90, 180));
         var after = evaluator.evaluate(star("replacement", 0, 0, 0, 0, 90, 180));
         assertThat(after.irregularJunctionAngleCount()).isZero();
         assertThat(after.totalJunctionAngleDeviation()).isZero();
-        assertThat(after.preservesJunctionQualityOf(before)).isFalse();
+        assertThat(after.preservesJunctionQualityOf(before)).isTrue();
     }
 
     private List<RouteEdge> withOtherCamera(List<RouteEdge> target, boolean repaired) {

@@ -46,7 +46,7 @@ class OfficialObstacleRouterFallbackTest {
     }
 
     @Test
-    void preservesDifferentPocketFallbackAndItsValidatedRoute() throws Exception {
+    void orientedEnvelopeFindsAndValidatesCourtyardExitBeforePocketFallback() throws Exception {
         List<ImportedOfficialFeature> features = List.of(restriction("oks", "courtyard",
                 "POLYGON ((0 0,100 0,100 100,60 100,60 20,40 20,40 100,0 100,0 0))"));
         Coordinate start = new Coordinate(50, 35);
@@ -63,7 +63,7 @@ class OfficialObstacleRouterFallbackTest {
         assertThat(route.coordinates().get(0)).isEqualTo(start);
         assertThat(route.coordinates().get(route.coordinates().size() - 1)).isEqualTo(end);
         assertThat(router.lineAllowed(route.coordinates(), 100, environment, Set.of(), List.of())).isTrue();
-        assertSearchCount(environment, 4);
+        assertSearchCount(environment, 1);
     }
 
     @Test
@@ -88,8 +88,9 @@ class OfficialObstacleRouterFallbackTest {
         assertThat(rejectingRouter.find(new Coordinate(0, 0), new Coordinate(100, 0), 100,
                 environment, Set.of(), RoutePreference.SHORTEST)).isNull();
 
-        // Каждый ordinary граф проверяет shortcut и исходный путь; pocket повторно не ищется.
-        assertThat(rejectingRules.validationAttempts).isEqualTo(6);
+        // 14 bounded rectangular candidates are checked before each ordinary graph validates
+        // its shortcut and original path; an identical pocket graph is not searched again.
+        assertThat(rejectingRules.validationAttempts).isEqualTo(20);
         assertSearchCount(environment, 3);
     }
 

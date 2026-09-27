@@ -46,6 +46,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
 @Component
 public class OfficialRoutePlanner {
+    private static final int MAX_FINAL_SIZING_GEOMETRY_PASSES = 24;
     private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutePlanner.class);
     public static final String ALGORITHM_VERSION = RoutePlannerTuning.STABLE_ALGORITHM_VERSION;
     private static final double MIN_EDGE_LENGTH_M = 0.01;
@@ -404,7 +405,7 @@ public class OfficialRoutePlanner {
                     "EXPERT_BEND_ANGLE_OUT_OF_RANGE",
                     affectedEdges,
                     evaluation.invalidAngleCount()
-                            + " bend angles are outside the official 90-180 degree range"));
+                            + " bend angles are outside the updated 90-120 degree range"));
         }
         issues.addAll(chamberValidator.validate(variant.getNodes(), variant.getEdges()));
         return variant.withEngineeringIssues(issues);
@@ -1373,10 +1374,12 @@ public class OfficialRoutePlanner {
             Map<String, ImportedOfficialFeature> featuresById) {
         RouteNode support = new RouteNode("approach-support", candidate.getTargetType(),
                 new RouteCoordinate(coordinate.x, coordinate.y), true, true, 0, candidate.getTargetId());
+        Set<String> localTargets = new java.util.LinkedHashSet<>(exemptFeatureIds);
+        localTargets.addAll(routingEnvironment.existingNetworkIds(support));
         List<Coordinate> rays = routingEnvironment.existingDirections(support);
         if (!rays.isEmpty()) {
             RoutePath local = RootChamberApproaches.best(demand.coordinate, coordinate, rays, diameter,
-                    obstacleRouter, routingEnvironment, exemptFeatureIds, acceptedRoutes);
+                    obstacleRouter, routingEnvironment, localTargets, acceptedRoutes);
             if (local != null) return local;
             List<Coordinate> approaches = new ArrayList<>(new ChamberApproachCandidates().build(
                     coordinate, rays, chamberApproachLength(diameter), JUNCTION_ANGLE_TOLERANCE_DEGREES));
@@ -1384,10 +1387,10 @@ public class OfficialRoutePlanner {
             for (Coordinate waypoint : approaches) {
                 RoutePath approach = routeDemand(
                         demand, waypoint, diameter, routingEnvironment,
-                        exemptFeatureIds, preference, acceptedRoutes);
+                        localTargets, preference, acceptedRoutes);
                 if (approach != null) {
                     RoutePath perpendicular = obstacleRouter.withCheckedDemandSuffix(
-                            approach, coordinate, diameter, routingEnvironment, exemptFeatureIds, acceptedRoutes);
+                            approach, coordinate, diameter, routingEnvironment, localTargets, acceptedRoutes);
                     if (perpendicular != null && normalEnd(perpendicular, rays, diameter)) {
                         return perpendicular;
                     }
@@ -1397,7 +1400,7 @@ public class OfficialRoutePlanner {
         }
         return routeDemand(
                 demand, coordinate, diameter, routingEnvironment,
-                exemptFeatureIds, preference, acceptedRoutes);
+                localTargets, preference, acceptedRoutes);
     }
 
     private boolean normalEnd(RoutePath path, List<Coordinate> rays, int diameter) {
@@ -1594,6 +1597,14 @@ public class OfficialRoutePlanner {
             Demand demand, VariantDraft draft, OfficialRoutingEnvironment routingEnvironment,
             boolean boundedWholeTreeSearch, boolean detourRepair, RoutePreference preference,
             Set<String> allowedEdgeIds, long maximumJunctions) {
+        return chooseTreeAttachment(demand, draft, routingEnvironment, boundedWholeTreeSearch,
+                detourRepair, preference, allowedEdgeIds, maximumJunctions, false);
+    }
+
+    private TreeAttachment chooseTreeAttachment(
+            Demand demand, VariantDraft draft, OfficialRoutingEnvironment routingEnvironment,
+            boolean boundedWholeTreeSearch, boolean detourRepair, RoutePreference preference,
+            Set<String> allowedEdgeIds, long maximumJunctions, boolean allowRepairableChamberIssues) {
         if (draft.edges.isEmpty()) {
             return null;
         }
@@ -1662,9 +1673,13 @@ public class OfficialRoutePlanner {
             LineString targetLine = routeLine(targetEdge);
             LengthIndexedLine indexed = new LengthIndexedLine(targetLine);
             double length = targetLine.getLength();
-            List<Double> indexes = boundedWholeTreeSearch
-                    ? List.of(indexed.project(demand.coordinate))
-                    : List.of(indexed.project(demand.coordinate), length * 0.50);
+            List<Double> indexes = allowRepairableChamberIssues
+                    && targetEdge.getId().startsWith("optimized:contract:")
+                    ? List.of(indexed.project(demand.coordinate), length * 0.10,
+                            length * 0.25, length * 0.50, length * 0.75)
+                    : boundedWholeTreeSearch
+                            ? List.of(indexed.project(demand.coordinate))
+                            : List.of(indexed.project(demand.coordinate), length * 0.50);
             List<Coordinate> tried = new ArrayList<>();
             for (double index : indexes) {
                 if (index <= MIN_EDGE_LENGTH_M || length - index <= MIN_EDGE_LENGTH_M) {
@@ -1675,11 +1690,12 @@ public class OfficialRoutePlanner {
                     continue;
                 }
                 tried.add(requestedCut);
-                if (routingEnvironment.pointInsideForbiddenClearance(
-                                diameterFor(demand.flowTph), requestedCut)
-                        || liesOnSpecialSection(targetEdge, requestedCut)
-                        || liesOnTerminalMandatoryEgress(
-                                draft, targetEdge, requestedCut, routingEnvironment)) {
+                boolean blockedCut = routingEnvironment.pointInsideForbiddenClearance(
+                        diameterFor(demand.flowTph), requestedCut);
+                boolean specialCut = liesOnSpecialSection(targetEdge, requestedCut);
+                boolean terminalEgressCut = liesOnTerminalMandatoryEgress(
+                        draft, targetEdge, requestedCut, routingEnvironment);
+                if (blockedCut || specialCut || terminalEgressCut) {
                     continue;
                 }
                 RoutePath.Split split = edgePath(targetEdge).splitAt(requestedCut);
@@ -1733,11 +1749,19 @@ public class OfficialRoutePlanner {
         for (TreeAttachment candidate : attachments) {
             VariantDraft simulation = draft.copy();
             addTreeAttachment(simulation, demand, candidate);
-            if (isFinalGeometryValid(simulation, routingEnvironment)) {
+            if (isFinalGeometryValid(simulation, routingEnvironment)
+                    || allowRepairableChamberIssues
+                            && isChamberRepairGeometryValid(simulation, routingEnvironment)) {
                 return candidate;
             }
         }
         return null;
+    }
+
+    private TreeAttachment chooseTreeAttachmentForChamberRepair(
+            Demand demand, VariantDraft draft, OfficialRoutingEnvironment routingEnvironment) {
+        return chooseTreeAttachment(demand, draft, routingEnvironment, true, true,
+                RoutePreference.ENGINEERING, null, Long.MAX_VALUE, true);
     }
 
     /** Предлагает свободные нормальные лучи перед добавлением ветви к камере. */
@@ -2514,8 +2538,12 @@ public class OfficialRoutePlanner {
                     break;
                 }
             }
-            LOGGER.info("Mandatory chamber repair seed={} issues_before={} issues_after={}", seed.getId(),
-                    ChamberQualityRefinementSearch.repairIssueCount(seed), ChamberQualityRefinementSearch.repairIssueCount(current));
+            List<RouteValidationIssue> remainingChamberIssues = chamberValidator.validate(
+                    current.getNodes(), current.getEdges(), environment::existingDirections);
+            LOGGER.info("Mandatory chamber repair seed={} issues_before={} issues_after={} remaining={}", seed.getId(),
+                    ChamberQualityRefinementSearch.repairIssueCount(seed), ChamberQualityRefinementSearch.repairIssueCount(current),
+                    remainingChamberIssues.stream().map(issue -> issue.getCode() + ":" + issue.getSubjectId())
+                            .collect(Collectors.toList()));
         }
         return repaired;
     }
@@ -2576,7 +2604,7 @@ public class OfficialRoutePlanner {
         return new FinishedRouteVariantSelector().selectChamberQuality(alternatives, parameters.isDepthEnabled(), anchor);
     }
 
-    /** До 4 камер × (исходная позиция + 4 переноса); не более двух черновиков для дорогого finish. */
+    /** До 4 камер × (исходная позиция + 4 переноса); не более шести черновиков для полной доводки. */
     private List<VariantDraft> chamberQualityDrafts(RouteVariant current, Map<String, Demand> demandsByNode,
             OfficialRoutingEnvironment environment) {
         VariantDraft source = new VariantDraft(current.getNodes(), current.getEdges(), current.getConnections());
@@ -2633,6 +2661,49 @@ public class OfficialRoutePlanner {
                 candidates.putIfAbsent(draftGeometrySignature(draft),
                         new AssessedRouteDraft(draft, score, totalRouteLength(draft), geometry.bendCount()));
                 candidateGeometry.put(draft, geometry);
+            }
+            // Если несколько конечных ветвей занимают один луч, перенос камеры не разделит все
+            // подходы. Отделяем одну нагрузку и ищем для неё другую допустимую камеру/врезку.
+            for (RouteEdge edge : edges) {
+                String outerId = edge.getUpstreamNodeId().equals(camera.getId())
+                        ? edge.getDownstreamNodeId() : edge.getUpstreamNodeId();
+                Demand demand = demandsByNode.get(outerId);
+                if (demand == null) continue;
+                VariantDraft detached = detachDemandAndNormalize(source, demand);
+                if (detached == null || detached.edges.isEmpty()) continue;
+                TreeAttachment attachment = chooseTreeAttachmentForChamberRepair(demand, detached, environment);
+                if (attachment == null) {
+                    LOGGER.debug("Chamber demand reattachment unavailable camera={} demand={}", camera.getId(), demand.id);
+                    continue;
+                }
+                VariantDraft draft = detached.copy();
+                addTreeAttachment(draft, demand, attachment);
+                // Повторное присоединение меняет только трассу: восстанавливаем исходные метаданные
+                // конечного узла, чтобы повторная доводка не потеряла идентичность нагрузки.
+                RouteNode originalDemandNode = source.nodes.get(outerId);
+                if (originalDemandNode != null) draft.nodes.put(outerId, originalDemandNode);
+                EngineeringRouteEvaluator.Evaluation geometry = engineeringEvaluator.evaluate(draft.edges);
+                List<RouteValidationIssue> afterIssues = chamberValidator.validate(new ArrayList<>(draft.nodes.values()),
+                        draft.edges, environment::existingDirections);
+                if (afterIssues.stream().anyMatch(issue -> !ChamberQualityRefinementSearch.repairableIssue(issue))
+                        || afterIssues.size() > beforeIssues.size()
+                        || afterIssues.size() == beforeIssues.size()
+                                && !ChamberQualityRefinementSearch.improvesRays(before, geometry)
+                        || !geometry.isCompliant()
+                        || !isChamberRepairGeometryValid(draft, environment)) {
+                    LOGGER.debug("Chamber demand reattachment rejected camera={} demand={} issues_before={} issues_after={} junction={} target_edge={}",
+                            camera.getId(), demand.id, beforeIssues.size(), afterIssues.size(),
+                            attachment.junction.getId(), attachment.targetEdge == null ? null : attachment.targetEdge.getId());
+                    continue;
+                }
+                BigDecimal score = draftScore(draft);
+                if (score == null) continue;
+                candidates.putIfAbsent(draftGeometrySignature(draft),
+                        new AssessedRouteDraft(draft, score, totalRouteLength(draft), geometry.bendCount()));
+                candidateGeometry.put(draft, geometry);
+                LOGGER.debug("Chamber demand reattachment candidate camera={} demand={} issues_before={} issues_after={} junction={} target_edge={}",
+                        camera.getId(), demand.id, beforeIssues.size(), afterIssues.size(),
+                        attachment.junction.getId(), attachment.targetEdge == null ? null : attachment.targetEdge.getId());
             }
         }
         return candidates.values().stream().sorted(Comparator
@@ -3431,7 +3502,16 @@ public class OfficialRoutePlanner {
                 currentEvaluation = rebuiltEvaluation;
             }
         }
-        List<String> edgeIds = new ArrayList<>(currentEvaluation.nonCompliantEdgeIds());
+        Set<String> exactNonCompliant = new LinkedHashSet<>(currentEvaluation.nonCompliantEdgeIds());
+        Set<String> currentEdgeIds = current.edges.stream().map(RouteEdge::getId).collect(Collectors.toSet());
+        for (RouteValidationIssue issue : ExpertRouteBendRules.validate(
+                new ArrayList<>(current.nodes.values()), current.edges)) {
+            if (currentEdgeIds.contains(issue.getSubjectId())) exactNonCompliant.add(issue.getSubjectId());
+            else current.edges.stream().filter(edge -> edge.getUpstreamNodeId().equals(issue.getSubjectId())
+                            || edge.getDownstreamNodeId().equals(issue.getSubjectId()))
+                    .map(RouteEdge::getId).forEach(exactNonCompliant::add);
+        }
+        List<String> edgeIds = new ArrayList<>(exactNonCompliant);
         Collections.sort(edgeIds);
         for (String edgeId : edgeIds) {
             RouteEdge edge = current.edges.stream()
@@ -4352,6 +4432,31 @@ public class OfficialRoutePlanner {
         return routingEnvironment.validationFor(validator).validate(nodes, sizedEdges, features).isEmpty();
     }
 
+    /** Промежуточный ремонт может сохранять только те же два устранимых дефекта камеры. */
+    private boolean isChamberRepairGeometryValid(
+            VariantDraft draft,
+            OfficialRoutingEnvironment routingEnvironment) {
+        Map<String, BigDecimal> demandFlowByNode = draft.connections.stream()
+                .filter(connection -> "connected".equals(connection.getStatus()))
+                .collect(Collectors.toMap(
+                        connection -> "demand:" + connection.getDemandId(),
+                        RouteConnection::getFlowTph,
+                        BigDecimal::add,
+                        LinkedHashMap::new));
+        NetworkSizingResult sizing = sizeRoutes(draft.edges, demandFlowByNode);
+        if (!sizing.isValid()) return false;
+        List<RouteNode> nodes = new ArrayList<>(draft.nodes.values());
+        List<RouteEdge> sizedEdges = applySizing(draft.edges, sizing);
+        if (!engineeringEvaluator.evaluate(sizedEdges).isCompliant()
+                || !ExpertRouteBendRules.validate(nodes, sizedEdges).isEmpty()) return false;
+        List<ImportedOfficialFeature> features = featuresForEdges(
+                Collections.emptyList(), sizedEdges, routingEnvironment);
+        if (routingEnvironment.validationFor(validator).validate(nodes, sizedEdges, features).stream()
+                .anyMatch(issue -> !ChamberQualityRefinementSearch.repairableIssue(issue))) return false;
+        return chamberValidator.validate(nodes, sizedEdges, routingEnvironment::existingDirections).stream()
+                .allMatch(ChamberQualityRefinementSearch::repairableIssue);
+    }
+
     private TreeAttachment betterTreeAttachment(TreeAttachment current, TreeAttachment candidate) {
         if (candidate == null) {
             return current;
@@ -4803,13 +4908,18 @@ public class OfficialRoutePlanner {
         NetworkSizingResult sizing = sizeRoutes(depthReroutedEdges, demandFlowByNode);
         List<RouteEdge> finalSizedEdges = ensureMandatoryEgress(
                 nodes, applySizing(depthReroutedEdges, sizing), features, routingEnvironment, approachPolicy);
-        if (!"cheapest".equals(strategy)) {
-            finalSizedEdges = regularizeFinishedEngineeringEdges(
-                    nodes, finalSizedEdges, features, routingEnvironment);
+        // Выход из ОКС и регуляризация меняют длину, а новый ДУ меняет табличный минимум
+        // между поворотами. Повторяем обе операции до стабильных координат и диаметров.
+        NetworkSizingResult finalSizing = null;
+        for (int pass = 0; pass < MAX_FINAL_SIZING_GEOMETRY_PASSES; pass++) {
+            finalSizing = sizeRoutes(finalSizedEdges, demandFlowByNode);
+            List<RouteEdge> sized = applySizing(finalSizedEdges, finalSizing);
+            List<RouteEdge> regularized = regularizeFinishedEngineeringEdges(
+                    nodes, sized, features, routingEnvironment);
+            finalSizedEdges = regularized;
+            if (sameSizedGeometry(sized, regularized)) break;
         }
-        // Выход из ОКС и регуляризация меняют длину: окончательный ДУ определяем после них.
-        // Далее геометрию не меняем; валидатор отклонит отступы, недостаточные для нового ДУ.
-        NetworkSizingResult finalSizing = sizeRoutes(finalSizedEdges, demandFlowByNode);
+        finalSizing = sizeRoutes(finalSizedEdges, demandFlowByNode);
         finalSizedEdges = applySizing(finalSizedEdges, finalSizing);
         routeFeatures = featuresForEdges(features, finalSizedEdges, routingEnvironment);
         List<RouteEdge> profiledEdges = parameters.isDepthEnabled()
@@ -4851,12 +4961,10 @@ public class OfficialRoutePlanner {
     }
 
     /**
-     * Applies the expert constructability rules to the actual exported geometry. Tree grafting,
-     * chamber contraction and mandatory OKS egress all happen after the initial path search and
-     * can introduce shallow technical kinks; checking only the search paths therefore misses the
-     * geometry that the user sees. This bounded local pass removes a kink when the direct segment
-     * is legal, otherwise it tries a 90/135-degree elbow. Every accepted replacement must improve
-     * the expert score and keep the complete route valid against the official constraint catalogue.
+     * Применяет правила строимости к фактически экспортируемой геометрии. Врезка дерева, сжатие
+     * камер и обязательные выходы ОКС выполняются после первичного поиска и могут создать мелкий
+     * излом. Ограниченная доводка убирает его прямым звеном или поворотом 90–120°, сохраняя
+     * допустимость полного маршрута по официальному каталогу.
      */
     private List<RouteEdge> regularizeFinishedEngineeringEdges(
             List<RouteNode> nodes,
@@ -4868,8 +4976,19 @@ public class OfficialRoutePlanner {
                 .collect(Collectors.toMap(RouteNode::getId, node -> node));
         for (int pass = 0; pass < 2; pass++) {
             boolean improved = false;
-            List<String> nonCompliantIds = new ArrayList<>(
+            Set<String> edgeIds = current.stream().map(RouteEdge::getId).collect(Collectors.toSet());
+            Set<String> nonCompliant = new LinkedHashSet<>(
                     engineeringEvaluator.evaluate(current).nonCompliantEdgeIds());
+            for (RouteValidationIssue issue : ExpertRouteBendRules.validate(nodes, current)) {
+                if (edgeIds.contains(issue.getSubjectId())) {
+                    nonCompliant.add(issue.getSubjectId());
+                } else {
+                    current.stream().filter(edge -> edge.getUpstreamNodeId().equals(issue.getSubjectId())
+                                    || edge.getDownstreamNodeId().equals(issue.getSubjectId()))
+                            .map(RouteEdge::getId).forEach(nonCompliant::add);
+                }
+            }
+            List<String> nonCompliantIds = new ArrayList<>(nonCompliant);
             for (String edgeId : nonCompliantIds) {
                 int edgeIndex = -1;
                 for (int index = 0; index < current.size(); index++) {
@@ -4898,6 +5017,12 @@ public class OfficialRoutePlanner {
                         endpointFeatureIds(edge, nodesById),
                         acceptedRoutes);
                 if (replacement == null) {
+                    replacement = obstacleRouter.expandEndpointBendSpacing(
+                            edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate)
+                                    .collect(Collectors.toList()),
+                            edge.getDiameter() == null ? 50 : edge.getDiameter(), routingEnvironment);
+                }
+                if (replacement == null) {
                     continue;
                 }
                 RouteEdge candidateEdge = routeEdge(
@@ -4905,11 +5030,49 @@ public class OfficialRoutePlanner {
                         replacement, edge.getFlowTph(), edge.getDiameter() == null ? 50 : edge.getDiameter());
                 EngineeringRouteEvaluator.Evaluation after =
                         engineeringEvaluator.evaluate(List.of(candidateEdge));
-                if (engineeringPenalty(after) + LENGTH_EPSILON_M >= engineeringPenalty(before)) {
-                    continue;
-                }
                 List<RouteEdge> candidate = new ArrayList<>(current);
                 candidate.set(edgeIndex, candidateEdge);
+                boolean improvesEngineering = engineeringPenalty(after) + LENGTH_EPSILON_M
+                        < engineeringPenalty(before);
+                boolean improvesExactSpacing = ExpertRouteBendRules.validate(nodes, candidate).size()
+                        < ExpertRouteBendRules.validate(nodes, current).size();
+                if (!improvesExactSpacing && !ExpertRouteBendRules.validate(nodes, current).isEmpty()) {
+                    RoutePath spaced = obstacleRouter.expandEndpointBendSpacing(
+                            edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate)
+                                    .collect(Collectors.toList()),
+                            edge.getDiameter() == null ? 50 : edge.getDiameter(), routingEnvironment);
+                    if (spaced != null) {
+                        candidateEdge = routeEdge(edge.getId(), edge.getUpstreamNodeId(), edge.getDownstreamNodeId(),
+                                spaced, edge.getFlowTph(), edge.getDiameter() == null ? 50 : edge.getDiameter());
+                        candidate = new ArrayList<>(current);
+                        candidate.set(edgeIndex, candidateEdge);
+                        after = engineeringEvaluator.evaluate(List.of(candidateEdge));
+                        improvesEngineering = engineeringPenalty(after) + LENGTH_EPSILON_M
+                                < engineeringPenalty(before);
+                        improvesExactSpacing = ExpertRouteBendRules.validate(nodes, candidate).size()
+                                < ExpertRouteBendRules.validate(nodes, current).size();
+                    }
+                }
+                if (!improvesExactSpacing && !ExpertRouteBendRules.validate(nodes, current).isEmpty()) {
+                    List<Coordinate> coordinates = edge.getCoordinates().stream()
+                            .map(RouteCoordinate::toCoordinate).collect(Collectors.toList());
+                    RoutePath searched = obstacleRouter.find(coordinates.get(0),
+                            coordinates.get(coordinates.size() - 1),
+                            edge.getDiameter() == null ? 50 : edge.getDiameter(), routingEnvironment,
+                            endpointFeatureIds(edge, nodesById), RoutePreference.ENGINEERING, acceptedRoutes);
+                    if (searched != null) {
+                        candidateEdge = routeEdge(edge.getId(), edge.getUpstreamNodeId(), edge.getDownstreamNodeId(),
+                                searched, edge.getFlowTph(), edge.getDiameter() == null ? 50 : edge.getDiameter());
+                        candidate = new ArrayList<>(current);
+                        candidate.set(edgeIndex, candidateEdge);
+                        after = engineeringEvaluator.evaluate(List.of(candidateEdge));
+                        improvesEngineering = engineeringPenalty(after) + LENGTH_EPSILON_M
+                                < engineeringPenalty(before);
+                        improvesExactSpacing = ExpertRouteBendRules.validate(nodes, candidate).size()
+                                < ExpertRouteBendRules.validate(nodes, current).size();
+                    }
+                }
+                if (!improvesEngineering && !improvesExactSpacing) continue;
                 if (!routingEnvironment.validationFor(validator).validate(
                                 nodes,
                                 candidate,
@@ -4932,6 +5095,21 @@ public class OfficialRoutePlanner {
                 || left.getUpstreamNodeId().equals(right.getDownstreamNodeId())
                 || left.getDownstreamNodeId().equals(right.getUpstreamNodeId())
                 || left.getDownstreamNodeId().equals(right.getDownstreamNodeId());
+    }
+
+    private boolean sameSizedGeometry(List<RouteEdge> left, List<RouteEdge> right) {
+        if (left.size() != right.size()) return false;
+        for (int edgeIndex = 0; edgeIndex < left.size(); edgeIndex++) {
+            RouteEdge a = left.get(edgeIndex), b = right.get(edgeIndex);
+            if (!a.getId().equals(b.getId()) || !java.util.Objects.equals(a.getDiameter(), b.getDiameter())
+                    || a.getCoordinates().size() != b.getCoordinates().size()) return false;
+            for (int pointIndex = 0; pointIndex < a.getCoordinates().size(); pointIndex++) {
+                RouteCoordinate x = a.getCoordinates().get(pointIndex);
+                RouteCoordinate y = b.getCoordinates().get(pointIndex);
+                if (x.getXM().compareTo(y.getXM()) != 0 || x.getYM().compareTo(y.getYM()) != 0) return false;
+            }
+        }
+        return true;
     }
 
     private NetworkSizingResult sizeRoutes(

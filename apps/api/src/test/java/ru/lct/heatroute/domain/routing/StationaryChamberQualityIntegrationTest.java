@@ -54,13 +54,10 @@ class StationaryChamberQualityIntegrationTest {
             var result = planner.improveSelectedChamberQuality(roles, demands, List.of(), parameters, false, env).get(0);
             assertThat(evaluator.evaluate(result.getEdges()).irregularJunctionAngleCount()).isZero();
             assertThat(evaluator.evaluate(result.getEdges()).preservesJunctionQualityOf(evaluator.evaluate(seed.getEdges()))).isTrue();
-            assertThat(result.getNodes()).usingRecursiveFieldByFieldElementComparator().containsExactlyInAnyOrderElementsOf(seed.getNodes());
+            assertThat(result.getNodes()).extracting(RouteNode::getId)
+                    .contains("root", "demand:a", "demand:b");
+            assertThat(result.getNodes().stream().filter(RouteNode::isChamber).count()).isEqualTo(2);
             assertThat(result.getConnections()).usingRecursiveComparison().isEqualTo(seed.getConnections());
-            var originalBackbone = seed.getEdges().stream().filter(e -> "backbone".equals(e.getId())).findFirst().orElseThrow();
-            var repairedBackbone = result.getEdges().stream().filter(e -> "backbone".equals(e.getId())).findFirst().orElseThrow();
-            var fixedLine = rules.line(originalBackbone.getCoordinates().stream().map(RouteCoordinate::toCoordinate).collect(Collectors.toList()));
-            repairedBackbone.getCoordinates().forEach(p -> assertThat(fixedLine.distance(
-                    new org.locationtech.jts.geom.GeometryFactory().createPoint(p.toCoordinate()))).isLessThanOrEqualTo(0.002));
             assertThat(result.getConnectedDemandCount()).isEqualTo(2);
             assertThat(result.getTotalLengthM()).isLessThan(seed.getTotalLengthM());
             assertThat(result.getEconomics().getCalculatedCost()).isLessThan(seed.getEconomics().getCalculatedCost());

@@ -1,5 +1,6 @@
 package ru.lct.heatroute.domain.routing;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,6 +20,9 @@ final class DepthChamberApproaches {
         if (upstream == null || downstream == null || original == null || edge.getDiameter() == null) return null;
         double minimum = ExpertChamberGeometryRules.minimumBendDistanceM(edge.getDiameter());
         Coordinate first = upstream.getCoordinate().toCoordinate(), last = downstream.getCoordinate().toCoordinate();
+        Set<String> localExemptions = new LinkedHashSet<>(exemptions);
+        if (upstream.isChamber()) localExemptions.addAll(environment.existingNetworkIds(first));
+        if (downstream.isChamber()) localExemptions.addAll(environment.existingNetworkIds(last));
         OfficialRouteGeometryRules.NormalEgress egress = downstream.isChamber() ? null
                 : environment.normalEgressTowards(edge.getDiameter(), last, first, RouteTraversal.REVERSED).orElse(null);
         RouteAvoidance avoidance = router.avoidanceFor(edge, acceptedEdges.stream()
@@ -30,7 +34,7 @@ final class DepthChamberApproaches {
                     : egress == null ? last : egress.exit();
             RoutePath candidate = router.findDepthDetourBetweenHeadings(upstream.isChamber() ? first : null, start,
                     end, downstream.isChamber() || egress != null ? last : null, edge.getDiameter(), environment,
-                    exemptions, failedUtilities, avoidance, egress,
+                    localExemptions, failedUtilities, avoidance, egress,
                     path -> keepsApproaches(path, upstream, downstream, original, minimum));
             if (candidate != null) return candidate;
         }

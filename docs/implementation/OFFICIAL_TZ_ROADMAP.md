@@ -1,6 +1,6 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
-## 2026-09-27 — source101: ортогональные оси существующих камер, local PASS
+## 2026-09-27 — source101: ортогональные оси камер, production PASS
 
 [Изменения и проверки source101](PRIMARY_ROUTING_101.md): допустимая погрешность оцифровки
 исходных лучей камеры восстанавливается в единую квадратную систему; неоднозначные, совпадающие
@@ -10,8 +10,11 @@ Fast backend: 2 286 PASS / 3 scale skip / 0 failures/errors; отдельные 
 Финальный official: 1/1 PASS за 3 265,118 с, `global-tree-101`, ТК 106, 17/17.
 Preferred `balanced`: 2 246,661 м, 30 рёбер, 13 новых узловых камер и существующая корневая,
 306 352 901,79 ₽; все три списка issues пусты. `cheapest`: 2 277,562 м,
-304 467 987,57 ₽, issues пусты. Web 36+37, lint, typecheck и build PASS; карта отправлена.
-Git/deploy и реальный production run/export остаются следующим gate; R9 и Ubuntu 22 открыты.
+304 467 987,57 ₽, issues пусты. Web 36+37, lint, typecheck и build PASS.
+`79fcbeb` развёрнут стандартным fast-forward после backup; сервисы healthy, production run
+`69d7c06e-22e9-45cb-ba18-199a00957dbb` завершён с attempt 1 за 5 262,159 с и точно
+повторил локальные метрики/геометрию. Strict export 122 features / 49 005 bytes PASS,
+обе карты отправлены. R9 performance/scale, Ubuntu 22 и глобальный оптимум остаются открыты.
 
 ## 2026-09-27 — source100: правила развёрнуты, production run/export PASS
 

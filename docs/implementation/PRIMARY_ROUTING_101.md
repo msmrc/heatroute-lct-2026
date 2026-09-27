@@ -51,6 +51,35 @@ SHA-256 `cb1b64a70d2df0db81d4d23fd29f2f226b5892bbcfee17141f90e73e56b86816`.
 `cec970d6491c836c5b0b768597fc52369276f38e3398cdb3f29d0355caba20f3`.
 Сравнительная карта сохранена в
 `.tooling/expert101/official-root106-final-overview/side-by-side.png` и отправлена пользователю.
-Git, production deploy и серверный import/run/export фиксируются ниже после выполнения.
 Найденный результат подтверждает допустимость конкретной сети; глобальный оптимум,
 R9 performance/scale и отдельная Ubuntu Server 22 acceptance остаются открыты.
+
+## Production
+
+Код `79fcbeb5e057dcec26ff5ef862fcd9feab83683a` отправлен в `origin/master` и развёрнут
+стандартным fast-forward по `docs/operations/VPS_DEPLOYMENT.md`. Перед обновлением создан backup
+`/opt/heatroute/backups/heatroute-20260927T075725Z-cba6b678be0b421a3891f9625520a0442b7b3b9d.dump`,
+1 447 632 байта, mode 600. Compose config/build/up, readiness с PostGIS 3.5, OpenAPI и HTTPS
+прошли. После полного run все четыре контейнера healthy, RestartCount 0, OOMKilled false;
+checkout чистый на deployed SHA. В API-логе была одна восстановленная системная ошибка
+`Duplicate accept detected`; контейнер не перезапускался, API продолжал отвечать, job завершился.
+
+Официальный import `f92e4ae2-fd49-47a4-a131-bdeecadef086`: `valid`, 144 features,
+0 errors, input SHA-256 `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`.
+Новый run `69d7c06e-22e9-45cb-ba18-199a00957dbb`, job
+`c08afaa8-e330-4916-93f6-bbe88c768083`, попытка 1, `global-tree-101`, `completed`.
+Серверный lifecycle 08:02:35.868962–09:30:18.028004 UTC, 5 262,159 с.
+Preferred `balanced` точно повторил локальные метрики и геометрию: 17/17, ТК 106,
+2 246,661 м, 30 рёбер, 31 узел, 13 новых узловых камер и существующая корневая,
+306 352 901,79 ₽, score 15,317864250, все три списка issues пусты. `cheapest`:
+17/17, 2 277,562 м, 29 рёбер, 12 новых узловых камер и существующая корневая,
+304 467 987,57 ₽, score 15,357789652, issues пусты. Production запущен с
+`depth_enabled=false`; после исключения отсутствующих по контракту depth-профилей result
+совпадает с локальным полностью. Геометрические SHA вариантов совпадают отдельно.
+
+Строгий export: 122 features, 49 005 байт, SHA-256
+`a068b335b5528ebb01402867d2c8453064ff59a2b8c5dd9888558c886ad8c0ac`.
+Run JSON: 51 573 байта, SHA-256
+`b43f89320192ed84ea43799698b460e4cc029146f220140462e69232f8173ad0`.
+Артефакты и визуально проверенная карта сохранены в
+`.tooling/expert101/production-source101/`; production-карта отправлена пользователю.

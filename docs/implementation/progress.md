@@ -1,6 +1,6 @@
 # Current implementation progress
 
-## 2026-09-27 — source101: восстановлены оси существующих камер, local PASS
+## 2026-09-27 — source101: оси существующих камер, production PASS
 
 [Подробный source101](PRIMARY_ROUTING_101.md): малые ошибки оцифровки исходных труб камеры
 восстанавливаются в одну ортогональную систему только в пределах 2,5°; строгие правила новых
@@ -10,8 +10,11 @@
 Финальный official: 1/1 PASS за 3 265,118 с. Preferred `balanced`: ТК 106, 17/17,
 2 246,661 м, 30 рёбер, 31 узел, 13 новых узловых камер + существующая корневая,
 306 352 901,79 ₽; validation/engineering/sizing issues пусты. `cheapest`: 2 277,562 м,
-304 467 987,57 ₽, те же проверки пусты. Web 36+37, lint, typecheck и build PASS;
-финальная карта отправлена. Git/deploy и production run/export выполняются следующим gate.
+304 467 987,57 ₽, те же проверки пусты. Web 36+37, lint, typecheck и build PASS.
+`79fcbeb` отправлен в master и развёрнут после backup; Compose/readiness/OpenAPI/HTTPS PASS,
+контейнеры healthy. Production run `69d7c06e-22e9-45cb-ba18-199a00957dbb`, attempt 1,
+5 262,159 с, точно повторил локальные метрики и геометрию; export 122 features / 49 005 bytes,
+strict preflight PASS. Локальная и production-карты отправлены. R9/Ubuntu 22 остаются открыты.
 
 ## 2026-09-27 — source100: актуальные правила развёрнуты, production run/export PASS
 

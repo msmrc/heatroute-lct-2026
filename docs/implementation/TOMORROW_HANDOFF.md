@@ -1,6 +1,6 @@
 # Handoff — Артём / PM / developer
 
-## 2026-09-27 — source101: исправлена исходная геометрия ТК, local PASS
+## 2026-09-27 — source101: исправлена исходная геометрия ТК, production PASS
 
 [Контракт и evidence source101](PRIMARY_ROUTING_101.md): существующие лучи камеры с малой
 погрешностью оцифровки до 2,5° приводятся к одной ортогональной системе; произвольная геометрия
@@ -10,8 +10,12 @@ Backend fast: 2 286 PASS / 3 scale skip / 0 failures/errors; controls и concave
 Финальный official: 1/1 PASS за 3 265,118 с. Preferred `balanced`: ТК 106, 17/17,
 2 246,661 м, 30 рёбер, 13 новых узловых камер + существующая корневая,
 306 352 901,79 ₽; validation/engineering/sizing issues пусты. `cheapest`: 2 277,562 м,
-304 467 987,57 ₽, issues пусты. Web 36+37/lint/typecheck/build PASS, карта отправлена.
-Следом: commit/push master, стандартный VPS deploy после backup и production import/run/export.
+304 467 987,57 ₽, issues пусты. Web 36+37/lint/typecheck/build PASS.
+`79fcbeb` отправлен в master и развёрнут после backup; Compose/readiness/OpenAPI/HTTPS PASS,
+все контейнеры healthy/restart 0/OOM false. Production run `69d7c06e-22e9-45cb-ba18-199a00957dbb`,
+job `c08afaa8-e330-4916-93f6-bbe88c768083`, attempt 1, 5 262,159 с, повторил local exact;
+strict export 122 features / 49 005 bytes PASS. Production-карта отправлена. Следующие открытые
+gates: R9 performance/scale, отдельная Ubuntu 22 acceptance и глобальный оптимум.
 
 ## 2026-09-27 — source100: новые правила развёрнуты, production run/export PASS
 

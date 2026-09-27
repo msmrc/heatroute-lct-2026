@@ -1,6 +1,6 @@
 # Current implementation progress
 
-## 2026-09-27 — source100: актуальные правила и полный официальный dataset PASS
+## 2026-09-27 — source100: актуальные правила развёрнуты, production run/export PASS
 
 [Подробный source100](PRIMARY_ROUTING_100.md): действующая редакция Google и уточнение
 нормали камеры перенесены в генератор, sizing-aware validator и export preflight. Backend
@@ -9,8 +9,11 @@ typecheck и build PASS. Свежий corridor witness подключает 17/1
 30 рёбер, 13 новых камер плюс существующая корневая, пустые validation/engineering/sizing issues.
 Финальный `OfficialDatasetRoutingTest`: 2/2 PASS за 1 900,198 с. Preferred `cheapest`:
 17/17, 2 829,014 м, 29 рёбер, 12 новых узловых камер + существующая корневая,
-386 891 133,42 ₽, пустые validation/engineering/sizing issues. Карта отправлена. До push
-и VPS проверок source100 не считается развёрнутым. R9 performance/scale остаются открыты.
+386 891 133,42 ₽, пустые validation/engineering/sizing issues. `46f8117` отправлен в master
+и развёрнут на VPS после backup. Compose/readiness/OpenAPI/HTTPS и реальный import/run/export
+PASS: run `c8b060f0-3bc7-426d-a672-2dfac1c0cf6e`, попытка 1, 2 767,907 с; production
+метрики совпали с локальными, export 122 features / 49 263 bytes. Production-карта отправлена.
+R9 performance/scale и отдельная Ubuntu 22 acceptance остаются открыты.
 
 ## 2026-09-27 — source99: depth/export объединены, общий fast PASS
 

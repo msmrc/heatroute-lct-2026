@@ -60,3 +60,28 @@ SHA-256 `6c70a0ba31e316d45e7c8150381dc83b34406863b02e76f8e57fd0f23c183395`.
 и `.tooling/expert100/official-final-source100-overview/side-by-side.png`.
 Результат подтверждает допустимость конкретного построенного варианта; он не доказывает
 глобальный оптимум и не закрывает отдельные R9 performance/scale gates.
+
+## Production
+
+Код `46f8117e387547e96b88d775a48df9e65858e13d` отправлен в `origin/master` и развёрнут
+на VPS стандартным fast-forward по `docs/operations/VPS_DEPLOYMENT.md`. Перед обновлением
+создан backup
+`/opt/heatroute/backups/heatroute-20260927T043428Z-8147b394508d03741728d3379cc2a8f35d884ee1.dump`,
+mode 600. Compose config/build/up, readiness с PostGIS 3.5, OpenAPI и публичный HTTPS PASS.
+Все четыре контейнера healthy, RestartCount 0, OOMKilled false; checkout чистый на `46f8117`.
+
+Официальный import `f92e4ae2-fd49-47a4-a131-bdeecadef086`: `valid`, 633 402 байта,
+144 features, SHA-256 `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`.
+Run `c8b060f0-3bc7-426d-a672-2dfac1c0cf6e`, job
+`1569fbe8-2bf8-419c-9d9c-2c04f407696f`, попытка 1, `global-tree-100`, `completed`.
+Серверный lifecycle 04:38:07.755586–05:24:15.662814 UTC, 2 767,907 с. Preferred `cheapest`
+точно воспроизводит локальные метрики: 17/17, 2 829,014 м, 29 рёбер, 12 новых узловых
+камер и одна существующая корневая, 386 891 133,42 ₽, score 19,319993736;
+`validation_issues`, `engineering_issues` и `sizing_issues` пусты. `shortest`: 17/17,
+2 822,521 м, 30 рёбер, 389 206 121,06 ₽. Строгий export: 122 features, 49 263 bytes,
+SHA-256 `9085c763947f94543d7622e9896cc1f22314226ac4132cf687e9a2e4f6a93938`.
+
+Фактический серверный результат и сравнительная карта сохранены в
+`.tooling/expert100/production-source100/`; `overview/side-by-side.png` отправлен пользователю.
+Сервер работает на Ubuntu 26.04.1, поэтому отдельная чистая Ubuntu Server 22 acceptance для R9,
+performance/scale и доказательство глобального оптимума остаются открыты.

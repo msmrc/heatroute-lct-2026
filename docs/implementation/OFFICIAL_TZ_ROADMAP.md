@@ -1,6 +1,6 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
-## 2026-09-27 — source100: актуальные правила и полный официальный dataset PASS
+## 2026-09-27 — source100: правила развёрнуты, production run/export PASS
 
 [Изменения и проверки source100](PRIMARY_ROUTING_100.md): углы поворота 90–120°,
 таблица 2–6 м между поворотами и до камер по итоговому ДУ, нормальные лучи камер,
@@ -11,8 +11,11 @@ Corridor witness: 17/17, 2 823,175 м, 30 рёбер, 13 новых камер �
 все три списка ошибок пусты; карта отправлена. Финальный `OfficialDatasetRoutingTest`: 2/2 PASS,
 1 900,198 с. Preferred `cheapest`: 17/17, 2 829,014 м, 29 рёбер, 12 новых узловых камер
 и одна существующая корневая, 386 891 133,42 ₽; validation/engineering/sizing issues пусты.
-Итоговая сравнительная карта отправлена. До push и VPS Compose smoke source100 не объявляется
-production-релизом; R9 performance/scale и глобальный оптимум остаются открыты.
+Итоговая сравнительная карта отправлена. Код `46f8117` находится в `origin/master` и на VPS.
+Backup, fast-forward, Compose build/up, readiness/OpenAPI/HTTPS PASS; все четыре сервиса healthy.
+Реальный run `c8b060f0-3bc7-426d-a672-2dfac1c0cf6e`, попытка 1, повторил локальные метрики
+preferred-варианта и завершился за 2 767,907 с; export 122 features / 49 263 bytes PASS.
+Production-карта отправлена. R9 performance/scale, Ubuntu 22 и глобальный оптимум остаются открыты.
 
 ## 2026-09-27 — source99: depth/export объединены, общий fast PASS
 

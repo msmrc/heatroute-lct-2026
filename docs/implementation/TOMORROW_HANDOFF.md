@@ -1,6 +1,6 @@
 # Handoff — Артём / PM / developer
 
-## 2026-09-27 — source100: новые правила и полный официальный dataset PASS
+## 2026-09-27 — source100: новые правила развёрнуты, production run/export PASS
 
 [Контракт и evidence source100](PRIMARY_ROUTING_100.md): повороты 90–120°, интервалы
 2–6 м по итоговому ДУ, входы камер по нормали, дороги 90°, углы линейных коммуникаций
@@ -9,9 +9,12 @@
 Corridor witness прошёл 17/17 без validation/engineering/sizing issues; карта отправлена.
 Финальный `OfficialDatasetRoutingTest`: 2/2 PASS за 1 900,198 с. Preferred `cheapest`:
 17/17, 2 829,014 м, 29 рёбер, 12 новых узловых камер + существующая корневая,
-386 891 133,42 ₽; все три списка issues пусты. Сравнительная карта отправлена. Далее:
-перепроверить origin/master, commit/push и выполнить backup + Compose smoke + реальный
-import/run/export на VPS. R9 performance/scale открыты.
+386 891 133,42 ₽; все три списка issues пусты. `46f8117` отправлен в `origin/master`
+и развёрнут на VPS после backup. Compose/readiness/OpenAPI/HTTPS PASS; все четыре сервиса
+healthy, RestartCount 0, OOMKilled false. Реальный run `c8b060f0-3bc7-426d-a672-2dfac1c0cf6e`,
+job `1569fbe8-2bf8-419c-9d9c-2c04f407696f`, попытка 1, 2 767,907 с, метрики совпали;
+export 122 features / 49 263 bytes PASS. Production-карта отправлена. R9 performance/scale
+и отдельная Ubuntu 22 acceptance остаются открыты.
 
 ## 2026-09-27 — source99: depth/export объединены, общий fast PASS
 

@@ -19,13 +19,16 @@ keeps truncation and remaining work as `CATALOG_INCOMPLETE`. The N06 proof-store
 positive/negative asset, root and diameter literals, exact source/rule/checker/catalog scopes, invalidation
 after incompatible catalog expansion and an explicit memory bound. Active proof cuts can now be
 fed directly to the network optimizer; the compiler, expander and full refinement coordinator are
-not implemented yet.
+not implemented yet. A bounded coordinator now covers the first-candidate solve/check/add-cut loop:
+it reserves final-admission time, adds proof batches atomically, propagates cancellation and keeps
+UNKNOWN/search limits distinct from catalog infeasibility. Accepted archive/portfolio, adaptive
+expansion and the production frozen-evaluator adapter remain open.
 
 Two behavior-preserving legacy optimizations reuse the already loaded final feature window after
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
 mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
-backend passes 2,313/0/3. The
+backend passes 2,318/0/3. The
 fresh web 36+37/lint/typecheck gate, executable-JAR native inventory and Compose
 configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.

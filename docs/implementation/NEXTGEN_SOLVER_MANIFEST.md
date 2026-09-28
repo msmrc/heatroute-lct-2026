@@ -39,6 +39,9 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
 - `ConflictExplanation` and bounded `ConflictStore` retain versioned positive/negative asset,
   root and diameter proof literals under source/rule/checker/catalog scope. Full-assignment no-goods require the exact decision set;
   compatible stable-subset proofs may survive monotonic catalog expansion.
+- `CpSatNetworkRefinement` runs a bounded first-incumbent solve/check/add-cut loop. It reserves
+  final-admission time, applies proof batches atomically, stops on UNKNOWN without a cut and
+  distinguishes catalog infeasibility, search limit, stalled proof, cancellation and technical error.
 - queued execution resolves the persisted routing-engine version before loading feature windows;
   no worker may silently execute a queued run with another registered version.
 - `/api/v1/health/ready` includes cached `cp_sat` capability after a real known-optimum solve.
@@ -62,7 +65,7 @@ Completed on the 2026-09-28 working tree with JDK/temp/Maven cache on `E:`:
 - 80 seeded small finite catalogs match an independent exhaustive network enumerator;
 - catalog/proof-scope focused tests cover direction/context/ДУ, source/rule changes, negative
   literals, catalog expansion, exact full-assignment scope and bounded proof storage;
-- clean fast Java gate excluding the three documented long dataset classes: 2,313 tests, zero
+- clean fast Java gate excluding the three documented long dataset classes: 2,318 tests, zero
   failures/errors and 3 existing skips;
 - web: 8 Vitest files / 36 tests and 37 Node tests; ESLint and TypeScript pass;
 - `mvn dependency:tree`: OR-Tools 9.15.6755, JNA/JNA Platform 5.14.0 and Protobuf 4.33.1;

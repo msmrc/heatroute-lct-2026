@@ -1,6 +1,7 @@
 package ru.lct.heatroute.domain.optimization;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,13 +22,24 @@ public final class ConflictStore {
     }
 
     public synchronized boolean add(ConflictExplanation explanation) {
-        Objects.requireNonNull(explanation, "explanation");
-        if (explanations.containsKey(explanation.getSignature())) return false;
-        if (explanations.size() >= maxConflicts) {
+        return addAll(List.of(explanation)) == 1;
+    }
+
+    /** Атомарно добавляет новые доказательства: capacity failure не оставляет частичный batch. */
+    public synchronized int addAll(Collection<ConflictExplanation> supplied) {
+        Objects.requireNonNull(supplied, "supplied");
+        Map<String, ConflictExplanation> additions = new LinkedHashMap<>();
+        for (ConflictExplanation explanation : supplied) {
+            Objects.requireNonNull(explanation, "explanation");
+            if (!explanations.containsKey(explanation.getSignature())) {
+                additions.putIfAbsent(explanation.getSignature(), explanation);
+            }
+        }
+        if (explanations.size() + additions.size() > maxConflicts) {
             throw new ConflictStoreCapacityExceededException(maxConflicts);
         }
-        explanations.put(explanation.getSignature(), explanation);
-        return true;
+        explanations.putAll(additions);
+        return additions.size();
     }
 
     public synchronized List<ConflictExplanation> activeFor(CatalogIdentity identity) {

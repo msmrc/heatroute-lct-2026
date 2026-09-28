@@ -41,6 +41,14 @@ only active proofs, and the in-memory store has an explicit capacity failure ins
 growth or silent rule weakening. Catalog generation, adaptive expansion and the complete
 master→evaluator coordinator are still open.
 
+The first bounded N06 coordinator now executes master→candidate→exact-assessment iterations with
+one monotonic deadline and a reserved final-admission budget. A valid scoped proof is added
+atomically before the next solve; invalid scope, duplicate proof, resource exhaustion and technical
+failure have separate outcomes. `UNKNOWN` stops as `SEARCH_LIMIT_REACHED` without a permanent cut
+or an `INFEASIBLE_IN_CATALOG` claim, and Java-thread interruption propagates cancellation. The
+coordinator currently returns the first accepted candidate; archive/portfolio, adaptive catalog
+expansion and the production adapter to `FrozenNetworkEvaluator` remain open.
+
 The earlier N04 slice still models exactly-one port-path choices and sound no-goods. Two safe
 legacy performance changes remove a redundant final PostGIS feature-window load after depth and
 reuse exact bend validation while the geometry snapshot is unchanged. Queued jobs now fence the
@@ -50,7 +58,7 @@ lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
 passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
-passes 2,313 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+passes 2,318 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
 8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate

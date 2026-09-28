@@ -31,14 +31,18 @@ public final class NetworkConstraintProblem {
         this.assetsById = index(this.assets, Asset::getId);
         long demand = 0L;
         boolean hasRoot = false;
+        boolean hasTerminal = false;
         for (Node node : this.nodes) {
             demand = Math.addExact(demand, node.demandUnits);
             hasRoot |= node.allowedRoot;
-            if (node.allowedRoot && node.demandUnits > 0L) {
+            hasTerminal |= node.mandatoryTerminal;
+            if (node.allowedRoot && node.mandatoryTerminal) {
                 throw new IllegalArgumentException("A terminal cannot also be an allowed root: " + node.id);
             }
         }
-        if (!hasRoot || demand <= 0L) throw new IllegalArgumentException("At least one root and positive demand required");
+        if (!hasRoot || !hasTerminal) {
+            throw new IllegalArgumentException("At least one root and mandatory terminal required");
+        }
         long objectiveUpperBound = 0L;
         for (Asset asset : this.assets) {
             if (!nodesById.containsKey(asset.fromNodeId) || !nodesById.containsKey(asset.toNodeId)) {
@@ -121,18 +125,24 @@ public final class NetworkConstraintProblem {
         private final String id;
         private final boolean allowedRoot;
         private final long demandUnits;
+        private final boolean mandatoryTerminal;
 
         public Node(String id, boolean allowedRoot, long demandUnits) {
+            this(id, allowedRoot, demandUnits, demandUnits > 0L);
+        }
+
+        public Node(String id, boolean allowedRoot, long demandUnits, boolean mandatoryTerminal) {
             this.id = required(id, "node");
             if (demandUnits < 0L) throw new IllegalArgumentException("Node demand cannot be negative");
             this.allowedRoot = allowedRoot;
             this.demandUnits = demandUnits;
+            this.mandatoryTerminal = mandatoryTerminal;
         }
 
         public String getId() { return id; }
         public boolean isAllowedRoot() { return allowedRoot; }
         public long getDemandUnits() { return demandUnits; }
-        public boolean isTerminal() { return demandUnits > 0L; }
+        public boolean isTerminal() { return mandatoryTerminal; }
     }
 
     public static final class Asset {

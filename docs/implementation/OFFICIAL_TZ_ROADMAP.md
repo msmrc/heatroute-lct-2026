@@ -15,11 +15,17 @@ independent exhaustive enumeration.
 The initial N03 contracts now preserve an immutable compact problem snapshot, directed path
 geometry/provenance, physical-asset references, section ranges and per-DU admission certificates.
 Missing demand flow is rejected; explicit zero flow still requires connectivity. Build telemetry
-keeps truncation and remaining work as `CATALOG_INCOMPLETE`. The N06 proof-store foundation adds
+keeps truncation and remaining work as `CATALOG_INCOMPLETE`. Partial collinear overlaps are now
+atomized into common physical assets with JTS robust intersection/indexing, while XY crossings,
+different levels and different construction modes remain separate. Strict catalogs validate
+continuous asset chains, and the catalog-to-master compiler derives topology only from explicit
+ports/adjacency, reuses the official pipe catalog, aggregates shared-trunk flow and preserves
+zero-flow terminals. Its objective is only a linearized search surrogate; official sizing and
+economics still run in the exact evaluator. The N06 proof-store foundation adds
 positive/negative asset, root and diameter literals, exact source/rule/checker/catalog scopes, invalidation
 after incompatible catalog expansion and an explicit memory bound. Active proof cuts can now be
-fed directly to the network optimizer; the compiler, expander and full refinement coordinator are
-not implemented yet. A bounded coordinator now covers the first-candidate solve/check/add-cut loop:
+fed directly to the network optimizer. A bounded coordinator now covers the first-candidate
+solve/check/add-cut loop:
 it reserves final-admission time, adds proof batches atomically, propagates cancellation and keeps
 UNKNOWN/search limits distinct from catalog infeasibility. Accepted archive/portfolio, adaptive
 expansion and the production frozen-evaluator adapter remain open.
@@ -28,11 +34,10 @@ Two behavior-preserving legacy optimizations reuse the already loaded final feat
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
 mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
-backend passes 2,318/0/3. The
-fresh web 36+37/lint/typecheck gate, executable-JAR native inventory and Compose
-configuration checks pass. Docker still fails before build on the pre-existing local reparse
+backend passes 2,328/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
+and Compose configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
-The certified catalog compiler, refinement loop/archive, official end-to-end run, benchmark, resource and
+The windowed path/chamber compilers, archive, production candidate adapter, official end-to-end run, benchmark, resource and
 release gates remain open; source102 stays the active baseline and no speed-up is claimed.
 
 ## 2026-09-28 — source102: камеры на нормали ОКС, production PASS

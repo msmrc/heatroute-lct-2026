@@ -25,6 +25,16 @@ roots and insufficient capacity. This is an exact optimum only inside the suppli
 certified geometry catalog, refinement archive and integration with the user calculation path are
 still open, so the master is deliberately not connected to `stable`.
 
+The first physical-asset compiler now atomizes partial collinear overlaps through the existing JTS
+1.20 robust intersector and spatial index. It merges only equal physical context and construction
+mode, preserves reverse traversal as a directed binding, and deliberately leaves point/XY crossings
+disconnected. Strict catalog snapshots verify that each option reconstructs a continuous declared
+asset chain. A catalog-to-master compiler derives bookkeeping topology only from explicit ports and
+chain adjacency, takes DU capacities/rates from `OfficialPipeCatalog`, and marks its cost as a
+linearized search objective rather than official economics. Shared trunks therefore receive one
+aggregate flow/cost variable. Zero-flow demands are explicit mandatory terminals in the master and
+unused roots can no longer become free active roots.
+
 The N03 data-contract foundation now freezes the compact problem snapshot separately from large
 windowed features. A demand cannot lose its flow or receive an invented zero; an explicit zero-flow
 demand remains in the connectivity problem. Directed path options own millimetre coordinates,
@@ -38,8 +48,8 @@ Every explanation is scoped to source/rules/checker/catalog identities; a full-a
 only when its literal set equals the current decision set, while a stable local proof survives a
 monotonic catalog extension only if all referenced physical identities remain. CP-SAT consumes
 only active proofs, and the in-memory store has an explicit capacity failure instead of unbounded
-growth or silent rule weakening. Catalog generation, adaptive expansion and the complete
-master→evaluator coordinator are still open.
+growth or silent rule weakening. Windowed catalog generation, chamber configurations and adaptive
+expansion are still open.
 
 The first bounded N06 coordinator now executes master→candidate→exact-assessment iterations with
 one monotonic deadline and a reserved final-admission budget. A valid scoped proof is added
@@ -58,7 +68,7 @@ lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
 passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
-passes 2,318 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+passes 2,328 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
 8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate

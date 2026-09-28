@@ -72,6 +72,24 @@ class CpSatNetworkOptimizerTest {
     }
 
     @Test
+    void zeroFlowDemandRemainsAMandatoryConnectedTerminal() {
+        NetworkConstraintProblem problem = new NetworkConstraintProblem(
+                List.of(
+                        new NetworkConstraintProblem.Node("root", true, 0),
+                        new NetworkConstraintProblem.Node("zero-flow-terminal", false, 0, true)),
+                List.of(asset("connection", "root", "zero-flow-terminal", 1,
+                        option(50, 1, 0))),
+                List.of());
+
+        CpSatNetworkOptimizer.Result result = optimizer.solve(problem, 5.0, 2026);
+
+        assertThat(result.getStatus()).isEqualTo(CpSatNetworkOptimizer.Status.OPTIMAL);
+        assertThat(result.getSelectedRoots()).containsExactly("root");
+        assertThat(result.getSelectedAssets()).containsExactly("connection");
+        assertThat(result.getFlowUnits()).containsEntry("connection", 0L);
+    }
+
+    @Test
     void randomSmallCatalogsMatchIndependentEnumeration() {
         Random random = new Random(20260928L);
         for (int scenario = 0; scenario < 80; scenario++) {

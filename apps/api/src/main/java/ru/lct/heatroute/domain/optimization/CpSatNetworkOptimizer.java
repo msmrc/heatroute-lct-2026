@@ -97,7 +97,6 @@ public final class CpSatNetworkOptimizer {
                 IntVar supply = model.newIntVar(0L, totalDemand, "source/" + node.getId());
                 source.put(node.getId(), supply);
                 model.addLessOrEqual(LinearExpr.newBuilder().add(supply).addTerm(r, -totalDemand), 0L);
-                model.addGreaterOrEqual(LinearExpr.newBuilder().add(supply).addTerm(r, -1L), 0L);
             }
         }
 
@@ -117,7 +116,6 @@ public final class CpSatNetworkOptimizer {
             IntVar flow = model.newIntVar(0L, totalDemand, "flow/" + asset.getId());
             flows.put(asset.getId(), flow);
             model.addLessOrEqual(LinearExpr.newBuilder().add(flow).addTerm(x, -totalDemand), 0L);
-            model.addGreaterOrEqual(LinearExpr.newBuilder().add(flow).addTerm(x, -1L), 0L);
 
             LinearExprBuilder diameterCount = LinearExpr.newBuilder().addTerm(x, -1L);
             LinearExprBuilder capacity = LinearExpr.newBuilder().add(flow);
@@ -149,6 +147,13 @@ public final class CpSatNetworkOptimizer {
             BoolVar root = roots.get(node.getId());
             if (root != null) parent.add(root);
             model.addEquality(parent, 0L);
+            if (root != null) {
+                LinearExprBuilder activeRootServesNetwork = LinearExpr.newBuilder().addTerm(root, -1L);
+                for (NetworkConstraintProblem.Asset asset : outgoing.getOrDefault(node.getId(), List.of())) {
+                    activeRootServesNetwork.add(selected.get(asset.getId()));
+                }
+                model.addGreaterOrEqual(activeRootServesNetwork, 0L);
+            }
 
             LinearExprBuilder balance = LinearExpr.newBuilder();
             for (NetworkConstraintProblem.Asset asset : incoming.getOrDefault(node.getId(), List.of())) {

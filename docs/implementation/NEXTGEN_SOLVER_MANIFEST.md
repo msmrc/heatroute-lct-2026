@@ -1,6 +1,6 @@
 # Next-generation solver dependency and runtime manifest
 
-**Stage:** N01/N02 foundations / N03 catalog contracts / N04 port slice / N05 master / N06 proof store.
+**Stage:** N01/N02 foundations / N03 catalog and physical assets / N04 port slice / N05 master / N06 proof store.
 **Date:** 2026-09-28.
 **Promotion status:** not connected to `stable`; no competition result or speed-up is claimed yet.
 
@@ -36,6 +36,13 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
 - `RoutingProblemSnapshot`, `DirectedPathOption`, `PathAdmissionCertificate` and
   `RoutingCatalogSnapshot` establish immutable N03 identities without materializing all obstacle
   geometry. `CatalogBuildResult` keeps truncation distinct from proven infeasibility.
+- `PhysicalAssetCompiler` uses the existing JTS 1.20 robust intersector plus an `STRtree` to
+  atomize only collinear overlaps with the same physical context/construction mode. Point crossings
+  do not create free junctions; reverse traversal shares physical identity but keeps direction.
+- `CatalogNetworkProblemCompiler` resolves strict physical chains into N05 nodes/arcs using only
+  explicit ports and declared adjacency. It reuses `OfficialPipeCatalog` for capacity and a clearly
+  labelled linearized objective; exact sizing/economics stay in the frozen evaluator. Explicit
+  zero-flow demands remain mandatory connectivity terminals.
 - `ConflictExplanation` and bounded `ConflictStore` retain versioned positive/negative asset,
   root and diameter proof literals under source/rule/checker/catalog scope. Full-assignment no-goods require the exact decision set;
   compatible stable-subset proofs may survive monotonic catalog expansion.
@@ -50,8 +57,8 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
 
 N01 still requires the clean packaged-image build/readiness evidence recorded below. N02 requires
 differential official-dataset and depth evidence. N05 is a tested finite-catalog master, not an
-end-to-end solver: N03 certified path generation/window compiler, chamber configurations and
-physical-chain assembly, N06 adaptive expansion/coordinator/archive, canonical sizing implications,
+end-to-end solver: N03 windowed path generation and chamber configurations, production candidate
+assembly, N06 adaptive expansion/archive, canonical sizing implications,
 full lease-attempt fencing, official pipeline/API/export,
 performance, resource, Ubuntu 22 and release gates remain open. The active `stable` implementation
 must not be switched until those gates pass.
@@ -65,7 +72,7 @@ Completed on the 2026-09-28 working tree with JDK/temp/Maven cache on `E:`:
 - 80 seeded small finite catalogs match an independent exhaustive network enumerator;
 - catalog/proof-scope focused tests cover direction/context/ДУ, source/rule changes, negative
   literals, catalog expansion, exact full-assignment scope and bounded proof storage;
-- clean fast Java gate excluding the three documented long dataset classes: 2,318 tests, zero
+- clean fast Java gate excluding the three documented long dataset classes: 2,328 tests, zero
   failures/errors and 3 existing skips;
 - web: 8 Vitest files / 36 tests and 37 Node tests; ESLint and TypeScript pass;
 - `mvn dependency:tree`: OR-Tools 9.15.6755, JNA/JNA Platform 5.14.0 and Protobuf 4.33.1;

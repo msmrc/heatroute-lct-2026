@@ -13,9 +13,11 @@ special-секции, отступы, пересечения, лучи каме�
 необходимости всех оставшихся обходов. Написаны focused-тесты, JUnit не запускался. По отдельному
 запросу backend успешно собран в Docker (`package -DskipTests`); конкурсный stable-расчёт без
 глубины запущен 28.09.2026 14:11:16 UTC, run `f184053e-3bd2-479e-b0ea-1ba2ffb84fb0`.
-Время/результат ещё ожидаются; общая readiness имеет отдельный непрошедший `cp_sat` check.
-Source103 — новая версия кода, не production PASS; source102 остаётся последним проверенным
-witness. VPS не обновлялся, R/G/N не закрываются.
+Расчёт завершён за 3 796,710405 с (первая попытка): preferred shortest 17/17,
+2 018,069 м / 288 717 781,40 ₽, issues пусты; контроль уменьшил 26 → 24 поворота.
+[Evidence и сравнение с прошлым локальным прогоном](PRIMARY_ROUTING_103.md).
+Общая readiness имеет отдельный непрошедший `cp_sat` check. Source103 не production PASS;
+source102 остаётся последним production witness. VPS не обновлялся, R/G/N не закрываются.
 
 ## 2026-09-28 — next-generation frozen evaluator and network master (not promoted)
 

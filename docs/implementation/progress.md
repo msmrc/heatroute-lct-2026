@@ -25,11 +25,16 @@ with `package -DskipTests` (production and test sources compiled). A fresh immut
 `f184053e-3bd2-479e-b0ea-1ba2ffb84fb0`, job `c533bee7-64d2-4d49-a594-8189f51ac696`, started
 at 2026-09-28 14:11:16 UTC: `global-tree-103`, 144 input objects/17 demands, depth disabled,
 input SHA-256 `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`.
-Result/time are pending; the previous source102 run on that same local import took
-4617.998103 seconds (job start to completion), not a forecast for source103. The image owns
+The job completed on attempt 1 at 2026-09-28 15:14:33.338560 UTC: 3796.710405 seconds
+from job start, with 0.199243 seconds in queue. Preferred shortest connects 17/17,
+2018.069 m / 288717781.40 RUB, 30 edges/31 nodes; validation/engineering/sizing issues are empty.
+The final axis-shift stage reduced shortest bends 26→24 and balanced/cheapest 43→37.
+The previous source102 run on that same local import took 4617.998103 seconds: this pair differs
+by 821.287698 seconds (17.7845%), not an isolated proof of speed-up by the new control.
+[Full benchmark evidence and limitations](PRIMARY_ROUTING_103.md). The image owns
 the `65762b1` source snapshot plus this fix; later fetched nextgen input-wiring changes are not
 part of that timed image. The general readiness check reports `cp_sat: unavailable`; the stable
-job does not use CP-SAT and is running. Existing results remain immutable. No VPS deployment or
+job does not use CP-SAT and completed successfully. Existing results remain immutable. No VPS deployment or
 R/G/N closure is claimed; all earlier production/witness evidence remains snapshot-specific.
 
 ## 2026-09-28 — next-generation solver: frozen admission and finite-catalog network master

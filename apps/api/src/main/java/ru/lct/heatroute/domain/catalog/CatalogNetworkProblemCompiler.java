@@ -219,7 +219,7 @@ public final class CatalogNetworkProblemCompiler {
             node.demandUnits = Math.addExact(node.demandUnits, demandUnits);
             node.mandatoryTerminal = true;
             bindings.put(demand.getId(), new DemandBinding(
-                    demand.getId(), portId, node.id, demand.getLinkedOksId(),
+                    demand.getId(), portId, node.id, demand.getConnectionPointId(),
                     demand.getFlowTph(), demandUnits));
         }
         if (!ports.keySet().equals(expected)) throw new IllegalArgumentException("Demand port map IDs differ from snapshot");

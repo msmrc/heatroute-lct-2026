@@ -83,7 +83,8 @@ public final class RoutingProblemSnapshot {
                     parameters.getAlgorithmProfile());
             update(digest, demands.size());
             for (Demand demand : demands) update(digest, demand.id, demand.flowTph.toPlainString(),
-                    demand.location.getXMm(), demand.location.getYMm(), demand.linkedOksId);
+                    demand.location.getXMm(), demand.location.getYMm(),
+                    demand.connectionPointId, demand.linkedOksId);
             update(digest, roots.size());
             for (RootCandidate root : roots) {
                 update(digest, root.id, root.location.getXMm(), root.location.getYMm(),
@@ -139,19 +140,29 @@ public final class RoutingProblemSnapshot {
         private final String id;
         private final BigDecimal flowTph;
         private final CatalogMetricPoint location;
+        private final String connectionPointId;
         private final String linkedOksId;
 
-        public Demand(String id, BigDecimal flowTph, CatalogMetricPoint location, String linkedOksId) {
+        public Demand(String id, BigDecimal flowTph, CatalogMetricPoint location,
+                String connectionPointId) {
+            this(id, flowTph, location, connectionPointId, null);
+        }
+
+        public Demand(String id, BigDecimal flowTph, CatalogMetricPoint location,
+                String connectionPointId, String linkedOksId) {
             this.id = required(id, "demand ID");
             this.flowTph = Objects.requireNonNull(flowTph, "flowTph").stripTrailingZeros();
             if (flowTph.signum() < 0) throw new IllegalArgumentException("Demand flow cannot be negative");
             this.location = Objects.requireNonNull(location, "location");
+            this.connectionPointId = connectionPointId == null
+                    ? null : required(connectionPointId, "connection point ID");
             this.linkedOksId = linkedOksId == null ? null : required(linkedOksId, "linked OKS ID");
         }
 
         public String getId() { return id; }
         public BigDecimal getFlowTph() { return flowTph; }
         public CatalogMetricPoint getLocation() { return location; }
+        public String getConnectionPointId() { return connectionPointId; }
         public String getLinkedOksId() { return linkedOksId; }
     }
 

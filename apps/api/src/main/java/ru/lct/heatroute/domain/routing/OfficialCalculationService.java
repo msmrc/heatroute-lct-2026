@@ -57,11 +57,15 @@ public class OfficialCalculationService {
         featureRepository.forEachCalculationCoreByImport(
                 importId, OfficialFeatureRepository.DEFAULT_PAGE_SIZE, features::add);
         TopologyAnalysis topology = topologyAnalyzer.analyze(features);
+        RoutingExecutionContext context = new RoutingExecutionContext(
+                importId, imported.getReport().getSha256(),
+                imported.getReport().getContractVersion(),
+                imported.getReport().getInputProfile());
         return algorithm.plan(
+                context,
                 features,
                 topology,
                 parameters,
-                imported.getReport().getInputProfile(),
                 featureRepository.routingFeatureSource(importId));
     }
 }

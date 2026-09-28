@@ -28,11 +28,11 @@ public class StableRoutingAlgorithm implements RoutingAlgorithm {
 
     @Override
     public OfficialCalculationResult plan(
+            RoutingExecutionContext context,
             List<ImportedOfficialFeature> features,
             TopologyAnalysis topology,
             OfficialRunParameters parameters,
-            String inputProfile,
             RoutingFeatureSource source) {
-        return planner.plan(features, topology, parameters, inputProfile, source);
+        return planner.plan(features, topology, parameters, context.getInputProfile(), source);
     }
 }

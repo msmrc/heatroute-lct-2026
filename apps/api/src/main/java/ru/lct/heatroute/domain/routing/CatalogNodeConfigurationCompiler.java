@@ -114,7 +114,7 @@ public final class CatalogNodeConfigurationCompiler {
         List<CatalogNetworkProblemCompiler.NodeConfigurationBinding> result = new ArrayList<>();
         for (ArcRay arc : incoming) {
             add(result, binding(node.getNodeId(), List.of(arc),
-                    "demand_connection", false, 0, demand.getLinkedOksId(), null));
+                    "demand_connection", false, 0, demand.getConnectionPointId(), null));
         }
         return List.copyOf(result);
     }

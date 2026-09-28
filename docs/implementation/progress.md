@@ -110,6 +110,14 @@ adapter turns a selected orthogonal T-junction into a costed `new_branch_chamber
 test passes sizing, chamber geometry, depth and economics. Alternative positions, relocation helpers
 and DU-dependent approach configurations remain open catalog-expansion work.
 
+The production problem boundary can now be constructed without hand-written test snapshots.
+`RoutingExecutionContext` carries the import ID, source hash, contract version and profile from the
+normal calculation service into the versioned routing adapter. `RoutingProblemFactory` resolves
+connection flows from the connection or linked `oks_future`, preserves explicit zero, rejects an
+unknown mandatory flow and derives de-duplicated exact tie-in roots through the existing support
+ray/incidence/diameter oracle. The calculation-core SQL now includes `oks_future` while bulky routing
+geometry remains windowed. Source102 remains the only registered stable implementation.
+
 The earlier N04 slice still models exactly-one port-path choices and sound no-goods. Two safe
 legacy performance changes remove a redundant final PostGIS feature-window load after depth and
 reuse exact bend validation while the geometry snapshot is unchanged. Queued jobs now fence the
@@ -119,7 +127,7 @@ lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
 passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
-passes 2,364 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+passes 2,369 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
 8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate

@@ -93,11 +93,11 @@ public class OfficialFeatureRepository {
             List<ImportedOfficialFeature> page = cursor == null
                     ? jdbcTemplate.query("SELECT feature_id, object_type, attributes::text, ST_AsBinary(geometry_metric) "
                                     + "FROM official_features WHERE import_id = ? AND object_type IN "
-                                    + "('source', 'heat_network', 'heat_chamber', 'oks_connection_point') "
+                                    + "('source', 'heat_network', 'heat_chamber', 'oks_connection_point', 'oks_future') "
                                     + "ORDER BY feature_id LIMIT ?", (rs, row) -> map(rs), importId, pageSize)
                     : jdbcTemplate.query("SELECT feature_id, object_type, attributes::text, ST_AsBinary(geometry_metric) "
                                     + "FROM official_features WHERE import_id = ? AND object_type IN "
-                                    + "('source', 'heat_network', 'heat_chamber', 'oks_connection_point') "
+                                    + "('source', 'heat_network', 'heat_chamber', 'oks_connection_point', 'oks_future') "
                                     + "AND feature_id > ? ORDER BY feature_id LIMIT ?", (rs, row) -> map(rs), importId, cursor, pageSize);
             page.forEach(consumer);
             if (page.size() < pageSize) return;

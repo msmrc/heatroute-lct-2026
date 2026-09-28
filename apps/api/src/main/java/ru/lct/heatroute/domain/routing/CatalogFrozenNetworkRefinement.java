@@ -23,8 +23,8 @@ import ru.lct.heatroute.domain.sizing.NetworkSizingIssue;
 
 /**
  * Production bridge between the finite-catalog master and the immutable exact evaluator.
- * Only a complete Boolean master assignment is rejected unless a narrower proof is supplied
- * independently; this keeps sizing and engineering feedback sound under topology alternatives.
+ * Engineering rejection blocks only a complete Boolean master assignment. Canonical sizing uses
+ * the narrower catalog-scoped implication from a complete topology/root scope to the required DU.
  */
 public final class CatalogFrozenNetworkRefinement {
     private static final int MAX_EVIDENCE_REFERENCES = 256;
@@ -50,15 +50,16 @@ public final class CatalogFrozenNetworkRefinement {
 
         CpSatNetworkRefinement.Result<Attempt> raw = refinement.solve(
                 problem, catalogIdentity, conflictStore,
-                master -> new Attempt(master,
-                        Objects.requireNonNull(candidateFactory.assemble(master), "frozen candidate"), null),
+                master -> new Attempt(master, Objects.requireNonNull(
+                        candidateFactory.assemble(master), "frozen assembly"), null),
                 attempt -> assess(problem, catalogIdentity, archive, attempt), settings);
         return Result.from(raw);
     }
 
     private CpSatNetworkRefinement.Assessment<Attempt> assess(NetworkConstraintProblem problem,
             CatalogIdentity identity, AcceptedSolutionArchive archive, Attempt attempt) {
-        FrozenNetworkEvaluator.Evaluation evaluation = evaluator.evaluate(attempt.candidate);
+        FrozenNetworkCandidate candidate = attempt.assembly.getCandidate();
+        FrozenNetworkEvaluator.Evaluation evaluation = evaluator.evaluate(candidate);
         switch (evaluation.getOutcome()) {
             case ACCEPTED:
                 AcceptedNetworkSolution accepted = Objects.requireNonNull(
@@ -66,13 +67,17 @@ public final class CatalogFrozenNetworkRefinement {
                 archive.add(accepted);
                 return CpSatNetworkRefinement.Assessment.accepted(attempt.accepted(accepted));
             case CANONICAL_SIZING_REQUIREMENT:
-                return CpSatNetworkRefinement.Assessment.sizingRequired(List.of(fullAssignmentProof(
-                        "canonical_sizing", evaluation.getReason(), problem, identity,
-                        attempt.master, evidence(evaluation, attempt.candidate))));
+                List<ConflictExplanation> sizingProofs = canonicalSizingProofs(
+                        evaluation, problem, identity, attempt);
+                if (sizingProofs.isEmpty()) {
+                    return CpSatNetworkRefinement.Assessment.unknown(
+                            "canonical_diameter_missing_from_catalog");
+                }
+                return CpSatNetworkRefinement.Assessment.sizingRequired(sizingProofs);
             case PROVEN_REJECTED:
                 return CpSatNetworkRefinement.Assessment.rejected(fullAssignmentProof(
                         rejectionType(evaluation), evaluation.getReason(), problem, identity,
-                        attempt.master, evidence(evaluation, attempt.candidate)));
+                        attempt.master, evidence(evaluation, candidate)));
             case UNKNOWN:
                 return CpSatNetworkRefinement.Assessment.unknown(requiredReason(evaluation));
             case ERROR:
@@ -81,6 +86,59 @@ public final class CatalogFrozenNetworkRefinement {
                 throw new IllegalStateException("Unsupported frozen evaluation outcome: "
                         + evaluation.getOutcome());
         }
+    }
+
+    private static List<ConflictExplanation> canonicalSizingProofs(
+            FrozenNetworkEvaluator.Evaluation evaluation, NetworkConstraintProblem problem,
+            CatalogIdentity identity, Attempt attempt) {
+        Collection<String> evidence = evidence(evaluation, attempt.assembly.getCandidate());
+        List<ConflictExplanation> result = new ArrayList<>();
+        List<Map.Entry<String, FrozenNetworkEvaluator.RequiredSizing>> requirements =
+                new ArrayList<>(evaluation.getRequiredSizing().entrySet());
+        requirements.sort(Map.Entry.comparingByKey());
+        for (Map.Entry<String, FrozenNetworkEvaluator.RequiredSizing> entry : requirements) {
+            List<String> arcIds = attempt.assembly.arcIds(entry.getKey());
+            if (arcIds == null || arcIds.isEmpty()) {
+                throw new IllegalArgumentException("Missing master-arc provenance for frozen edge: "
+                        + entry.getKey());
+            }
+            int requiredDiameter = entry.getValue().getDiameter();
+            for (String arcId : arcIds) {
+                NetworkConstraintProblem.Asset asset = problem.asset(arcId);
+                if (asset == null) {
+                    throw new IllegalArgumentException("Frozen edge references an unknown master arc: " + arcId);
+                }
+                boolean available = asset.getDiameters().stream()
+                        .anyMatch(option -> option.getDiameterMm() == requiredDiameter);
+                if (!available) return List.of();
+                Integer selectedDiameter = attempt.master.getDiameterMm().get(arcId);
+                if (!attempt.master.getSelectedAssets().contains(arcId)
+                        || selectedDiameter == null || selectedDiameter == requiredDiameter) {
+                    throw new IllegalArgumentException("Canonical sizing feedback does not differ for " + arcId);
+                }
+                result.add(sizingImplicationProof(evaluation.getReason(), problem, identity,
+                        attempt.master, arcId, requiredDiameter, evidence));
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static ConflictExplanation sizingImplicationProof(String reason,
+            NetworkConstraintProblem problem, CatalogIdentity identity,
+            CpSatNetworkOptimizer.Result master, String arcId, int canonicalDiameter,
+            Collection<String> evidence) {
+        List<NetworkConstraintProblem.DecisionLiteral> literals = new ArrayList<>();
+        for (NetworkConstraintProblem.DecisionLiteral literal : assignmentLiterals(problem, master)) {
+            if (literal.getType() != NetworkConstraintProblem.DecisionLiteral.Type.DIAMETER_SELECTED) {
+                literals.add(literal);
+            }
+        }
+        literals.add(NetworkConstraintProblem.DecisionLiteral.diameter(
+                arcId, canonicalDiameter, false));
+        return new ConflictExplanation("canonical_sizing", identity.getRuleId(),
+                identity.getRuleVersion(), identity.getSourceSnapshotHash(), identity.getCatalogHash(),
+                literals, evidence, reason, identity.getCheckerVersion(),
+                ConflictExplanation.ProofScope.CATALOG_SIZING_IMPLICATION);
     }
 
     private static ConflictExplanation fullAssignmentProof(String type, String reason,
@@ -212,7 +270,8 @@ public final class CatalogFrozenNetworkRefinement {
 
     @FunctionalInterface
     public interface CandidateFactory {
-        FrozenNetworkCandidate assemble(CpSatNetworkOptimizer.Result masterResult);
+        CatalogFrozenCandidateAssembler.Assembly assemble(
+                CpSatNetworkOptimizer.Result masterResult);
     }
 
     public static final class Result {
@@ -250,18 +309,19 @@ public final class CatalogFrozenNetworkRefinement {
 
     private static final class Attempt {
         private final CpSatNetworkOptimizer.Result master;
-        private final FrozenNetworkCandidate candidate;
+        private final CatalogFrozenCandidateAssembler.Assembly assembly;
         private final AcceptedNetworkSolution accepted;
 
-        private Attempt(CpSatNetworkOptimizer.Result master, FrozenNetworkCandidate candidate,
+        private Attempt(CpSatNetworkOptimizer.Result master,
+                CatalogFrozenCandidateAssembler.Assembly assembly,
                 AcceptedNetworkSolution accepted) {
             this.master = Objects.requireNonNull(master, "master");
-            this.candidate = Objects.requireNonNull(candidate, "candidate");
+            this.assembly = Objects.requireNonNull(assembly, "assembly");
             this.accepted = accepted;
         }
 
         private Attempt accepted(AcceptedNetworkSolution value) {
-            return new Attempt(master, candidate, Objects.requireNonNull(value, "accepted"));
+            return new Attempt(master, assembly, Objects.requireNonNull(value, "accepted"));
         }
     }
 }

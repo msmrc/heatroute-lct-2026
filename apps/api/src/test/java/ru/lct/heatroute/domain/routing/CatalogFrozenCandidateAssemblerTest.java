@@ -38,12 +38,14 @@ class CatalogFrozenCandidateAssemblerTest {
         Fixture fixture = fixture(problem, List.of(route));
         CpSatNetworkOptimizer.Result solved = solve(fixture.compilation);
 
-        FrozenNetworkCandidate candidate = assembler.assemble("candidate", "nextgen", problem,
+        CatalogFrozenCandidateAssembler.Assembly assembly = assembler.assembleDetailed(
+                "candidate", "nextgen", problem,
                 fixture.catalog, fixture.compilation, solved,
                 Map.of(
                         "root-port", node("existing_root", true, "root"),
                         "d-port", node("demand", false, "d")),
                 List.of(), edge -> List.of());
+        FrozenNetworkCandidate candidate = assembly.getCandidate();
 
         assertThat(candidate.getNodes()).hasSize(2);
         assertThat(candidate.getNodes()).extracting(RouteNode::getId)
@@ -61,6 +63,8 @@ class CatalogFrozenCandidateAssemblerTest {
             assertThat(connection.getStatus()).isEqualTo("connected");
         });
         assertThat(candidate.isReconstructionRequired()).isFalse();
+        assertThat(assembly.getArcIdsByEdgeId()).hasSize(1);
+        assertThat(assembly.arcIds(candidate.getEdges().get(0).getId())).hasSize(2);
     }
 
     @Test

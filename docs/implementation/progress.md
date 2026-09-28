@@ -69,11 +69,13 @@ engineering admission starts without waiting for a surrogate-optimum proof; call
 distinct from cancellation. The ordinary optimizer still supports bounded optimization for the
 future final-ranking phase. The coordinator currently returns the first accepted candidate;
 `CatalogFrozenNetworkRefinement` now maps the real `FrozenNetworkEvaluator` outcomes into that
-loop. Sizing feedback and exact rejection generate a catalog-scoped no-good over every current
-asset/root/diameter Boolean, so only the fully checked assignment is removed; UNKNOWN and ERROR
-still create no cut. Accepted solutions enter the bounded `AcceptedSolutionArchive`, which retains
-only exact score/cost/length and verifies full geometry after hash lookup. Three-role portfolio
-ranking, stronger local sizing implications and adaptive catalog expansion remain open.
+loop. Exact rejection removes only the fully checked asset/root/diameter assignment. Canonical
+sizing uses retained frozen-edge→master-arc provenance to add a catalog-scoped implication from
+the complete topology/root assignment to each required DU, so the solver does not enumerate every
+wrong diameter combination of the same network. An absent canonical DU requests catalog expansion
+without a false cut; UNKNOWN and ERROR also create no cut. Accepted solutions enter the bounded
+`AcceptedSolutionArchive`, which retains only exact score/cost/length and verifies full geometry
+after hash lookup. Three-role portfolio ranking and adaptive catalog expansion remain open.
 
 The earlier N04 slice still models exactly-one port-path choices and sound no-goods. Two safe
 legacy performance changes remove a redundant final PostGIS feature-window load after depth and
@@ -84,7 +86,7 @@ lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
 passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
-passes 2,339 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+passes 2,343 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
 8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate

@@ -32,16 +32,18 @@ solve/check/add-cut loop:
 it reserves final-admission time, stops native search on the first feasible solution callback,
 adds proof batches atomically, propagates cancellation and keeps
 UNKNOWN/search limits distinct from catalog infeasibility. Adaptive expansion and the production
-frozen-evaluator bridge is now implemented: sizing/rejection feedback blocks only the complete
-checked Boolean assignment, while accepted exact solutions enter the bounded archive. The archive
-ranks only fully evaluated exact metrics and checks full geometry after hash lookup; adaptive
-expansion and three-role portfolio integration remain open.
+frozen-evaluator bridge is now implemented: exact rejection blocks only the complete checked
+Boolean assignment, while canonical sizing preserves topology/root decisions and implies the
+required DU for every source arc in the frozen physical chain. A missing DU requests expansion
+without a false cut. Accepted exact solutions enter the bounded archive, which ranks only fully
+evaluated exact metrics and checks full geometry after hash lookup; adaptive expansion and
+three-role portfolio integration remain open.
 
 Two behavior-preserving legacy optimizations reuse the already loaded final feature window after
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
 mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
-backend passes 2,339/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
+backend passes 2,343/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
 and Compose configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
 The windowed path/chamber compilers, production section/node wiring, official end-to-end run, benchmark, resource and

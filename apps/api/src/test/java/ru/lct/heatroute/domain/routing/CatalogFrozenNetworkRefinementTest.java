@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
@@ -51,7 +52,7 @@ class CatalogFrozenNetworkRefinementTest {
 
         CatalogFrozenNetworkRefinement.Result result = refinement.solve(
                 problem, identity, conflicts,
-                master -> candidate(master, straightCoordinates()), archive, settings());
+                master -> assembly(master, straightCoordinates()), archive, settings());
 
         assertThat(result.getOutcome()).isEqualTo(CpSatNetworkRefinement.Outcome.ACCEPTED);
         assertThat(result.getAccepted()).isSameAs(archive.best());
@@ -66,14 +67,18 @@ class CatalogFrozenNetworkRefinementTest {
 
     @Test
     void canonicalSizingBlocksOnlyTheCompleteCurrentCatalogAssignment() {
-        NetworkConstraintProblem problem = problem(option(100));
+        NetworkConstraintProblem problem = problem(
+                List.of(option(50), option(100)),
+                List.of(NetworkConstraintProblem.Conflict.ofLiterals(List.of(
+                        NetworkConstraintProblem.DecisionLiteral.diameter("pipe", 50, true)),
+                        "force_initial_noncanonical_diameter")));
         CatalogIdentity identity = identity(problem);
         ConflictStore conflicts = new ConflictStore();
         AcceptedSolutionArchive archive = new AcceptedSolutionArchive(3);
 
         CatalogFrozenNetworkRefinement.Result result = refinement.solve(
                 problem, identity, conflicts,
-                master -> candidate(master, straightCoordinates()), archive, settings());
+                master -> assembly(master, straightCoordinates()), archive, settings());
 
         assertThat(result.getOutcome()).isEqualTo(
                 CpSatNetworkRefinement.Outcome.INFEASIBLE_IN_CATALOG);
@@ -82,13 +87,35 @@ class CatalogFrozenNetworkRefinementTest {
         assertThat(conflicts.activeFor(identity)).singleElement().satisfies(proof -> {
             assertThat(proof.getType()).isEqualTo("canonical_sizing");
             assertThat(proof.getProofScope()).isEqualTo(
-                    ConflictExplanation.ProofScope.FULL_CATALOG_ASSIGNMENT);
-            assertThat(proof.getLiterals()).extracting(
-                    NetworkConstraintProblem.DecisionLiteral::variableKey)
-                    .containsExactlyInAnyOrderElementsOf(identity.getDecisionKeys());
+                    ConflictExplanation.ProofScope.CATALOG_SIZING_IMPLICATION);
+            assertThat(proof.getLiterals())
+                    .filteredOn(literal -> literal.getType()
+                            == NetworkConstraintProblem.DecisionLiteral.Type.DIAMETER_SELECTED)
+                    .singleElement().satisfies(literal -> {
+                        assertThat(literal.getDiameterMm()).isEqualTo(50);
+                        assertThat(literal.isExpected()).isFalse();
+                    });
             assertThat(proof.getEvidenceReferences())
                     .anyMatch(reference -> reference.startsWith("required_sizing:"));
         });
+    }
+
+    @Test
+    void missingCanonicalDiameterRequestsCatalogExpansionWithoutAFalseCut() {
+        NetworkConstraintProblem problem = problem(option(100));
+        CatalogIdentity identity = identity(problem);
+        ConflictStore conflicts = new ConflictStore();
+
+        CatalogFrozenNetworkRefinement.Result result = refinement.solve(
+                problem, identity, conflicts,
+                master -> assembly(master, straightCoordinates()),
+                new AcceptedSolutionArchive(3), settings());
+
+        assertThat(result.getOutcome()).isEqualTo(
+                CpSatNetworkRefinement.Outcome.SEARCH_LIMIT_REACHED);
+        assertThat(result.getReason()).isEqualTo("canonical_diameter_missing_from_catalog");
+        assertThat(result.getIterations()).isEqualTo(1);
+        assertThat(conflicts.size()).isZero();
     }
 
     @Test
@@ -99,7 +126,7 @@ class CatalogFrozenNetworkRefinementTest {
 
         CatalogFrozenNetworkRefinement.Result result = refinement.solve(
                 problem, identity, conflicts,
-                master -> candidate(master, List.of(
+                master -> assembly(master, List.of(
                         new RouteCoordinate(0, 0),
                         new RouteCoordinate(10, 5),
                         new RouteCoordinate(20, 0))),
@@ -113,6 +140,13 @@ class CatalogFrozenNetworkRefinementTest {
             assertThat(proof.getEvidenceReferences())
                     .anyMatch(reference -> reference.startsWith("validation:"));
         });
+    }
+
+    private CatalogFrozenCandidateAssembler.Assembly assembly(
+            CpSatNetworkOptimizer.Result master, List<RouteCoordinate> coordinates) {
+        FrozenNetworkCandidate candidate = candidate(master, coordinates);
+        return CatalogFrozenCandidateAssembler.Assembly.of(
+                candidate, Map.of("edge", List.of("pipe")));
     }
 
     private FrozenNetworkCandidate candidate(CpSatNetworkOptimizer.Result master,
@@ -143,11 +177,17 @@ class CatalogFrozenNetworkRefinementTest {
     }
 
     private NetworkConstraintProblem problem(NetworkConstraintProblem.DiameterOption option) {
+        return problem(List.of(option), List.of());
+    }
+
+    private NetworkConstraintProblem problem(
+            List<NetworkConstraintProblem.DiameterOption> options,
+            List<NetworkConstraintProblem.Conflict> conflicts) {
         return new NetworkConstraintProblem(List.of(
                 new NetworkConstraintProblem.Node("root", true, 0),
                 new NetworkConstraintProblem.Node("terminal", false, 1)),
                 List.of(new NetworkConstraintProblem.Asset(
-                        "pipe", "root", "terminal", 0, List.of(option))), List.of());
+                        "pipe", "root", "terminal", 0, options)), conflicts);
     }
 
     private NetworkConstraintProblem.DiameterOption option(int diameter) {

@@ -13,7 +13,11 @@ import java.util.stream.Collectors;
  * Оно применимо только к тому же input/rules и к явно указанной области каталога.
  */
 public final class ConflictExplanation {
-    public enum ProofScope { STABLE_DECISION_SET, FULL_CATALOG_ASSIGNMENT }
+    public enum ProofScope {
+        STABLE_DECISION_SET,
+        FULL_CATALOG_ASSIGNMENT,
+        CATALOG_SIZING_IMPLICATION
+    }
 
     private final String type;
     private final String ruleId;
@@ -44,6 +48,16 @@ public final class ConflictExplanation {
         NetworkConstraintProblem.Conflict validated =
                 NetworkConstraintProblem.Conflict.ofLiterals(literals, this.reason);
         this.literals = validated.getLiterals();
+        if (proofScope == ProofScope.CATALOG_SIZING_IMPLICATION) {
+            List<NetworkConstraintProblem.DecisionLiteral> diameterLiterals = this.literals.stream()
+                    .filter(literal -> literal.getType()
+                            == NetworkConstraintProblem.DecisionLiteral.Type.DIAMETER_SELECTED)
+                    .collect(Collectors.toList());
+            if (diameterLiterals.size() != 1 || diameterLiterals.get(0).isExpected()) {
+                throw new IllegalArgumentException(
+                        "Catalog sizing implication requires exactly one false diameter literal");
+            }
+        }
         this.evidenceReferences = references(evidenceReferences);
         this.signature = signatureOf();
     }
@@ -59,6 +73,19 @@ public final class ConflictExplanation {
         if (proofScope == ProofScope.FULL_CATALOG_ASSIGNMENT) {
             return catalogHash.equals(identity.getCatalogHash())
                     && literalKeys.equals(identity.getDecisionKeys());
+        }
+        if (proofScope == ProofScope.CATALOG_SIZING_IMPLICATION) {
+            Set<String> topologyKeys = identity.getDecisionKeys().stream()
+                    .filter(key -> !key.startsWith("DIAMETER_SELECTED:"))
+                    .collect(Collectors.toSet());
+            long diameterLiterals = literalKeys.stream()
+                    .filter(key -> key.startsWith("DIAMETER_SELECTED:"))
+                    .count();
+            return catalogHash.equals(identity.getCatalogHash())
+                    && identity.getDecisionKeys().containsAll(literalKeys)
+                    && literalKeys.containsAll(topologyKeys)
+                    && literalKeys.size() == topologyKeys.size() + 1
+                    && diameterLiterals == 1L;
         }
         return identity.getDecisionKeys().containsAll(literalKeys);
     }

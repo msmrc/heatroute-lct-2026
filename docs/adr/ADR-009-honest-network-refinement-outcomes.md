@@ -20,6 +20,11 @@ UNKNOWN assignment forever is useless, while storing it as a conflict would be u
   API still performs bounded optimization for later portfolio/final-ranking stages.
 - Only `PROVEN_REJECTED` and canonical-sizing assessments carrying explanations applicable to the
   current source/rule/checker/catalog identity may enter the durable in-memory conflict store.
+- A proven engineering rejection may exclude the complete current Boolean assignment. Canonical
+  sizing uses a distinct same-catalog scope: all topology/root Booleans are fixed, current diameter
+  choices are omitted and a false literal for the required diameter expresses the implication.
+  The scope is inactive after catalog/topology expansion. If the required diameter is not present,
+  no proof is stored and the coordinator reports incomplete catalog context.
 - Proof batches are validated before insertion and added atomically. A duplicate batch returns a
   stalled outcome; capacity exhaustion and invalid scope are technical errors.
 - UNKNOWN returns `SEARCH_LIMIT_REACHED` without adding a cut. Native UNKNOWN is treated the same
@@ -30,7 +35,6 @@ UNKNOWN assignment forever is useless, while storing it as a conflict would be u
 ## Consequences
 
 The coordinator can safely find a first validated incumbent after excluding proven bad candidates,
-without confusing its internal callback stop with user cancellation.
-It does not yet implement accepted-solution archive, three-role portfolio, adaptive expansion or
-the production mapping between CP-SAT assignments and `FrozenNetworkCandidate`; those are required
-before the new engine can replace `stable`.
+without confusing its internal callback stop with user cancellation. The production frozen mapping
+and bounded accepted archive are implemented. Three-role portfolio, adaptive expansion and the
+remaining catalog/section wiring are still required before the new engine can replace `stable`.

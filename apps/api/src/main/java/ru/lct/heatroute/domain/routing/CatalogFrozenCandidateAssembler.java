@@ -36,6 +36,18 @@ public final class CatalogFrozenCandidateAssembler {
             Map<String, NodeRealization> explicitNodeRealizations,
             Collection<ImportedOfficialFeature> relevantFeatures,
             EdgeSectionAssembler sectionAssembler) {
+        return assembleDetailed(candidateId, strategy, problemSnapshot, catalogSnapshot,
+                compilation, masterResult, explicitNodeRealizations, relevantFeatures,
+                sectionAssembler).getCandidate();
+    }
+
+    public Assembly assembleDetailed(String candidateId, String strategy,
+            RoutingProblemSnapshot problemSnapshot, RoutingCatalogSnapshot catalogSnapshot,
+            CatalogNetworkProblemCompiler.Compilation compilation,
+            CpSatNetworkOptimizer.Result masterResult,
+            Map<String, NodeRealization> explicitNodeRealizations,
+            Collection<ImportedOfficialFeature> relevantFeatures,
+            EdgeSectionAssembler sectionAssembler) {
         Objects.requireNonNull(problemSnapshot, "problemSnapshot");
         Objects.requireNonNull(catalogSnapshot, "catalogSnapshot");
         Objects.requireNonNull(compilation, "compilation");
@@ -60,14 +72,16 @@ public final class CatalogFrozenCandidateAssembler {
         Map<String, String> routeNodeIds = routeNodeIds(usedNodes, compilation);
         List<RouteNode> nodes = routeNodes(retainedNodes, masterResult,
                 compilation, routeNodeIds, explicitNodeRealizations);
-        List<RouteEdge> edges = routeEdges(arcs, outgoing, retainedNodes,
+        EdgeResult edgeResult = routeEdges(arcs, outgoing, retainedNodes,
                 compilation, routeNodeIds, sectionAssembler);
         List<RouteConnection> connections = connections(compilation);
         boolean reconstructionRequired = arcs.stream().anyMatch(arc ->
                 arc.physicalAsset.getConstructionMode()
                         == CatalogPhysicalAsset.ConstructionMode.RECONSTRUCTION);
-        return new FrozenNetworkCandidate(candidateId, strategy, nodes, edges, connections,
-                new ArrayList<>(relevantFeatures), problemSnapshot.getParameters(), reconstructionRequired);
+        FrozenNetworkCandidate candidate = new FrozenNetworkCandidate(candidateId, strategy,
+                nodes, edgeResult.edges, connections, new ArrayList<>(relevantFeatures),
+                problemSnapshot.getParameters(), reconstructionRequired);
+        return Assembly.of(candidate, edgeResult.arcIdsByEdgeId);
     }
 
     private static List<SelectedArc> selectedArcs(RoutingCatalogSnapshot catalog,
@@ -194,13 +208,14 @@ public final class CatalogFrozenCandidateAssembler {
         return List.copyOf(result);
     }
 
-    private static List<RouteEdge> routeEdges(List<SelectedArc> arcs,
+    private static EdgeResult routeEdges(List<SelectedArc> arcs,
             Map<String, List<SelectedArc>> outgoing, Set<String> retainedNodes,
             CatalogNetworkProblemCompiler.Compilation compilation,
             Map<String, String> routeNodeIds,
             EdgeSectionAssembler sectionAssembler) {
         Set<String> covered = new LinkedHashSet<>();
         List<RouteEdge> result = new ArrayList<>();
+        Map<String, List<String>> assembledArcIds = new LinkedHashMap<>();
         for (SelectedArc start : arcs) {
             if (covered.contains(start.id) || !retainedNodes.contains(start.fromNodeId)) continue;
             List<SelectedArc> chain = new ArrayList<>();
@@ -213,13 +228,23 @@ public final class CatalogFrozenCandidateAssembler {
                 if (next.size() != 1) throw new IllegalStateException("Unretained node is not a chain node");
                 current = next.get(0);
             }
-            result.add(routeEdge(chain, compilation, routeNodeIds, sectionAssembler));
+            RouteEdge edge = routeEdge(chain, compilation, routeNodeIds, sectionAssembler);
+            result.add(edge);
+            List<String> chainArcIds = new ArrayList<>();
+            for (SelectedArc arc : chain) chainArcIds.add(arc.id);
+            assembledArcIds.put(edge.getId(), List.copyOf(chainArcIds));
         }
         if (covered.size() != arcs.size()) {
             throw new IllegalStateException("Selected topology contains an unassembled component");
         }
         result.sort(Comparator.comparing(RouteEdge::getId));
-        return List.copyOf(result);
+        Map<String, List<String>> arcIdsByEdgeId = new LinkedHashMap<>();
+        for (RouteEdge edge : result) {
+            List<String> arcIds = assembledArcIds.get(edge.getId());
+            if (arcIds == null) throw new IllegalStateException("Missing edge assembly provenance");
+            arcIdsByEdgeId.put(edge.getId(), arcIds);
+        }
+        return new EdgeResult(List.copyOf(result), arcIdsByEdgeId);
     }
 
     private static RouteEdge routeEdge(List<SelectedArc> chain,
@@ -329,6 +354,51 @@ public final class CatalogFrozenCandidateAssembler {
         public List<RouteCoordinate> getCoordinates() { return coordinates; }
     }
 
+    /** Frozen candidate plus exact correspondence back to selected master arcs. */
+    public static final class Assembly {
+        private final FrozenNetworkCandidate candidate;
+        private final Map<String, List<String>> arcIdsByEdgeId;
+
+        private Assembly(FrozenNetworkCandidate candidate, Map<String, List<String>> supplied) {
+            this.candidate = Objects.requireNonNull(candidate, "candidate");
+            Objects.requireNonNull(supplied, "arcIdsByEdgeId");
+            Set<String> expectedEdges = new LinkedHashSet<>();
+            for (RouteEdge edge : candidate.getEdges()) expectedEdges.add(edge.getId());
+            if (!supplied.keySet().equals(expectedEdges)) {
+                throw new IllegalArgumentException("Every frozen edge requires exact master-arc provenance");
+            }
+            Map<String, List<String>> copy = new LinkedHashMap<>();
+            Set<String> seenArcs = new LinkedHashSet<>();
+            List<String> edgeIds = new ArrayList<>(expectedEdges);
+            edgeIds.sort(Comparator.naturalOrder());
+            for (String edgeId : edgeIds) {
+                List<String> arcIds = supplied.get(edgeId);
+                if (arcIds == null || arcIds.isEmpty()) {
+                    throw new IllegalArgumentException("Frozen edge provenance cannot be empty: " + edgeId);
+                }
+                List<String> frozen = new ArrayList<>(arcIds.size());
+                for (String arcId : arcIds) {
+                    String value = required(arcId, "master arc ID");
+                    if (!seenArcs.add(value)) {
+                        throw new IllegalArgumentException("Master arc belongs to several frozen edges: " + value);
+                    }
+                    frozen.add(value);
+                }
+                copy.put(edgeId, List.copyOf(frozen));
+            }
+            this.arcIdsByEdgeId = Collections.unmodifiableMap(copy);
+        }
+
+        public static Assembly of(FrozenNetworkCandidate candidate,
+                Map<String, List<String>> arcIdsByEdgeId) {
+            return new Assembly(candidate, arcIdsByEdgeId);
+        }
+
+        public FrozenNetworkCandidate getCandidate() { return candidate; }
+        public Map<String, List<String>> getArcIdsByEdgeId() { return arcIdsByEdgeId; }
+        public List<String> arcIds(String edgeId) { return arcIdsByEdgeId.get(edgeId); }
+    }
+
     public static final class NodeRealization {
         private final String nodeType;
         private final boolean chamber;
@@ -369,6 +439,16 @@ public final class CatalogFrozenCandidateAssembler {
             this.physicalAsset = physicalAsset;
             this.flowUnits = flowUnits;
             this.diameterMm = diameterMm;
+        }
+    }
+
+    private static final class EdgeResult {
+        private final List<RouteEdge> edges;
+        private final Map<String, List<String>> arcIdsByEdgeId;
+
+        private EdgeResult(List<RouteEdge> edges, Map<String, List<String>> arcIdsByEdgeId) {
+            this.edges = edges;
+            this.arcIdsByEdgeId = arcIdsByEdgeId;
         }
     }
 

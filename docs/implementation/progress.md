@@ -81,6 +81,11 @@ expansion: old geometry fingerprints, node/asset/DU semantics, decision keys and
 must remain reproducible. Exhausted work remains `CATALOG_INCOMPLETE`, and a prior verified
 incumbent survives a later incomplete stage. The production targeted window/terminal/chamber
 expander, mapped rebasing for asset splits and three-role portfolio ranking remain open.
+`CatalogNetworkStageCompiler` now removes manual glue between these layers: it compiles one build
+snapshot into the network master/identity pair, freezes the relevant feature window, resolves
+explicit port/chamber nodes and creates deterministic frozen candidates with exact source-arc
+provenance. The remaining production inputs are the real bounded path/chamber generator,
+node-realization provider and exact section assembler.
 
 The earlier N04 slice still models exactly-one port-path choices and sound no-goods. Two safe
 legacy performance changes remove a redundant final PostGIS feature-window load after depth and
@@ -91,7 +96,7 @@ lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
 passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
-passes 2,348 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+passes 2,350 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
 8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate

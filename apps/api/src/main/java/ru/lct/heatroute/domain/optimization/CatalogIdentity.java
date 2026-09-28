@@ -42,6 +42,11 @@ public final class CatalogIdentity {
                 keys.add(NetworkConstraintProblem.DecisionLiteral.root(node.getId(), true).variableKey());
             }
         }
+        for (NetworkConstraintProblem.NodeConfiguration configuration
+                : problem.getNodeConfigurations()) {
+            keys.add(NetworkConstraintProblem.DecisionLiteral
+                    .nodeConfiguration(configuration.getId(), true).variableKey());
+        }
         for (NetworkConstraintProblem.Asset asset : problem.getAssets()) {
             keys.add(NetworkConstraintProblem.DecisionLiteral.asset(asset.getId(), true).variableKey());
             for (NetworkConstraintProblem.DiameterOption option : asset.getDiameters()) {

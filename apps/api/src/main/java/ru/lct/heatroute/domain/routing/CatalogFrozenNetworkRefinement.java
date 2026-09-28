@@ -183,6 +183,18 @@ public final class CatalogFrozenNetworkRefinement {
             throw new IllegalArgumentException("Master selected an unknown root");
         }
 
+        Set<String> knownConfigurations = new LinkedHashSet<>();
+        for (NetworkConstraintProblem.NodeConfiguration configuration
+                : problem.getNodeConfigurations()) {
+            knownConfigurations.add(configuration.getId());
+            result.add(NetworkConstraintProblem.DecisionLiteral.nodeConfiguration(
+                    configuration.getId(), master.getSelectedNodeConfigurations()
+                            .contains(configuration.getId())));
+        }
+        if (!knownConfigurations.containsAll(master.getSelectedNodeConfigurations())) {
+            throw new IllegalArgumentException("Master selected an unknown node configuration");
+        }
+
         List<NetworkConstraintProblem.Asset> assets = new ArrayList<>(problem.getAssets());
         assets.sort(Comparator.comparing(NetworkConstraintProblem.Asset::getId));
         Set<String> knownAssets = new LinkedHashSet<>();

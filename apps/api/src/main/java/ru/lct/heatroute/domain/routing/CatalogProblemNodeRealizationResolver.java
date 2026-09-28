@@ -37,7 +37,7 @@ public final class CatalogProblemNodeRealizationResolver {
             String nodeId = requiredNode(nodeByPort, demandPorts.get(demand.getId()),
                     "demand " + demand.getId());
             put(result, nodeId, new CatalogFrozenCandidateAssembler.NodeRealization(
-                    "demand_connection", false, 0, demand.getLinkedOksId(), null));
+                    "demand_connection", false, 0, demand.getConnectionPointId(), null));
         }
         for (RoutingProblemSnapshot.RootCandidate root : problem.getRoots()) {
             RoutingProblemSnapshot.RootRealization realization = root.getRealization();

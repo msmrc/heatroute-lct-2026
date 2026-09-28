@@ -8,6 +8,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -15,6 +18,8 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.mockito.ArgumentCaptor;
 
 class OfficialFeatureRepositoryTest {
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
@@ -47,6 +52,21 @@ class OfficialFeatureRepositoryTest {
                 .hasMessageContaining("between 1 and");
 
         verifyNoInteractions(jdbcTemplate);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void calculationCoreIncludesLinkedFutureOksForDemandFlowResolution() {
+        UUID importId = UUID.randomUUID();
+        doReturn(List.of()).when(jdbcTemplate).query(
+                anyString(), any(RowMapper.class), eq(importId), eq(2));
+
+        repository.forEachCalculationCoreByImport(importId, 2, ignored -> { });
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(
+                sql.capture(), any(RowMapper.class), eq(importId), eq(2));
+        assertThat(sql.getValue()).contains("'oks_connection_point', 'oks_future'");
     }
 
     private ImportedOfficialFeature feature(String id) {

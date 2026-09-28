@@ -59,6 +59,20 @@ class RoutingProblemSnapshotTest {
     }
 
     @Test
+    void connectionAndLinkedOksIdentityParticipateInTheSnapshotHash() {
+        RoutingProblemSnapshot first = snapshot(List.of(
+                new RoutingProblemSnapshot.Demand(
+                        "demand", BigDecimal.ONE, new CatalogMetricPoint(1, 1),
+                        "connection", "oks-a")));
+        RoutingProblemSnapshot second = snapshot(List.of(
+                new RoutingProblemSnapshot.Demand(
+                        "demand", BigDecimal.ONE, new CatalogMetricPoint(1, 1),
+                        "connection", "oks-b")));
+
+        assertThat(second.getSnapshotHash()).isNotEqualTo(first.getSnapshotHash());
+    }
+
+    @Test
     void exactRootRealizationParticipatesInTheSnapshotIdentity() {
         RoutingProblemSnapshot.RootRealization firstRealization =
                 new RoutingProblemSnapshot.RootRealization(

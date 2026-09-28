@@ -6,29 +6,42 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Конечный целочисленный каталог направленных физических активов, корней, расходов и ДУ. */
+/** Конечный каталог направленных активов, точных конфигураций узлов, корней, расходов и ДУ. */
 public final class NetworkConstraintProblem {
     private final List<Node> nodes;
     private final List<Asset> assets;
+    private final List<NodeConfiguration> nodeConfigurations;
     private final List<Conflict> conflicts;
     private final Map<String, Node> nodesById;
     private final Map<String, Asset> assetsById;
+    private final Map<String, NodeConfiguration> nodeConfigurationsById;
     private final long totalDemandUnits;
 
     public NetworkConstraintProblem(
             Collection<Node> nodes, Collection<Asset> assets, Collection<Conflict> conflicts) {
+        this(nodes, assets, List.of(), conflicts);
+    }
+
+    public NetworkConstraintProblem(Collection<Node> nodes, Collection<Asset> assets,
+            Collection<NodeConfiguration> nodeConfigurations,
+            Collection<Conflict> conflicts) {
         if (nodes == null || nodes.isEmpty() || assets == null || assets.isEmpty() || conflicts == null) {
             throw new IllegalArgumentException("Non-empty nodes/assets and a conflicts collection are required");
         }
         this.nodes = sortedUnique(nodes, Node::getId, "node");
         this.assets = sortedUnique(assets, Asset::getId, "asset");
+        this.nodeConfigurations = sortedUnique(
+                Objects.requireNonNull(nodeConfigurations, "nodeConfigurations"),
+                NodeConfiguration::getId, "node configuration");
         this.nodesById = index(this.nodes, Node::getId);
         this.assetsById = index(this.assets, Asset::getId);
+        this.nodeConfigurationsById = index(this.nodeConfigurations, NodeConfiguration::getId);
         long demand = 0L;
         boolean hasRoot = false;
         boolean hasTerminal = false;
@@ -57,6 +70,28 @@ public final class NetworkConstraintProblem {
                     Math.addExact(asset.fixedCostUnits, maximumDiameterCost));
         }
         if (objectiveUpperBound < 0L) throw new IllegalArgumentException("Objective overflow");
+        Map<String, Set<Set<String>>> incidentSetsByNode = new LinkedHashMap<>();
+        for (NodeConfiguration configuration : this.nodeConfigurations) {
+            Node node = nodesById.get(configuration.nodeId);
+            if (node == null || !node.configurationRequired) {
+                throw new IllegalArgumentException(
+                        "Configuration references an unknown or unmanaged node: " + configuration.id);
+            }
+            for (String assetId : configuration.incidentAssetIds) {
+                Asset asset = assetsById.get(assetId);
+                if (asset == null || !asset.fromNodeId.equals(node.id)
+                        && !asset.toNodeId.equals(node.id)) {
+                    throw new IllegalArgumentException(
+                            "Configuration references a non-incident asset: " + configuration.id);
+                }
+            }
+            Set<Set<String>> incidentSets = incidentSetsByNode.computeIfAbsent(
+                    node.id, ignored -> new HashSet<>());
+            if (!incidentSets.add(configuration.incidentAssetIds)) {
+                throw new IllegalArgumentException(
+                        "Duplicate node configuration incidence at node: " + node.id);
+            }
+        }
         List<Conflict> orderedConflicts = new ArrayList<>(conflicts);
         orderedConflicts.sort(Comparator.comparing(Conflict::signature));
         Set<String> conflictSignatures = new HashSet<>();
@@ -72,9 +107,11 @@ public final class NetworkConstraintProblem {
 
     public List<Node> getNodes() { return nodes; }
     public List<Asset> getAssets() { return assets; }
+    public List<NodeConfiguration> getNodeConfigurations() { return nodeConfigurations; }
     public List<Conflict> getConflicts() { return conflicts; }
     public Node node(String id) { return nodesById.get(id); }
     public Asset asset(String id) { return assetsById.get(id); }
+    public NodeConfiguration nodeConfiguration(String id) { return nodeConfigurationsById.get(id); }
     public long getTotalDemandUnits() { return totalDemandUnits; }
 
     private void validateLiteral(DecisionLiteral literal) {
@@ -88,6 +125,12 @@ public final class NetworkConstraintProblem {
                 Node node = nodesById.get(literal.subjectId);
                 if (node == null || !node.allowedRoot) {
                     throw new IllegalArgumentException("Conflict references an unknown root: " + literal.subjectId);
+                }
+                return;
+            case NODE_CONFIGURATION_SELECTED:
+                if (!nodeConfigurationsById.containsKey(literal.subjectId)) {
+                    throw new IllegalArgumentException(
+                            "Conflict references an unknown node configuration: " + literal.subjectId);
                 }
                 return;
             case DIAMETER_SELECTED:
@@ -126,23 +169,59 @@ public final class NetworkConstraintProblem {
         private final boolean allowedRoot;
         private final long demandUnits;
         private final boolean mandatoryTerminal;
+        private final boolean configurationRequired;
 
         public Node(String id, boolean allowedRoot, long demandUnits) {
-            this(id, allowedRoot, demandUnits, demandUnits > 0L);
+            this(id, allowedRoot, demandUnits, demandUnits > 0L, false);
         }
 
         public Node(String id, boolean allowedRoot, long demandUnits, boolean mandatoryTerminal) {
+            this(id, allowedRoot, demandUnits, mandatoryTerminal, false);
+        }
+
+        public Node(String id, boolean allowedRoot, long demandUnits,
+                boolean mandatoryTerminal, boolean configurationRequired) {
             this.id = required(id, "node");
             if (demandUnits < 0L) throw new IllegalArgumentException("Node demand cannot be negative");
             this.allowedRoot = allowedRoot;
             this.demandUnits = demandUnits;
             this.mandatoryTerminal = mandatoryTerminal;
+            this.configurationRequired = configurationRequired;
         }
 
         public String getId() { return id; }
         public boolean isAllowedRoot() { return allowedRoot; }
         public long getDemandUnits() { return demandUnits; }
         public boolean isTerminal() { return mandatoryTerminal; }
+        public boolean isConfigurationRequired() { return configurationRequired; }
+    }
+
+    /** Точный набор направленных дуг, допустимый в одном используемом узле. */
+    public static final class NodeConfiguration {
+        private final String id;
+        private final String nodeId;
+        private final Set<String> incidentAssetIds;
+
+        public NodeConfiguration(String id, String nodeId, Collection<String> incidentAssetIds) {
+            this.id = required(id, "node configuration");
+            this.nodeId = required(nodeId, "configuration node");
+            if (incidentAssetIds == null || incidentAssetIds.isEmpty()) {
+                throw new IllegalArgumentException("Node configuration incidence cannot be empty");
+            }
+            List<String> ordered = new ArrayList<>(incidentAssetIds.size());
+            for (String assetId : incidentAssetIds) {
+                ordered.add(required(assetId, "configuration asset"));
+            }
+            ordered.sort(Comparator.naturalOrder());
+            if (ordered.stream().distinct().count() != ordered.size()) {
+                throw new IllegalArgumentException("Node configuration assets must be unique");
+            }
+            this.incidentAssetIds = Collections.unmodifiableSet(new LinkedHashSet<>(ordered));
+        }
+
+        public String getId() { return id; }
+        public String getNodeId() { return nodeId; }
+        public Set<String> getIncidentAssetIds() { return incidentAssetIds; }
     }
 
     public static final class Asset {
@@ -201,7 +280,12 @@ public final class NetworkConstraintProblem {
 
     /** Boolean-решение master-модели с ожидаемым значением в доказанно невозможной конъюнкции. */
     public static final class DecisionLiteral {
-        public enum Type { ASSET_SELECTED, ROOT_SELECTED, DIAMETER_SELECTED }
+        public enum Type {
+            ASSET_SELECTED,
+            ROOT_SELECTED,
+            NODE_CONFIGURATION_SELECTED,
+            DIAMETER_SELECTED
+        }
 
         private final Type type;
         private final String subjectId;
@@ -225,6 +309,11 @@ public final class NetworkConstraintProblem {
 
         public static DecisionLiteral root(String nodeId, boolean selected) {
             return new DecisionLiteral(Type.ROOT_SELECTED, nodeId, null, selected);
+        }
+
+        public static DecisionLiteral nodeConfiguration(String configurationId, boolean selected) {
+            return new DecisionLiteral(
+                    Type.NODE_CONFIGURATION_SELECTED, configurationId, null, selected);
         }
 
         public static DecisionLiteral diameter(String assetId, int diameterMm, boolean selected) {

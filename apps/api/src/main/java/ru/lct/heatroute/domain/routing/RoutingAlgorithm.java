@@ -13,9 +13,9 @@ public interface RoutingAlgorithm {
     String version();
 
     OfficialCalculationResult plan(
+            RoutingExecutionContext context,
             List<ImportedOfficialFeature> features,
             TopologyAnalysis topology,
             OfficialRunParameters parameters,
-            String inputProfile,
             RoutingFeatureSource source);
 }

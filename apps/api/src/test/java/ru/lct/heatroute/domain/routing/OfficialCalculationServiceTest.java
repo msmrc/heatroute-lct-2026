@@ -43,6 +43,8 @@ class OfficialCalculationServiceTest {
         OfficialCalculationResult expected = mock(OfficialCalculationResult.class);
         when(imported.getState()).thenReturn("valid");
         when(imported.getReport()).thenReturn(report);
+        when(report.getSha256()).thenReturn("source-sha");
+        when(report.getContractVersion()).thenReturn("heatroute-input-v2");
         when(report.getInputProfile()).thenReturn("baseline_input");
         when(importRepository.find(importId)).thenReturn(Optional.of(imported));
         doAnswer(invocation -> {
@@ -55,7 +57,7 @@ class OfficialCalculationServiceTest {
                 .forEachCalculationCoreByImport(eq(importId), eq(OfficialFeatureRepository.DEFAULT_PAGE_SIZE), any());
         when(topologyAnalyzer.analyze(any())).thenReturn(topology);
         when(algorithmRegistry.require(any())).thenReturn(routingAlgorithm);
-        when(routingAlgorithm.plan(any(), eq(topology), any(), eq("baseline_input"), any()))
+        when(routingAlgorithm.plan(any(), any(), eq(topology), any(), any()))
                 .thenReturn(expected);
 
         OfficialCalculationResult actual = service.calculate(importId);
@@ -66,6 +68,13 @@ class OfficialCalculationServiceTest {
         verify(featureRepository).forEachCalculationCoreByImport(
                 eq(importId), eq(OfficialFeatureRepository.DEFAULT_PAGE_SIZE), any());
         verify(algorithmRegistry).require(ru.lct.heatroute.domain.run.RoutingAlgorithmProfile.STABLE);
+        ArgumentCaptor<RoutingExecutionContext> context =
+                ArgumentCaptor.forClass(RoutingExecutionContext.class);
+        verify(routingAlgorithm).plan(context.capture(), any(), eq(topology), any(), any());
+        assertThat(context.getValue().getImportId()).isEqualTo(importId);
+        assertThat(context.getValue().getSourceHash()).isEqualTo("source-sha");
+        assertThat(context.getValue().getInputContractVersion()).isEqualTo("heatroute-input-v2");
+        assertThat(context.getValue().getInputProfile()).isEqualTo("baseline_input");
         assertThat(actual).isSameAs(expected);
     }
 

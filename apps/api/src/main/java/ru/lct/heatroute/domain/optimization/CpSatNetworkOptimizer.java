@@ -19,7 +19,7 @@ import java.util.concurrent.CancellationException;
 
 /**
  * Точная CP-SAT master-модель конечного каталога: арбо-лес, несколько корней, полный coverage,
- * суммарный flow, единый выбор ДУ физического актива и стоимость общего ствола один раз.
+ * суммарный flow, точная локальная конфигурация узла, единый ДУ актива и стоимость ствола один раз.
  */
 public final class CpSatNetworkOptimizer {
     private final CpSatRuntime runtime;
@@ -121,6 +121,7 @@ public final class CpSatNetworkOptimizer {
         Map<String, BoolVar> selected = new LinkedHashMap<>();
         Map<String, IntVar> flows = new LinkedHashMap<>();
         Map<String, Map<Integer, BoolVar>> diameters = new LinkedHashMap<>();
+        Map<String, BoolVar> nodeConfigurations = new LinkedHashMap<>();
         Map<String, List<NetworkConstraintProblem.Asset>> incoming = new LinkedHashMap<>();
         Map<String, List<NetworkConstraintProblem.Asset>> outgoing = new LinkedHashMap<>();
         LinearExprBuilder objective = LinearExpr.newBuilder();
@@ -157,6 +158,41 @@ public final class CpSatNetworkOptimizer {
             model.addGreaterOrEqual(acyclic, 1L - nodeCount);
         }
 
+        Map<String, List<NetworkConstraintProblem.NodeConfiguration>> configurationsByNode =
+                new LinkedHashMap<>();
+        for (NetworkConstraintProblem.NodeConfiguration configuration
+                : problem.getNodeConfigurations()) {
+            BoolVar choice = model.newBoolVar("node-configuration/" + configuration.getId());
+            nodeConfigurations.put(configuration.getId(), choice);
+            configurationsByNode.computeIfAbsent(
+                    configuration.getNodeId(), ignored -> new ArrayList<>()).add(configuration);
+        }
+        for (NetworkConstraintProblem.Node node : problem.getNodes()) {
+            if (!node.isConfigurationRequired()) continue;
+            List<NetworkConstraintProblem.NodeConfiguration> configurations =
+                    configurationsByNode.getOrDefault(node.getId(), List.of());
+            LinearExprBuilder exactlyOneWhenUsed = LinearExpr.newBuilder()
+                    .addTerm(used.get(node.getId()), -1L);
+            for (NetworkConstraintProblem.NodeConfiguration configuration : configurations) {
+                exactlyOneWhenUsed.add(nodeConfigurations.get(configuration.getId()));
+            }
+            model.addEquality(exactlyOneWhenUsed, 0L);
+
+            List<NetworkConstraintProblem.Asset> incident = new ArrayList<>();
+            incident.addAll(incoming.getOrDefault(node.getId(), List.of()));
+            incident.addAll(outgoing.getOrDefault(node.getId(), List.of()));
+            for (NetworkConstraintProblem.Asset asset : incident) {
+                LinearExprBuilder exactIncidence = LinearExpr.newBuilder()
+                        .addTerm(selected.get(asset.getId()), -1L);
+                for (NetworkConstraintProblem.NodeConfiguration configuration : configurations) {
+                    if (configuration.getIncidentAssetIds().contains(asset.getId())) {
+                        exactIncidence.add(nodeConfigurations.get(configuration.getId()));
+                    }
+                }
+                model.addEquality(exactIncidence, 0L);
+            }
+        }
+
         for (NetworkConstraintProblem.Node node : problem.getNodes()) {
             LinearExprBuilder parent = LinearExpr.newBuilder().addTerm(used.get(node.getId()), -1L);
             for (NetworkConstraintProblem.Asset asset : incoming.getOrDefault(node.getId(), List.of())) {
@@ -189,23 +225,27 @@ public final class CpSatNetworkOptimizer {
         for (NetworkConstraintProblem.Conflict conflict : conflicts) {
             List<Literal> atLeastOneChanges = new ArrayList<>();
             for (NetworkConstraintProblem.DecisionLiteral decision : conflict.getLiterals()) {
-                BoolVar variable = conflictVariable(decision, selected, roots, diameters);
+                BoolVar variable = conflictVariable(
+                        decision, selected, roots, nodeConfigurations, diameters);
                 atLeastOneChanges.add(decision.isExpected() ? variable.not() : variable);
             }
             model.addBoolOr(atLeastOneChanges);
         }
         model.minimize(objective);
-        return new Variables(selected, roots, flows, diameters);
+        return new Variables(selected, roots, flows, diameters, nodeConfigurations);
     }
 
     private BoolVar conflictVariable(NetworkConstraintProblem.DecisionLiteral literal,
             Map<String, BoolVar> selected, Map<String, BoolVar> roots,
+            Map<String, BoolVar> nodeConfigurations,
             Map<String, Map<Integer, BoolVar>> diameters) {
         switch (literal.getType()) {
             case ASSET_SELECTED:
                 return selected.get(literal.getSubjectId());
             case ROOT_SELECTED:
                 return roots.get(literal.getSubjectId());
+            case NODE_CONFIGURATION_SELECTED:
+                return nodeConfigurations.get(literal.getSubjectId());
             case DIAMETER_SELECTED:
                 return diameters.get(literal.getSubjectId()).get(literal.getDiameterMm());
             default:
@@ -217,12 +257,19 @@ public final class CpSatNetworkOptimizer {
             CpSatRuntime.Session session, Status status) {
         Set<String> selectedAssets = new LinkedHashSet<>();
         Set<String> selectedRoots = new LinkedHashSet<>();
+        Set<String> selectedNodeConfigurations = new LinkedHashSet<>();
         Map<String, Long> flows = new LinkedHashMap<>();
         Map<String, Integer> diameters = new LinkedHashMap<>();
         long objective = 0L;
         for (NetworkConstraintProblem.Node node : problem.getNodes()) {
             BoolVar root = variables.roots.get(node.getId());
             if (root != null && session.value(root) == 1L) selectedRoots.add(node.getId());
+        }
+        for (NetworkConstraintProblem.NodeConfiguration configuration
+                : problem.getNodeConfigurations()) {
+            if (session.value(variables.nodeConfigurations.get(configuration.getId())) == 1L) {
+                selectedNodeConfigurations.add(configuration.getId());
+            }
         }
         for (NetworkConstraintProblem.Asset asset : problem.getAssets()) {
             if (session.value(variables.selected.get(asset.getId())) != 1L) continue;
@@ -240,7 +287,8 @@ public final class CpSatNetworkOptimizer {
                 throw new IllegalStateException("Selected asset has no diameter assignment");
             }
         }
-        return new Result(status, selectedAssets, selectedRoots, flows, diameters, objective);
+        return new Result(status, selectedAssets, selectedRoots, selectedNodeConfigurations,
+                flows, diameters, objective);
     }
 
     public enum Status { OPTIMAL, FEASIBLE, INFEASIBLE, UNKNOWN }
@@ -249,27 +297,33 @@ public final class CpSatNetworkOptimizer {
         private final Status status;
         private final Set<String> selectedAssets;
         private final Set<String> selectedRoots;
+        private final Set<String> selectedNodeConfigurations;
         private final Map<String, Long> flowUnits;
         private final Map<String, Integer> diameterMm;
         private final Long objectiveUnits;
 
         private Result(Status status, Set<String> selectedAssets, Set<String> selectedRoots,
-                Map<String, Long> flowUnits, Map<String, Integer> diameterMm, Long objectiveUnits) {
+                Set<String> selectedNodeConfigurations, Map<String, Long> flowUnits,
+                Map<String, Integer> diameterMm, Long objectiveUnits) {
             this.status = status;
             this.selectedAssets = Set.copyOf(selectedAssets);
             this.selectedRoots = Set.copyOf(selectedRoots);
+            this.selectedNodeConfigurations = Set.copyOf(selectedNodeConfigurations);
             this.flowUnits = Map.copyOf(flowUnits);
             this.diameterMm = Map.copyOf(diameterMm);
             this.objectiveUnits = objectiveUnits;
         }
 
         private static Result empty(Status status) {
-            return new Result(status, Set.of(), Set.of(), Map.of(), Map.of(), null);
+            return new Result(status, Set.of(), Set.of(), Set.of(), Map.of(), Map.of(), null);
         }
 
         public Status getStatus() { return status; }
         public Set<String> getSelectedAssets() { return selectedAssets; }
         public Set<String> getSelectedRoots() { return selectedRoots; }
+        public Set<String> getSelectedNodeConfigurations() {
+            return selectedNodeConfigurations;
+        }
         public Map<String, Long> getFlowUnits() { return flowUnits; }
         public Map<String, Integer> getDiameterMm() { return diameterMm; }
         public Long getObjectiveUnits() { return objectiveUnits; }
@@ -280,13 +334,16 @@ public final class CpSatNetworkOptimizer {
         private final Map<String, BoolVar> roots;
         private final Map<String, IntVar> flows;
         private final Map<String, Map<Integer, BoolVar>> diameters;
+        private final Map<String, BoolVar> nodeConfigurations;
 
         private Variables(Map<String, BoolVar> selected, Map<String, BoolVar> roots,
-                Map<String, IntVar> flows, Map<String, Map<Integer, BoolVar>> diameters) {
+                Map<String, IntVar> flows, Map<String, Map<Integer, BoolVar>> diameters,
+                Map<String, BoolVar> nodeConfigurations) {
             this.selected = selected;
             this.roots = roots;
             this.flows = flows;
             this.diameters = diameters;
+            this.nodeConfigurations = nodeConfigurations;
         }
     }
 }

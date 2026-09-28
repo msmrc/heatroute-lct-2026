@@ -26,6 +26,8 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 @Component
 public final class CatalogNetworkStageCompiler {
     private final CatalogNetworkProblemCompiler problemCompiler;
+    private final CatalogNodeConfigurationCompiler nodeConfigurationCompiler =
+            new CatalogNodeConfigurationCompiler();
     private final CatalogFrozenCandidateAssembler candidateAssembler =
             new CatalogFrozenCandidateAssembler();
 
@@ -83,8 +85,10 @@ public final class CatalogNetworkStageCompiler {
             throw new IllegalArgumentException("Catalog build result belongs to another problem/rule scope");
         }
 
-        CatalogNetworkProblemCompiler.Compilation compilation = problemCompiler.compile(
+        CatalogNetworkProblemCompiler.Compilation baseCompilation = problemCompiler.compile(
                 problemSnapshot, catalog, demandPortById, rootPortById, flowScaleDecimals);
+        CatalogNetworkProblemCompiler.Compilation compilation = nodeConfigurationCompiler.compile(
+                problemSnapshot, baseCompilation);
         Map<String, CatalogFrozenCandidateAssembler.NodeRealization> nodeRealizations = Map.copyOf(
                 Objects.requireNonNull(nodeRealizationResolver.resolve(compilation),
                         "node realizations"));
@@ -110,6 +114,8 @@ public final class CatalogNetworkStageCompiler {
     private static String candidateId(String prefix, CpSatNetworkOptimizer.Result master) {
         List<String> assignment = new ArrayList<>();
         master.getSelectedRoots().stream().sorted().forEach(root -> assignment.add("root:" + root));
+        master.getSelectedNodeConfigurations().stream().sorted().forEach(configuration ->
+                assignment.add("node-configuration:" + configuration));
         master.getSelectedAssets().stream().sorted().forEach(asset -> assignment.add(
                 "asset:" + asset + ":flow=" + master.getFlowUnits().get(asset)
                         + ":du=" + master.getDiameterMm().get(asset)));

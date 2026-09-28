@@ -89,6 +89,16 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
   Generation, section assembly and exact evaluation reuse the same indexes/caches; directly built
   legacy test candidates retain the isolated preparation fallback. An empty seed stays a typed
   incomplete preparation and never creates an empty master.
+- Executable stages now compile exact local node configurations into CP-SAT. Every used node picks
+  one complete incident-arc set; root capacity includes immutable existing rays, demands cannot
+  become transit nodes, and three/four-way chambers require pairwise orthogonal/opposite rays.
+  Configuration choices participate in identity, no-good scope, canonical sizing and additive
+  expansion. The frozen assembler publishes selected branches as real `new_branch_chamber` nodes.
+- `RoutingProblemFactory` now builds the immutable small problem from the bounded production core:
+  extended demand flow is resolved through the linked `oks_future`, missing flow is rejected,
+  coincident connection points stay distinct, and topology tie-ins become exact roots using the
+  existing support incidence/ray/diameter oracle. The normal calculation adapter passes import ID,
+  source hash, contract version and profile without changing the stable planner implementation.
 - queued execution resolves the persisted routing-engine version before loading feature windows;
   no worker may silently execute a queued run with another registered version.
 - `/api/v1/health/ready` includes cached `cp_sat` capability after a real known-optimum solve.
@@ -97,8 +107,8 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
 
 N01 still requires the clean packaged-image build/readiness evidence recorded below. N02 requires
 differential official-dataset and depth evidence. N05 is a tested finite-catalog master, not an
-end-to-end solver: N03 targeted shared-path expansion and chamber configurations, production snapshot
-population, production targeted window/terminal/chamber expanders, mapped asset-split
+end-to-end solver: N03 targeted shared-path expansion and relocated/DU-aware chamber configurations,
+production next-generation planner wiring, targeted window/terminal/chamber expanders, mapped asset-split
 rebasing and three-role portfolio integration,
 full lease-attempt fencing, official pipeline/API/export,
 performance, resource, Ubuntu 22 and release gates remain open. The active `stable` implementation
@@ -113,7 +123,7 @@ Completed on the 2026-09-28 working tree with JDK/temp/Maven cache on `E:`:
 - 80 seeded small finite catalogs match an independent exhaustive network enumerator;
 - catalog/proof-scope focused tests cover direction/context/ДУ, source/rule changes, negative
   literals, catalog expansion, exact full-assignment scope and bounded proof storage;
-- clean fast Java gate excluding the three documented long dataset classes: 2,359 tests, zero
+- clean fast Java gate excluding the three documented long dataset classes: 2,369 tests, zero
   failures/errors and 3 existing skips;
 - web: 8 Vitest files / 36 tests and 37 Node tests; ESLint and TypeScript pass;
 - `mvn dependency:tree`: OR-Tools 9.15.6755, JNA/JNA Platform 5.14.0 and Protobuf 4.33.1;

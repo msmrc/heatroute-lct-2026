@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,39 @@ class CatalogNetworkStageCompilerTest {
     }
 
     @Test
+    void executesARealBoundedRouterCatalogThroughTheExactStage() {
+        RoutingProblemSnapshot problem = problem();
+        OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
+                new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
+        BoundedRootDemandCatalogGenerator.GeneratedCatalog generated =
+                new BoundedRootDemandCatalogGenerator(
+                        new OfficialObstacleRouter(geometryRules), pipes).generate(
+                        problem, List.of(),
+                        BoundedRootDemandCatalogGenerator.Options.bounded(
+                                Duration.ofSeconds(10), 8, 32, 4, 4));
+        AdaptiveCatalogNetworkSearch.Stage stage = compiler.compile(
+                problem, generated.getBuildResult(), generated.getDemandPortById(),
+                generated.getRootPortById(), 3, "frozen-evaluator-1", "generated-network",
+                "nextgen-bounded", compilation -> realizations(compilation), List.of(),
+                edge -> List.of(baseSection(edge)));
+        AdaptiveCatalogNetworkSearch search = new AdaptiveCatalogNetworkSearch(
+                new CatalogFrozenNetworkRefinement(
+                        new CpSatNetworkOptimizer(new CpSatRuntime()), evaluator()));
+
+        AdaptiveCatalogNetworkSearch.Result result = search.solve(stage, new ConflictStore(),
+                new AcceptedSolutionArchive(3), (current, request, remainingNanos) -> {
+                    throw new AssertionError("A valid bounded seed must be admitted before expansion");
+                }, settings());
+
+        assertThat(result.getOutcome()).isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
+        assertThat(result.getAccepted().getStrategy()).isEqualTo("nextgen-bounded");
+        assertThat(result.getAccepted().getEdges()).singleElement().satisfies(edge -> {
+            assertThat(edge.getLengthM()).isEqualByComparingTo("20.000");
+            assertThat(edge.getDiameter()).isEqualTo(50);
+        });
+    }
+
+    @Test
     void rejectsCatalogBuildFromAnotherProblemSnapshot() {
         RoutingProblemSnapshot problem = problem();
         RoutingCatalogSnapshot wrong = new RoutingCatalogSnapshot(
@@ -115,15 +149,28 @@ class CatalogNetworkStageCompilerTest {
             CatalogNetworkProblemCompiler.Compilation compilation) {
         Map<String, CatalogFrozenCandidateAssembler.NodeRealization> result = new LinkedHashMap<>();
         for (CatalogNetworkProblemCompiler.NodeBinding node : compilation.getNodeBindings()) {
-            if ("root-port".equals(node.getExplicitPortId())) {
+            if ("root-port".equals(node.getExplicitPortId())
+                    || "root-port:root".equals(node.getExplicitPortId())) {
                 result.put(node.getNodeId(), new CatalogFrozenCandidateAssembler.NodeRealization(
                         "existing_root", true, 0, "root", null));
-            } else if ("d-port".equals(node.getExplicitPortId())) {
+            } else if ("d-port".equals(node.getExplicitPortId())
+                    || "demand-port:one".equals(node.getExplicitPortId())) {
                 result.put(node.getNodeId(), new CatalogFrozenCandidateAssembler.NodeRealization(
                         "demand_connection", false, 0, "connection-one", null));
             }
         }
         return result;
+    }
+
+    private RouteSection baseSection(CatalogFrozenCandidateAssembler.EdgeAssembly edge) {
+        double length = 0.0;
+        for (int index = 1; index < edge.getCoordinates().size(); index++) {
+            RouteCoordinate left = edge.getCoordinates().get(index - 1);
+            RouteCoordinate right = edge.getCoordinates().get(index);
+            length += Math.hypot(right.getXM().doubleValue() - left.getXM().doubleValue(),
+                    right.getYM().doubleValue() - left.getYM().doubleValue());
+        }
+        return new RouteSection("base", null, null, edge.getCoordinates(), length, null);
     }
 
     private RoutingProblemSnapshot problem() {

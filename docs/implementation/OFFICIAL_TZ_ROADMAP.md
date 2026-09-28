@@ -43,14 +43,17 @@ window/terminal/chamber generation, mapped asset-split rebasing and three-role p
 integration are still open.
 The new `CatalogNetworkStageCompiler` now provides one checked wiring boundary from problem/build
 snapshots to master identity, frozen feature ownership, explicit node realization and
-assignment-specific candidates. Real bounded path/chamber generation, production node providers
-and exact section assembly remain required before registration.
+assignment-specific candidates. A bounded initial root-to-demand generator now reuses the official
+obstacle router and compiles overlapping paths into shared physical assets without running the full
+legacy planner; its call/time truncation and the missing shared-spine/chamber generators remain
+explicitly incomplete. Targeted path/chamber expansion, production node providers and exact section
+assembly remain required before registration.
 
 Two behavior-preserving legacy optimizations reuse the already loaded final feature window after
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
 mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
-backend passes 2,350/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
+backend passes 2,354/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
 and Compose configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
 The windowed path/chamber compilers, production section/node wiring, official end-to-end run, benchmark, resource and

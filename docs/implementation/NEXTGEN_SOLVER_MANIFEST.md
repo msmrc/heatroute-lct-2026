@@ -73,6 +73,11 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
   `RoutingProblemSnapshot` plus `CatalogBuildResult` to the executable stage. It compiles the
   master, derives its exact identity, freezes the feature window, resolves explicit nodes and
   constructs deterministic assignment-specific frozen candidates with edge→master provenance.
+- `BoundedRootDemandCatalogGenerator` now supplies a real obstacle-aware initial N03 seed without
+  invoking the full legacy planner. It reuses one prepared `OfficialRoutingEnvironment`, normal
+  terminal egress and the existing engineering/left/right router paths, then compiles coincident
+  geometry into shared physical assets. Pair/call/egress/path/time limits are telemetry, and the
+  result explicitly leaves shared-network seeds and chamber configurations uncovered.
 - queued execution resolves the persisted routing-engine version before loading feature windows;
   no worker may silently execute a queued run with another registered version.
 - `/api/v1/health/ready` includes cached `cp_sat` capability after a real known-optimum solve.
@@ -81,7 +86,7 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
 
 N01 still requires the clean packaged-image build/readiness evidence recorded below. N02 requires
 differential official-dataset and depth evidence. N05 is a tested finite-catalog master, not an
-end-to-end solver: N03 windowed path generation and chamber configurations, production section and
+end-to-end solver: N03 targeted shared-path expansion and chamber configurations, production section and
 node-realization providers, production targeted window/terminal/chamber expanders, mapped asset-split
 rebasing and three-role portfolio integration,
 full lease-attempt fencing, official pipeline/API/export,
@@ -97,7 +102,7 @@ Completed on the 2026-09-28 working tree with JDK/temp/Maven cache on `E:`:
 - 80 seeded small finite catalogs match an independent exhaustive network enumerator;
 - catalog/proof-scope focused tests cover direction/context/ДУ, source/rule changes, negative
   literals, catalog expansion, exact full-assignment scope and bounded proof storage;
-- clean fast Java gate excluding the three documented long dataset classes: 2,350 tests, zero
+- clean fast Java gate excluding the three documented long dataset classes: 2,354 tests, zero
   failures/errors and 3 existing skips;
 - web: 8 Vitest files / 36 tests and 37 Node tests; ESLint and TypeScript pass;
 - `mvn dependency:tree`: OR-Tools 9.15.6755, JNA/JNA Platform 5.14.0 and Protobuf 4.33.1;

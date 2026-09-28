@@ -28,6 +28,11 @@ segments are allowed to represent the same physical asset.
   reference a known, continuous asset chain which reconstructs its polyline and total length.
 - `CatalogNetworkProblemCompiler` derives topology by unioning only explicit ports and adjacent
   endpoints in declared chains. It never joins nodes merely because coordinates are equal.
+- `CatalogFrozenCandidateAssembler` maps a feasible assignment back to immutable route objects.
+  Compatible degree-2 accounting atoms are collapsed into one continuous edge; a branch, change of
+  physical context/construction mode/ДУ or another retained boundary requires an explicit port and
+  node realization. Sections are supplied through an exact assembly boundary rather than inferred
+  from an XY coincidence.
 - The compiler uses `OfficialPipeCatalog` as the sole capacity/rate source. Its integer objective is
   a documented linearized catalog surrogate in milli-rubles; official sizing, continuous-length
   rules, rounding and final economics remain the authority of `FrozenNetworkEvaluator`.
@@ -39,6 +44,7 @@ segments are allowed to represent the same physical asset.
 Shared trunks are selected and costed once in the finite master and receive aggregate flow. A
 technical split preserves physical coverage, while false planar intersections remain disconnected.
 Unverified diameter admission stays in the relaxation; a diameter is removed only when all source
-options for that directed asset prove it forbidden. The exact evaluator and refinement loop are
-still required before acceptance, and the catalog compiler is not yet the production `stable`
-adapter.
+options for that directed asset prove it forbidden. The assembled candidate uses canonical
+`demand:<id>` sizing nodes and preserves source connection IDs separately. The exact evaluator and
+refinement loop are still required before acceptance, and the catalog compiler is not yet the
+production `stable` adapter.

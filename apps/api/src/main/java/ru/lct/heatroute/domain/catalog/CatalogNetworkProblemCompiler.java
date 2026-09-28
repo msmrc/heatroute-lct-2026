@@ -57,8 +57,11 @@ public final class CatalogNetworkProblemCompiler {
         Topology topology = topology(catalogSnapshot);
         Map<String, NodeAccumulator> nodeData = new LinkedHashMap<>();
         for (String nodeId : topology.nodeIds()) nodeData.put(nodeId, new NodeAccumulator(nodeId));
-        bindDemands(problemSnapshot, demandPorts, topology, nodeData, flowScaleDecimals);
-        bindRoots(problemSnapshot, rootPorts, topology, nodeData);
+        Map<String, DemandBinding> demandBindings = new LinkedHashMap<>();
+        Map<String, String> rootNodeById = new LinkedHashMap<>();
+        bindDemands(problemSnapshot, demandPorts, topology, nodeData,
+                demandBindings, flowScaleDecimals);
+        bindRoots(problemSnapshot, rootPorts, topology, nodeData, rootNodeById);
 
         List<NetworkConstraintProblem.Asset> modelAssets = new ArrayList<>();
         Map<String, ArcBinding> arcBindings = new LinkedHashMap<>();
@@ -90,7 +93,8 @@ public final class CatalogNetworkProblemCompiler {
         List<NetworkConstraintProblem.Node> nodes = new ArrayList<>();
         for (NodeAccumulator value : nodeData.values()) nodes.add(value.freeze());
         NetworkConstraintProblem problem = new NetworkConstraintProblem(nodes, modelAssets, conflicts);
-        return new Compilation(problem, arcBindings, flowScaleDecimals,
+        return new Compilation(problem, arcBindings, topology.nodeBindings,
+                demandBindings, rootNodeById, flowScaleDecimals,
                 ObjectiveKind.LINEARIZED_CATALOG_MILLI_RUBLES);
     }
 
@@ -122,15 +126,21 @@ public final class CatalogNetworkProblemCompiler {
 
     private static Topology topology(RoutingCatalogSnapshot catalog) {
         UnionFind components = new UnionFind();
+        Map<String, CatalogMetricPoint> pointByMember = new LinkedHashMap<>();
         for (CatalogPhysicalAsset asset : catalog.getPhysicalAssets()) {
-            components.add(endpointKey(asset.getId(), false));
-            components.add(endpointKey(asset.getId(), true));
+            String firstEndpoint = endpointKey(asset.getId(), false);
+            String secondEndpoint = endpointKey(asset.getId(), true);
+            components.add(firstEndpoint);
+            components.add(secondEndpoint);
+            pointByMember.put(firstEndpoint, asset.getFirstPoint());
+            pointByMember.put(secondEndpoint, asset.getSecondPoint());
         }
         Map<String, ArcAccumulator> arcs = new LinkedHashMap<>();
         for (DirectedPathOption option : catalog.getPathOptions()) {
             CatalogMetricPoint current = option.getCoordinates().get(0);
             String previousEndpoint = portKey(option.getFromPortId());
             components.add(previousEndpoint);
+            putPoint(pointByMember, previousEndpoint, current);
             for (String assetId : option.getPhysicalAssetIds()) {
                 CatalogPhysicalAsset asset = catalog.physicalAsset(assetId);
                 boolean canonical = current.equals(asset.getFirstPoint());
@@ -147,6 +157,7 @@ public final class CatalogNetworkProblemCompiler {
             }
             String toPort = portKey(option.getToPortId());
             components.add(toPort);
+            putPoint(pointByMember, toPort, current);
             components.union(previousEndpoint, toPort);
         }
         Map<String, List<String>> members = components.components();
@@ -164,15 +175,39 @@ public final class CatalogNetworkProblemCompiler {
             nodeByComponent.put(entry.getKey(), nodeId);
         }
         Map<String, String> nodeByMember = new LinkedHashMap<>();
+        Map<String, NodeBinding> nodeBindings = new LinkedHashMap<>();
         for (Map.Entry<String, List<String>> entry : members.entrySet()) {
             String nodeId = nodeByComponent.get(entry.getKey());
+            CatalogMetricPoint point = null;
             for (String member : entry.getValue()) nodeByMember.put(member, nodeId);
+            for (String member : entry.getValue()) {
+                CatalogMetricPoint candidate = pointByMember.get(member);
+                if (candidate == null) continue;
+                if (point != null && !point.equals(candidate)) {
+                    throw new IllegalArgumentException("Catalog chain joins different metric points at node: "
+                            + nodeId);
+                }
+                point = candidate;
+            }
+            if (point == null) throw new IllegalStateException("Catalog topology node has no coordinate");
+            String explicitPortId = nodeId.startsWith("book:") ? null : nodeId;
+            nodeBindings.put(nodeId, new NodeBinding(nodeId, point, explicitPortId));
         }
-        return new Topology(nodeByMember, arcs);
+        return new Topology(nodeByMember, nodeBindings, arcs);
+    }
+
+    private static void putPoint(Map<String, CatalogMetricPoint> pointByMember,
+            String member, CatalogMetricPoint point) {
+        CatalogMetricPoint previous = pointByMember.putIfAbsent(member, point);
+        if (previous != null && !previous.equals(point)) {
+            throw new IllegalArgumentException("Catalog port has inconsistent coordinates: "
+                    + member.substring(PORT_PREFIX.length()));
+        }
     }
 
     private static void bindDemands(RoutingProblemSnapshot snapshot, Map<String, String> ports,
-            Topology topology, Map<String, NodeAccumulator> nodes, int scale) {
+            Topology topology, Map<String, NodeAccumulator> nodes,
+            Map<String, DemandBinding> bindings, int scale) {
         Set<String> expected = new LinkedHashSet<>();
         for (RoutingProblemSnapshot.Demand demand : snapshot.getDemands()) {
             expected.add(demand.getId());
@@ -180,15 +215,19 @@ public final class CatalogNetworkProblemCompiler {
             if (portId == null) throw new IllegalArgumentException("Missing port for demand: " + demand.getId());
             NodeAccumulator node = nodes.get(topology.nodeId(portKey(portId)));
             if (node == null) throw new IllegalArgumentException("Demand references an unknown catalog port: " + portId);
-            node.demandUnits = Math.addExact(node.demandUnits,
-                    scaledFlow(demand.getFlowTph(), scale, "demand " + demand.getId()));
+            long demandUnits = scaledFlow(demand.getFlowTph(), scale, "demand " + demand.getId());
+            node.demandUnits = Math.addExact(node.demandUnits, demandUnits);
             node.mandatoryTerminal = true;
+            bindings.put(demand.getId(), new DemandBinding(
+                    demand.getId(), portId, node.id, demand.getLinkedOksId(),
+                    demand.getFlowTph(), demandUnits));
         }
         if (!ports.keySet().equals(expected)) throw new IllegalArgumentException("Demand port map IDs differ from snapshot");
     }
 
     private static void bindRoots(RoutingProblemSnapshot snapshot, Map<String, String> ports,
-            Topology topology, Map<String, NodeAccumulator> nodes) {
+            Topology topology, Map<String, NodeAccumulator> nodes,
+            Map<String, String> rootNodeById) {
         Set<String> expected = new LinkedHashSet<>();
         for (RoutingProblemSnapshot.RootCandidate root : snapshot.getRoots()) {
             expected.add(root.getId());
@@ -197,6 +236,7 @@ public final class CatalogNetworkProblemCompiler {
             NodeAccumulator node = nodes.get(topology.nodeId(portKey(portId)));
             if (node == null) throw new IllegalArgumentException("Root references an unknown catalog port: " + portId);
             node.allowedRoot = true;
+            rootNodeById.put(root.getId(), node.id);
         }
         if (!ports.keySet().equals(expected)) throw new IllegalArgumentException("Root port map IDs differ from snapshot");
     }
@@ -255,13 +295,20 @@ public final class CatalogNetworkProblemCompiler {
     public static final class Compilation {
         private final NetworkConstraintProblem problem;
         private final Map<String, ArcBinding> arcBindings;
+        private final Map<String, NodeBinding> nodeBindings;
+        private final Map<String, DemandBinding> demandBindings;
+        private final Map<String, String> rootNodeById;
         private final int flowScaleDecimals;
         private final ObjectiveKind objectiveKind;
 
         private Compilation(NetworkConstraintProblem problem, Map<String, ArcBinding> arcBindings,
-                int flowScaleDecimals, ObjectiveKind objectiveKind) {
+                Map<String, NodeBinding> nodeBindings, Map<String, DemandBinding> demandBindings,
+                Map<String, String> rootNodeById, int flowScaleDecimals, ObjectiveKind objectiveKind) {
             this.problem = problem;
             this.arcBindings = Collections.unmodifiableMap(new LinkedHashMap<>(arcBindings));
+            this.nodeBindings = Collections.unmodifiableMap(new LinkedHashMap<>(nodeBindings));
+            this.demandBindings = Collections.unmodifiableMap(new LinkedHashMap<>(demandBindings));
+            this.rootNodeById = Collections.unmodifiableMap(new LinkedHashMap<>(rootNodeById));
             this.flowScaleDecimals = flowScaleDecimals;
             this.objectiveKind = objectiveKind;
         }
@@ -269,8 +316,56 @@ public final class CatalogNetworkProblemCompiler {
         public NetworkConstraintProblem getProblem() { return problem; }
         public Collection<ArcBinding> getArcBindings() { return arcBindings.values(); }
         public ArcBinding arc(String id) { return arcBindings.get(id); }
+        public Collection<NodeBinding> getNodeBindings() { return nodeBindings.values(); }
+        public NodeBinding node(String id) { return nodeBindings.get(id); }
+        public Collection<DemandBinding> getDemandBindings() { return demandBindings.values(); }
+        public DemandBinding demand(String id) { return demandBindings.get(id); }
+        public Map<String, String> getRootNodeById() { return rootNodeById; }
         public int getFlowScaleDecimals() { return flowScaleDecimals; }
         public ObjectiveKind getObjectiveKind() { return objectiveKind; }
+    }
+
+    public static final class NodeBinding {
+        private final String nodeId;
+        private final CatalogMetricPoint point;
+        private final String explicitPortId;
+
+        private NodeBinding(String nodeId, CatalogMetricPoint point, String explicitPortId) {
+            this.nodeId = nodeId;
+            this.point = point;
+            this.explicitPortId = explicitPortId;
+        }
+
+        public String getNodeId() { return nodeId; }
+        public CatalogMetricPoint getPoint() { return point; }
+        public String getExplicitPortId() { return explicitPortId; }
+        public boolean isExplicitPort() { return explicitPortId != null; }
+    }
+
+    public static final class DemandBinding {
+        private final String demandId;
+        private final String portId;
+        private final String nodeId;
+        private final String connectionPointId;
+        private final BigDecimal flowTph;
+        private final long flowUnits;
+
+        private DemandBinding(String demandId, String portId, String nodeId,
+                String connectionPointId, BigDecimal flowTph, long flowUnits) {
+            this.demandId = demandId;
+            this.portId = portId;
+            this.nodeId = nodeId;
+            this.connectionPointId = connectionPointId;
+            this.flowTph = flowTph;
+            this.flowUnits = flowUnits;
+        }
+
+        public String getDemandId() { return demandId; }
+        public String getPortId() { return portId; }
+        public String getNodeId() { return nodeId; }
+        public String getConnectionPointId() { return connectionPointId; }
+        public BigDecimal getFlowTph() { return flowTph; }
+        public long getFlowUnits() { return flowUnits; }
     }
 
     public static final class ArcBinding {
@@ -297,15 +392,18 @@ public final class CatalogNetworkProblemCompiler {
 
     private static final class Topology {
         private final Map<String, String> nodeByMember;
+        private final Map<String, NodeBinding> nodeBindings;
         private final Map<String, ArcAccumulator> arcs;
 
-        private Topology(Map<String, String> nodeByMember, Map<String, ArcAccumulator> arcs) {
+        private Topology(Map<String, String> nodeByMember, Map<String, NodeBinding> nodeBindings,
+                Map<String, ArcAccumulator> arcs) {
             this.nodeByMember = nodeByMember;
+            this.nodeBindings = nodeBindings;
             this.arcs = arcs;
         }
 
         private String nodeId(String member) { return nodeByMember.get(member); }
-        private Set<String> nodeIds() { return new LinkedHashSet<>(nodeByMember.values()); }
+        private Set<String> nodeIds() { return new LinkedHashSet<>(nodeBindings.keySet()); }
     }
 
     private static final class ArcAccumulator {

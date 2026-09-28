@@ -21,7 +21,10 @@ different levels and different construction modes remain separate. Strict catalo
 continuous asset chains, and the catalog-to-master compiler derives topology only from explicit
 ports/adjacency, reuses the official pipe catalog, aggregates shared-trunk flow and preserves
 zero-flow terminals. Its objective is only a linearized search surrogate; official sizing and
-economics still run in the exact evaluator. The N06 proof-store foundation adds
+economics still run in the exact evaluator. A master-to-frozen adapter now collapses compatible
+degree-2 accounting atoms, restores canonical demand sizing nodes and requires explicit
+port/chamber realizations plus exact section assembly. It rejects anonymous branches instead of
+inventing free chambers. The N06 proof-store foundation adds
 positive/negative asset, root and diameter literals, exact source/rule/checker/catalog scopes, invalidation
 after incompatible catalog expansion and an explicit memory bound. Active proof cuts can now be
 fed directly to the network optimizer. A bounded coordinator now covers the first-candidate
@@ -37,7 +40,7 @@ Two behavior-preserving legacy optimizations reuse the already loaded final feat
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
 mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
-backend passes 2,333/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
+backend passes 2,336/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
 and Compose configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
 The windowed path/chamber compilers, archive, production candidate adapter, official end-to-end run, benchmark, resource and

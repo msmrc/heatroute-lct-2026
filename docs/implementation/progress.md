@@ -35,6 +35,14 @@ linearized search objective rather than official economics. Shared trunks theref
 aggregate flow/cost variable. Zero-flow demands are explicit mandatory terminals in the master and
 unused roots can no longer become free active roots.
 
+The master-to-frozen adapter now reconstructs selected asset geometry without moving coordinates.
+It collapses compatible degree-2 accounting splits into one continuous `RouteEdge`, restores
+canonical `demand:<id>` nodes for the official sizer, keeps source connection IDs separate, and
+requires explicit node/chamber realizations at every retained port. Anonymous branching nodes or
+changes of physical context, construction mode or ДУ cannot become free chambers; exact route
+sections are provided through a dedicated assembly boundary. Production window/chamber/section
+wiring is still required before this adapter can be registered as an algorithm version.
+
 The N03 data-contract foundation now freezes the compact problem snapshot separately from large
 windowed features. A demand cannot lose its flow or receive an invented zero; an explicit zero-flow
 demand remains in the connectivity problem. Directed path options own millimetre coordinates,
@@ -74,7 +82,7 @@ lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
 passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
-passes 2,333 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+passes 2,336 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
 8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate

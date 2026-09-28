@@ -33,6 +33,7 @@ final class EngineeringRouteEvaluator {
         Map<String, Double> minimumJunctionAngles = new LinkedHashMap<>();
         Map<String, JunctionPreference> junctionPreferences = new LinkedHashMap<>();
         Set<String> nonCompliantEdgeIds = new LinkedHashSet<>();
+        Set<String> irregularJunctionEdgeIds = new LinkedHashSet<>();
         Map<String, List<IncidentDirection>> directionsByNode = new LinkedHashMap<>();
 
         for (RouteEdge edge : edges) {
@@ -90,6 +91,8 @@ final class EngineeringRouteEvaluator {
                     if (deviation > ANGLE_EPSILON_DEGREES) {
                         irregularJunctionAngleCount++;
                         nodeIrregularAngleCount++;
+                        irregularJunctionEdgeIds.add(directions.get(left).edgeId);
+                        irregularJunctionEdgeIds.add(directions.get(right).edgeId);
                     }
                 }
             }
@@ -107,7 +110,8 @@ final class EngineeringRouteEvaluator {
                 totalJunctionAngleDeviation,
                 minimumJunctionAngles,
                 junctionPreferences,
-                nonCompliantEdgeIds);
+                nonCompliantEdgeIds,
+                irregularJunctionEdgeIds);
     }
 
     /** Считает короткие звенья для предпочтения; камеры степени >= 3 обрывают цепочку. */
@@ -322,6 +326,7 @@ final class EngineeringRouteEvaluator {
         private final Map<String, Double> minimumJunctionAngles;
         private final Map<String, JunctionPreference> junctionPreferences;
         private final Set<String> nonCompliantEdgeIds;
+        private final Set<String> irregularJunctionEdgeIds;
 
         private Evaluation(
                 int bendCount,
@@ -333,7 +338,8 @@ final class EngineeringRouteEvaluator {
                 double totalJunctionAngleDeviation,
                 Map<String, Double> minimumJunctionAngles,
                 Map<String, JunctionPreference> junctionPreferences,
-                Set<String> nonCompliantEdgeIds) {
+                Set<String> nonCompliantEdgeIds,
+                Set<String> irregularJunctionEdgeIds) {
             this.bendCount = bendCount;
             this.invalidAngleCount = invalidAngleCount;
             this.insufficientSpacingCount = insufficientSpacingCount;
@@ -344,6 +350,8 @@ final class EngineeringRouteEvaluator {
             this.minimumJunctionAngles = Collections.unmodifiableMap(new LinkedHashMap<>(minimumJunctionAngles));
             this.junctionPreferences = Collections.unmodifiableMap(new LinkedHashMap<>(junctionPreferences));
             this.nonCompliantEdgeIds = Collections.unmodifiableSet(new LinkedHashSet<>(nonCompliantEdgeIds));
+            this.irregularJunctionEdgeIds = Collections.unmodifiableSet(
+                    new LinkedHashSet<>(irregularJunctionEdgeIds));
         }
 
         int bendCount() { return bendCount; }
@@ -382,6 +390,7 @@ final class EngineeringRouteEvaluator {
             return true;
         }
         Set<String> nonCompliantEdgeIds() { return nonCompliantEdgeIds; }
+        Set<String> irregularJunctionEdgeIds() { return irregularJunctionEdgeIds; }
         boolean isCompliant() {
             return invalidAngleCount == 0;
         }

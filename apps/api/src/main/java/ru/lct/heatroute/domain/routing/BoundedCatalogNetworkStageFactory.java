@@ -1,10 +1,18 @@
 package ru.lct.heatroute.domain.routing;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.catalog.RoutingProblemSnapshot;
+import ru.lct.heatroute.domain.catalog.DirectedPathOption;
 import ru.lct.heatroute.domain.optimization.CandidateAssemblyIncompleteException;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
@@ -45,19 +53,52 @@ public final class BoundedCatalogNetworkStageFactory {
         if (generated.getBuildResult().getSnapshot().getPathOptions().isEmpty()) {
             return new Preparation(generated, window, sectionAssembler, null, "empty_catalog");
         }
+        Set<String> availablePorts = new LinkedHashSet<>();
+        for (DirectedPathOption option
+                : generated.getBuildResult().getSnapshot().getPathOptions()) {
+            availablePorts.add(option.getFromPortId());
+            availablePorts.add(option.getToPortId());
+        }
+        Map<String, String> demandPorts = representedPorts(
+                generated.getDemandPortById(), availablePorts);
+        List<String> uncoveredDemands = new ArrayList<>();
+        problem.getDemands().forEach(demand -> {
+            if (!demandPorts.containsKey(demand.getId())) {
+                uncoveredDemands.add(demand.getId());
+            }
+        });
+        if (!uncoveredDemands.isEmpty()) {
+            return new Preparation(generated, window, sectionAssembler, null,
+                    "uncovered_demands:" + String.join(",", uncoveredDemands));
+        }
+        Map<String, String> rootPorts = representedPorts(
+                generated.getRootPortById(), availablePorts);
+        if (rootPorts.isEmpty()) {
+            return new Preparation(generated, window, sectionAssembler, null,
+                    "uncovered_roots");
+        }
         try {
             AdaptiveCatalogNetworkSearch.Stage stage = stageCompiler.compilePrepared(
-                    problem, generated.getBuildResult(), generated.getDemandPortById(),
-                    generated.getRootPortById(), flowScaleDecimals, checkerVersion,
+                    problem, generated.getBuildResult(), demandPorts,
+                    rootPorts, flowScaleDecimals, checkerVersion,
                     candidateIdPrefix, strategy,
                     compilation -> nodeResolver.resolve(problem, compilation,
-                            generated.getDemandPortById(), generated.getRootPortById()),
+                            demandPorts, rootPorts),
                     window, sectionAssembler);
             return new Preparation(generated, window, sectionAssembler, stage, null);
         } catch (CandidateAssemblyIncompleteException exception) {
             return new Preparation(generated, window, sectionAssembler, null,
                     exception.getReason());
         }
+    }
+
+    private static Map<String, String> representedPorts(
+            Map<String, String> supplied, Set<String> availablePorts) {
+        Map<String, String> result = new LinkedHashMap<>();
+        supplied.forEach((owner, port) -> {
+            if (availablePorts.contains(port)) result.put(owner, port);
+        });
+        return Collections.unmodifiableMap(result);
     }
 
     public static final class Preparation {

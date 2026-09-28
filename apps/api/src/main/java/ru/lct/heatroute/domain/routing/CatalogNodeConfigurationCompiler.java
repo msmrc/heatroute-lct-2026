@@ -209,7 +209,8 @@ public final class CatalogNodeConfigurationCompiler {
         Map<String, RoutingProblemSnapshot.RootCandidate> result = new LinkedHashMap<>();
         for (RoutingProblemSnapshot.RootCandidate root : snapshot.getRoots()) {
             String nodeId = compilation.getRootNodeById().get(root.getId());
-            if (nodeId == null || result.put(nodeId, root) != null) {
+            if (nodeId == null) continue;
+            if (result.put(nodeId, root) != null) {
                 throw new IllegalArgumentException("Root binding is missing or ambiguous");
             }
         }

@@ -1,5 +1,35 @@
 # Current implementation progress
 
+## 2026-09-28 — source103: ускорение exact axis-shift admission (локальный PASS)
+
+Ускорен самый дорогой хвост стабильного коридорного расчёта без изменения инженерных правил
+или версии алгоритма. Внутри одного уже проверенного расчёта неизменённое ребро повторно
+использует готовую сборку секций только при совпадении canonical расхода и ДУ; все изменённые
+ребра по-прежнему полностью пересобираются, а итоговая сеть целиком проходит геометрию,
+отступы, пересечения, камеры, повороты, глубину и экономику. Для сохранённых или внешних
+результатов ускоренный reuse запрещён: каждый кандидат независимо пересобирается на общей
+однократно подготовленной пространственной среде.
+
+Strict export теперь выполняет дорогие saved-result guards один раз до первого байта, после
+чего переиспользует только компактные подготовленные метаданные для contract validation и
+потоковой записи. Ролевые варианты с точно одинаковыми нормализованными входами axis-shift
+проверки не пересчитываются повторно; сигнатура включает фактически читаемые узлы, геометрию,
+точные расходы, ДУ и подключения и не доверяет ID/роли варианта.
+
+На одном и том же локальном Java 11 oracle
+`OfficialCorridorDatasetTest#generatesACompleteValidCorridorCandidateFromInputGeometry` с
+`heatroute.corridor.limit=1` время теста снизилось с 72,565 до 30,016 с (примерно 2,42 раза,
+−58,6%). Результат сохранил 17/17 подключений, после axis-shift refinement — 2280,982 м,
+нулевые validation/chamber issues и полный depth. Проверки: focused axis/export/frozen 39/39;
+широкий backend без трёх долгих dataset/control-классов — 2399 total, 0 failures/errors,
+3 штатных scale skip; отдельный corridor recovery — 1/1; актуальный тяжёлый oracle — 1/1;
+`package -DskipTests`, web 36 Vitest + 37 Node, lint и typecheck — PASS.
+
+Compose/backend Docker gate не выполнен: Docker Desktop падает до сборки проекта на старом
+нулевом reparse runtime-сокете `sailor-ingest.sock`; конфигурация, WSL-диск, образы и тома не
+изменялись. Полный официальный job/API/Compose/VPS benchmark и N/R-gates этим локальным
+performance checkpoint не закрываются.
+
 ## 2026-09-28 — source103: local axis-shift control (not verified)
 
 Synced `master` by fast-forward to `65762b1` before editing. Source103 adds a bounded

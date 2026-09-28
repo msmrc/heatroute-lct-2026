@@ -94,6 +94,32 @@ class CatalogNetworkProblemCompilerTest {
     }
 
     @Test
+    void permitsCatalogToRepresentOnlyAUsableSubsetOfOptionalRoots() {
+        RoutingProblemSnapshot base = problem(List.of(demand("d", "1")));
+        RoutingProblemSnapshot problemSnapshot = new RoutingProblemSnapshot(
+                base.getImportId(), base.getSourceHash(), base.getInputProfile(),
+                base.getCodeVersion(), base.getRuleId(), base.getRuleVersion(),
+                base.getCostCatalogVersion(), base.getFeatureSourceVersion(),
+                base.getParameters(), base.getDemands(), List.of(
+                        new RoutingProblemSnapshot.RootCandidate(
+                                "root", new CatalogMetricPoint(0, 0), List.of()),
+                        new RoutingProblemSnapshot.RootCandidate(
+                                "unrepresented", new CatalogMetricPoint(50_000, 0), List.of())));
+        CatalogFixture fixture = catalog(problemSnapshot,
+                List.of(raw("route", points(0, 0, 10_000, 0))),
+                List.of(ports("route", "root-port", "d-port")));
+
+        CatalogNetworkProblemCompiler.Compilation compilation = compiler.compile(
+                problemSnapshot, fixture.snapshot, Map.of("d", "d-port"),
+                Map.of("root", "root-port"), 3);
+
+        assertThat(compilation.getRootNodeById()).containsOnlyKeys("root");
+        assertThat(compilation.getProblem().getNodes())
+                .filteredOn(NetworkConstraintProblem.Node::isAllowedRoot)
+                .singleElement();
+    }
+
+    @Test
     void rejectsLossyFlowScalingAndForeignOrUnknownBindings() {
         RoutingProblemSnapshot precisionProblem = problem(List.of(demand("d", "1.2345")));
         CatalogFixture precisionCatalog = catalog(precisionProblem,

@@ -40,6 +40,7 @@ public final class CatalogProblemNodeRealizationResolver {
                     "demand_connection", false, 0, demand.getConnectionPointId(), null));
         }
         for (RoutingProblemSnapshot.RootCandidate root : problem.getRoots()) {
+            if (!rootPorts.containsKey(root.getId())) continue;
             RoutingProblemSnapshot.RootRealization realization = root.getRealization();
             if (realization == null) {
                 throw new IllegalArgumentException("Root lacks exact node realization: " + root.getId());
@@ -63,7 +64,7 @@ public final class CatalogProblemNodeRealizationResolver {
         if (!demandPorts.keySet().equals(expectedDemands)) {
             throw new IllegalArgumentException("Demand port owners differ from problem snapshot");
         }
-        if (!rootPorts.keySet().equals(expectedRoots)) {
+        if (rootPorts.isEmpty() || !expectedRoots.containsAll(rootPorts.keySet())) {
             throw new IllegalArgumentException("Root port owners differ from problem snapshot");
         }
     }

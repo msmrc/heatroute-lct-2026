@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.io.WKTReader;
@@ -106,6 +107,55 @@ class BoundedRootDemandCatalogGeneratorTest {
         assertThat(callLimited.getBuildResult().getSnapshot().getPathOptions()).isNotEmpty();
     }
 
+    @Test
+    void coversEveryDemandBeforeExploringAdditionalRoots() {
+        RoutingProblemSnapshot problem = problem(
+                List.of(
+                        demand("near-left", 10_000, 0),
+                        demand("near-right", 290_000, 0)),
+                List.of(
+                        root("left", 0, 0),
+                        root("right", 300_000, 0)));
+
+        BoundedRootDemandCatalogGenerator.GeneratedCatalog result = generator.generate(
+                problem, List.of(), options(2, 8, 1));
+
+        assertThat(result.getBuildResult().getCounters()).containsEntry("pairs_attempted", 2L);
+        assertThat(result.getBuildResult().getSnapshot().getPathOptions())
+                .extracting(option -> option.getToPortId())
+                .containsExactlyInAnyOrderElementsOf(Set.of(
+                        "demand-port:near-left", "demand-port:near-right"));
+    }
+
+    @Test
+    void approachesAnExistingRootOnlyAlongACompatibleRay() {
+        RoutingProblemSnapshot.DirectionVector east =
+                new RoutingProblemSnapshot.DirectionVector(1_000, 0);
+        RoutingProblemSnapshot.DirectionVector west =
+                new RoutingProblemSnapshot.DirectionVector(-1_000, 0);
+        RoutingProblemSnapshot problem = problem(
+                List.of(demand("one", 100_000, 100_000)),
+                List.of(root("root", 0, 0, List.of(east, west))));
+
+        BoundedRootDemandCatalogGenerator.GeneratedCatalog result = generator.generate(
+                problem, List.of(), options(1, 4, 1));
+
+        assertThat(result.getBuildResult().getSnapshot().getPathOptions())
+                .anySatisfy(option -> {
+                    CatalogMetricPoint root = option.getCoordinates().get(0);
+                    CatalogMetricPoint next = option.getCoordinates().get(1);
+                    long dx = next.getXMm() - root.getXMm();
+                    long dy = next.getYMm() - root.getYMm();
+                    assertThat(ExpertChamberGeometryRules.compatibleRays(
+                            dx, dy, east.getDeltaXMm(), east.getDeltaYMm()))
+                            .as("root=%s:%s next=%s:%s delta=%s:%s",
+                                    root.getXMm(), root.getYMm(), next.getXMm(), next.getYMm(),
+                                    dx, dy).isTrue();
+                    assertThat(ExpertChamberGeometryRules.compatibleRays(
+                            dx, dy, west.getDeltaXMm(), west.getDeltaYMm())).isTrue();
+                });
+    }
+
     private static BoundedRootDemandCatalogGenerator.Options options(
             int pairs, int calls, int paths) {
         return BoundedRootDemandCatalogGenerator.Options.bounded(
@@ -113,12 +163,25 @@ class BoundedRootDemandCatalogGeneratorTest {
     }
 
     private static RoutingProblemSnapshot problem(List<RoutingProblemSnapshot.Demand> demands) {
+        return problem(demands, List.of(root("root", 0, 0)));
+    }
+
+    private static RoutingProblemSnapshot problem(List<RoutingProblemSnapshot.Demand> demands,
+            List<RoutingProblemSnapshot.RootCandidate> roots) {
         return new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000091"),
                 "source-bounded", "extended", "nextgen-1", "official", "rules-1",
-                "cost-1", "feature-source-1", OfficialRunParameters.defaults(), demands,
-                List.of(new RoutingProblemSnapshot.RootCandidate(
-                        "root", new CatalogMetricPoint(0, 0), List.of())));
+                "cost-1", "feature-source-1", OfficialRunParameters.defaults(), demands, roots);
+    }
+
+    private static RoutingProblemSnapshot.RootCandidate root(String id, long xMm, long yMm) {
+        return root(id, xMm, yMm, List.of());
+    }
+
+    private static RoutingProblemSnapshot.RootCandidate root(String id, long xMm, long yMm,
+            List<RoutingProblemSnapshot.DirectionVector> directions) {
+        return new RoutingProblemSnapshot.RootCandidate(
+                id, new CatalogMetricPoint(xMm, yMm), directions);
     }
 
     private static RoutingProblemSnapshot.Demand demand(String id, long xMm, long yMm) {

@@ -61,6 +61,22 @@ class SavedAxisShiftAssessmentTest {
     }
 
     @Test
+    void exactInputSignatureDeduplicatesRolesButNotDifferentFlows() {
+        ObjectNode engineering = saved();
+        ObjectNode cheapest = engineering.deepCopy()
+                .put("id", "cheapest")
+                .put("strategy", "cheapest")
+                .put("rank", 2);
+
+        assertThat(SavedAxisShiftAssessment.inputSignature(cheapest))
+                .isEqualTo(SavedAxisShiftAssessment.inputSignature(engineering));
+
+        ((ObjectNode) cheapest.path("edges").path(0)).put("flow_tph", new java.math.BigDecimal("2.0001"));
+        assertThat(SavedAxisShiftAssessment.inputSignature(cheapest))
+                .isNotEqualTo(SavedAxisShiftAssessment.inputSignature(engineering));
+    }
+
+    @Test
     void denseCollinearDigitizationDoesNotHideTheShift() {
         ObjectNode saved = saved();
         ArrayNode points = ((ObjectNode) saved.path("edges").path(0)).putArray("coordinates");

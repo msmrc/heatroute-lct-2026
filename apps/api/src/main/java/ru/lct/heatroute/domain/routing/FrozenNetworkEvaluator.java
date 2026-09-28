@@ -87,7 +87,7 @@ public final class FrozenNetworkEvaluator {
             String[] shiftSubject = new String[1];
             RouteVariant straightened = new RouteAxisShiftControl().firstImprovement(candidate.getNodes(), assessed,
                     replacement -> {
-                        RouteVariant alternative = axisEvaluator.assess(replacement, candidate.getId(), candidate.getStrategy(),
+                        RouteVariant alternative = axisEvaluator.assessPrepared(replacement, candidate.getId(), candidate.getStrategy(),
                                 candidate.getConnections(), candidate.getRelevantFeatures(), candidate.getParameters(), environment);
                         if (alternative != null) shiftSubject[0] = replacement.getSubjectId();
                         return alternative;

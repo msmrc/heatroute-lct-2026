@@ -62,12 +62,40 @@ public final class AxisShiftAlternativeEvaluator {
 
     public RouteVariant assess(RouteAxisShiftControl.Replacement replacement, String id, String strategy,
             List<RouteConnection> connections, List<ImportedOfficialFeature> features, OfficialRunParameters parameters) {
-        return assess(replacement, id, strategy, connections, features, parameters, router.prepare(features));
+        return assess(replacement, id, strategy, connections, features, parameters,
+                router.prepare(features), false);
+    }
+
+    /**
+     * Prepares immutable constraints once for a saved-result audit. Every candidate edge is still
+     * independently rebuilt; the session only removes repeated spatial preparation.
+     */
+    public IndependentSession independentSession(List<ImportedOfficialFeature> features) {
+        return new IndependentSession(List.copyOf(features), router.prepare(features));
     }
 
     RouteVariant assess(RouteAxisShiftControl.Replacement replacement, String id, String strategy,
             List<RouteConnection> connections, List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
             OfficialRoutingEnvironment environment) {
+        return assess(replacement, id, strategy, connections, features, parameters,
+                environment, false);
+    }
+
+    /**
+     * Reuses unchanged checked sections only inside the same prepared calculation.  Saved or
+     * external variants must call {@link #assess} and are independently rebuilt in full.
+     */
+    RouteVariant assessPrepared(RouteAxisShiftControl.Replacement replacement, String id, String strategy,
+            List<RouteConnection> connections, List<ImportedOfficialFeature> features,
+            OfficialRunParameters parameters, OfficialRoutingEnvironment environment) {
+        return assess(replacement, id, strategy, connections, features, parameters,
+                environment, true);
+    }
+
+    private RouteVariant assess(RouteAxisShiftControl.Replacement replacement, String id, String strategy,
+            List<RouteConnection> connections, List<ImportedOfficialFeature> features,
+            OfficialRunParameters parameters, OfficialRoutingEnvironment environment,
+            boolean reuseCheckedAssemblies) {
         ensureActive();
         Map<String, BigDecimal> flows = new LinkedHashMap<>();
         for (RouteConnection connection : connections) {
@@ -92,6 +120,14 @@ public final class AxisShiftAlternativeEvaluator {
             ensureActive();
             SizedNetworkEdge assigned = sizing.getEdges().get(edge.getId());
             if (assigned == null || assigned.getDiameter() == null) return null;
+            if (reuseCheckedAssemblies && canReuseCheckedAssembly(
+                    edge, assigned, replacement.getChangedEdgeIds())) {
+                edges.add(new RouteEdge(edge.getId(), edge.getUpstreamNodeId(),
+                        edge.getDownstreamNodeId(), edge.getLengthM().doubleValue(),
+                        edge.getCoordinates(), edge.getSections(), assigned.getFlowTph(),
+                        assigned.getDiameter()));
+                continue;
+            }
             List<Coordinate> coordinates = edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate).collect(Collectors.toList());
             Envelope bounds = new Envelope();
             coordinates.forEach(bounds::expandToInclude);
@@ -128,6 +164,34 @@ public final class AxisShiftAlternativeEvaluator {
         BigDecimal length = edges.stream().map(RouteEdge::getLengthM).reduce(BigDecimal.ZERO, BigDecimal::add)
                 .setScale(3, RoundingMode.HALF_UP);
         return new RouteVariant(id, strategy, nodes, edges, connections, length, List.of(), List.of(), reconstruction, cost, null);
+    }
+
+    static boolean canReuseCheckedAssembly(RouteEdge edge, SizedNetworkEdge assigned,
+            Set<String> changedEdgeIds) {
+        return !changedEdgeIds.contains(edge.getId())
+                && !edge.getSections().isEmpty()
+                && Objects.equals(edge.getDiameter(), assigned.getDiameter())
+                && edge.getFlowTph() != null
+                && assigned.getFlowTph() != null
+                && edge.getFlowTph().compareTo(assigned.getFlowTph()) == 0;
+    }
+
+    public final class IndependentSession {
+        private final List<ImportedOfficialFeature> features;
+        private final OfficialRoutingEnvironment environment;
+
+        private IndependentSession(List<ImportedOfficialFeature> features,
+                OfficialRoutingEnvironment environment) {
+            this.features = features;
+            this.environment = environment;
+        }
+
+        public RouteVariant assess(RouteAxisShiftControl.Replacement replacement,
+                String id, String strategy, List<RouteConnection> connections,
+                OfficialRunParameters parameters) {
+            return AxisShiftAlternativeEvaluator.this.assess(replacement, id, strategy,
+                    connections, features, parameters, environment, false);
+        }
     }
 
     private static void ensureActive() {

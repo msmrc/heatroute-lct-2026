@@ -4957,7 +4957,7 @@ public class OfficialRoutePlanner {
             for (int move = 0; move < maximumMoves; move++) {
                 RouteVariant at = current;
                 RouteVariant next = control.firstImprovement(at.getNodes(), at.getEdges(), replacement ->
-                        evaluator.assess(replacement, at.getId(), at.getStrategy(), at.getConnections(),
+                        evaluator.assessPrepared(replacement, at.getId(), at.getStrategy(), at.getConnections(),
                                 featuresForEdges(features, replacement.getEdges(), environment), parameters, environment));
                 if (next == null) break;
                 current = withEngineeringAssessment(next);
@@ -4991,6 +4991,11 @@ public class OfficialRoutePlanner {
             OfficialRunParameters parameters,
             boolean reconstructionRequired,
             OfficialRoutingEnvironment routingEnvironment) {
+        if (draft.corridorCandidate) {
+            RouteVariant preserved = finish(id, strategy, draft, features, parameters,
+                    reconstructionRequired, routingEnvironment, TerminalApproachPolicy.PRESERVE_VALID);
+            if (preserved.isValid() && preserved.getEconomics().isComplete()) return preserved;
+        }
         return finish(id, strategy, draft, features, parameters, reconstructionRequired,
                 routingEnvironment, TerminalApproachPolicy.TOWARD_UPSTREAM);
     }
@@ -5365,11 +5370,18 @@ public class OfficialRoutePlanner {
                 LinkedHashMap::new));
         // Поисковый буфер соседней трассы не является дополнительной нормой готовой сети.
         // Сохраняем только целиком проверенную сеть: после частичного ремонта этот допуск устарел бы.
-        if (hasExplicitFinalGeometry(edges)
+        boolean explicitFinalGeometry = hasExplicitFinalGeometry(edges);
+        List<RouteValidationIssue> preservedIssues = approachPolicy == TerminalApproachPolicy.PRESERVE_VALID
+                ? routingEnvironment.validationFor(validator).validate(nodes, edges,
+                        featuresForEdges(features, edges, routingEnvironment))
+                : List.of();
+        if (explicitFinalGeometry
                 && (approachPolicy == TerminalApproachPolicy.PRESERVE_VALID
                         || alreadySatisfiesUpstreamEgress(edges, nodesById, routingEnvironment))
-                && routingEnvironment.validationFor(validator).validate(nodes, edges,
-                        featuresForEdges(features, edges, routingEnvironment)).isEmpty()) {
+                && (approachPolicy == TerminalApproachPolicy.PRESERVE_VALID
+                        ? preservedIssues.isEmpty()
+                        : routingEnvironment.validationFor(validator).validate(nodes, edges,
+                                featuresForEdges(features, edges, routingEnvironment)).isEmpty())) {
             return new ArrayList<>(edges);
         }
         List<RouteEdge> result = new ArrayList<>();
@@ -5997,6 +6009,13 @@ public class OfficialRoutePlanner {
             initialNodes.forEach(this::addNode);
             edges.addAll(initialEdges);
             connections.addAll(initialConnections);
+        }
+
+        static VariantDraft corridor(List<RouteNode> initialNodes, List<RouteEdge> initialEdges,
+                List<RouteConnection> initialConnections) {
+            VariantDraft draft = new VariantDraft(initialNodes, initialEdges, initialConnections);
+            draft.corridorCandidate = true;
+            return draft;
         }
 
         private VariantDraft copy() {

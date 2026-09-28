@@ -228,17 +228,21 @@ public final class CatalogNetworkProblemCompiler {
     private static void bindRoots(RoutingProblemSnapshot snapshot, Map<String, String> ports,
             Topology topology, Map<String, NodeAccumulator> nodes,
             Map<String, String> rootNodeById) {
-        Set<String> expected = new LinkedHashSet<>();
+        Map<String, RoutingProblemSnapshot.RootCandidate> known = new LinkedHashMap<>();
         for (RoutingProblemSnapshot.RootCandidate root : snapshot.getRoots()) {
-            expected.add(root.getId());
-            String portId = ports.get(root.getId());
-            if (portId == null) throw new IllegalArgumentException("Missing port for root: " + root.getId());
+            known.put(root.getId(), root);
+        }
+        if (ports.isEmpty()) throw new IllegalArgumentException("At least one catalog root is required");
+        for (Map.Entry<String, String> entry : ports.entrySet()) {
+            if (!known.containsKey(entry.getKey())) {
+                throw new IllegalArgumentException("Unknown root port owner: " + entry.getKey());
+            }
+            String portId = entry.getValue();
             NodeAccumulator node = nodes.get(topology.nodeId(portKey(portId)));
             if (node == null) throw new IllegalArgumentException("Root references an unknown catalog port: " + portId);
             node.allowedRoot = true;
-            rootNodeById.put(root.getId(), node.id);
+            rootNodeById.put(entry.getKey(), node.id);
         }
-        if (!ports.keySet().equals(expected)) throw new IllegalArgumentException("Root port map IDs differ from snapshot");
     }
 
     private static long scaledFlow(BigDecimal flow, int decimals, String label) {

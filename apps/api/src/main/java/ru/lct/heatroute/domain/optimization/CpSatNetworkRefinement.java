@@ -39,7 +39,7 @@ public final class CpSatNetworkRefinement<C> {
                     / 1_000_000_000.0;
             CpSatNetworkOptimizer.Result master;
             try {
-                master = optimizer.solve(problem, conflictStore,
+                master = optimizer.solveFirstFeasible(problem, conflictStore,
                         catalogIdentity, remainingSeconds, settings.randomSeed);
             } catch (CancellationException exception) {
                 throw exception;

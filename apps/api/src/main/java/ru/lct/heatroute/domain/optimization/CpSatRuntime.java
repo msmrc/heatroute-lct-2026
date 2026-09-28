@@ -4,6 +4,7 @@ import com.google.ortools.Loader;
 import com.google.ortools.sat.BoolVar;
 import com.google.ortools.sat.CpModel;
 import com.google.ortools.sat.CpSolver;
+import com.google.ortools.sat.CpSolverSolutionCallback;
 import com.google.ortools.sat.CpSolverStatus;
 import com.google.ortools.sat.LinearArgument;
 import com.google.ortools.sat.LinearExpr;
@@ -118,6 +119,25 @@ public final class CpSatRuntime {
         }
 
         public CpSolverStatus solve() {
+            return solveNative(() -> solver.solve(model));
+        }
+
+        /** Останавливает native search на первом допустимом incumbent, не помечая это отменой. */
+        public CpSolverStatus solveFirstFeasible() {
+            CpSolverSolutionCallback callback = new CpSolverSolutionCallback() {
+                @Override
+                public void onSolutionCallback() {
+                    stopSearch();
+                }
+            };
+            try {
+                return solveNative(() -> solver.solve(model, callback));
+            } finally {
+                callback.delete();
+            }
+        }
+
+        private CpSolverStatus solveNative(NativeSolve nativeSolve) {
             synchronized (cancellationGate) {
                 if (!state.compareAndSet(State.CREATED, State.SOLVING)) {
                     throw new IllegalStateException("CP-SAT session can be solved only once");
@@ -136,7 +156,7 @@ public final class CpSatRuntime {
             interruptMonitor = monitor;
             monitor.start();
             try {
-                status = solver.solve(model);
+                status = nativeSolve.run();
                 synchronized (cancellationGate) {
                     if (stopRequested.get() || Thread.currentThread().isInterrupted()) {
                         stopRequested.set(true);
@@ -245,6 +265,11 @@ public final class CpSatRuntime {
                 else if (current == State.FINISHED) state.compareAndSet(State.FINISHED, State.CLOSED);
             }
             if (stop) requestStop();
+        }
+
+        @FunctionalInterface
+        private interface NativeSolve {
+            CpSolverStatus run();
         }
     }
 

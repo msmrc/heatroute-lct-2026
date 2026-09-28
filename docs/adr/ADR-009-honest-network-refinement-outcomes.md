@@ -14,6 +14,10 @@ UNKNOWN assignment forever is useless, while storing it as a conflict would be u
 
 - The first refinement coordinator uses one monotonic deadline and withholds an explicit reserve
   from native search for candidate assembly and mandatory exact admission.
+- Each refinement iteration asks CP-SAT for the first feasible incumbent and stops native search
+  from its solution callback. This starts exact engineering admission immediately instead of
+  spending the whole iteration proving the surrogate objective optimum. The ordinary optimizer
+  API still performs bounded optimization for later portfolio/final-ranking stages.
 - Only `PROVEN_REJECTED` and canonical-sizing assessments carrying explanations applicable to the
   current source/rule/checker/catalog identity may enter the durable in-memory conflict store.
 - Proof batches are validated before insertion and added atomically. A duplicate batch returns a
@@ -25,7 +29,8 @@ UNKNOWN assignment forever is useless, while storing it as a conflict would be u
 
 ## Consequences
 
-The coordinator can safely find a first validated incumbent after excluding proven bad candidates.
+The coordinator can safely find a first validated incumbent after excluding proven bad candidates,
+without confusing its internal callback stop with user cancellation.
 It does not yet implement accepted-solution archive, three-role portfolio, adaptive expansion or
 the production mapping between CP-SAT assignments and `FrozenNetworkCandidate`; those are required
 before the new engine can replace `stable`.

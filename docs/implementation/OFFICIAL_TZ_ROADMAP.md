@@ -26,15 +26,18 @@ positive/negative asset, root and diameter literals, exact source/rule/checker/c
 after incompatible catalog expansion and an explicit memory bound. Active proof cuts can now be
 fed directly to the network optimizer. A bounded coordinator now covers the first-candidate
 solve/check/add-cut loop:
-it reserves final-admission time, adds proof batches atomically, propagates cancellation and keeps
-UNKNOWN/search limits distinct from catalog infeasibility. Accepted archive/portfolio, adaptive
-expansion and the production frozen-evaluator adapter remain open.
+it reserves final-admission time, stops native search on the first feasible solution callback,
+adds proof batches atomically, propagates cancellation and keeps
+UNKNOWN/search limits distinct from catalog infeasibility. Adaptive expansion and the production
+frozen-evaluator adapter remain open. A bounded accepted-solution
+archive now ranks only fully evaluated exact metrics and checks full geometry after hash lookup;
+its coordinator/three-role portfolio integration remains open.
 
 Two behavior-preserving legacy optimizations reuse the already loaded final feature window after
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
 mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
-backend passes 2,328/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
+backend passes 2,333/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
 and Compose configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
 The windowed path/chamber compilers, archive, production candidate adapter, official end-to-end run, benchmark, resource and

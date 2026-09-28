@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.ortools.sat.CpModel;
 import com.google.ortools.sat.CpSolverStatus;
+import com.google.ortools.sat.LinearExpr;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -28,6 +29,23 @@ class CpSatRuntimeSmokeTest {
         assertThat(first.getObjective()).isEqualTo(3.0);
         assertThat(second.getStatus()).isEqualTo(first.getStatus());
         assertThat(second.getObjective()).isEqualTo(first.getObjective());
+    }
+
+    @Test
+    void firstFeasibleSessionReturnsAReadableIncumbentWithoutExternalCancellation() {
+        CpModel model = runtime.newModel();
+        com.google.ortools.sat.BoolVar selected = model.newBoolVar("selected");
+        model.addEquality(selected, 1L);
+        model.minimize(LinearExpr.term(selected, 10L));
+
+        try (CpSatRuntime.Session session = runtime.newSession(model,
+                CpSatRuntime.Settings.deterministic(5.0, 2026))) {
+            CpSolverStatus status = session.solveFirstFeasible();
+
+            assertThat(status).isIn(CpSolverStatus.FEASIBLE, CpSolverStatus.OPTIMAL);
+            assertThat(session.value(selected)).isEqualTo(1L);
+            assertThat(session.isFinished()).isTrue();
+        }
     }
 
     @Test

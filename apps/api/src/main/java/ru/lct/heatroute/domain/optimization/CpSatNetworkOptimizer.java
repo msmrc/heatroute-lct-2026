@@ -35,6 +35,18 @@ public final class CpSatNetworkOptimizer {
     /** Применяет только те доменные cuts, proof scope которых совместим с текущим каталогом. */
     public Result solve(NetworkConstraintProblem problem, ConflictStore conflictStore,
             CatalogIdentity catalogIdentity, double timeLimitSeconds, int randomSeed) {
+        return solve(problem, conflictStore, catalogIdentity, timeLimitSeconds, randomSeed, false);
+    }
+
+    /** Возвращает первый допустимый master-incumbent для раннего запуска точного evaluator. */
+    public Result solveFirstFeasible(NetworkConstraintProblem problem, ConflictStore conflictStore,
+            CatalogIdentity catalogIdentity, double timeLimitSeconds, int randomSeed) {
+        return solve(problem, conflictStore, catalogIdentity, timeLimitSeconds, randomSeed, true);
+    }
+
+    private Result solve(NetworkConstraintProblem problem, ConflictStore conflictStore,
+            CatalogIdentity catalogIdentity, double timeLimitSeconds, int randomSeed,
+            boolean firstFeasible) {
         Objects.requireNonNull(problem, "problem");
         Objects.requireNonNull(conflictStore, "conflictStore");
         Objects.requireNonNull(catalogIdentity, "catalogIdentity");
@@ -47,11 +59,17 @@ public final class CpSatNetworkOptimizer {
         }
         List<NetworkConstraintProblem.Conflict> conflicts = new ArrayList<>(problem.getConflicts());
         conflicts.addAll(conflictStore.modelConflicts(catalogIdentity));
-        return solve(problem, conflicts, timeLimitSeconds, randomSeed);
+        return solve(problem, conflicts, timeLimitSeconds, randomSeed, firstFeasible);
     }
 
     private Result solve(NetworkConstraintProblem problem,
             List<NetworkConstraintProblem.Conflict> conflicts, double timeLimitSeconds, int randomSeed) {
+        return solve(problem, conflicts, timeLimitSeconds, randomSeed, false);
+    }
+
+    private Result solve(NetworkConstraintProblem problem,
+            List<NetworkConstraintProblem.Conflict> conflicts, double timeLimitSeconds,
+            int randomSeed, boolean firstFeasible) {
         Objects.requireNonNull(problem, "problem");
         if (!Double.isFinite(timeLimitSeconds) || timeLimitSeconds <= 0.0 || randomSeed < 0) {
             throw new IllegalArgumentException("Finite positive time and non-negative seed required");
@@ -61,7 +79,7 @@ public final class CpSatNetworkOptimizer {
         Variables variables = build(problem, conflicts, model);
         try (CpSatRuntime.Session session = runtime.newSession(model,
                 CpSatRuntime.Settings.deterministic(timeLimitSeconds, randomSeed))) {
-            CpSolverStatus status = session.solve();
+            CpSolverStatus status = firstFeasible ? session.solveFirstFeasible() : session.solve();
             if (status == CpSolverStatus.INFEASIBLE) return Result.empty(Status.INFEASIBLE);
             if (status == CpSolverStatus.MODEL_INVALID) {
                 throw new IllegalStateException("CP-SAT rejected the network constraint model");

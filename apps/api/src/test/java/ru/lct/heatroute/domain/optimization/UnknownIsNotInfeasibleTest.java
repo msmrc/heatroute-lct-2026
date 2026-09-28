@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class UnknownIsNotInfeasibleTest {
@@ -38,16 +39,18 @@ class UnknownIsNotInfeasibleTest {
         NetworkConstraintProblem problem = twoRoots();
         CatalogIdentity identity = identity(problem);
         ConflictStore store = new ConflictStore();
+        AtomicReference<String> rejectedRoot = new AtomicReference<>();
 
         CpSatNetworkRefinement.Result<String> result = refinement.solve(problem, identity, store,
-                this::selectedRoot, candidate -> candidate.equals("root-a")
-                        ? CpSatNetworkRefinement.Assessment.rejected(rootProof("root-a", identity))
+                this::selectedRoot, candidate -> rejectedRoot.compareAndSet(null, candidate)
+                        ? CpSatNetworkRefinement.Assessment.rejected(rootProof(candidate, identity))
                         : CpSatNetworkRefinement.Assessment.accepted(candidate), settings());
 
         assertThat(result.getOutcome()).isEqualTo(CpSatNetworkRefinement.Outcome.ACCEPTED);
-        assertThat(result.getAccepted()).isEqualTo("root-b");
+        assertThat(result.getAccepted()).isNotEqualTo(rejectedRoot.get());
         assertThat(result.getIterations()).isEqualTo(2);
-        assertThat(result.getMasterStatus()).isEqualTo(CpSatNetworkOptimizer.Status.OPTIMAL);
+        assertThat(result.getMasterStatus()).isIn(
+                CpSatNetworkOptimizer.Status.FEASIBLE, CpSatNetworkOptimizer.Status.OPTIMAL);
         assertThat(store.size()).isEqualTo(1);
     }
 

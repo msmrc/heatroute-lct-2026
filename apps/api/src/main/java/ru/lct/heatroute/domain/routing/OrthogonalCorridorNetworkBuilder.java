@@ -44,6 +44,18 @@ final class OrthogonalCorridorNetworkBuilder {
         return buildInFrame(input, root, rootCapacity, footprints, environment, terminalRouter, null);
     }
 
+    /**
+     * One deterministic control frame for deadline-bound catalog seeding.  The full planner keeps
+     * both common- and individual-diameter anchor frames; N03 can request the second frame later
+     * through additive expansion instead of paying for both before its first exact solve.
+     */
+    List<Network> buildControl(List<Terminal> input, RouteNode root, int rootCapacity,
+            List<Geometry> footprints, OfficialRoutingEnvironment environment,
+            SharedSpineNetworkBuilder.TerminalRouter terminalRouter) {
+        return buildWithAnchors(input, root, rootCapacity, footprints, environment,
+                terminalRouter, null, false);
+    }
+
     /** Сохраняет контрольную сетку и добавляет не более одной оси от допустимых вводов зданий. */
     List<Network> buildWithTerminalFrame(List<Terminal> input, RouteNode root, int rootCapacity,
             List<Geometry> footprints, OfficialRoutingEnvironment environment,

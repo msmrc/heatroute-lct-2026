@@ -30,6 +30,12 @@ catalog expander yet, so it reports `CATALOG_INCOMPLETE` when the seed cannot be
 The expansion-limit diagnostic retains the final refinement outcome and reason (for example,
 proven master infeasibility) instead of hiding it behind a generic limit message.
 
+The initial catalog now reserves a bounded tail for legal shared-corridor seeds. On the official
+fixture this closes individual root-normal coverage to 17/17, but does not by itself make the
+global master feasible: independently legal paths can still form an illegal combined chamber or
+multiple-parent topology. This distinction is preserved in diagnostics and is not reported as an
+accepted result.
+
 ## Consequences
 
 - The full new stack can execute production-shaped data without invoking the legacy planner.

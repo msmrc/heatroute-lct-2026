@@ -27,10 +27,18 @@ deterministic, duplicate paths are collapsed, and collinear overlap is compiled 
 `PhysicalAssetCompiler`. Each option records source/rule/window provenance plus the probe-DU
 admission result.
 
+A reserved final slice of the same catalog deadline is used only for demands that still lack a
+root-normal seed. `BoundedSharedNetworkSeedGenerator` adapts the proven orthogonal-corridor
+builder, processes deterministic groups of at most four terminals, and imports a bounded number
+of complete tree paths. N03 uses only the common-diameter control anchor frame; the more expensive
+individual-anchor expansion remains later work. Every imported edge still passes the existing
+terminal, obstacle, diameter and corridor assembly checks.
+
 Pair, route-call, egress, path-count and wall-clock budgets are explicit. Truncation and unrouted
-pairs remain `CATALOG_INCOMPLETE`. The generator always declares shared-network seeds and chamber
-configurations uncovered; it is a fast initial star/overlap graph, not a proof-complete city graph.
-Flow beyond the pipe catalog is also remaining work rather than a false no-route result.
+pairs remain `CATALOG_INCOMPLETE`. The generator reports whether no shared seed was found or only
+bounded shared-seed expansion remains; chamber configurations stay uncovered. It is not a
+proof-complete city graph. Flow beyond the pipe catalog is also remaining work rather than a
+false no-route result.
 
 ## Consequences
 
@@ -39,7 +47,8 @@ Flow beyond the pipe catalog is also remaining work rather than a false no-route
   introducing a second routing rule implementation.
 - Coincident path segments become shared physical assets and can form a lower-cost common trunk.
 - Counters distinguish unique pair attempts, recovery attempts, covered demands and demands with
-  a root-normal seed, making time-budget regressions visible.
+  a root-normal seed, plus shared root attempts, examined networks and imported paths, making
+  time-budget regressions visible.
 - Exact frozen admission remains mandatory; the seed certificate does not replace final sizing,
   chamber, depth, economics or whole-network validation.
 - Targeted shared-spine/chamber expansion, exact section assembly and mapped asset-split rebasing
@@ -48,8 +57,11 @@ Flow beyond the pipe catalog is also remaining work rather than a false no-route
 ## Official-dataset diagnostic (2026-09-28)
 
 With a 30-second catalog budget, coverage-first generation represented all 17 official demands;
-the earlier root-major order left one demand uncovered. The same run found strict root-normal
-seeds for 14 demands, produced an optimal feasible base flow graph, and then correctly reported
-the configured master as incomplete/infeasible. This is evidence that the next required stage is
-shared-network/corridor seed generation for the three difficult terminals, not weaker chamber
-rules or a larger blind root-to-demand sweep.
+the earlier root-major order left one demand uncovered. The first strict pass found root-normal
+seeds for 14 demands. The bounded shared-corridor pass examined three networks and imported four
+paths, raising strict root-normal coverage to 17/17 in the measured diagnostic run while keeping
+catalog time near the assigned 30-second bound. The configured master still proved the finite
+catalog infeasible: every demand had an individually configuration-feasible path, but their union
+created incompatible branch incidences and two-parent nodes. The next stage therefore needs
+conflict-directed additive corridor expansion, not weaker chamber rules or a larger blind pair
+sweep.

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -47,11 +48,13 @@ public final class BoundedRootDemandCatalogGenerator {
 
     private final OfficialObstacleRouter router;
     private final OfficialPipeCatalog pipes;
+    private final BoundedSharedNetworkSeedGenerator sharedSeedGenerator;
     private final PhysicalAssetCompiler assetCompiler = new PhysicalAssetCompiler();
 
     public BoundedRootDemandCatalogGenerator(OfficialObstacleRouter router, OfficialPipeCatalog pipes) {
         this.router = Objects.requireNonNull(router, "router");
         this.pipes = Objects.requireNonNull(pipes, "pipes");
+        this.sharedSeedGenerator = new BoundedSharedNetworkSeedGenerator(router, pipes);
     }
 
     public GeneratedCatalog generate(RoutingProblemSnapshot problem,
@@ -143,9 +146,15 @@ public final class BoundedRootDemandCatalogGenerator {
         }
 
         Set<String> normalRootDemands = new LinkedHashSet<>();
+        long normalSeedDeadline = state.deadlineNanos
+                - sharedSeedReserveNanos(options, problem.getDemands().size());
         if (!stopped && coveredDemands.size() == problem.getDemands().size()) {
             for (RootDemandPair pair : orderedPairs) {
                 if (normalRootDemands.contains(pair.demand.getId())) continue;
+                if (state.expired(normalSeedDeadline)) {
+                    truncations.add("normal_seed_budget_reserved");
+                    break;
+                }
                 if (state.expired()) {
                     truncations.add("time_budget");
                     stopped = true;
@@ -164,6 +173,26 @@ public final class BoundedRootDemandCatalogGenerator {
                 if (!routes.paths.isEmpty()) normalRootDemands.add(pair.demand.getId());
             }
         }
+
+        Set<String> hardDemands = problem.getDemands().stream()
+                .map(RoutingProblemSnapshot.Demand::getId)
+                .filter(id -> !normalRootDemands.contains(id))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        BoundedSharedNetworkSeedGenerator.Result sharedSeeds = sharedSeedGenerator.generate(
+                problem, environment, hardDemands, state.deadlineNanos,
+                Math.max(0, options.maxRouteCalls - (int) Math.min(
+                        Integer.MAX_VALUE, state.routeCalls)));
+        state.routeCalls += sharedSeeds.getRouteCalls();
+        for (BoundedSharedNetworkSeedGenerator.SeedPath path : sharedSeeds.getPaths()) {
+            String signature = pointSignature(path.getPoints());
+            String id = "path:" + sha256(List.of(
+                    path.getRootId(), path.getDemandId(), signature));
+            generated.add(new GeneratedPath(id, path.getRootId(),
+                    path.getDemandId(), path.getPoints()));
+        }
+        normalRootDemands.addAll(sharedSeeds.getCoveredPriorityDemandIds());
+        if (sharedSeeds.isDeadlineReached()) truncations.add("shared_seed_deadline");
+
         for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
             if (!normalRootDemands.contains(demand.getId())) {
                 remaining.add("normal-root-demand:" + demand.getId());
@@ -171,7 +200,8 @@ public final class BoundedRootDemandCatalogGenerator {
         }
 
         // Phase 2 spends the remaining budget on alternatives only after terminal coverage.
-        if (!stopped && coveredDemands.size() == problem.getDemands().size()) {
+        if (!stopped && coveredDemands.size() == problem.getDemands().size()
+                && normalRootDemands.size() == problem.getDemands().size()) {
             for (RootDemandPair pair : orderedPairs) {
                 if (!attemptedPairs.add(pair.key())) continue;
                 if (!canAttemptPair(state, options, truncations)) break;
@@ -191,7 +221,8 @@ public final class BoundedRootDemandCatalogGenerator {
         }
         // Эти генераторы являются отдельными N03-этапами. Их отсутствие нельзя трактовать
         // как полноту текущего star/overlap-каталога.
-        remaining.add("shared-network-seeds");
+        remaining.add(sharedSeeds.getPaths().isEmpty()
+                ? "shared-network-seeds" : "shared-network-seed-expansion");
         remaining.add("chamber-configurations");
         if (probe.flowExceedsCatalog) remaining.add("flow-exceeds-pipe-catalog");
 
@@ -205,6 +236,9 @@ public final class BoundedRootDemandCatalogGenerator {
         counters.put("demands_covered", (long) coveredDemands.size());
         counters.put("normal_seed_attempts", state.normalSeedAttempts);
         counters.put("normal_root_demands", (long) normalRootDemands.size());
+        counters.put("shared_seed_root_attempts", sharedSeeds.getRootAttempts());
+        counters.put("shared_seed_networks", sharedSeeds.getNetworksExamined());
+        counters.put("shared_seed_paths", (long) sharedSeeds.getPaths().size());
         counters.put("route_calls", state.routeCalls);
         counters.put("regularization_calls", state.regularizationCalls);
         counters.put("directed_options", (long) compiled.options.size());
@@ -222,6 +256,11 @@ public final class BoundedRootDemandCatalogGenerator {
                 distinctSorted(remaining), distinctSorted(truncations));
         return new GeneratedCatalog(build, demandPorts, rootPorts, probeDiameter,
                 windowFingerprint);
+    }
+
+    private static long sharedSeedReserveNanos(Options options, int demandCount) {
+        if (demandCount < 2) return 0L;
+        return Math.min(TimeUnit.SECONDS.toNanos(8), options.timeBudgetNanos / 3L);
     }
 
     private static List<GeneratedPath> distinctGenerated(List<GeneratedPath> supplied) {
@@ -720,6 +759,9 @@ public final class BoundedRootDemandCatalogGenerator {
 
         private State(long deadlineNanos) { this.deadlineNanos = deadlineNanos; }
         private boolean expired() { return System.nanoTime() - deadlineNanos >= 0L; }
+        private boolean expired(long suppliedDeadlineNanos) {
+            return System.nanoTime() - suppliedDeadlineNanos >= 0L;
+        }
     }
 
     private static final class ProbeDiameter {

@@ -86,30 +86,103 @@ public final class BoundedRootDemandCatalogGenerator {
         Set<String> truncations = new LinkedHashSet<>();
         long totalPairs = Math.multiplyExact((long) problem.getRoots().size(),
                 (long) problem.getDemands().size());
-        outer:
-        for (RoutingProblemSnapshot.RootCandidate root : problem.getRoots()) {
+        List<RootDemandPair> orderedPairs = coverageFirstPairs(problem);
+        Set<String> attemptedPairs = new LinkedHashSet<>();
+        Set<String> coveredDemands = new LinkedHashSet<>();
+        boolean stopped = false;
+
+        // Phase 1 is intentionally cheap: at most one engineering route per pair, proceeding
+        // round-robin through nearest roots until every demand has at least one path.
+        for (RootDemandPair pair : orderedPairs) {
+            if (coveredDemands.contains(pair.demand.getId())) continue;
+            if (!canAttemptPair(state, options, truncations)) {
+                stopped = true;
+                break;
+            }
+            attemptedPairs.add(pair.key());
+            state.pairsAttempted++;
+            PairRoutes routes = routes(pair.root, pair.demand,
+                    probeDiameter, environment, options, state, true, false, true);
+            record(pair, routes, generated, remaining, truncations);
+            if (!routes.paths.isEmpty()) coveredDemands.add(pair.demand.getId());
+            if (state.routeCalls >= options.maxRouteCalls) {
+                truncations.add("route_call_limit");
+                stopped = true;
+                break;
+            }
+        }
+
+        // The one-route probe can miss a valid combination of endpoint normals. Before spending
+        // time on optional alternatives, retry only uncovered demands with the full bounded set.
+        if (!stopped && coveredDemands.size() < problem.getDemands().size()) {
+            recovery:
             for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
-                ensureActive();
-                if (state.pairsAttempted >= options.maxPairs) {
-                    truncations.add("pair_limit");
-                    break outer;
+                if (coveredDemands.contains(demand.getId())) continue;
+                for (RootDemandPair pair : orderedPairs) {
+                    if (!pair.demand.getId().equals(demand.getId())) continue;
+                    if (state.expired()) {
+                        truncations.add("time_budget");
+                        stopped = true;
+                        break recovery;
+                    }
+                    if (state.routeCalls >= options.maxRouteCalls) {
+                        truncations.add("route_call_limit");
+                        stopped = true;
+                        break recovery;
+                    }
+                    state.recoveryAttempts++;
+                    PairRoutes routes = routes(pair.root, pair.demand,
+                            probeDiameter, environment, options, state, false, false, true);
+                    record(pair, routes, generated, remaining, truncations);
+                    if (!routes.paths.isEmpty()) {
+                        coveredDemands.add(demand.getId());
+                        break;
+                    }
                 }
+            }
+        }
+
+        Set<String> normalRootDemands = new LinkedHashSet<>();
+        if (!stopped && coveredDemands.size() == problem.getDemands().size()) {
+            for (RootDemandPair pair : orderedPairs) {
+                if (normalRootDemands.contains(pair.demand.getId())) continue;
                 if (state.expired()) {
                     truncations.add("time_budget");
-                    break outer;
+                    stopped = true;
+                    break;
                 }
-                state.pairsAttempted++;
-                PairRoutes routes = routes(root, demand, probeDiameter, environment, options, state);
+                if (state.routeCalls >= options.maxRouteCalls) {
+                    truncations.add("route_call_limit");
+                    stopped = true;
+                    break;
+                }
+                state.normalSeedAttempts++;
+                PairRoutes routes = routes(pair.root, pair.demand,
+                        probeDiameter, environment, options, state, true, true, true);
                 generated.addAll(routes.paths);
                 truncations.addAll(routes.truncationReasons);
-                if (routes.paths.isEmpty()) {
-                    remaining.add("unrouted-pair:" + root.getId() + ":" + demand.getId());
-                } else if (!routes.diversityCovered) {
-                    remaining.add("pair-diversity:" + root.getId() + ":" + demand.getId());
-                }
-                if (state.routeCalls >= options.maxRouteCalls && state.pairsAttempted < totalPairs) {
+                if (!routes.paths.isEmpty()) normalRootDemands.add(pair.demand.getId());
+            }
+        }
+        for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
+            if (!normalRootDemands.contains(demand.getId())) {
+                remaining.add("normal-root-demand:" + demand.getId());
+            }
+        }
+
+        // Phase 2 spends the remaining budget on alternatives only after terminal coverage.
+        if (!stopped && coveredDemands.size() == problem.getDemands().size()) {
+            for (RootDemandPair pair : orderedPairs) {
+                if (!attemptedPairs.add(pair.key())) continue;
+                if (!canAttemptPair(state, options, truncations)) break;
+                state.pairsAttempted++;
+                PairRoutes routes = routes(pair.root, pair.demand,
+                        probeDiameter, environment, options, state, false, false, false);
+                record(pair, routes, generated, remaining, truncations);
+                if (state.routeCalls >= options.maxRouteCalls
+                        && (state.pairsAttempted < totalPairs || !routes.diversityCovered)) {
                     truncations.add("route_call_limit");
-                    break outer;
+                    break;
                 }
             }
         }
@@ -122,11 +195,16 @@ public final class BoundedRootDemandCatalogGenerator {
         remaining.add("chamber-configurations");
         if (probe.flowExceedsCatalog) remaining.add("flow-exceeds-pipe-catalog");
 
-        Compiled compiled = compile(problem, generated, windowFingerprint, probeDiameter);
+        List<GeneratedPath> uniqueGenerated = distinctGenerated(generated);
+        Compiled compiled = compile(problem, uniqueGenerated, windowFingerprint, probeDiameter);
         Map<String, Long> counters = new LinkedHashMap<>();
         counters.put("features", (long) features.size());
         counters.put("pairs_total", totalPairs);
         counters.put("pairs_attempted", state.pairsAttempted);
+        counters.put("recovery_attempts", state.recoveryAttempts);
+        counters.put("demands_covered", (long) coveredDemands.size());
+        counters.put("normal_seed_attempts", state.normalSeedAttempts);
+        counters.put("normal_root_demands", (long) normalRootDemands.size());
         counters.put("route_calls", state.routeCalls);
         counters.put("regularization_calls", state.regularizationCalls);
         counters.put("directed_options", (long) compiled.options.size());
@@ -146,9 +224,81 @@ public final class BoundedRootDemandCatalogGenerator {
                 windowFingerprint);
     }
 
+    private static List<GeneratedPath> distinctGenerated(List<GeneratedPath> supplied) {
+        Map<String, GeneratedPath> byId = new LinkedHashMap<>();
+        for (GeneratedPath path : supplied) byId.putIfAbsent(path.id, path);
+        return List.copyOf(byId.values());
+    }
+
+    private static boolean canAttemptPair(State state, Options options,
+            Set<String> truncations) {
+        ensureActive();
+        if (state.pairsAttempted >= options.maxPairs) {
+            truncations.add("pair_limit");
+            return false;
+        }
+        if (state.expired()) {
+            truncations.add("time_budget");
+            return false;
+        }
+        return true;
+    }
+
+    private static void record(RootDemandPair pair, PairRoutes routes,
+            List<GeneratedPath> generated, List<String> remaining,
+            Set<String> truncations) {
+        generated.addAll(routes.paths);
+        truncations.addAll(routes.truncationReasons);
+        String unrouted = "unrouted-pair:" + pair.root.getId()
+                + ":" + pair.demand.getId();
+        if (routes.paths.isEmpty()) {
+            remaining.add(unrouted);
+        } else if (!routes.diversityCovered) {
+            remaining.remove(unrouted);
+            remaining.add("pair-diversity:" + pair.root.getId()
+                    + ":" + pair.demand.getId());
+        } else {
+            remaining.remove(unrouted);
+        }
+    }
+
+    /**
+     * Tries the nearest root for every demand before spending budget on second and later roots.
+     * This deterministic round-robin order prevents an early root from consuming the entire
+     * catalog deadline while later demands remain completely unrepresented.
+     */
+    private static List<RootDemandPair> coverageFirstPairs(RoutingProblemSnapshot problem) {
+        List<List<RoutingProblemSnapshot.RootCandidate>> rootsByDemand = new ArrayList<>();
+        for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
+            List<RoutingProblemSnapshot.RootCandidate> roots = new ArrayList<>(problem.getRoots());
+            roots.sort(Comparator
+                    .comparingDouble((RoutingProblemSnapshot.RootCandidate root) ->
+                            distanceSquared(root.getLocation(), demand.getLocation()))
+                    .thenComparing(RoutingProblemSnapshot.RootCandidate::getId));
+            rootsByDemand.add(roots);
+        }
+        List<RootDemandPair> result = new ArrayList<>();
+        for (int rootRank = 0; rootRank < problem.getRoots().size(); rootRank++) {
+            for (int demandIndex = 0; demandIndex < problem.getDemands().size(); demandIndex++) {
+                result.add(new RootDemandPair(
+                        rootsByDemand.get(demandIndex).get(rootRank),
+                        problem.getDemands().get(demandIndex)));
+            }
+        }
+        return result;
+    }
+
+    private static double distanceSquared(CatalogMetricPoint left, CatalogMetricPoint right) {
+        double dx = (double) left.getXMm() - right.getXMm();
+        double dy = (double) left.getYMm() - right.getYMm();
+        return dx * dx + dy * dy;
+    }
+
     private PairRoutes routes(RoutingProblemSnapshot.RootCandidate root,
             RoutingProblemSnapshot.Demand demand, int diameter,
-            OfficialRoutingEnvironment environment, Options options, State state) {
+            OfficialRoutingEnvironment environment, Options options, State state,
+            boolean coverageOnly, boolean enforceRootApproach,
+            boolean firstPathOnly) {
         Coordinate terminal = coordinate(demand.getLocation());
         Coordinate target = coordinate(root.getLocation());
         Set<String> rootExemptions = root.getRealization() == null
@@ -157,19 +307,45 @@ public final class BoundedRootDemandCatalogGenerator {
         List<RoutePath> paths = new ArrayList<>();
         Set<String> signatures = new LinkedHashSet<>();
         Set<String> truncations = new LinkedHashSet<>();
-        boolean fullyEnumerated = true;
+        boolean fullyEnumerated = !coverageOnly;
+        int maxPaths = coverageOnly || firstPathOnly ? 1 : options.maxPathsPerPair;
+        int maxEgressCandidates = coverageOnly ? 1 : options.maxEgressCandidates;
+        List<RoutePreference> directPreferences = coverageOnly
+                ? List.of(RoutePreference.ENGINEERING) : DIRECT_PREFERENCES;
+        List<Coordinate> rootApproaches = List.of();
+        if (enforceRootApproach && !root.getExistingDirections().isEmpty()) {
+            List<Coordinate> existingRays = root.getExistingDirections().stream()
+                    .map(direction -> new Coordinate(
+                            direction.getDeltaXMm(), direction.getDeltaYMm()))
+                    .collect(Collectors.toList());
+            double approachLength = Math.max(4.0,
+                    ExpertChamberGeometryRules.minimumBendDistanceM(diameter) + 0.01);
+            List<Coordinate> approaches = new ArrayList<>(
+                    new ChamberApproachCandidates().build(
+                            target, existingRays, approachLength, 7.5));
+            approaches.sort(Comparator.comparingDouble(terminal::distance));
+            if (approaches.isEmpty()) {
+                return new PairRoutes(List.of(), false, truncations);
+            }
+            rootApproaches = List.copyOf(approaches);
+        }
         List<OfficialRouteGeometryRules.NormalEgress> allEgresses =
                 environment.normalEgressCandidates(diameter, terminal, target,
                         RoutePlannerTuning.stable().getEngineeringEgressExtraM(),
                         RouteTraversal.REVERSED);
-        if (allEgresses.size() > options.maxEgressCandidates) {
+        if (!coverageOnly && allEgresses.size() > maxEgressCandidates) {
             truncations.add("egress_limit:" + root.getId() + ":" + demand.getId());
             fullyEnumerated = false;
         }
         List<OfficialRouteGeometryRules.NormalEgress> egresses = allEgresses.stream()
-                .limit(options.maxEgressCandidates).collect(Collectors.toList());
+                .limit(maxEgressCandidates).collect(Collectors.toList());
+        if (!rootApproaches.isEmpty()) {
+            return rootConstrainedRoutes(root, demand, target, terminal,
+                    rootApproaches, egresses, diameter, environment,
+                    rootExemptions, options, state, coverageOnly, maxPaths, truncations);
+        }
         if (egresses.isEmpty()) {
-            for (RoutePreference preference : DIRECT_PREFERENCES) {
+            for (RoutePreference preference : directPreferences) {
                 if (!canRoute(options, state)) {
                     truncations.add(limitReason(state));
                     fullyEnumerated = false;
@@ -179,8 +355,10 @@ public final class BoundedRootDemandCatalogGenerator {
                 RoutePath candidate = router.find(terminal, target, diameter, environment,
                         rootExemptions, preference, List.of(), RouteTraversal.REVERSED);
                 addDistinct(paths, signatures, candidate);
-                if (paths.size() >= options.maxPathsPerPair) {
-                    truncations.add("path_limit:" + root.getId() + ":" + demand.getId());
+                if (paths.size() >= maxPaths) {
+                    if (!coverageOnly) {
+                        truncations.add("path_limit:" + root.getId() + ":" + demand.getId());
+                    }
                     fullyEnumerated = false;
                     break;
                 }
@@ -188,7 +366,8 @@ public final class BoundedRootDemandCatalogGenerator {
         } else {
             for (int egressIndex = 0; egressIndex < egresses.size(); egressIndex++) {
                 OfficialRouteGeometryRules.NormalEgress egress = egresses.get(egressIndex);
-                List<RoutePreference> preferences = egressIndex == 0
+                List<RoutePreference> preferences = coverageOnly
+                        ? List.of(RoutePreference.ENGINEERING) : egressIndex == 0
                         ? DIRECT_PREFERENCES : List.of(RoutePreference.ENGINEERING);
                 for (RoutePreference preference : preferences) {
                     if (!canRoute(options, state)) {
@@ -209,16 +388,76 @@ public final class BoundedRootDemandCatalogGenerator {
                             regularized == null ? outside : regularized, diameter, environment,
                             rootExemptions, List.of(), RouteTraversal.REVERSED);
                     addDistinct(paths, signatures, complete);
-                    if (paths.size() >= options.maxPathsPerPair) {
-                        truncations.add("path_limit:" + root.getId() + ":" + demand.getId());
+                    if (paths.size() >= maxPaths) {
+                        if (!coverageOnly) {
+                            truncations.add("path_limit:" + root.getId() + ":" + demand.getId());
+                        }
                         fullyEnumerated = false;
                         break;
                     }
                 }
-                if (!fullyEnumerated && (paths.size() >= options.maxPathsPerPair
+                if (!fullyEnumerated && (paths.size() >= maxPaths
                         || !canRoute(options, state))) break;
             }
         }
+        return generatedRoutes(root, demand, paths, fullyEnumerated, truncations);
+    }
+
+    private PairRoutes rootConstrainedRoutes(
+            RoutingProblemSnapshot.RootCandidate root,
+            RoutingProblemSnapshot.Demand demand,
+            Coordinate rootCoordinate, Coordinate terminal,
+            List<Coordinate> rootApproaches,
+            List<OfficialRouteGeometryRules.NormalEgress> egresses,
+            int diameter, OfficialRoutingEnvironment environment,
+            Set<String> rootExemptions, Options options, State state,
+            boolean coverageOnly, int maxPaths, Set<String> truncations) {
+        List<RoutePath> paths = new ArrayList<>();
+        Set<String> signatures = new LinkedHashSet<>();
+        List<Coordinate> approaches = coverageOnly
+                ? rootApproaches.subList(0, 1) : rootApproaches;
+        List<RoutePreference> preferences = coverageOnly
+                ? List.of(RoutePreference.ENGINEERING) : DIRECT_PREFERENCES;
+        int egressCount = Math.max(1, egresses.size());
+        outer:
+        for (Coordinate approach : approaches) {
+            for (int egressIndex = 0; egressIndex < egressCount; egressIndex++) {
+                OfficialRouteGeometryRules.NormalEgress egress = egresses.isEmpty()
+                        ? null : egresses.get(egressIndex);
+                Coordinate outsideEnd = egress == null ? terminal : egress.exit();
+                for (RoutePreference preference : preferences) {
+                    if (!canRoute(options, state)) {
+                        truncations.add(limitReason(state));
+                        break outer;
+                    }
+                    state.routeCalls++;
+                    RoutePath rootToOutside = router.findAfter(
+                            rootCoordinate, approach, outsideEnd,
+                            diameter, environment, rootExemptions, preference,
+                            List.of(), RouteTraversal.AS_GIVEN);
+                    if (rootToOutside == null) continue;
+                    RoutePath terminalToRoot = router.withCheckedTerminalSuffix(
+                            rootToOutside.reversed(), rootCoordinate, diameter,
+                            environment, rootExemptions, List.of(), RouteTraversal.REVERSED);
+                    if (terminalToRoot == null) continue;
+                    if (egress != null) {
+                        terminalToRoot = router.withCheckedTerminalPrefix(
+                                egress, terminalToRoot, diameter, environment,
+                                rootExemptions, List.of(), RouteTraversal.REVERSED);
+                    }
+                    addDistinct(paths, signatures, terminalToRoot);
+                    if (paths.size() >= maxPaths) break outer;
+                }
+            }
+        }
+        return generatedRoutes(root, demand, paths, false, truncations);
+    }
+
+    private static PairRoutes generatedRoutes(
+            RoutingProblemSnapshot.RootCandidate root,
+            RoutingProblemSnapshot.Demand demand,
+            List<RoutePath> paths, boolean fullyEnumerated,
+            Set<String> truncations) {
         List<GeneratedPath> result = new ArrayList<>(paths.size());
         for (RoutePath terminalToRoot : paths) {
             RoutePath rootToTerminal = terminalToRoot.reversed();
@@ -474,6 +713,8 @@ public final class BoundedRootDemandCatalogGenerator {
     private static final class State {
         private final long deadlineNanos;
         private long pairsAttempted;
+        private long recoveryAttempts;
+        private long normalSeedAttempts;
         private long routeCalls;
         private long regularizationCalls;
 
@@ -502,6 +743,19 @@ public final class BoundedRootDemandCatalogGenerator {
             this.diversityCovered = diversityCovered;
             this.truncationReasons = truncationReasons;
         }
+    }
+
+    private static final class RootDemandPair {
+        private final RoutingProblemSnapshot.RootCandidate root;
+        private final RoutingProblemSnapshot.Demand demand;
+
+        private RootDemandPair(RoutingProblemSnapshot.RootCandidate root,
+                RoutingProblemSnapshot.Demand demand) {
+            this.root = root;
+            this.demand = demand;
+        }
+
+        private String key() { return root.getId() + "\u0000" + demand.getId(); }
     }
 
     private static final class GeneratedPath {

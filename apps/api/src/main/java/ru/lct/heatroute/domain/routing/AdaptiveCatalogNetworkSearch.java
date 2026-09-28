@@ -89,7 +89,8 @@ public final class AdaptiveCatalogNetworkSearch {
             }
             if (expansions >= settings.maxExpansions) {
                 return ended(stage, archive, expansions, refinementRuns, Outcome.CATALOG_INCOMPLETE,
-                        "catalog_expansion_limit");
+                        "catalog_expansion_limit:" + current.getOutcome()
+                                + ":" + current.getReason());
             }
 
             ensureActive();

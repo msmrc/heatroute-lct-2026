@@ -59,6 +59,28 @@ class CatalogNodeConfigurationCompilerTest {
         assertThat(solved.getStatus()).isEqualTo(CpSatNetworkOptimizer.Status.INFEASIBLE);
     }
 
+    @Test
+    void ignoresOptionalRootsThatHaveNoCatalogPath() {
+        RoutingProblemSnapshot snapshot = snapshotWithRoots(
+                List.of(new RoutingProblemSnapshot.Demand(
+                        "d", BigDecimal.ONE, point(10_000, 0), null)),
+                List.of(
+                        new RoutingProblemSnapshot.RootCandidate(
+                                "root", point(0, 0), List.of(),
+                                new RoutingProblemSnapshot.RootRealization(
+                                        "existing_root", true, 0, "root", null)),
+                        new RoutingProblemSnapshot.RootCandidate(
+                                "unused-root", point(100_000, 100_000), List.of(),
+                                new RoutingProblemSnapshot.RootRealization(
+                                        "existing_root", true, 0, "unused-root", null))));
+
+        CatalogNetworkProblemCompiler.Compilation configured = compile(snapshot,
+                List.of(path("route", "d-port", point(0, 0), point(10_000, 0))),
+                Map.of("d", "d-port"));
+
+        assertThat(configured.getRootNodeById()).containsOnlyKeys("root");
+    }
+
     private CatalogNetworkProblemCompiler.Compilation compileShared(boolean orthogonal) {
         RoutingProblemSnapshot snapshot = snapshot(List.of(
                 new RoutingProblemSnapshot.Demand(
@@ -106,15 +128,21 @@ class CatalogNodeConfigurationCompilerTest {
     private RoutingProblemSnapshot snapshot(
             List<RoutingProblemSnapshot.Demand> demands,
             List<RoutingProblemSnapshot.DirectionVector> directions) {
+        return snapshotWithRoots(demands, List.of(
+                new RoutingProblemSnapshot.RootCandidate(
+                        "root", point(0, 0), directions,
+                        new RoutingProblemSnapshot.RootRealization(
+                                "existing_root", true, directions.size(), "root", null))));
+    }
+
+    private RoutingProblemSnapshot snapshotWithRoots(
+            List<RoutingProblemSnapshot.Demand> demands,
+            List<RoutingProblemSnapshot.RootCandidate> roots) {
         return new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000005"),
                 "source", "extended", "nextgen-1",
                 "official", "rules-1", "cost-1", "features-1",
-                OfficialRunParameters.defaults(), demands,
-                List.of(new RoutingProblemSnapshot.RootCandidate(
-                        "root", point(0, 0), directions,
-                        new RoutingProblemSnapshot.RootRealization(
-                                "existing_root", true, directions.size(), "root", null))));
+                OfficialRunParameters.defaults(), demands, roots);
     }
 
     private static PathSpec path(

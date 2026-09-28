@@ -111,7 +111,7 @@ class NextGenerationRoutePlannerTest {
 
         assertThat(execution.getOutcome())
                 .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.CATALOG_INCOMPLETE);
-        assertThat(execution.getReason()).isEqualTo("catalog_expansion_limit");
+        assertThat(execution.getReason()).startsWith("catalog_expansion_limit:");
         assertThat(execution.getResult()).isNull();
         assertThat(execution.getCatalogBuild().isComplete()).isFalse();
     }

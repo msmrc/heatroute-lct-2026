@@ -75,7 +75,12 @@ the complete topology/root assignment to each required DU, so the solver does no
 wrong diameter combination of the same network. An absent canonical DU requests catalog expansion
 without a false cut; UNKNOWN and ERROR also create no cut. Accepted solutions enter the bounded
 `AcceptedSolutionArchive`, which retains only exact score/cost/length and verifies full geometry
-after hash lookup. Three-role portfolio ranking and adaptive catalog expansion remain open.
+after hash lookup. `AdaptiveCatalogNetworkSearch` now carries that archive and the versioned proof
+store across finite catalog stages under one shared deadline. It accepts only strictly additive
+expansion: old geometry fingerprints, node/asset/DU semantics, decision keys and static conflicts
+must remain reproducible. Exhausted work remains `CATALOG_INCOMPLETE`, and a prior verified
+incumbent survives a later incomplete stage. The production targeted window/terminal/chamber
+expander, mapped rebasing for asset splits and three-role portfolio ranking remain open.
 
 The earlier N04 slice still models exactly-one port-path choices and sound no-goods. Two safe
 legacy performance changes remove a redundant final PostGIS feature-window load after depth and
@@ -86,7 +91,7 @@ lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
 passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
-passes 2,343 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+passes 2,348 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
 8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate

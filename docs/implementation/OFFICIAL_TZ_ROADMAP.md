@@ -1,6 +1,6 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
-## 2026-09-28 — source102: камеры на нормали ОКС, local PASS
+## 2026-09-28 — source102: камеры на нормали ОКС, production PASS
 
 [Изменения и проверки source102](PRIMARY_ROUTING_102.md): ограниченный перенос камеры на
 нормаль точки подключения перестраивает все её подходы совместно; terminal-вводы используют
@@ -12,9 +12,16 @@ web 36+37, lint, typecheck и production build PASS. Frozen official: 1/1 PASS �
 2 536,361 с, `global-tree-102`, ТК 106, 17/17. Preferred `shortest`: 2 012,446 м,
 30 рёбер, 31 узел, 13 новых узловых камер + существующая корневая, 288 521 752,19 ₽;
 issues пусты. Независимый аудит подтвердил 26 прямых поворотов, 0 непрямых,
-0 нарушений камера→поворот и 0 нарушений лучей. Карта отправлена. Git/deploy и реальный
-production import/run/export пока открыты; R9 performance/scale, Ubuntu 22 и глобальный
-оптимум также остаются открыты.
+0 нарушений камера→поворот и 0 нарушений лучей. Локальная карта отправлена. `919d754`
+развёрнут по регламенту после backup 1 455 564 bytes / mode 600; Compose/readiness/OpenAPI/
+HTTPS PASS, четыре контейнера healthy/restart 0/OOM false. Production run
+`5b61be3c-419b-4f6a-8183-6b1a631d2e23`, job `b09bbad7-d325-4176-b2a7-ee906d48a2bd`,
+attempt 1, depth enabled, завершился за 4 382,648 с. Preferred `shortest`: 17/17,
+2 012,447 м, 30 рёбер, 31 узел, 13 новых камер + существующая корневая,
+288 521 857,69 ₽; issues пусты. Независимый аудит повторил локальные 26 прямых поворотов
+и нулевые нарушения камер. Strict export: 94 features / 39 080 bytes, SHA-256
+`cc805d36d2221ff3f6f3a92bb6ccef2c024db883887c301eb2c247bddf01f3a5`; production-карта
+отправлена. R9 performance/scale, Ubuntu 22 и глобальный оптимум остаются открыты.
 
 ## 2026-09-27 — source101: ортогональные оси камер, production PASS
 

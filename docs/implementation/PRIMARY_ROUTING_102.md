@@ -66,5 +66,19 @@
   завершился 1/1 PASS за 2 536,361 с (42:18 wall); bundle 383 984 байта, SHA-256
   `490891efe5b0f3fc32fc3161eb68b7d7915ea2d4485c1fe87acc6c262db4528f`.
 
-Локальные сравнительные метрики и карта зафиксированы. Git/deploy и реальный production
-import/run/export остаются отдельными незавершёнными gate и не считаются PASS заранее.
+## Production
+
+Коммит `919d754` отправлен прямо в `master` и развёрнут на VPS стандартным fast-forward.
+Перед обновлением создан PostgreSQL backup 1 455 564 байта с mode 600. Compose build/up,
+readiness, OpenAPI и внешний HTTPS прошли; все четыре контейнера healthy, restart 0,
+OOM false, ошибок в логах после развёртывания нет.
+
+Реальный production run `5b61be3c-419b-4f6a-8183-6b1a631d2e23`, job
+`b09bbad7-d325-4176-b2a7-ee906d48a2bd`, attempt 1, `depth_enabled=true`, завершился
+за 4 382,648 с. Preferred `shortest`: 17/17, 2 012,447 м, 30 рёбер, 31 узел,
+13 новых узловых камер + существующая ТК-106, 288 521 857,69 ₽; validation, engineering
+и sizing issues пусты. Миллиметровое отличие длины и 105,50 ₽ стоимости от локального
+witness появляется после production round-trip через PostGIS; топология и проверяемые углы
+совпадают. Независимый аудит подтвердил 26 прямых поворотов, 0 непрямых, 0 нарушений
+камера→поворот и 0 нарушений лучей. Strict export содержит 94 features / 39 080 bytes,
+SHA-256 `cc805d36d2221ff3f6f3a92bb6ccef2c024db883887c301eb2c247bddf01f3a5`.

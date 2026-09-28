@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -35,6 +36,22 @@ class CorridorJunctionAssignmentTest {
         assertThat(selected).hasSize(4);
         assertThat(selected.get(0)).isSameAs(north);
         assertThat(selected.get(1)).isSameAs(east);
+    }
+
+    @Test
+    void portSearchReplacesAnObliqueTerminalRayAtAThreeWayChamber() {
+        RoutePath oblique = path(0, 0, 10, 10);
+        RoutePath east = path(0, 0, 10, 0);
+        List<org.locationtech.jts.geom.LineString> grid = List.of(
+                new GeometryFactory().createLineString(new Coordinate[] {
+                        new Coordinate(0, 0), new Coordinate(-10, 0)}),
+                new GeometryFactory().createLineString(new Coordinate[] {
+                        new Coordinate(0, 0), new Coordinate(0, 10)}));
+
+        Map<Integer, RoutePath> selected = CorridorJunctionAssignment.choosePortPaths(
+                Map.of(3, oblique), Map.of(3, 0), grid, ignored -> List.of(east));
+
+        assertThat(selected).containsEntry(3, east);
     }
 
     @Test

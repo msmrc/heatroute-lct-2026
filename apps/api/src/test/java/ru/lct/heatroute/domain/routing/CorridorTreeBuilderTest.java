@@ -46,6 +46,30 @@ class CorridorTreeBuilderTest {
     }
 
     @Test
+    void greedyTreeRejectsAnObliqueThirdRayAtAFutureChamber() {
+        List<Coordinate> oblique = points(0, 0, 10, 0, 20, 0, 20, 5);
+        List<Coordinate> orthogonal = points(0, 0, 10, 0, 20, 0, 10, 10);
+        List<int[]> links = links(0, 1, 1, 2, 1, 3);
+        Map<Integer, Integer> stubs = Map.of(2, 1, 3, 1);
+
+        assertThat(pairAware(oblique).build(oblique, links, 0, 1, stubs, true, 0, 0)).isNull();
+        assertThat(pairAware(orthogonal).build(orthogonal, links, 0, 1, stubs, true, 0, 0))
+                .hasSize(3);
+    }
+
+    @Test
+    void metricTreeAppliesTheSamePairAdmissionToItsFinalJunctions() {
+        List<Coordinate> oblique = points(0, 0, 10, 0, 20, 0, 20, 5);
+        List<Coordinate> orthogonal = points(0, 0, 10, 0, 20, 0, 10, 10);
+        List<int[]> links = links(0, 1, 1, 2, 1, 3);
+        Map<Integer, Integer> stubs = Map.of(2, 1, 3, 1);
+
+        assertThat(pairAware(oblique).buildMetricClosure(oblique, links, 0, 1, stubs, 0)).isNull();
+        assertThat(pairAware(orthogonal).buildMetricClosure(orthogonal, links, 0, 1, stubs, 0))
+                .hasSize(3);
+    }
+
+    @Test
     void reservesMultipleStubsBeforeSearchingAndBypassesASaturatedUnconnectedPort() {
         List<Coordinate> points = points(0, 0, 5, 0, 10, 0, 0, 5, 10, 5);
         List<int[]> links = links(0, 1, 1, 2, 0, 3, 3, 4, 4, 2);
@@ -262,6 +286,13 @@ class CorridorTreeBuilderTest {
     private List<int[]> build(List<Coordinate> points, List<int[]> links, int rootCapacity,
             Map<Integer, Integer> stubs, boolean farthest, double junction, double bend) {
         return builder.build(points, links, 0, rootCapacity, stubs, farthest, junction, bend);
+    }
+
+    private CorridorTreeBuilder pairAware(List<Coordinate> points) {
+        return new CorridorTreeBuilder((from, to) -> true, (previous, at, next) -> true,
+                (at, left, right) -> ExpertChamberGeometryRules.compatibleRays(
+                        points.get(left).x - points.get(at).x, points.get(left).y - points.get(at).y,
+                        points.get(right).x - points.get(at).x, points.get(right).y - points.get(at).y));
     }
 
     @Test

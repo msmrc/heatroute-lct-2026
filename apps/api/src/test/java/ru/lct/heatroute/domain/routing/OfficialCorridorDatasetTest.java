@@ -90,7 +90,8 @@ class OfficialCorridorDatasetTest {
                 if (!issues.isEmpty()) continue;
                 RouteVariant variant = finish
                         ? planner.finish("corridor-" + finalized.size(), "engineering",
-                                new OfficialRoutePlanner.VariantDraft(candidate.nodes(), candidate.edges(), candidate.connections()),
+                                OfficialRoutePlanner.VariantDraft.corridor(
+                                        candidate.nodes(), candidate.edges(), candidate.connections()),
                                 features, parameters, false, environment)
                         : new RouteVariant("corridor-" + finalized.size(), "engineering", candidate.nodes(),
                                 candidate.edges(), candidate.connections(), BigDecimal.valueOf(length), issues, List.of(), null, null, null);
@@ -108,7 +109,8 @@ class OfficialCorridorDatasetTest {
                         + " junction_angles=" + finalGeometry.irregularJunctionAngleCount()
                         + " complete_depth=" + completeDepth
                         + " cost=" + (variant.getEconomics() == null ? null : variant.getEconomics().getCalculatedCost())
-                        + " issues=" + variant.getValidationIssues().stream().map(RouteValidationIssue::getCode).collect(Collectors.toList())
+                        + " issues=" + variant.getValidationIssues().stream()
+                                .map(i -> i.getCode() + ":" + i.getSubjectId()).collect(Collectors.toList())
                         + " chamber_issues=" + chamberIssues.stream()
                                 .map(i -> i.getCode() + ":" + i.getSubjectId()).collect(Collectors.toList()));
                 finalized.add(variant);
@@ -120,8 +122,12 @@ class OfficialCorridorDatasetTest {
                         feature.getMetricGeometry().getCoordinate(),
                         new BigDecimal(feature.getAttributes().path("flow_tph").asText()), null))
                 .collect(Collectors.toList());
-        if (finish) finalized.addAll(planner.repairMandatoryChambers(finalized, mergeDemands, features,
-                parameters, false, environment));
+        if (finish) {
+            finalized.addAll(planner.repairMandatoryChambers(finalized, mergeDemands, features,
+                    parameters, false, environment));
+            finalized = new ArrayList<>(planner.refineSelectedAxisShifts(
+                    finalized, features, parameters, environment));
+        }
         // Как в production, исправимые черновики проходят обязательную доводку до финального допуска.
         List<RouteVariant> valid = finalized.stream().filter(RouteVariant::isValid)
                 .filter(variant -> variant.getEngineeringIssues().isEmpty())

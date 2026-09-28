@@ -21,6 +21,10 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
+import ru.lct.heatroute.domain.sizing.NetworkSizingResult;
+import ru.lct.heatroute.domain.sizing.NetworkTreeEdge;
+import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
+import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 /**
  * Формирует общую сеть на графе свободных ортогональных коридоров и присоединяет нормальные вводы.
@@ -32,10 +36,14 @@ final class OrthogonalCorridorNetworkBuilder {
     private static final int MAX_CORRIDOR_TERMINALS = 64;
     private final OfficialObstacleRouter router;
     private final OfficialPipeCatalog pipes;
+    private final OfficialRouteValidator exactValidator;
+    private final OfficialNetworkSizer exactSizer;
 
     OrthogonalCorridorNetworkBuilder(OfficialObstacleRouter router, OfficialPipeCatalog pipes) {
         this.router = router;
         this.pipes = pipes;
+        this.exactValidator = new OfficialRouteValidator(router.rules(), pipes);
+        this.exactSizer = new OfficialNetworkSizer(pipes);
     }
 
     List<Network> build(List<Terminal> input, RouteNode root, int rootCapacity,
@@ -60,10 +68,11 @@ final class OrthogonalCorridorNetworkBuilder {
     List<Network> buildWithTerminalFrame(List<Terminal> input, RouteNode root, int rootCapacity,
             List<Geometry> footprints, OfficialRoutingEnvironment environment,
             SharedSpineNetworkBuilder.TerminalRouter terminalRouter) {
-        List<Network> result = new ArrayList<>(build(input, root, rootCapacity, footprints, environment, terminalRouter));
-        if (input.isEmpty() || input.size() > MAX_CORRIDOR_TERMINALS || rootCapacity < 1) return result;
+        if (input.isEmpty() || input.size() > MAX_CORRIDOR_TERMINALS || rootCapacity < 1) {
+            return build(input, root, rootCapacity, footprints, environment, terminalRouter);
+        }
         Integer diameter = diameter(input.stream().map(t -> t.flow).reduce(BigDecimal.ZERO, BigDecimal::add));
-        if (diameter == null) return result;
+        if (diameter == null) return build(input, root, rootCapacity, footprints, environment, terminalRouter);
         double base = CorridorOrientation.angle(footprints,
                 input.stream().map(t -> t.point).collect(Collectors.toList()), root.getCoordinate().toCoordinate());
         List<List<Double>> axesByTerminal = new ArrayList<>();
@@ -86,9 +95,26 @@ final class OrthogonalCorridorNetworkBuilder {
         if (alternative.isPresent()) {
             LOGGER.info("Corridor alternative frame target={} base_deg={} alternative_deg={}",
                     root.getTargetId(), Math.toDegrees(base), Math.toDegrees(alternative.getAsDouble()));
-            result.addAll(buildInFrame(input, root, rootCapacity, footprints, environment, terminalRouter, alternative.getAsDouble()));
+            // The terminal-aligned frame with individual-DU anchors is the strongest admissible
+            // seed in dense development.  Run it first and stop only after independent exact
+            // validation proves that the bounded portfolio already contains a finished geometry.
+            List<Network> preferred = new ArrayList<>(buildWithAnchors(input, root, rootCapacity,
+                    footprints, environment, terminalRouter, alternative.getAsDouble(), true));
+            rankEngineeringReadyFirst(preferred, environment);
+            if (hasFullyReadyNetwork(preferred, environment)) {
+                LOGGER.info("Corridor staged search target={} accepted_frame=terminal_individual candidates={}",
+                        root.getTargetId(), preferred.size());
+                return preferred;
+            }
+            List<Network> result = new ArrayList<>(build(input, root, rootCapacity,
+                    footprints, environment, terminalRouter));
+            result.addAll(buildWithAnchors(input, root, rootCapacity,
+                    footprints, environment, terminalRouter, alternative.getAsDouble(), false));
+            result.addAll(preferred);
+            rankEngineeringReadyFirst(result, environment);
+            return result;
         }
-        return result;
+        return build(input, root, rootCapacity, footprints, environment, terminalRouter);
     }
 
     private List<Network> buildInFrame(List<Terminal> input, RouteNode root, int rootCapacity,
@@ -101,6 +127,52 @@ final class OrthogonalCorridorNetworkBuilder {
         result.addAll(buildWithAnchors(input, root, rootCapacity,
                 footprints, environment, terminalRouter, suppliedAngle, true));
         return result;
+    }
+
+    /** Frames and anchor modes are generated independently, but finish/economics consume one portfolio. */
+    private void rankEngineeringReadyFirst(List<Network> networks, OfficialRoutingEnvironment environment) {
+        Map<Network, Integer> issuesByNetwork = new HashMap<>();
+        ExpertChamberRouteValidator chamberValidator = new ExpertChamberRouteValidator();
+        for (Network network : networks) {
+            int issues = chamberValidator.validate(network.nodes(), network.edges(), environment::existingDirections).size()
+                    + ExpertRouteBendRules.validate(network.nodes(), network.edges()).size();
+            issuesByNetwork.put(network, issues);
+        }
+        // Stable sort keeps deterministic search order among equally ready candidates.
+        networks.sort(Comparator.comparingInt(issuesByNetwork::get));
+    }
+
+    /** Exact, bounded stop condition: no validator or tolerance is bypassed by staged generation. */
+    private boolean hasFullyReadyNetwork(List<Network> networks, OfficialRoutingEnvironment environment) {
+        if (networks.isEmpty()) return false;
+        ExpertChamberRouteValidator chamberValidator = new ExpertChamberRouteValidator();
+        OfficialRouteValidator.ValidationSession validation = environment.validationFor(exactValidator);
+        for (Network network : networks) {
+            ensureActive();
+            if (!chamberValidator.validate(network.nodes(), network.edges(), environment::existingDirections).isEmpty()
+                    || !ExpertRouteBendRules.validate(network.nodes(), network.edges()).isEmpty()) continue;
+            Map<String, BigDecimal> demandFlows = network.connections().stream()
+                    .filter(connection -> "connected".equals(connection.getStatus()))
+                    .collect(Collectors.toMap(connection -> "demand:" + connection.getDemandId(),
+                            RouteConnection::getFlowTph, BigDecimal::add));
+            NetworkSizingResult sizing = exactSizer.size(network.edges().stream()
+                    .map(edge -> new NetworkTreeEdge(edge.getId(), edge.getUpstreamNodeId(),
+                            edge.getDownstreamNodeId(), edge.getLengthM()))
+                    .collect(Collectors.toList()), demandFlows);
+            if (!sizing.isValid() || network.edges().stream().anyMatch(edge ->
+                    sizing.getEdges().get(edge.getId()) == null
+                            || !java.util.Objects.equals(edge.getDiameter(),
+                                    sizing.getEdges().get(edge.getId()).getDiameter()))) continue;
+            Envelope bounds = new Envelope();
+            network.edges().forEach(edge -> edge.getCoordinates().forEach(point ->
+                    bounds.expandToInclude(point.toCoordinate())));
+            if (bounds.isNull()) continue;
+            List<ImportedOfficialFeature> features = environment.featuresInWindow(
+                    new Coordinate(bounds.getMinX(), bounds.getMinY()),
+                    new Coordinate(bounds.getMaxX(), bounds.getMaxY()));
+            if (validation.validate(network.nodes(), network.edges(), features).isEmpty()) return true;
+        }
+        return false;
     }
 
     /** Две ограниченные кандидатные сетки используют одни и те же проверки полного ДУ ствола. */
@@ -233,8 +305,28 @@ final class OrthogonalCorridorNetworkBuilder {
                 rootCapacity, orientation, spurs, checks, true, jointResults, environment, directions));
         // Контрольные полные сети сохраняют прежний порядок и не вытесняются ремонтами.
         results.addAll(jointResults);
-        LOGGER.info("Corridor terminal paths target={} attempts={} axial_paths={}",
-                root.getTargetId(), spurs.attempts(), spurs.axialPaths());
+        Map<Network, Integer> engineeringIssueCount = new HashMap<>();
+        Map<Network, List<RouteValidationIssue>> engineeringIssues = new HashMap<>();
+        ExpertChamberRouteValidator chamberValidator = new ExpertChamberRouteValidator();
+        for (Network network : results) {
+            List<RouteNode> networkNodes = network.nodes();
+            List<RouteEdge> networkEdges = network.edges();
+            List<RouteValidationIssue> issues = new ArrayList<>(chamberValidator.validate(
+                    networkNodes, networkEdges, environment::existingDirections));
+            issues.addAll(ExpertRouteBendRules.validate(networkNodes, networkEdges));
+            engineeringIssues.put(network, List.copyOf(issues));
+            engineeringIssueCount.put(network, issues.size());
+        }
+        // Stable sorting preserves the search portfolio but spends expensive finish/economics work
+        // on the closest-to-ready networks before drafts requiring more local repairs.
+        results.sort(Comparator.comparingInt(engineeringIssueCount::get));
+        int minimumIssues = results.isEmpty() ? 0 : engineeringIssueCount.get(results.get(0));
+        long readyNetworks = engineeringIssueCount.values().stream().filter(count -> count == 0).count();
+        List<String> minimumIssueSubjects = results.isEmpty() ? List.of() : engineeringIssues.get(results.get(0)).stream()
+                .map(issue -> issue.getCode() + ":" + issue.getSubjectId()).collect(Collectors.toList());
+        LOGGER.info("Corridor terminal paths target={} attempts={} axial_paths={} engineering_ready={} minimum_issues={} minimum_issue_subjects={}",
+                root.getTargetId(), spurs.attempts(), spurs.axialPaths(), readyNetworks, minimumIssues,
+                minimumIssueSubjects);
         return results;
     }
 
@@ -314,7 +406,8 @@ final class OrthogonalCorridorNetworkBuilder {
         for (GraphEdges graph : graphViews(links, lengths, grid, checks)) {
             List<CorridorPortSearch.Selection> trees = new ArrayList<>();
             CorridorTreeBuilder builder = new CorridorTreeBuilder(
-                    junctionArms(points, grid.points().size(), alternatives, checks), gridTurns(grid, checks));
+                    junctionArms(points, grid.points().size(), alternatives, checks), gridTurns(grid, checks),
+                    junctionPairs(points, grid.points().size(), alternatives));
             Map<Integer, Map<Integer, RoutePath>> paths = new LinkedHashMap<>();
             alternatives.forEach((leaf, choices) -> {
                 Map<Integer, RoutePath> leafPaths = new LinkedHashMap<>();
@@ -440,6 +533,33 @@ final class OrthogonalCorridorNetworkBuilder {
                 return checks.chamberRayAllowed(points.get(from), towards);
             });
         };
+    }
+
+    /** Не допускает в одном узле ветвления совпадающие или косые физические лучи. */
+    private CorridorTreeBuilder.JunctionPairAdmission junctionPairs(List<Coordinate> points, int realPoints,
+            Map<Integer, Map<Integer, Port>> alternatives) {
+        return (at, left, right) -> {
+            if (at >= realPoints) return true;
+            Coordinate leftRay = junctionRay(at, left, points, realPoints, alternatives);
+            Coordinate rightRay = junctionRay(at, right, points, realPoints, alternatives);
+            return leftRay != null && rightRay != null && ExpertChamberGeometryRules.compatibleRays(
+                    leftRay.x, leftRay.y, rightRay.x, rightRay.y);
+        };
+    }
+
+    private Coordinate junctionRay(int at, int neighbor, List<Coordinate> points, int realPoints,
+            Map<Integer, Map<Integer, Port>> alternatives) {
+        Coordinate origin = points.get(at);
+        Coordinate towards = points.get(neighbor);
+        if (neighbor >= realPoints) {
+            Map<Integer, Port> choices = alternatives.get(neighbor);
+            Port port = choices == null ? null : choices.get(at);
+            if (port == null) return null;
+            towards = port.path.coordinates().stream().filter(point -> point.distance(origin) > 0.001)
+                    .findFirst().orElse(null);
+            if (towards == null) return null;
+        }
+        return new Coordinate(towards.x - origin.x, towards.y - origin.y);
     }
 
     /** Фиксированные порты получают тот же совместный выбор путей, что и гибкий поиск. */
@@ -653,8 +773,9 @@ final class OrthogonalCorridorNetworkBuilder {
         List<RouteConnection> connections = ports.stream().map(port -> new RouteConnection(
                 port.terminal.id, port.terminal.connectionPointId, port.terminal.flow, "connected", null))
                 .collect(Collectors.toList());
-        if (!OfficialRouteDeflectionRules.validate(new ArrayList<>(nodes.values()), edges).isEmpty()) return null;
-        return new Network(new ArrayList<>(nodes.values()), edges, connections);
+        List<RouteNode> networkNodes = new ArrayList<>(nodes.values());
+        if (!OfficialRouteDeflectionRules.validate(networkNodes, edges).isEmpty()) return null;
+        return new Network(networkNodes, edges, connections);
     }
 
     /** Первый поворот корневого ребра находится после табличного минимума и занимает свободный луч. */

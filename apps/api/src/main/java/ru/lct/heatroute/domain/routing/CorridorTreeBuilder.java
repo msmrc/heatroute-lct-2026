@@ -19,13 +19,21 @@ import org.locationtech.jts.geom.Coordinate;
  */
 final class CorridorTreeBuilder {
     private static final BiPredicate<Integer, Integer> UNRESTRICTED = (from, to) -> true;
+    private static final JunctionPairAdmission UNRESTRICTED_PAIRS = (at, left, right) -> true;
     private final BiPredicate<Integer, Integer> junctionArmAllowed;
     private final TurnAdmission turnAdmission;
+    private final JunctionPairAdmission junctionPairAdmission;
 
     /** Допуск фактического перехода через промежуточный узел графа. */
     @FunctionalInterface
     interface TurnAdmission {
         boolean allowed(int previous, int at, int next);
+    }
+
+    /** Парный допуск фактических лучей, сходящихся в будущем узле ветвления. */
+    @FunctionalInterface
+    interface JunctionPairAdmission {
+        boolean allowed(int at, int leftNeighbor, int rightNeighbor);
     }
 
     CorridorTreeBuilder() { this(UNRESTRICTED); }
@@ -37,10 +45,18 @@ final class CorridorTreeBuilder {
 
     /** Проверяет оба луча поворота во время поиска пути, до выбора дерева. */
     CorridorTreeBuilder(BiPredicate<Integer, Integer> junctionArmAllowed, TurnAdmission turnAdmission) {
+        this(junctionArmAllowed, turnAdmission, UNRESTRICTED_PAIRS);
+    }
+
+    /** Проверяет отдельные лучи, повороты и совместимость каждой пары будущей камеры. */
+    CorridorTreeBuilder(BiPredicate<Integer, Integer> junctionArmAllowed, TurnAdmission turnAdmission,
+            JunctionPairAdmission junctionPairAdmission) {
         require(junctionArmAllowed != null, "Junction arm admission is required");
         require(turnAdmission != null, "Turn admission is required");
+        require(junctionPairAdmission != null, "Junction pair admission is required");
         this.junctionArmAllowed = junctionArmAllowed;
         this.turnAdmission = turnAdmission;
+        this.junctionPairAdmission = junctionPairAdmission;
     }
 
     private static final int MAX_NODES = 100_000;
@@ -73,7 +89,8 @@ final class CorridorTreeBuilder {
                 "Junction penalty must be finite and nonnegative");
         require(Double.isFinite(bendPenaltyM) && bendPenaltyM >= 0,
                 "Bend penalty must be finite and nonnegative");
-        Graph graph = new Graph(points, links, null, root, directionAllowed, junctionArmAllowed, turnAdmission);
+        Graph graph = new Graph(points, links, null, root, directionAllowed, junctionArmAllowed,
+                turnAdmission, junctionPairAdmission);
         return buildGraph(graph, root, rootCapacity, terminalStubCounts, farthestFirst,
                 newJunctionPenaltyM, bendPenaltyM);
     }
@@ -97,7 +114,8 @@ final class CorridorTreeBuilder {
                 "Junction penalty must be finite and nonnegative");
         require(Double.isFinite(bendPenaltyM) && bendPenaltyM >= 0,
                 "Bend penalty must be finite and nonnegative");
-        return buildGraph(new Graph(points, links, lengths, root, directionAllowed, junctionArmAllowed, turnAdmission), root, rootCapacity,
+        return buildGraph(new Graph(points, links, lengths, root, directionAllowed, junctionArmAllowed,
+                turnAdmission, junctionPairAdmission), root, rootCapacity,
                 terminalStubCounts, farthestFirst, newJunctionPenaltyM, bendPenaltyM);
     }
 
@@ -123,7 +141,8 @@ final class CorridorTreeBuilder {
                 "Junction penalty must be finite and nonnegative");
         require(Double.isFinite(bendPenaltyM) && bendPenaltyM >= 0,
                 "Bend penalty must be finite and nonnegative");
-        Graph graph = new Graph(points, links, lengths, root, directionAllowed, junctionArmAllowed, turnAdmission);
+        Graph graph = new Graph(points, links, lengths, root, directionAllowed, junctionArmAllowed,
+                turnAdmission, junctionPairAdmission);
         Tree tree = new Tree(graph, root, rootCapacity, terminalStubCounts);
         require(firstTerminal >= 0 && firstTerminal < graph.x.length && tree.isRemainingTerminal(firstTerminal),
                 "First terminal must be a non-root node with a positive stub count");
@@ -164,7 +183,8 @@ final class CorridorTreeBuilder {
         require(rootCapacity >= 0, "Root capacity must be nonnegative");
         require(Double.isFinite(bendPenaltyM) && bendPenaltyM >= 0,
                 "Bend penalty must be finite and nonnegative");
-        Graph graph = new Graph(points, links, null, root, UNRESTRICTED, junctionArmAllowed, turnAdmission);
+        Graph graph = new Graph(points, links, null, root, UNRESTRICTED, junctionArmAllowed,
+                turnAdmission, junctionPairAdmission);
         Tree reservations = new Tree(graph, root, rootCapacity, terminalStubCounts);
         if (!reservations.reservationsFit() || reservations.remaining + 1 > MAX_METRIC_TERMINALS) return null;
         if (reservations.remaining == 0) return new ArrayList<>();
@@ -179,7 +199,8 @@ final class CorridorTreeBuilder {
         require(rootCapacity >= 0, "Root capacity must be nonnegative");
         require(Double.isFinite(bendPenaltyM) && bendPenaltyM >= 0,
                 "Bend penalty must be finite and nonnegative");
-        Graph graph = new Graph(points, links, lengths, root, UNRESTRICTED, junctionArmAllowed, turnAdmission);
+        Graph graph = new Graph(points, links, lengths, root, UNRESTRICTED, junctionArmAllowed,
+                turnAdmission, junctionPairAdmission);
         Tree reservations = new Tree(graph, root, rootCapacity, terminalStubCounts);
         if (!reservations.reservationsFit() || reservations.remaining + 1 > MAX_METRIC_TERMINALS) return null;
         if (reservations.remaining == 0) return new ArrayList<>();
@@ -407,6 +428,19 @@ final class CorridorTreeBuilder {
                 int capacity = node == reservations.root ? reservations.rootCapacity : NODE_CAPACITY;
                 if ((long) degree[node] + reservations.stubs[node] > capacity) return null;
                 if (terminalIndex[node] >= 0 && finalSets.find(node) != finalSets.find(reservations.root)) return null;
+                if (degree[node] + reservations.stubs[node] >= 3) {
+                    List<Integer> neighbors = new ArrayList<>();
+                    for (int arc : graph.outgoing[node]) {
+                        if (!selected[arc / 2]) continue;
+                        if (!graph.junctionArmAllowed[arc]) return null;
+                        neighbors.add(graph.to[arc]);
+                    }
+                    for (int left = 0; left < neighbors.size(); left++) {
+                        for (int right = left + 1; right < neighbors.size(); right++) {
+                            if (!graph.junctionPairAllowed(node, neighbors.get(left), neighbors.get(right))) return null;
+                        }
+                    }
+                }
                 // Объединение путей MST может создать иной поворот, чем каждый исходный путь.
                 if (degree[node] == 2) {
                     int first = -1;
@@ -502,19 +536,22 @@ final class CorridorTreeBuilder {
         private final boolean[] directionAllowed;
         private final boolean[] junctionArmAllowed;
         private final TurnAdmission turnAdmission;
+        private final JunctionPairAdmission junctionPairAdmission;
 
         private Graph(List<Coordinate> points, List<int[]> links, int root) {
             this(points, links, null, root);
         }
 
         private Graph(List<Coordinate> points, List<int[]> links, List<Double> lengths, int root) {
-            this(points, links, lengths, root, UNRESTRICTED, UNRESTRICTED, (previous, at, next) -> true);
+            this(points, links, lengths, root, UNRESTRICTED, UNRESTRICTED,
+                    (previous, at, next) -> true, UNRESTRICTED_PAIRS);
         }
 
         private Graph(List<Coordinate> points, List<int[]> links, List<Double> lengths, int root,
                 BiPredicate<Integer, Integer> admission, BiPredicate<Integer, Integer> junctionAdmission,
-                TurnAdmission turnAdmission) {
+                TurnAdmission turnAdmission, JunctionPairAdmission junctionPairAdmission) {
             this.turnAdmission = turnAdmission;
+            this.junctionPairAdmission = junctionPairAdmission;
             require(admission != null, "Directed link admission is required");
             require(points != null && !points.isEmpty() && points.size() <= MAX_NODES,
                     "Graph must contain 1..100000 points");
@@ -602,6 +639,10 @@ final class CorridorTreeBuilder {
             return !isBend(previous, node, next) || turnAdmission.allowed(previous, node, next);
         }
 
+        private boolean junctionPairAllowed(int node, int left, int right) {
+            return junctionPairAdmission.allowed(node, left, right);
+        }
+
         private boolean isBend(int previous, int node, int next) {
             double incomingLength = Math.hypot(x[node] - x[previous], y[node] - y[previous]);
             double outgoingLength = Math.hypot(x[next] - x[node], y[next] - y[node]);
@@ -662,10 +703,20 @@ final class CorridorTreeBuilder {
             if (node != root && degree[node] + stubs[node] + added < 3) return true;
             if (!graph.junctionArmAllowed[firstArc]
                     || (secondArc >= 0 && !graph.junctionArmAllowed[secondArc])) return false;
+            List<Integer> neighbors = new ArrayList<>();
             for (int arc : graph.outgoing[node]) {
                 int neighbor = graph.to[arc];
-                if ((parent[node] == neighbor || parent[neighbor] == node)
-                        && !graph.junctionArmAllowed[arc]) return false;
+                if (parent[node] == neighbor || parent[neighbor] == node) {
+                    if (!graph.junctionArmAllowed[arc]) return false;
+                    neighbors.add(neighbor);
+                }
+            }
+            neighbors.add(graph.to[firstArc]);
+            if (secondArc >= 0) neighbors.add(graph.to[secondArc]);
+            for (int left = 0; left < neighbors.size(); left++) {
+                for (int right = left + 1; right < neighbors.size(); right++) {
+                    if (!graph.junctionPairAllowed(node, neighbors.get(left), neighbors.get(right))) return false;
+                }
             }
             return true;
         }

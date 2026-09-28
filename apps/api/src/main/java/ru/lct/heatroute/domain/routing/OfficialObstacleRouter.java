@@ -43,6 +43,9 @@ public class OfficialObstacleRouter {
         this.rules = rules;
     }
 
+    /** Reuses the exact routing rule set for independent candidate admission. */
+    OfficialRouteGeometryRules rules() { return rules; }
+
     OfficialRoutingEnvironment prepare(List<ImportedOfficialFeature> features) {
         List<ImportedOfficialFeature> core = features.stream()
                 .filter(feature -> !isWindowedRoutingFeature(feature))

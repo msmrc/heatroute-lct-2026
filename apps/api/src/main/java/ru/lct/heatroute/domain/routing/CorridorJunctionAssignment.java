@@ -269,6 +269,12 @@ final class CorridorJunctionAssignment {
                             .mapToInt(Integer::intValue).toArray();
                     // Ошибка только внутри неизменяемой сетки не исправляется заменой ввода.
                     if (conflict.length == 0) return;
+                } else if (geometry.irregularJunctionAngleCount() > 0) {
+                    Set<String> offenders = geometry.irregularJunctionEdgeIds();
+                    conflict = leaves.stream().filter(leaf -> offenders.contains("leaf:" + leaf))
+                            .mapToInt(Integer::intValue).toArray();
+                    // Ортогональная сетка неизменяема; исправим только косой terminal-подход.
+                    if (conflict.length == 0) return;
                 }
             }
             if (conflict == null) {

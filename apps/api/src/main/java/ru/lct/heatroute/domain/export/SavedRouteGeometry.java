@@ -47,7 +47,7 @@ final class SavedRouteGeometry {
         return result;
     }
 
-    private static Iterable<RouteCoordinate> points(JsonNode array) {
+    static Iterable<RouteCoordinate> points(JsonNode array) {
         if (!array.isArray() || array.size() < 2) fail("Geometry requires at least two coordinates");
         return () -> new Iterator<RouteCoordinate>() {
             private final Iterator<JsonNode> source = array.elements();

@@ -1,5 +1,37 @@
 # Current implementation progress
 
+## 2026-09-28 — source103: local axis-shift control (not verified)
+
+Synced `master` by fast-forward to `65762b1` before editing. Source103 adds a bounded
+counterfactual control for perpendicular steps between parallel route runs: translate the whole
+straight run with its chambers and rebuild every incident edge, keeping roots/tie-ins and demand
+connection coordinates fixed. An accepted alternative strictly reduces bends and independently
+passes canonical sizing, reconstructed special sections, official geometry/clearances/crossings,
+chamber rays, bend spacing, optional depth and economics. Total network length may increase when
+fixed demand spurs become longer; this does not excuse a proven unnecessary step. Only degree-2
+technical zero-length links may be contracted; real chambers are not merged.
+
+The final stable stage applies accepted replacements and reassigns variant roles after arithmetic
+changes. Frozen admission rejects a proven removable step without changing frozen topology/XY;
+saved export independently rejects it before the first byte, including legacy `valid=true`, with
+`EXPERT_UNNECESSARY_AXIS_SHIFT`. Dense saved collinear coordinates are read in one pass without
+copying their full digitization into the local run graph. This is a local witness, not a global
+optimality/necessity proof or street-axis identification from a basemap.
+
+Focused test cases were added for free and blocked straightening, fixed anchors, rotated metric
+geometry, technical splits, stable/frozen admission and saved export. JUnit/lint/typecheck were
+not run. On the user's follow-up request the local Java 11 Docker backend was built successfully
+with `package -DskipTests` (production and test sources compiled). A fresh immutable official run
+`f184053e-3bd2-479e-b0ea-1ba2ffb84fb0`, job `c533bee7-64d2-4d49-a594-8189f51ac696`, started
+at 2026-09-28 14:11:16 UTC: `global-tree-103`, 144 input objects/17 demands, depth disabled,
+input SHA-256 `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`.
+Result/time are pending; the previous source102 run on that same local import took
+4617.998103 seconds (job start to completion), not a forecast for source103. The image owns
+the `65762b1` source snapshot plus this fix; later fetched nextgen input-wiring changes are not
+part of that timed image. The general readiness check reports `cp_sat: unavailable`; the stable
+job does not use CP-SAT and is running. Existing results remain immutable. No VPS deployment or
+R/G/N closure is claimed; all earlier production/witness evidence remains snapshot-specific.
+
 ## 2026-09-28 — next-generation solver: frozen admission and finite-catalog network master
 
 Implementation continues from [`CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md`](../../CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md)

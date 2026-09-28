@@ -44,6 +44,7 @@ public class OfficialGeoJsonExporter {
     private final OfficialVariantEconomicsCalculator economicsCalculator;
     private final OfficialGeoJsonStreamWriter streamWriter;
     private final CoordinateTransform toWgs84;
+    private final ru.lct.heatroute.domain.routing.AxisShiftAlternativeEvaluator axisShiftEvaluator;
 
     public OfficialGeoJsonExporter(
             ObjectMapper objectMapper,
@@ -57,6 +58,7 @@ public class OfficialGeoJsonExporter {
         this.validator = validator;
         this.economicsCalculator = economicsCalculator;
         this.streamWriter = new OfficialGeoJsonStreamWriter(objectMapper);
+        this.axisShiftEvaluator = ru.lct.heatroute.domain.routing.AxisShiftAlternativeEvaluator.standard(pipeCatalog, economics);
         CRSFactory factory = new CRSFactory();
         CoordinateReferenceSystem metric = factory.createFromParameters(
                 "UTM37N", "+proj=utm +zone=37 +datum=WGS84 +units=m +no_defs");
@@ -164,6 +166,7 @@ public class OfficialGeoJsonExporter {
             SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog, specialSources);
             SavedUtilityHorizontalAssessment.verify(variant, inputFeatures, pipeCatalog);
             spatial.verify(variant);
+            SavedAxisShiftAssessment.verify(variant, inputFeatures, parameters, axisShiftEvaluator);
         }
         for (JsonNode variant : variants) {
             appendVariant(output, variant, inputById, allowMissingTieInDiameter, chamberDiameters.get(variant));

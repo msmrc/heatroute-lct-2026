@@ -82,6 +82,19 @@ public final class FrozenNetworkEvaluator {
             if (!issues.isEmpty()) {
                 return Evaluation.rejected("engineering_rejected", issues, List.of());
             }
+            AxisShiftAlternativeEvaluator axisEvaluator = new AxisShiftAlternativeEvaluator(
+                    validator, obstacleRouter, networkSizer, depthPlanner, economicsCalculator);
+            String[] shiftSubject = new String[1];
+            RouteVariant straightened = new RouteAxisShiftControl().firstImprovement(candidate.getNodes(), assessed,
+                    replacement -> {
+                        RouteVariant alternative = axisEvaluator.assess(replacement, candidate.getId(), candidate.getStrategy(),
+                                candidate.getConnections(), candidate.getRelevantFeatures(), candidate.getParameters(), environment);
+                        if (alternative != null) shiftSubject[0] = replacement.getSubjectId();
+                        return alternative;
+                    });
+            if (straightened != null) return Evaluation.rejected("unnecessary_axis_shift", List.of(new RouteValidationIssue(
+                    "EXPERT_UNNECESSARY_AXIS_SHIFT", shiftSubject[0],
+                    "Параллельные ходы можно выровнять с соблюдением всех ограничений; поперечная ступенька не требуется")), List.of());
             ensureActive();
             VariantEconomics economics = economicsCalculator.calculate(
                     candidate.getNodes(), assessed, candidate.getConnections(),

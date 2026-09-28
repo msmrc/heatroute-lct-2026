@@ -18,6 +18,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.routing.OfficialCalculationResult;
 import ru.lct.heatroute.domain.routing.OfficialCalculationService;
+import ru.lct.heatroute.domain.routing.RoutingEngineVersionUnavailableException;
 import ru.lct.heatroute.domain.run.OfficialRunRepository;
 import ru.lct.heatroute.domain.run.OfficialRunView;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
@@ -130,6 +131,15 @@ public class OfficialJobWorker {
             Thread.interrupted();
             cancelRun(job);
             repository.markCancelled(job.getId());
+        } catch (RoutingEngineVersionUnavailableException exception) {
+            LOGGER.warn("Queued routing engine is unavailable job_id={} requested={} available={}",
+                    job.getId(), exception.getRequestedVersion(), exception.getAvailableVersion());
+            if (job.getRunId() != null) {
+                runRepository.markFailed(job.getRunId(), "ENGINE_VERSION_UNAVAILABLE",
+                        "The queued routing engine version is not available in this release");
+            }
+            repository.markFailed(job.getId(), "ENGINE_VERSION_UNAVAILABLE",
+                    "The queued routing engine version is not available in this release");
         } catch (Exception exception) {
             LOGGER.error("Official job failed job_id={}", job.getId(), exception);
             String message = exception.getMessage() == null ? "Unexpected worker failure" : exception.getMessage();
@@ -158,7 +168,7 @@ public class OfficialJobWorker {
             OfficialRunView run = runRepository.find(job.getRunId())
                     .orElseThrow(() -> new IllegalStateException("Calculation run was not found"));
             OfficialCalculationResult result = calculationService.calculate(
-                    job.getImportId(), run.getParameters());
+                    job.getImportId(), run.getParameters(), run.getAlgorithmVersion());
             if (result == null) {
                 runRepository.markFailed(
                         job.getRunId(), "IMPORT_NOT_VALID", "The official import is unavailable or invalid");

@@ -35,6 +35,8 @@ External implementation sources:
 - CARTO Positron vector basemap documentation and OpenStreetMap attribution requirements;
 - GeoJSON RFC 7946;
 - Docker Compose file format 3.8 / docker-compose 1.29.2 documentation.
+- Google OR-Tools 9.15 CP-SAT Java API and Apache-2.0 distribution metadata; used only as the
+  discrete optimization engine, not as an engineering-requirement source.
 
 Dependency choices and versions are pinned in `apps/api/pom.xml`, `apps/web/package.json` and
 Dockerfiles. Any library

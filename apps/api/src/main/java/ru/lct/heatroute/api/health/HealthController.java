@@ -26,7 +26,7 @@ public class HealthController {
     }
 
     @GetMapping("/ready")
-    @Operation(operationId = "ready", summary = "PostGIS readiness")
+    @Operation(operationId = "ready", summary = "Runtime dependency readiness")
     public ResponseEntity<ReadinessResponse> ready() {
         ReadinessResponse response = readinessService.check();
         return response.isReady()

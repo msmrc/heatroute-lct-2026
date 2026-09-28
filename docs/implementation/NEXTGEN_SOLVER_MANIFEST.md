@@ -1,0 +1,71 @@
+# Next-generation solver dependency and runtime manifest
+
+**Stage:** N01 native foundation / N02 frozen evaluator / N04 port slice / N05 catalog master.
+**Date:** 2026-09-28.
+**Promotion status:** not connected to `stable`; no competition result or speed-up is claimed yet.
+
+## Pinned runtime
+
+| Component | Version / digest | License / role |
+|---|---|---|
+| Java | Temurin 11.0.28+6 runtime; local tests use 11.0.32+1 | Java 11 target |
+| Maven build image | `maven:3.9.12-eclipse-temurin-11@sha256:f39c21c3fef9ec69a85fa024c5513fb28dbcd2f282a27a11dae4568b7547f535` | Ubuntu Noble/glibc build |
+| API runtime image | `eclipse-temurin:11.0.28_6-jre-jammy@sha256:fc451894669bc656f81082ced9daddfd8df0d8e8fea659dc26a232f0e0124837` | Ubuntu 22.04/glibc runtime |
+| OR-Tools Java/CP-SAT | 9.15.6755 | Apache-2.0; discrete master solver |
+| OR-Tools native | Windows x86-64 and Linux x86-64, 9.15.6755 | Development and release targets only |
+| JNA / JNA Platform | 5.14.0 | Apache-2.0/LGPL dual distribution; native extraction support |
+| Protobuf Java | 4.33.1 | BSD-3-Clause; OR-Tools model/response runtime |
+
+`mvn dependency:tree` is the source of transitive versions. Maven cache, Java/JNA temp and local
+evidence paths are directed to `E:\job\.tooling`; the container uses
+`/var/lib/heatroute/tmp`. Runtime calculation has no network dependency.
+
+## Implemented boundaries
+
+- `CpSatRuntime` owns JNI initialization, deterministic session settings and cancellation.
+- `CpSatChoiceOptimizer` owns exactly-one groups, integer guiding cost and sound no-good addition.
+- `DiscreteChoiceProblem` validates immutable catalog IDs and conflict references.
+- `CpSatPortAssignment` is an isolated N04 vertical slice next to `CorridorPortSearch`; the exact
+  existing compatibility and engineering evaluators decide admission.
+- `FrozenNetworkCandidate` deep-copies mutable feature geometry/attributes and records a
+  deterministic topology/XY hash. `FrozenNetworkEvaluator` is the only constructor boundary for
+  `AcceptedNetworkSolution`; canonical sizing feedback, UNKNOWN and ERROR are typed outcomes.
+- `NetworkConstraintProblem` and `CpSatNetworkOptimizer` implement the exact finite-catalog N05
+  master for acyclic multi-root flow, mandatory terminals, one diameter per selected physical
+  asset, capacity, shared cost and pair/hyper-conflicts.
+- queued execution resolves the persisted routing-engine version before loading feature windows;
+  no worker may silently execute a queued run with another registered version.
+- `/api/v1/health/ready` includes cached `cp_sat` capability after a real known-optimum solve.
+
+## Required before promotion
+
+N01 still requires the clean packaged-image build/readiness evidence recorded below. N02 requires
+differential official-dataset and depth evidence. N05 is a tested finite-catalog master, not an
+end-to-end solver: N03 certified path/catalog production, canonical catalog versioning, iterative
+refinement/certificate archive, full lease-attempt fencing, official pipeline/API/export,
+performance, resource, Ubuntu 22 and release gates remain open. The active `stable` implementation
+must not be switched until those gates pass.
+
+## Verification record
+
+Completed on the 2026-09-28 working tree with JDK/temp/Maven cache on `E:`:
+
+- combined native/model/evaluator/versioning/performance-regression suites: 76 tests, zero
+  failures/errors;
+- 80 seeded small finite catalogs match an independent exhaustive network enumerator;
+- clean fast Java gate excluding the three documented long dataset classes: 2,300 tests, zero
+  failures/errors, 3 existing skips, 1:48 elapsed;
+- web: 8 Vitest files / 36 tests and 37 Node tests; ESLint and TypeScript pass;
+- `mvn dependency:tree`: OR-Tools 9.15.6755, JNA/JNA Platform 5.14.0 and Protobuf 4.33.1;
+- the executable Spring Boot JAR packages only the Windows x86-64 and Linux x86-64 OR-Tools
+  artifacts; Darwin and Linux ARM artifacts are absent;
+- the base, VPS override and offline override Compose configurations parse successfully (the two
+  legacy overrides still emit their pre-existing obsolete `version` warning);
+- Windows native known optimum, repeated load, explicit asynchronous stop and direct Java-thread
+  interruption pass.
+
+`docker build --target test` did not enter the build: Docker Desktop crashed on the pre-existing
+zero-byte reparse socket `C:\Users\dragon\AppData\Local\Docker\run\sailor-ingest.sock` dated
+2026-09-16, and machine policy rejected its removal. Linux glibc load/solve/stop, final non-root
+image, Compose readiness and live smoke are therefore **not verified**. Historical source102
+results remain the legacy comparison baseline and are not results of this solver.

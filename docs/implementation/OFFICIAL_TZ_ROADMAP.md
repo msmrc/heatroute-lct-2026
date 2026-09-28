@@ -1,5 +1,27 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
+## 2026-09-28 — next-generation frozen evaluator and network master (not promoted)
+
+Development under [`CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md`](../../CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md)
+continues without changing `stable` or any LCT engineering requirement. Pinned OR-Tools 9.15.6755,
+the cancellable Java/native adapter, readiness capability solve and Windows/Linux-x86-64-only
+dependency set are in place. `FrozenNetworkEvaluator` now owns the frozen-topology admission path
+through canonical sizing, optional depth, exact existing validators and economics; it cannot
+silently repair XY/topology and does not turn UNKNOWN/ERROR into a no-route proof. A finite-catalog
+CP-SAT master now covers acyclic multi-root topology, full demand flow, shared assets,
+capacity/diameter choice and sound pair/hyper-conflicts. Eighty random small catalogs match
+independent exhaustive enumeration.
+
+Two behavior-preserving legacy optimizations reuse the already loaded final feature window after
+depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
+saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
+mismatch. Combined focused gates pass 76/76; clean fast backend passes 2,300/0/3 in 1:48. The
+fresh web 36+37/lint/typecheck gate, executable-JAR native inventory and Compose
+configuration checks pass. Docker still fails before build on the pre-existing local reparse
+socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
+The certified catalog, refinement loop/archive, official end-to-end run, benchmark, resource and
+release gates remain open; source102 stays the active baseline and no speed-up is claimed.
+
 ## 2026-09-28 — source102: камеры на нормали ОКС, production PASS
 
 [Изменения и проверки source102](PRIMARY_ROUTING_102.md): ограниченный перенос камеры на

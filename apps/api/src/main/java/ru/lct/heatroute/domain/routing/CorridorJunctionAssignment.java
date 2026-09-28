@@ -127,6 +127,31 @@ final class CorridorJunctionAssignment {
         return new PortSearch(controls, attachments, grid, alternatives).choose();
     }
 
+    /** Оценивает целую замороженную сетку с вводами, не меняя ни одну полилинию. */
+    static EngineeringRouteEvaluator.Evaluation evaluatePortGeometry(
+            Map<Integer, RoutePath> selected, List<LineString> grid) {
+        List<RouteEdge> edges = new ArrayList<>();
+        for (int index = 0; index < grid.size(); index++) {
+            LineString line = grid.get(index);
+            edges.add(scoringEdge("grid:" + index, Arrays.asList(line.getCoordinates()), line.getLength(), false));
+        }
+        selected.forEach((leaf, path) -> edges.add(scoringEdge("leaf:" + leaf,
+                path.coordinates(), path.lengthM(), true)));
+        return new EngineeringRouteEvaluator().evaluate(edges);
+    }
+
+    private static RouteEdge scoringEdge(String id, List<Coordinate> points, double length, boolean terminal) {
+        List<RouteCoordinate> coordinates = new ArrayList<>();
+        for (Coordinate point : points) coordinates.add(new RouteCoordinate(point.x, point.y));
+        String downstream = terminal ? id : nodeKey(coordinates.get(coordinates.size() - 1));
+        return new RouteEdge(id, nodeKey(coordinates.get(0)), downstream, length,
+                coordinates, List.of(), null, null);
+    }
+
+    private static String nodeKey(RouteCoordinate point) {
+        return "port:" + point.getXM() + ":" + point.getYM();
+    }
+
     private static Approach prepare(Coordinate junction, RoutePath path, double minimum) {
         if (path == null || path.coordinates().size() < 2 || path.coordinates().size() > 1000) {
             throw new IllegalArgumentException("A path requires 2..1000 coordinates");
@@ -276,26 +301,7 @@ final class CorridorJunctionAssignment {
 
         /** Оцениваем целую сеть до компрессии: разрез на порту не скрывает изгиб или короткую полку. */
         private EngineeringRouteEvaluator.Evaluation evaluateGeometry() {
-            List<RouteEdge> edges = new ArrayList<>();
-            for (int index = 0; index < grid.size(); index++) {
-                LineString line = grid.get(index);
-                edges.add(scoringEdge("grid:" + index, Arrays.asList(line.getCoordinates()), line.getLength(), false));
-            }
-            selected.forEach((leaf, path) -> edges.add(scoringEdge("leaf:" + leaf,
-                    path.coordinates(), path.lengthM(), true)));
-            return new EngineeringRouteEvaluator().evaluate(edges);
-        }
-
-        private RouteEdge scoringEdge(String id, List<Coordinate> points, double length, boolean terminal) {
-            List<RouteCoordinate> coordinates = new ArrayList<>();
-            for (Coordinate point : points) coordinates.add(new RouteCoordinate(point.x, point.y));
-            String downstream = terminal ? id : nodeKey(coordinates.get(coordinates.size() - 1));
-            return new RouteEdge(id, nodeKey(coordinates.get(0)), downstream, length,
-                    coordinates, List.of(), null, null);
-        }
-
-        private String nodeKey(RouteCoordinate point) {
-            return "port:" + point.getXM() + ":" + point.getYM();
+            return evaluatePortGeometry(selected, grid);
         }
 
         private List<RoutePath> pathsFor(int leaf) {

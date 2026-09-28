@@ -48,6 +48,20 @@ class RoutingAlgorithmRegistryTest {
                 .hasMessageContaining("Only the stable");
     }
 
+    @Test
+    void queuedVersionMustMatchTheRegisteredEngine() {
+        RoutingAlgorithm stable = algorithm(RoutingAlgorithmProfile.STABLE);
+        when(stable.version()).thenReturn("global-tree-current");
+        RoutingAlgorithmRegistry registry = new RoutingAlgorithmRegistry(List.of(stable));
+
+        assertThat(registry.requireVersion(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL,
+                "global-tree-current")).isSameAs(stable);
+        assertThatThrownBy(() -> registry.requireVersion(RoutingAlgorithmProfile.STABLE,
+                "global-tree-retired"))
+                .isInstanceOf(RoutingEngineVersionUnavailableException.class)
+                .hasMessageContaining("unavailable");
+    }
+
     private RoutingAlgorithm algorithm(RoutingAlgorithmProfile profile) {
         RoutingAlgorithm algorithm = mock(RoutingAlgorithm.class);
         when(algorithm.profile()).thenReturn(profile);

@@ -80,4 +80,23 @@ class OfficialCalculationServiceTest {
 
         verifyNoInteractions(featureRepository, topologyAnalyzer, algorithmRegistry, routingAlgorithm);
     }
+
+    @Test
+    void resolvesQueuedVersionBeforeLoadingCalculationFeatures() {
+        UUID importId = UUID.randomUUID();
+        OfficialImportView imported = mock(OfficialImportView.class);
+        OfficialInputReport report = mock(OfficialInputReport.class);
+        when(imported.getState()).thenReturn("valid");
+        when(imported.getReport()).thenReturn(report);
+        when(importRepository.find(importId)).thenReturn(Optional.of(imported));
+        when(algorithmRegistry.requireVersion(
+                ru.lct.heatroute.domain.run.RoutingAlgorithmProfile.STABLE, "retired"))
+                .thenThrow(new RoutingEngineVersionUnavailableException("retired", "current"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.calculate(
+                importId, ru.lct.heatroute.domain.run.OfficialRunParameters.defaults(), "retired"))
+                .isInstanceOf(RoutingEngineVersionUnavailableException.class);
+
+        verifyNoInteractions(featureRepository, topologyAnalyzer, routingAlgorithm);
+    }
 }

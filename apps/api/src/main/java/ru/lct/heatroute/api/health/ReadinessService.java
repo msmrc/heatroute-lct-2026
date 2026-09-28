@@ -9,9 +9,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class ReadinessService {
     private final JdbcTemplate jdbcTemplate;
+    private final CpSatCapabilityService cpSatCapabilityService;
 
-    public ReadinessService(JdbcTemplate jdbcTemplate) {
+    public ReadinessService(JdbcTemplate jdbcTemplate, CpSatCapabilityService cpSatCapabilityService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.cpSatCapabilityService = cpSatCapabilityService;
     }
 
     public ReadinessResponse check() {
@@ -22,6 +24,7 @@ public class ReadinessService {
         } catch (DataAccessException exception) {
             checks.put("postgis", DependencyStatus.error("unavailable"));
         }
+        checks.put("cp_sat", cpSatCapabilityService.check());
 
         boolean ready = checks.values().stream().allMatch(value -> "ok".equals(value.getStatus()));
         return new ReadinessResponse(ready ? "ready" : "not_ready", checks);

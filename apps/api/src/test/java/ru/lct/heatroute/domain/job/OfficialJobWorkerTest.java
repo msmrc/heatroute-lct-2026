@@ -30,6 +30,7 @@ import ru.lct.heatroute.domain.routing.RouteConnection;
 import ru.lct.heatroute.domain.routing.RouteCoordinate;
 import ru.lct.heatroute.domain.routing.RouteNode;
 import ru.lct.heatroute.domain.routing.RouteVariant;
+import ru.lct.heatroute.domain.routing.RoutingEngineVersionUnavailableException;
 import ru.lct.heatroute.domain.run.OfficialRunRepository;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.run.OfficialRunView;
@@ -84,7 +85,7 @@ class OfficialJobWorkerTest {
         OfficialRunParameters parameters = prepareRun(runId);
         when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
         when(repository.isCancellationRequested(job.getId())).thenReturn(false);
-        when(calculationService.calculate(job.getImportId(), parameters)).thenReturn(result);
+        when(calculationService.calculate(job.getImportId(), parameters, "r4-test")).thenReturn(result);
 
         worker.poll();
 
@@ -123,7 +124,7 @@ class OfficialJobWorkerTest {
         OfficialRunParameters parameters = prepareRun(runId);
         when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
         when(repository.isCancellationRequested(job.getId())).thenReturn(false);
-        when(calculationService.calculate(job.getImportId(), parameters)).thenReturn(result);
+        when(calculationService.calculate(job.getImportId(), parameters, "r4-test")).thenReturn(result);
 
         worker.poll();
 
@@ -182,7 +183,7 @@ class OfficialJobWorkerTest {
                 1);
         when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
         when(repository.isCancellationRequested(job.getId())).thenReturn(false, true);
-        when(calculationService.calculate(job.getImportId(), parameters)).thenAnswer(invocation -> {
+        when(calculationService.calculate(job.getImportId(), parameters, "r4-test")).thenAnswer(invocation -> {
             entered.countDown();
             try {
                 Thread.sleep(30_000);
@@ -236,6 +237,25 @@ class OfficialJobWorkerTest {
         verify(repository, timeout(2_000)).markCompleted(eq(second.getId()), isA(JsonNode.class));
     }
 
+    @Test
+    void failsQueuedRunWhenItsEngineVersionIsNoLongerAvailable() {
+        UUID runId = UUID.randomUUID();
+        OfficialJobView job = runningJob("calculation", runId);
+        OfficialRunParameters parameters = prepareRun(runId);
+        when(repository.claimNext(isA(UUID.class))).thenReturn(Optional.of(job));
+        when(repository.isCancellationRequested(job.getId())).thenReturn(false);
+        when(calculationService.calculate(job.getImportId(), parameters, "r4-test"))
+                .thenThrow(new RoutingEngineVersionUnavailableException("r4-test", "r5-test"));
+
+        worker.poll();
+
+        verify(runRepository).markFailed(runId, "ENGINE_VERSION_UNAVAILABLE",
+                "The queued routing engine version is not available in this release");
+        verify(repository).markFailed(job.getId(), "ENGINE_VERSION_UNAVAILABLE",
+                "The queued routing engine version is not available in this release");
+        verify(runRepository, never()).markCompleted(eq(runId), isA(JsonNode.class));
+    }
+
     private OfficialJobView runningJob() {
         return runningJob("topology_analysis", null);
     }
@@ -244,6 +264,7 @@ class OfficialJobWorkerTest {
         OfficialRunParameters parameters = OfficialRunParameters.defaults();
         OfficialRunView run = mock(OfficialRunView.class);
         when(run.getParameters()).thenReturn(parameters);
+        when(run.getAlgorithmVersion()).thenReturn("r4-test");
         when(runRepository.find(runId)).thenReturn(Optional.of(run));
         return parameters;
     }

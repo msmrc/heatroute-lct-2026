@@ -38,4 +38,13 @@ public class RoutingAlgorithmRegistry {
         }
         throw new IllegalArgumentException("Unsupported algorithm_profile: " + profile);
     }
+
+    /** Не позволяет очереди молча выполнить сохранённый run другой версией движка. */
+    public RoutingAlgorithm requireVersion(RoutingAlgorithmProfile profile, String expectedVersion) {
+        RoutingAlgorithm algorithm = require(profile);
+        if (expectedVersion == null || !expectedVersion.equals(algorithm.version())) {
+            throw new RoutingEngineVersionUnavailableException(expectedVersion, algorithm.version());
+        }
+        return algorithm;
+    }
 }

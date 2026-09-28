@@ -29,6 +29,7 @@
         <json-schema-validator.version>2.0.3</json-schema-validator.version>
         <commons-lang3.version>3.19.0</commons-lang3.version>
         <snakeyaml.version>1.33</snakeyaml.version>
+        <ortools.version>9.15.6755</ortools.version>
     </properties>
 
     <dependencies>
@@ -93,6 +94,26 @@
             <groupId>org.locationtech.proj4j</groupId>
             <artifactId>proj4j</artifactId>
             <version>${proj4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.ortools</groupId>
+            <artifactId>ortools-java</artifactId>
+            <version>${ortools.version}</version>
+            <exclusions>
+                <!-- Development is Windows x86-64; the packaged target is Linux x86-64. -->
+                <exclusion>
+                    <groupId>com.google.ortools</groupId>
+                    <artifactId>ortools-darwin-x86-64</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.google.ortools</groupId>
+                    <artifactId>ortools-darwin-aarch64</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.google.ortools</groupId>
+                    <artifactId>ortools-linux-aarch64</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

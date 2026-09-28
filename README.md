@@ -57,7 +57,7 @@ flowchart LR
 | Слой | Технологии |
 |---|---|
 | Серверная часть | Java 11, Spring Boot 2.6.3, Spring JDBC, Spring Batch |
-| Геообработка | JTS 1.20, Proj4J 1.4, PostGIS 3.5 |
+| Геообработка и оптимизация | JTS 1.20, Proj4J 1.4, PostGIS 3.5, OR-Tools CP-SAT 9.15 |
 | Хранение данных | PostgreSQL 17, Liquibase |
 | Веб-интерфейс | React 19, TypeScript, Vite, MapLibre GL, TanStack Query, Zustand |
 | API и контракты | REST, OpenAPI/Swagger, GeoJSON, JSON Schema Draft 2020-12 |

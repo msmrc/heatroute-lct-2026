@@ -1,5 +1,47 @@
 # Current implementation progress
 
+## 2026-09-28 — next-generation solver: frozen admission and finite-catalog network master
+
+Implementation continues from [`CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md`](../../CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md)
+without changing the active `stable` planner or its engineering rules. OR-Tools CP-SAT 9.15.6755
+is pinned for Java 11; `CpSatRuntime` loads JNI before model construction, uses one deterministic
+worker and handles stop-before-registration, explicit cancellation and interruption of the Java
+worker during native search. Readiness runs and caches a real known-optimum solve. The API
+Dockerfile is prepared for pinned glibc Ubuntu/Temurin images, non-root UID 10001 and Java/JNA
+temp under `/var/lib/heatroute/tmp`.
+
+The N02 foundation now has a `FrozenNetworkCandidate` ownership boundary and a
+`FrozenNetworkEvaluator`: canonical sizing is returned as an explicit requirement, accepted
+solutions can be constructed only after the existing sizing, depth, obstacle, chamber, bend and
+economics services pass, and topology/XY are protected by a deterministic SHA-256 before and
+after evaluation. `UNKNOWN` and technical `ERROR` remain distinct from a proven engineering
+rejection. Differential official-dataset evidence is still required before N02 can be closed.
+
+The finite-catalog N05 master models selected physical assets, one parent per used non-root node,
+multiple roots, acyclic topology, full demand flow, a single diameter per selected asset, capacity,
+shared fixed cost counted once, and pair/hyper-conflicts. Eighty seeded small catalogs match an
+independent exhaustive oracle; focused cases cover a shared trunk, aggregate flow/DU, multiple
+roots and insufficient capacity. This is an exact optimum only inside the supplied catalog. The
+certified geometry catalog, refinement archive and integration with the user calculation path are
+still open, so the master is deliberately not connected to `stable`.
+
+The earlier N04 slice still models exactly-one port-path choices and sound no-goods. Two safe
+legacy performance changes remove a redundant final PostGIS feature-window load after depth and
+reuse exact bend validation while the geometry snapshot is unchanged. Queued jobs now fence the
+saved algorithm version before loading input features; an unavailable engine version terminates
+with `ENGINE_VERSION_UNAVAILABLE` rather than silently using another implementation. Full
+lease-attempt fencing remains separate open work.
+
+On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
+passes 76/76. A clean fast backend gate passes 2,300 tests with 3 existing skips and zero
+failures/errors in 1:48; a fresh web gate passes 8 Vitest files / 36 tests, 37 Node tests, ESLint
+and TypeScript. The executable JAR contains only the required Windows and Linux
+x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate
+did not run: Docker Desktop fails before build on the pre-existing zero-byte reparse socket
+`C:\Users\dragon\AppData\Local\Docker\run\sailor-ingest.sock` dated 2026-09-16; policy blocked its
+removal. Therefore N01, the N02/N05 acceptance gates and all promotion gates are still open; no
+new official dataset run was made, and no speed-up or competition-ready claim is recorded.
+
 ## 2026-09-28 — source102: камеры напротив ОКС и ортогональные вводы, production PASS
 
 [Подробный source102](PRIMARY_ROUTING_102.md): новые камеры совместно переносятся на нормаль

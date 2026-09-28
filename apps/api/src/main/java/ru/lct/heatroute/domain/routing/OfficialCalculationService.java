@@ -38,17 +38,25 @@ public class OfficialCalculationService {
 
     @Transactional(readOnly = true)
     public OfficialCalculationResult calculate(UUID importId, OfficialRunParameters parameters) {
+        return calculate(importId, parameters, null);
+    }
+
+    /** Исполняет queued run только сохранённой версией алгоритма; null оставлен для синхронных вызовов. */
+    public OfficialCalculationResult calculate(
+            UUID importId, OfficialRunParameters parameters, String expectedAlgorithmVersion) {
         OfficialImportView imported = importRepository.find(importId).orElse(null);
         if (imported == null || !"valid".equals(imported.getState())) {
             return null;
         }
+        RoutingAlgorithm algorithm = expectedAlgorithmVersion == null
+                ? algorithmRegistry.require(parameters.getAlgorithmProfile())
+                : algorithmRegistry.requireVersion(parameters.getAlgorithmProfile(), expectedAlgorithmVersion);
         // Core network and demand types are materialized; bulky restrictions and existing OKS
         // geometries remain behind the PostGIS windowed routing source.
         List<ImportedOfficialFeature> features = new ArrayList<>();
         featureRepository.forEachCalculationCoreByImport(
                 importId, OfficialFeatureRepository.DEFAULT_PAGE_SIZE, features::add);
         TopologyAnalysis topology = topologyAnalyzer.analyze(features);
-        RoutingAlgorithm algorithm = algorithmRegistry.require(parameters.getAlgorithmProfile());
         return algorithm.plan(
                 features,
                 topology,

@@ -5093,8 +5093,10 @@ public class OfficialRoutePlanner {
         List<RouteEdge> profiledEdges = parameters.isDepthEnabled()
                 ? withDepthProfiles(nodes, finalSizedEdges, routeFeatures, parameters)
                 : finalSizedEdges;
-        List<RouteValidationIssue> issues = new ArrayList<>(routingEnvironment.validationFor(validator).validate(nodes, profiledEdges,
-                featuresForEdges(features, profiledEdges, routingEnvironment)));
+        // Depth planner adds profiles but preserves topology, XY, sections and DU, therefore the
+        // exact final windows loaded immediately above remain the correct independent-validation input.
+        List<RouteValidationIssue> issues = new ArrayList<>(routingEnvironment.validationFor(validator)
+                .validate(nodes, profiledEdges, routeFeatures));
         issues.addAll(chamberValidator.validate(nodes, profiledEdges, routingEnvironment::existingDirections));
         issues.addAll(ExpertRouteBendRules.validate(nodes, profiledEdges));
         if (parameters.isDepthEnabled()) {
@@ -5147,7 +5149,8 @@ public class OfficialRoutePlanner {
             Set<String> edgeIds = current.stream().map(RouteEdge::getId).collect(Collectors.toSet());
             Set<String> nonCompliant = new LinkedHashSet<>(
                     engineeringEvaluator.evaluate(current).nonCompliantEdgeIds());
-            for (RouteValidationIssue issue : ExpertRouteBendRules.validate(nodes, current)) {
+            List<RouteValidationIssue> currentBendIssues = ExpertRouteBendRules.validate(nodes, current);
+            for (RouteValidationIssue issue : currentBendIssues) {
                 if (edgeIds.contains(issue.getSubjectId())) {
                     nonCompliant.add(issue.getSubjectId());
                 } else {
@@ -5202,9 +5205,9 @@ public class OfficialRoutePlanner {
                 candidate.set(edgeIndex, candidateEdge);
                 boolean improvesEngineering = engineeringPenalty(after) + LENGTH_EPSILON_M
                         < engineeringPenalty(before);
-                boolean improvesExactSpacing = ExpertRouteBendRules.validate(nodes, candidate).size()
-                        < ExpertRouteBendRules.validate(nodes, current).size();
-                if (!improvesExactSpacing && !ExpertRouteBendRules.validate(nodes, current).isEmpty()) {
+                List<RouteValidationIssue> candidateBendIssues = ExpertRouteBendRules.validate(nodes, candidate);
+                boolean improvesExactSpacing = candidateBendIssues.size() < currentBendIssues.size();
+                if (!improvesExactSpacing && !currentBendIssues.isEmpty()) {
                     RoutePath spaced = obstacleRouter.expandEndpointBendSpacing(
                             edge.getCoordinates().stream().map(RouteCoordinate::toCoordinate)
                                     .collect(Collectors.toList()),
@@ -5217,11 +5220,11 @@ public class OfficialRoutePlanner {
                         after = engineeringEvaluator.evaluate(List.of(candidateEdge));
                         improvesEngineering = engineeringPenalty(after) + LENGTH_EPSILON_M
                                 < engineeringPenalty(before);
-                        improvesExactSpacing = ExpertRouteBendRules.validate(nodes, candidate).size()
-                                < ExpertRouteBendRules.validate(nodes, current).size();
+                        candidateBendIssues = ExpertRouteBendRules.validate(nodes, candidate);
+                        improvesExactSpacing = candidateBendIssues.size() < currentBendIssues.size();
                     }
                 }
-                if (!improvesExactSpacing && !ExpertRouteBendRules.validate(nodes, current).isEmpty()) {
+                if (!improvesExactSpacing && !currentBendIssues.isEmpty()) {
                     List<Coordinate> coordinates = edge.getCoordinates().stream()
                             .map(RouteCoordinate::toCoordinate).collect(Collectors.toList());
                     RoutePath searched = obstacleRouter.find(coordinates.get(0),
@@ -5236,8 +5239,8 @@ public class OfficialRoutePlanner {
                         after = engineeringEvaluator.evaluate(List.of(candidateEdge));
                         improvesEngineering = engineeringPenalty(after) + LENGTH_EPSILON_M
                                 < engineeringPenalty(before);
-                        improvesExactSpacing = ExpertRouteBendRules.validate(nodes, candidate).size()
-                                < ExpertRouteBendRules.validate(nodes, current).size();
+                        candidateBendIssues = ExpertRouteBendRules.validate(nodes, candidate);
+                        improvesExactSpacing = candidateBendIssues.size() < currentBendIssues.size();
                     }
                 }
                 if (!improvesEngineering && !improvesExactSpacing) continue;
@@ -5249,6 +5252,7 @@ public class OfficialRoutePlanner {
                     continue;
                 }
                 current = candidate;
+                currentBendIssues = candidateBendIssues;
                 improved = true;
             }
             if (!improved || engineeringEvaluator.evaluate(current).isCompliant()) {

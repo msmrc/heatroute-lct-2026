@@ -78,15 +78,21 @@ The production snapshot boundary is also executable: the bounded core query now 
 `oks_future` objects, import identity reaches the routing adapter, and `RoutingProblemFactory`
 deterministically resolves mandatory flows and exact existing-network root rays/incidence/diameter.
 The stable adapter still delegates to source102; this is input wiring, not premature promotion.
+An internal `NextGenerationRoutePlanner` now executes that boundary through one deterministic
+feature window, bounded catalog, CP-SAT/refinement, frozen admission and the existing result
+selector under a shared deadline. A production-shaped regression also fixed legal endpoint contact
+with the selected existing heat network. This component is deliberately not a registered
+`RoutingAlgorithm`; unsatisfied seed work remains `CATALOG_INCOMPLETE`. Targeted expansion,
+portfolio enumeration and ordinary job/API/export registration remain open.
 
 Two behavior-preserving legacy optimizations reuse the already loaded final feature window after
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
 mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
-backend passes 2,369/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
+backend passes 2,371/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
 and Compose configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
-Relocated/DU-aware chamber variants, production next-generation planner wiring, official end-to-end run, benchmark, resource and
+Relocated/DU-aware chamber variants, job/API registration, official end-to-end run, benchmark, resource and
 release gates remain open; source102 stays the active baseline and no speed-up is claimed.
 
 ## 2026-09-28 — source102: камеры на нормали ОКС, production PASS

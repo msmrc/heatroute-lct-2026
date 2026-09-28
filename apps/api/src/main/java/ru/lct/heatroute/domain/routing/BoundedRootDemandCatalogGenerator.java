@@ -151,6 +151,9 @@ public final class BoundedRootDemandCatalogGenerator {
             OfficialRoutingEnvironment environment, Options options, State state) {
         Coordinate terminal = coordinate(demand.getLocation());
         Coordinate target = coordinate(root.getLocation());
+        Set<String> rootExemptions = root.getRealization() == null
+                || root.getRealization().getTargetId() == null
+                ? Set.of() : Set.of(root.getRealization().getTargetId());
         List<RoutePath> paths = new ArrayList<>();
         Set<String> signatures = new LinkedHashSet<>();
         Set<String> truncations = new LinkedHashSet<>();
@@ -174,7 +177,7 @@ public final class BoundedRootDemandCatalogGenerator {
                 }
                 state.routeCalls++;
                 RoutePath candidate = router.find(terminal, target, diameter, environment,
-                        Set.of(), preference, List.of(), RouteTraversal.REVERSED);
+                        rootExemptions, preference, List.of(), RouteTraversal.REVERSED);
                 addDistinct(paths, signatures, candidate);
                 if (paths.size() >= options.maxPathsPerPair) {
                     truncations.add("path_limit:" + root.getId() + ":" + demand.getId());
@@ -195,16 +198,16 @@ public final class BoundedRootDemandCatalogGenerator {
                     }
                     state.routeCalls++;
                     RoutePath outside = router.findAfter(egress.start(), egress.exit(), target,
-                            diameter, environment, Collections.emptySet(), preference, List.of(),
+                            diameter, environment, rootExemptions, preference, List.of(),
                             RouteTraversal.REVERSED);
                     if (outside == null) continue;
                     state.regularizationCalls++;
                     RoutePath regularized = router.regularizeAfter(egress.start(),
-                            outside.coordinates(), diameter, environment, Collections.emptySet(),
+                            outside.coordinates(), diameter, environment, rootExemptions,
                             List.of(), RouteTraversal.REVERSED);
                     RoutePath complete = router.withCheckedTerminalPrefix(egress,
                             regularized == null ? outside : regularized, diameter, environment,
-                            Set.of(), List.of(), RouteTraversal.REVERSED);
+                            rootExemptions, List.of(), RouteTraversal.REVERSED);
                     addDistinct(paths, signatures, complete);
                     if (paths.size() >= options.maxPathsPerPair) {
                         truncations.add("path_limit:" + root.getId() + ":" + demand.getId());

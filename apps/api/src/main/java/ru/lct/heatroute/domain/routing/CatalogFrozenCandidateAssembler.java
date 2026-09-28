@@ -21,6 +21,7 @@ import ru.lct.heatroute.domain.catalog.CatalogPhysicalAsset;
 import ru.lct.heatroute.domain.catalog.RoutingCatalogSnapshot;
 import ru.lct.heatroute.domain.catalog.RoutingProblemSnapshot;
 import ru.lct.heatroute.domain.optimization.CpSatNetworkOptimizer;
+import ru.lct.heatroute.domain.optimization.CandidateAssemblyIncompleteException;
 import ru.lct.heatroute.domain.optimization.NetworkConstraintProblem;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
@@ -48,6 +49,32 @@ public final class CatalogFrozenCandidateAssembler {
             Map<String, NodeRealization> explicitNodeRealizations,
             Collection<ImportedOfficialFeature> relevantFeatures,
             EdgeSectionAssembler sectionAssembler) {
+        return assembleDetailedInternal(candidateId, strategy, problemSnapshot, catalogSnapshot,
+                compilation, masterResult, explicitNodeRealizations, relevantFeatures, null,
+                sectionAssembler);
+    }
+
+    public Assembly assembleDetailed(String candidateId, String strategy,
+            RoutingProblemSnapshot problemSnapshot, RoutingCatalogSnapshot catalogSnapshot,
+            CatalogNetworkProblemCompiler.Compilation compilation,
+            CpSatNetworkOptimizer.Result masterResult,
+            Map<String, NodeRealization> explicitNodeRealizations,
+            PreparedRoutingFeatureWindow featureWindow,
+            EdgeSectionAssembler sectionAssembler) {
+        Objects.requireNonNull(featureWindow, "featureWindow");
+        return assembleDetailedInternal(candidateId, strategy, problemSnapshot, catalogSnapshot,
+                compilation, masterResult, explicitNodeRealizations, featureWindow.features(),
+                featureWindow, sectionAssembler);
+    }
+
+    private Assembly assembleDetailedInternal(String candidateId, String strategy,
+            RoutingProblemSnapshot problemSnapshot, RoutingCatalogSnapshot catalogSnapshot,
+            CatalogNetworkProblemCompiler.Compilation compilation,
+            CpSatNetworkOptimizer.Result masterResult,
+            Map<String, NodeRealization> explicitNodeRealizations,
+            Collection<ImportedOfficialFeature> relevantFeatures,
+            PreparedRoutingFeatureWindow featureWindow,
+            EdgeSectionAssembler sectionAssembler) {
         Objects.requireNonNull(problemSnapshot, "problemSnapshot");
         Objects.requireNonNull(catalogSnapshot, "catalogSnapshot");
         Objects.requireNonNull(compilation, "compilation");
@@ -73,14 +100,18 @@ public final class CatalogFrozenCandidateAssembler {
         List<RouteNode> nodes = routeNodes(retainedNodes, masterResult,
                 compilation, routeNodeIds, explicitNodeRealizations);
         EdgeResult edgeResult = routeEdges(arcs, outgoing, retainedNodes,
-                compilation, routeNodeIds, sectionAssembler);
+                compilation, routeNodeIds, explicitNodeRealizations, sectionAssembler);
         List<RouteConnection> connections = connections(compilation);
         boolean reconstructionRequired = arcs.stream().anyMatch(arc ->
                 arc.physicalAsset.getConstructionMode()
                         == CatalogPhysicalAsset.ConstructionMode.RECONSTRUCTION);
-        FrozenNetworkCandidate candidate = new FrozenNetworkCandidate(candidateId, strategy,
-                nodes, edgeResult.edges, connections, new ArrayList<>(relevantFeatures),
-                problemSnapshot.getParameters(), reconstructionRequired);
+        FrozenNetworkCandidate candidate = featureWindow == null
+                ? new FrozenNetworkCandidate(candidateId, strategy, nodes, edgeResult.edges,
+                        connections, new ArrayList<>(relevantFeatures),
+                        problemSnapshot.getParameters(), reconstructionRequired)
+                : new FrozenNetworkCandidate(candidateId, strategy, nodes, edgeResult.edges,
+                        connections, featureWindow, problemSnapshot.getParameters(),
+                        reconstructionRequired);
         return Assembly.of(candidate, edgeResult.arcIdsByEdgeId);
     }
 
@@ -191,12 +222,13 @@ public final class CatalogFrozenCandidateAssembler {
         for (String nodeId : retainedNodes) {
             CatalogNetworkProblemCompiler.NodeBinding binding = compilation.node(nodeId);
             if (!binding.isExplicitPort()) {
-                throw new IllegalArgumentException("A retained physical boundary requires an explicit port: "
-                        + nodeId);
+                throw new CandidateAssemblyIncompleteException("missing_chamber_configuration",
+                        "A retained physical boundary requires an explicit port: " + nodeId);
             }
             NodeRealization realization = explicitRealizations.get(nodeId);
             if (realization == null) {
-                throw new IllegalArgumentException("Missing explicit node realization: " + nodeId);
+                throw new CandidateAssemblyIncompleteException("missing_node_realization",
+                        "Missing explicit node realization: " + nodeId);
             }
             boolean root = master.getSelectedRoots().contains(nodeId);
             RouteCoordinate coordinate = coordinate(binding);
@@ -212,6 +244,7 @@ public final class CatalogFrozenCandidateAssembler {
             Map<String, List<SelectedArc>> outgoing, Set<String> retainedNodes,
             CatalogNetworkProblemCompiler.Compilation compilation,
             Map<String, String> routeNodeIds,
+            Map<String, NodeRealization> explicitNodeRealizations,
             EdgeSectionAssembler sectionAssembler) {
         Set<String> covered = new LinkedHashSet<>();
         List<RouteEdge> result = new ArrayList<>();
@@ -228,7 +261,8 @@ public final class CatalogFrozenCandidateAssembler {
                 if (next.size() != 1) throw new IllegalStateException("Unretained node is not a chain node");
                 current = next.get(0);
             }
-            RouteEdge edge = routeEdge(chain, compilation, routeNodeIds, sectionAssembler);
+            RouteEdge edge = routeEdge(chain, compilation, routeNodeIds,
+                    explicitNodeRealizations, sectionAssembler);
             result.add(edge);
             List<String> chainArcIds = new ArrayList<>();
             for (SelectedArc arc : chain) chainArcIds.add(arc.id);
@@ -250,6 +284,7 @@ public final class CatalogFrozenCandidateAssembler {
     private static RouteEdge routeEdge(List<SelectedArc> chain,
             CatalogNetworkProblemCompiler.Compilation compilation,
             Map<String, String> routeNodeIds,
+            Map<String, NodeRealization> explicitNodeRealizations,
             EdgeSectionAssembler sectionAssembler) {
         List<RouteCoordinate> coordinates = new ArrayList<>();
         List<String> assetIds = new ArrayList<>();
@@ -268,11 +303,17 @@ public final class CatalogFrozenCandidateAssembler {
             arcIds.add(arc.id);
         }
         String edgeId = "edge:" + sha256(arcIds);
-        EdgeAssembly edgeAssembly = new EdgeAssembly(edgeId, arcIds, assetIds, coordinates);
-        List<RouteSection> sections = Objects.requireNonNull(
-                sectionAssembler.sections(edgeAssembly), "assembled sections");
         SelectedArc first = chain.get(0);
         SelectedArc last = chain.get(chain.size() - 1);
+        NodeRealization upstream = explicitNodeRealizations.get(first.fromNodeId);
+        if (upstream == null) {
+            throw new CandidateAssemblyIncompleteException("missing_node_realization",
+                    "Missing upstream node realization for edge " + edgeId);
+        }
+        EdgeAssembly edgeAssembly = new EdgeAssembly(edgeId, arcIds, assetIds, coordinates,
+                first.diameterMm, upstream.targetId);
+        List<RouteSection> sections = Objects.requireNonNull(
+                sectionAssembler.sections(edgeAssembly), "assembled sections");
         return new RouteEdge(edgeId, routeNodeIds.get(first.fromNodeId), routeNodeIds.get(last.toNodeId),
                 lengthM(coordinates), coordinates, sections,
                 BigDecimal.valueOf(first.flowUnits, compilation.getFlowScaleDecimals()),
@@ -339,19 +380,27 @@ public final class CatalogFrozenCandidateAssembler {
         private final List<String> arcIds;
         private final List<String> physicalAssetIds;
         private final List<RouteCoordinate> coordinates;
+        private final int diameterMm;
+        private final String upstreamTargetId;
 
-        private EdgeAssembly(String edgeId, List<String> arcIds,
-                List<String> physicalAssetIds, List<RouteCoordinate> coordinates) {
+        EdgeAssembly(String edgeId, List<String> arcIds,
+                List<String> physicalAssetIds, List<RouteCoordinate> coordinates,
+                int diameterMm, String upstreamTargetId) {
             this.edgeId = edgeId;
             this.arcIds = List.copyOf(arcIds);
             this.physicalAssetIds = List.copyOf(physicalAssetIds);
             this.coordinates = List.copyOf(coordinates);
+            if (diameterMm <= 0) throw new IllegalArgumentException("Positive edge diameter is required");
+            this.diameterMm = diameterMm;
+            this.upstreamTargetId = upstreamTargetId;
         }
 
         public String getEdgeId() { return edgeId; }
         public List<String> getArcIds() { return arcIds; }
         public List<String> getPhysicalAssetIds() { return physicalAssetIds; }
         public List<RouteCoordinate> getCoordinates() { return coordinates; }
+        public int getDiameterMm() { return diameterMm; }
+        public String getUpstreamTargetId() { return upstreamTargetId; }
     }
 
     /** Frozen candidate plus exact correspondence back to selected master arcs. */

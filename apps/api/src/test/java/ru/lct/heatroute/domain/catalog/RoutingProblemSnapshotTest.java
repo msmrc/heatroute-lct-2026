@@ -58,6 +58,32 @@ class RoutingProblemSnapshotTest {
         assertThat(second.getSnapshotHash()).isEqualTo(first.getSnapshotHash());
     }
 
+    @Test
+    void exactRootRealizationParticipatesInTheSnapshotIdentity() {
+        RoutingProblemSnapshot.RootRealization firstRealization =
+                new RoutingProblemSnapshot.RootRealization(
+                        "existing_chamber_tie_in", true, 1, "chamber-1", 200);
+        RoutingProblemSnapshot.RootCandidate firstRoot = new RoutingProblemSnapshot.RootCandidate(
+                "root-1", new CatalogMetricPoint(0, 0),
+                List.of(new RoutingProblemSnapshot.DirectionVector(1, 0)), firstRealization);
+        RoutingProblemSnapshot.RootCandidate secondRoot = new RoutingProblemSnapshot.RootCandidate(
+                "root-1", new CatalogMetricPoint(0, 0),
+                List.of(new RoutingProblemSnapshot.DirectionVector(1, 0)),
+                new RoutingProblemSnapshot.RootRealization(
+                        "existing_chamber_tie_in", true, 1, "chamber-1", 250));
+
+        assertThat(snapshot(List.of(new RoutingProblemSnapshot.Demand(
+                "demand", BigDecimal.ONE, new CatalogMetricPoint(1, 1), null)),
+                List.of(firstRoot)).getSnapshotHash()).isNotEqualTo(
+                        snapshot(List.of(new RoutingProblemSnapshot.Demand(
+                                "demand", BigDecimal.ONE, new CatalogMetricPoint(1, 1), null)),
+                                List.of(secondRoot)).getSnapshotHash());
+        assertThatThrownBy(() -> new RoutingProblemSnapshot.RootCandidate(
+                "root-1", new CatalogMetricPoint(0, 0), List.of(), firstRealization))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("incidence");
+    }
+
     private RoutingProblemSnapshot snapshot(List<RoutingProblemSnapshot.Demand> demands) {
         return snapshot(demands, List.of(new RoutingProblemSnapshot.RootCandidate(
                 "root-1", new CatalogMetricPoint(0, 0), List.of())));

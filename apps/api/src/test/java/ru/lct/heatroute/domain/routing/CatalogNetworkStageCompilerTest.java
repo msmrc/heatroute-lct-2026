@@ -3,6 +3,7 @@ package ru.lct.heatroute.domain.routing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -11,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.io.WKTReader;
 import ru.lct.heatroute.domain.catalog.CatalogBuildResult;
 import ru.lct.heatroute.domain.catalog.CatalogMetricPoint;
 import ru.lct.heatroute.domain.catalog.CatalogNetworkProblemCompiler;
@@ -34,6 +36,7 @@ import ru.lct.heatroute.domain.optimization.CpSatNetworkOptimizer;
 import ru.lct.heatroute.domain.optimization.CpSatRuntime;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.sizing.OfficialNetworkSizer;
+import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 class CatalogNetworkStageCompilerTest {
     private final OfficialPipeCatalog pipes = new OfficialPipeCatalog();
@@ -58,7 +61,8 @@ class CatalogNetworkStageCompilerTest {
                     throw new AssertionError("Complete one-route catalog must not expand");
                 }, settings());
 
-        assertThat(result.getOutcome()).isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
+        assertThat(result.getOutcome()).as(result.getReason())
+                .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
         assertThat(result.getAccepted()).isSameAs(archive.best());
         assertThat(result.getAccepted().getId()).startsWith("network-");
         assertThat(result.getAccepted().getConnections()).singleElement().satisfies(connection -> {
@@ -75,21 +79,30 @@ class CatalogNetworkStageCompilerTest {
     }
 
     @Test
-    void executesARealBoundedRouterCatalogThroughTheExactStage() {
+    void executesARealBoundedRouterCatalogThroughTheExactStage() throws Exception {
         RoutingProblemSnapshot problem = problem();
         OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
-        BoundedRootDemandCatalogGenerator.GeneratedCatalog generated =
-                new BoundedRootDemandCatalogGenerator(
-                        new OfficialObstacleRouter(geometryRules), pipes).generate(
-                        problem, List.of(),
+        ImportedOfficialFeature road = new ImportedOfficialFeature(
+                "road-1", "restriction",
+                new ObjectMapper().readTree("{\"restriction_type\":\"road\"}"),
+                new WKTReader().read(
+                        "POLYGON ((8 -10, 12 -10, 12 10, 8 10, 8 -10))"));
+        List<ImportedOfficialFeature> features = List.of(road);
+        CountingObstacleRouter router = new CountingObstacleRouter(geometryRules);
+        BoundedCatalogNetworkStageFactory.Preparation prepared =
+                new BoundedCatalogNetworkStageFactory(
+                        new RoutingFeatureWindowFactory(router),
+                        new BoundedRootDemandCatalogGenerator(router, pipes),
+                        new CatalogProblemNodeRealizationResolver(),
+                        new CatalogEdgeSectionAssemblerFactory(router), compiler).prepare(
+                        problem, features,
                         BoundedRootDemandCatalogGenerator.Options.bounded(
-                                Duration.ofSeconds(10), 8, 32, 4, 4));
-        AdaptiveCatalogNetworkSearch.Stage stage = compiler.compile(
-                problem, generated.getBuildResult(), generated.getDemandPortById(),
-                generated.getRootPortById(), 3, "frozen-evaluator-1", "generated-network",
-                "nextgen-bounded", compilation -> realizations(compilation), List.of(),
-                edge -> List.of(baseSection(edge)));
+                                Duration.ofSeconds(10), 8, 32, 4, 4),
+                        3, "frozen-evaluator-1", "generated-network", "nextgen-bounded");
+        AdaptiveCatalogNetworkSearch.Stage stage = prepared.getStage().orElseThrow();
+        CatalogEdgeSectionAssemblerFactory.PreparedAssembler sectionAssembler =
+                prepared.getSectionAssembler();
         AdaptiveCatalogNetworkSearch search = new AdaptiveCatalogNetworkSearch(
                 new CatalogFrozenNetworkRefinement(
                         new CpSatNetworkOptimizer(new CpSatRuntime()), evaluator()));
@@ -99,11 +112,21 @@ class CatalogNetworkStageCompilerTest {
                     throw new AssertionError("A valid bounded seed must be admitted before expansion");
                 }, settings());
 
-        assertThat(result.getOutcome()).isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
+        assertThat(result.getOutcome()).as(result.getReason())
+                .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
         assertThat(result.getAccepted().getStrategy()).isEqualTo("nextgen-bounded");
+        assertThat(router.getPrepareCalls()).isEqualTo(1);
+        assertThat(prepared.getFeatureWindow().size()).isEqualTo(1);
+        assertThat(sectionAssembler.getAssemblyCalls()).isEqualTo(1);
+        assertThat(sectionAssembler.getFallbackAssemblies()).isZero();
         assertThat(result.getAccepted().getEdges()).singleElement().satisfies(edge -> {
             assertThat(edge.getLengthM()).isEqualByComparingTo("20.000");
             assertThat(edge.getDiameter()).isEqualTo(50);
+            assertThat(edge.getSections()).anySatisfy(section -> {
+                assertThat(section.getKind()).isEqualTo("special");
+                assertThat(section.getRestrictionType()).isEqualTo("road");
+                assertThat(section.getRestrictionId()).isEqualTo("road-1");
+            });
         });
     }
 
@@ -122,6 +145,68 @@ class CatalogNetworkStageCompilerTest {
                 compilation -> Map.of(), List.of(), edge -> List.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("another problem/rule scope");
+    }
+
+    @Test
+    void refusesToInventMissingRootNodeSemantics() {
+        RoutingProblemSnapshot unresolved = new RoutingProblemSnapshot(
+                UUID.fromString("00000000-0000-0000-0000-000000000002"),
+                "source-2", "extended", "nextgen-1", "official", "rules-1",
+                "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
+                List.of(new RoutingProblemSnapshot.Demand(
+                        "one", BigDecimal.ONE, new CatalogMetricPoint(20_000, 0), "connection-one")),
+                List.of(new RoutingProblemSnapshot.RootCandidate(
+                        "root", new CatalogMetricPoint(0, 0), List.of())));
+        OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
+                new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
+        BoundedRootDemandCatalogGenerator.GeneratedCatalog generated =
+                new BoundedRootDemandCatalogGenerator(
+                        new OfficialObstacleRouter(geometryRules), pipes).generate(
+                        unresolved, List.of(),
+                        BoundedRootDemandCatalogGenerator.Options.bounded(
+                                Duration.ofSeconds(10), 8, 32, 4, 4));
+        CatalogNetworkProblemCompiler.Compilation compilation =
+                new CatalogNetworkProblemCompiler(pipes).compile(unresolved,
+                        generated.getBuildResult().getSnapshot(),
+                        generated.getDemandPortById(), generated.getRootPortById(), 3);
+
+        assertThatThrownBy(() -> new CatalogProblemNodeRealizationResolver().resolve(
+                unresolved, compilation, generated.getDemandPortById(),
+                generated.getRootPortById()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("lacks exact node realization");
+    }
+
+    @Test
+    void keepsAnEmptyBoundedCatalogAsIncompletePreparationWithoutBuildingAMaster() {
+        RoutingProblemSnapshot coincident = new RoutingProblemSnapshot(
+                UUID.fromString("00000000-0000-0000-0000-000000000003"),
+                "source-3", "extended", "nextgen-1", "official", "rules-1",
+                "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
+                List.of(new RoutingProblemSnapshot.Demand(
+                        "one", BigDecimal.ONE, new CatalogMetricPoint(0, 0), null)),
+                List.of(new RoutingProblemSnapshot.RootCandidate(
+                        "root", new CatalogMetricPoint(0, 0), List.of(),
+                        new RoutingProblemSnapshot.RootRealization(
+                                "existing_root", true, 0, "root", null))));
+        OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
+                new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
+        OfficialObstacleRouter router = new OfficialObstacleRouter(geometryRules);
+        BoundedCatalogNetworkStageFactory.Preparation preparation =
+                new BoundedCatalogNetworkStageFactory(
+                        new RoutingFeatureWindowFactory(router),
+                        new BoundedRootDemandCatalogGenerator(router, pipes),
+                        new CatalogProblemNodeRealizationResolver(),
+                        new CatalogEdgeSectionAssemblerFactory(router), compiler).prepare(
+                        coincident, List.of(),
+                        BoundedRootDemandCatalogGenerator.Options.bounded(
+                                Duration.ofSeconds(10), 8, 32, 4, 4),
+                        3, "frozen-evaluator-1", "network", "nextgen-bounded");
+
+        assertThat(preparation.getStage()).isEmpty();
+        assertThat(preparation.getGeneratedCatalog().getBuildResult().isComplete()).isFalse();
+        assertThat(preparation.getGeneratedCatalog().getBuildResult().getRemainingWork())
+                .contains("unrouted-pair:root:one");
     }
 
     private CatalogBuildResult build(RoutingProblemSnapshot problem, String version) {
@@ -162,17 +247,6 @@ class CatalogNetworkStageCompilerTest {
         return result;
     }
 
-    private RouteSection baseSection(CatalogFrozenCandidateAssembler.EdgeAssembly edge) {
-        double length = 0.0;
-        for (int index = 1; index < edge.getCoordinates().size(); index++) {
-            RouteCoordinate left = edge.getCoordinates().get(index - 1);
-            RouteCoordinate right = edge.getCoordinates().get(index);
-            length += Math.hypot(right.getXM().doubleValue() - left.getXM().doubleValue(),
-                    right.getYM().doubleValue() - left.getYM().doubleValue());
-        }
-        return new RouteSection("base", null, null, edge.getCoordinates(), length, null);
-    }
-
     private RoutingProblemSnapshot problem() {
         return new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000001"),
@@ -181,7 +255,9 @@ class CatalogNetworkStageCompilerTest {
                 List.of(new RoutingProblemSnapshot.Demand(
                         "one", BigDecimal.ONE, new CatalogMetricPoint(20_000, 0), "connection-one")),
                 List.of(new RoutingProblemSnapshot.RootCandidate(
-                        "root", new CatalogMetricPoint(0, 0), List.of())));
+                        "root", new CatalogMetricPoint(0, 0), List.of(),
+                        new RoutingProblemSnapshot.RootRealization(
+                                "existing_root", true, 0, "root", null))));
     }
 
     private FrozenNetworkEvaluator evaluator() {
@@ -204,5 +280,19 @@ class CatalogNetworkStageCompilerTest {
                 30, TimeUnit.SECONDS, 1, TimeUnit.SECONDS,
                 15, TimeUnit.SECONDS, 1, TimeUnit.SECONDS,
                 0, 5, 2026);
+    }
+
+    private static final class CountingObstacleRouter extends OfficialObstacleRouter {
+        private int prepareCalls;
+
+        private CountingObstacleRouter(OfficialRouteGeometryRules rules) { super(rules); }
+
+        @Override
+        OfficialRoutingEnvironment prepare(List<ImportedOfficialFeature> features) {
+            prepareCalls++;
+            return super.prepare(features);
+        }
+
+        private int getPrepareCalls() { return prepareCalls; }
     }
 }

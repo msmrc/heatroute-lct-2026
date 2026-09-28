@@ -71,7 +71,9 @@ public final class FrozenNetworkEvaluator {
                     : sized;
             ensureGeometryUnchanged(originalHash, candidate.getNodes(), assessed);
 
-            OfficialRoutingEnvironment environment = obstacleRouter.prepare(candidate.getRelevantFeatures());
+            OfficialRoutingEnvironment environment = candidate.preparedEnvironment() == null
+                    ? obstacleRouter.prepare(candidate.getRelevantFeatures())
+                    : candidate.preparedEnvironment();
             List<RouteValidationIssue> issues = new ArrayList<>(environment.validationFor(validator).validate(
                     candidate.getNodes(), assessed, candidate.getRelevantFeatures()));
             issues.addAll(chamberValidator.validate(candidate.getNodes(), assessed, environment::existingDirections));

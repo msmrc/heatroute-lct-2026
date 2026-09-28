@@ -1,6 +1,5 @@
 package ru.lct.heatroute.domain.routing;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -57,16 +56,21 @@ public final class BoundedRootDemandCatalogGenerator {
 
     public GeneratedCatalog generate(RoutingProblemSnapshot problem,
             Collection<ImportedOfficialFeature> relevantFeatures, Options options) {
+        return generate(problem, PreparedRoutingFeatureWindow.prepare(router, relevantFeatures), options);
+    }
+
+    public GeneratedCatalog generate(RoutingProblemSnapshot problem,
+            PreparedRoutingFeatureWindow featureWindow, Options options) {
         Objects.requireNonNull(problem, "problem");
-        Objects.requireNonNull(relevantFeatures, "relevantFeatures");
+        Objects.requireNonNull(featureWindow, "featureWindow");
         Objects.requireNonNull(options, "options");
-        List<ImportedOfficialFeature> features = frozenFeatures(relevantFeatures);
+        List<ImportedOfficialFeature> features = featureWindow.features();
         String windowFingerprint = windowFingerprint(problem.getSnapshotHash(), features);
         long started = System.nanoTime();
         State state = new State(saturatingAdd(started, options.timeBudgetNanos));
         ProbeDiameter probe = probeDiameter(problem);
         int probeDiameter = probe.diameterMm;
-        OfficialRoutingEnvironment environment = router.prepare(features);
+        OfficialRoutingEnvironment environment = featureWindow.environment();
 
         Map<String, String> demandPorts = new LinkedHashMap<>();
         for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
@@ -333,21 +337,6 @@ public final class BoundedRootDemandCatalogGenerator {
         values.add(windowFingerprint);
         paths.stream().map(path -> path.id).sorted().forEach(values::add);
         return GENERATOR_ID + "-" + GENERATOR_VERSION + "-" + sha256(values).substring(0, 16);
-    }
-
-    private static List<ImportedOfficialFeature> frozenFeatures(
-            Collection<ImportedOfficialFeature> supplied) {
-        List<ImportedOfficialFeature> result = new ArrayList<>(supplied.size());
-        for (ImportedOfficialFeature feature : supplied) {
-            Objects.requireNonNull(feature, "relevant feature");
-            JsonNode attributes = feature.getAttributes();
-            Geometry geometry = feature.getMetricGeometry();
-            result.add(new ImportedOfficialFeature(feature.getFeatureId(), feature.getObjectType(),
-                    attributes == null ? null : attributes.deepCopy(),
-                    geometry == null ? null : geometry.copy()));
-        }
-        result.sort(Comparator.comparing(ImportedOfficialFeature::getFeatureId));
-        return List.copyOf(result);
     }
 
     private static String windowFingerprint(String snapshotHash,

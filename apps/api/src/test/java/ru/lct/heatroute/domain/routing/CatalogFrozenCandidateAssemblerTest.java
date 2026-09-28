@@ -21,6 +21,7 @@ import ru.lct.heatroute.domain.catalog.RoutingProblemSnapshot;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.optimization.CpSatNetworkOptimizer;
 import ru.lct.heatroute.domain.optimization.CpSatRuntime;
+import ru.lct.heatroute.domain.optimization.CandidateAssemblyIncompleteException;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
 
 class CatalogFrozenCandidateAssemblerTest {
@@ -110,7 +111,7 @@ class CatalogFrozenCandidateAssemblerTest {
                 fixture.catalog, fixture.compilation, solved,
                 Map.of("root-port", node("existing_root", true, "root")),
                 List.of(), edge -> List.of()))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(CandidateAssemblyIncompleteException.class)
                 .hasMessageContaining("Missing explicit node realization");
 
         FrozenNetworkCandidate candidate = assembler.assemble("candidate", "nextgen", problem,

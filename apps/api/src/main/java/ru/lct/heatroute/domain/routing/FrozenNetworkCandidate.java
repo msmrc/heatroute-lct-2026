@@ -24,6 +24,7 @@ public final class FrozenNetworkCandidate {
     private final List<RouteEdge> edges;
     private final List<RouteConnection> connections;
     private final List<ImportedOfficialFeature> relevantFeatures;
+    private final OfficialRoutingEnvironment preparedEnvironment;
     private final OfficialRunParameters parameters;
     private final boolean reconstructionRequired;
     private final String geometryHash;
@@ -37,12 +38,41 @@ public final class FrozenNetworkCandidate {
             List<ImportedOfficialFeature> relevantFeatures,
             OfficialRunParameters parameters,
             boolean reconstructionRequired) {
+        this(id, strategy, nodes, edges, connections, relevantFeatures, null,
+                parameters, reconstructionRequired);
+    }
+
+    FrozenNetworkCandidate(
+            String id,
+            String strategy,
+            List<RouteNode> nodes,
+            List<RouteEdge> edges,
+            List<RouteConnection> connections,
+            PreparedRoutingFeatureWindow featureWindow,
+            OfficialRunParameters parameters,
+            boolean reconstructionRequired) {
+        this(id, strategy, nodes, edges, connections,
+                Objects.requireNonNull(featureWindow, "featureWindow").features(),
+                featureWindow.environment(), parameters, reconstructionRequired);
+    }
+
+    private FrozenNetworkCandidate(
+            String id,
+            String strategy,
+            List<RouteNode> nodes,
+            List<RouteEdge> edges,
+            List<RouteConnection> connections,
+            List<ImportedOfficialFeature> relevantFeatures,
+            OfficialRoutingEnvironment preparedEnvironment,
+            OfficialRunParameters parameters,
+            boolean reconstructionRequired) {
         this.id = required(id, "candidate id");
         this.strategy = required(strategy, "strategy");
         this.nodes = List.copyOf(Objects.requireNonNull(nodes, "nodes"));
         this.edges = List.copyOf(Objects.requireNonNull(edges, "edges"));
         this.connections = List.copyOf(Objects.requireNonNull(connections, "connections"));
         this.relevantFeatures = freezeFeatures(relevantFeatures);
+        this.preparedEnvironment = preparedEnvironment;
         this.parameters = Objects.requireNonNull(parameters, "parameters").validated();
         this.reconstructionRequired = reconstructionRequired;
         this.geometryHash = geometryHash(this.nodes, this.edges);
@@ -57,6 +87,7 @@ public final class FrozenNetworkCandidate {
     public OfficialRunParameters getParameters() { return parameters; }
     public boolean isReconstructionRequired() { return reconstructionRequired; }
     public String getGeometryHash() { return geometryHash; }
+    OfficialRoutingEnvironment preparedEnvironment() { return preparedEnvironment; }
 
     static String geometryHash(List<RouteNode> nodes, List<RouteEdge> edges) {
         try {

@@ -91,6 +91,12 @@ public final class RoutingProblemSnapshot {
                 for (DirectionVector direction : root.existingDirections) {
                     update(digest, direction.deltaXMm, direction.deltaYMm);
                 }
+                update(digest, root.realization == null ? "unresolved" : "resolved");
+                if (root.realization != null) {
+                    update(digest, root.realization.nodeType, root.realization.chamber,
+                            root.realization.baseIncidentSections, root.realization.targetId,
+                            root.realization.existingIncidentDiameter);
+                }
             }
             try (Formatter formatter = new Formatter(java.util.Locale.ROOT)) {
                 for (byte value : digest.digest()) formatter.format("%02x", value);
@@ -154,9 +160,15 @@ public final class RoutingProblemSnapshot {
         private final String id;
         private final CatalogMetricPoint location;
         private final List<DirectionVector> existingDirections;
+        private final RootRealization realization;
 
         public RootCandidate(String id, CatalogMetricPoint location,
                 Collection<DirectionVector> existingDirections) {
+            this(id, location, existingDirections, null);
+        }
+
+        public RootCandidate(String id, CatalogMetricPoint location,
+                Collection<DirectionVector> existingDirections, RootRealization realization) {
             this.id = required(id, "root ID");
             this.location = Objects.requireNonNull(location, "location");
             if (existingDirections == null || existingDirections.stream().anyMatch(Objects::isNull)) {
@@ -171,11 +183,49 @@ public final class RoutingProblemSnapshot {
                 }
             }
             this.existingDirections = List.copyOf(ordered);
+            if (realization != null
+                    && realization.getBaseIncidentSections() != this.existingDirections.size()) {
+                throw new IllegalArgumentException(
+                        "Root realization incidence must match existing directions");
+            }
+            this.realization = realization;
         }
 
         public String getId() { return id; }
         public CatalogMetricPoint getLocation() { return location; }
         public List<DirectionVector> getExistingDirections() { return existingDirections; }
+        public RootRealization getRealization() { return realization; }
+    }
+
+    /** Точная семантика корневого узла, которую нельзя восстанавливать эвристикой из координат. */
+    public static final class RootRealization {
+        private final String nodeType;
+        private final boolean chamber;
+        private final int baseIncidentSections;
+        private final String targetId;
+        private final Integer existingIncidentDiameter;
+
+        public RootRealization(String nodeType, boolean chamber, int baseIncidentSections,
+                String targetId, Integer existingIncidentDiameter) {
+            this.nodeType = required(nodeType, "root node type");
+            if (!chamber) throw new IllegalArgumentException("A routing root must be a chamber");
+            if (baseIncidentSections < 0) {
+                throw new IllegalArgumentException("Root incidence cannot be negative");
+            }
+            this.chamber = true;
+            this.baseIncidentSections = baseIncidentSections;
+            this.targetId = required(targetId, "root target ID");
+            if (existingIncidentDiameter != null && existingIncidentDiameter <= 0) {
+                throw new IllegalArgumentException("Existing root diameter must be positive");
+            }
+            this.existingIncidentDiameter = existingIncidentDiameter;
+        }
+
+        public String getNodeType() { return nodeType; }
+        public boolean isChamber() { return chamber; }
+        public int getBaseIncidentSections() { return baseIncidentSections; }
+        public String getTargetId() { return targetId; }
+        public Integer getExistingIncidentDiameter() { return existingIncidentDiameter; }
     }
 
     /** Направление существующего луча без изменяемого JTS Coordinate. */

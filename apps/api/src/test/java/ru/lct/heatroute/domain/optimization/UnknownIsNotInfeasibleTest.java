@@ -35,6 +35,30 @@ class UnknownIsNotInfeasibleTest {
     }
 
     @Test
+    void incompleteCandidateAssemblyRequestsCatalogExpansionWithoutACut() {
+        NetworkConstraintProblem problem = twoRoots();
+        ConflictStore store = new ConflictStore();
+        AtomicInteger evaluations = new AtomicInteger();
+
+        CpSatNetworkRefinement.Result<String> result = refinement.solve(
+                problem, identity(problem), store,
+                master -> {
+                    throw new CandidateAssemblyIncompleteException(
+                            "missing_chamber_configuration", "junction has no chamber option");
+                }, candidate -> {
+                    evaluations.incrementAndGet();
+                    return CpSatNetworkRefinement.Assessment.accepted(candidate);
+                }, settings());
+
+        assertThat(result.getOutcome()).isEqualTo(
+                CpSatNetworkRefinement.Outcome.SEARCH_LIMIT_REACHED);
+        assertThat(result.getReason()).isEqualTo(
+                "candidate_catalog_incomplete:missing_chamber_configuration");
+        assertThat(evaluations).hasValue(0);
+        assertThat(store.size()).isZero();
+    }
+
+    @Test
     void provenConflictIsStoredAndNextMasterCandidateCanBeAccepted() {
         NetworkConstraintProblem problem = twoRoots();
         CatalogIdentity identity = identity(problem);

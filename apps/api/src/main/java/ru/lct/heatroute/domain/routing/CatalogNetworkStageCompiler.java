@@ -40,13 +40,41 @@ public final class CatalogNetworkStageCompiler {
             NodeRealizationResolver nodeRealizationResolver,
             Collection<ImportedOfficialFeature> relevantFeatures,
             CatalogFrozenCandidateAssembler.EdgeSectionAssembler sectionAssembler) {
+        return compileInternal(problemSnapshot, buildResult, demandPortById, rootPortById,
+                flowScaleDecimals, checkerVersion, candidateIdPrefix, strategy,
+                nodeRealizationResolver, relevantFeatures, null, sectionAssembler);
+    }
+
+    public AdaptiveCatalogNetworkSearch.Stage compilePrepared(
+            RoutingProblemSnapshot problemSnapshot,
+            CatalogBuildResult buildResult, Map<String, String> demandPortById,
+            Map<String, String> rootPortById, int flowScaleDecimals,
+            String checkerVersion, String candidateIdPrefix, String strategy,
+            NodeRealizationResolver nodeRealizationResolver,
+            PreparedRoutingFeatureWindow featureWindow,
+            CatalogFrozenCandidateAssembler.EdgeSectionAssembler sectionAssembler) {
+        Objects.requireNonNull(featureWindow, "featureWindow");
+        return compileInternal(problemSnapshot, buildResult, demandPortById, rootPortById,
+                flowScaleDecimals, checkerVersion, candidateIdPrefix, strategy,
+                nodeRealizationResolver, null, featureWindow, sectionAssembler);
+    }
+
+    private AdaptiveCatalogNetworkSearch.Stage compileInternal(
+            RoutingProblemSnapshot problemSnapshot,
+            CatalogBuildResult buildResult, Map<String, String> demandPortById,
+            Map<String, String> rootPortById, int flowScaleDecimals,
+            String checkerVersion, String candidateIdPrefix, String strategy,
+            NodeRealizationResolver nodeRealizationResolver,
+            Collection<ImportedOfficialFeature> relevantFeatures,
+            PreparedRoutingFeatureWindow featureWindow,
+            CatalogFrozenCandidateAssembler.EdgeSectionAssembler sectionAssembler) {
         Objects.requireNonNull(problemSnapshot, "problemSnapshot");
         Objects.requireNonNull(buildResult, "buildResult");
         String checker = required(checkerVersion, "checker version");
         String idPrefix = required(candidateIdPrefix, "candidate ID prefix");
         String candidateStrategy = required(strategy, "strategy");
         Objects.requireNonNull(nodeRealizationResolver, "nodeRealizationResolver");
-        Objects.requireNonNull(relevantFeatures, "relevantFeatures");
+        if (featureWindow == null) Objects.requireNonNull(relevantFeatures, "relevantFeatures");
         Objects.requireNonNull(sectionAssembler, "sectionAssembler");
         RoutingCatalogSnapshot catalog = buildResult.getSnapshot();
         if (!problemSnapshot.getSnapshotHash().equals(catalog.getSourceSnapshotHash())
@@ -60,15 +88,21 @@ public final class CatalogNetworkStageCompiler {
         Map<String, CatalogFrozenCandidateAssembler.NodeRealization> nodeRealizations = Map.copyOf(
                 Objects.requireNonNull(nodeRealizationResolver.resolve(compilation),
                         "node realizations"));
-        List<ImportedOfficialFeature> features = freezeFeatures(relevantFeatures);
+        List<ImportedOfficialFeature> features = featureWindow == null
+                ? freezeFeatures(relevantFeatures) : null;
         CatalogIdentity identity = CatalogIdentity.fromProblem(
                 catalog.getSourceSnapshotHash(), catalog.getRuleId(), catalog.getRuleVersion(),
                 checker, catalog.getCatalogHash(), compilation.getProblem());
         CatalogFrozenNetworkRefinement.CandidateFactory candidateFactory = master ->
-                candidateAssembler.assembleDetailed(
-                        candidateId(idPrefix, master), candidateStrategy,
-                        problemSnapshot, catalog, compilation, master, nodeRealizations,
-                        features, sectionAssembler);
+                featureWindow == null
+                        ? candidateAssembler.assembleDetailed(
+                                candidateId(idPrefix, master), candidateStrategy,
+                                problemSnapshot, catalog, compilation, master, nodeRealizations,
+                                features, sectionAssembler)
+                        : candidateAssembler.assembleDetailed(
+                                candidateId(idPrefix, master), candidateStrategy,
+                                problemSnapshot, catalog, compilation, master, nodeRealizations,
+                                featureWindow, sectionAssembler);
         return new AdaptiveCatalogNetworkSearch.Stage(
                 buildResult, compilation.getProblem(), identity, candidateFactory);
     }

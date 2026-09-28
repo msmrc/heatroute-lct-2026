@@ -64,6 +64,9 @@ public final class CpSatNetworkRefinement<C> {
                 assessment = Objects.requireNonNull(evaluator.evaluate(candidate), "assessment");
             } catch (CancellationException exception) {
                 throw exception;
+            } catch (CandidateAssemblyIncompleteException exception) {
+                return Result.ended(Outcome.SEARCH_LIMIT_REACHED, iteration,
+                        "candidate_catalog_incomplete:" + exception.getReason());
             } catch (RuntimeException | LinkageError exception) {
                 return Result.ended(Outcome.ERROR, iteration,
                         "candidate_evaluation_failure:" + exception.getClass().getSimpleName());

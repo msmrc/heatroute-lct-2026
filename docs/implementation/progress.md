@@ -89,8 +89,18 @@ seed without launching the full legacy planner: one prepared routing environment
 bounded engineering/left/right root-to-demand paths, normal terminal egress and regularization,
 and coincident geometry becomes shared physical assets. Pair, route-call, egress, path and time
 limits remain visible as `CATALOG_INCOMPLETE`; shared-network seeds and chamber configurations are
-explicitly uncovered. The remaining production inputs are targeted shared-path/chamber expansion,
-the node-realization provider, exact section assembler and mapped asset-split rebasing.
+explicitly uncovered. Exact root node semantics now belong to the problem snapshot/hash, and the
+endpoint resolver refuses unresolved roots instead of guessing a chamber. A prepared section
+assembler reuses the official crossing classifier at the selected DU and preserves invalid hybrid
+XY for ordinary exact rejection; missing branch chamber configuration requests expansion without
+a proof cut. The remaining production inputs are snapshot population, targeted shared-path/chamber
+expansion and mapped asset-split rebasing.
+The initial execution factory also removes repeated feature preparation from the critical path:
+one owned `PreparedRoutingFeatureWindow` and `OfficialRoutingEnvironment` are reused by catalog
+generation, selected-DU section assembly and every frozen admission attempt. Candidates retain
+their own feature copy for mutation isolation. A wiring test verifies one preparation call through
+the full bounded catalog→CP-SAT→exact-evaluator path; an empty seed remains incomplete without an
+invalid empty master.
 
 The earlier N04 slice still models exactly-one port-path choices and sound no-goods. Two safe
 legacy performance changes remove a redundant final PostGIS feature-window load after depth and
@@ -101,7 +111,7 @@ lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
 passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
-passes 2,354 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+passes 2,359 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
 8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate

@@ -46,14 +46,19 @@ snapshots to master identity, frozen feature ownership, explicit node realizatio
 assignment-specific candidates. A bounded initial root-to-demand generator now reuses the official
 obstacle router and compiles overlapping paths into shared physical assets without running the full
 legacy planner; its call/time truncation and the missing shared-spine/chamber generators remain
-explicitly incomplete. Targeted path/chamber expansion, production node providers and exact section
-assembly remain required before registration.
+explicitly incomplete. Root realization is now immutable snapshot data, explicit endpoint ports
+resolve without heuristics, and one prepared assembler reconstructs special sections at the actual
+selected DU. Missing branch chamber configurations request catalog expansion without a false cut.
+Targeted path/chamber expansion and production snapshot population remain required before registration.
+The initial stage now reuses one prepared immutable feature window across path generation, section
+assembly and frozen evaluation instead of rebuilding obstacle/crossing indexes per candidate. Empty
+seed output remains `CATALOG_INCOMPLETE` and does not create an empty master.
 
 Two behavior-preserving legacy optimizations reuse the already loaded final feature window after
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
 mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
-backend passes 2,354/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
+backend passes 2,359/0/3. The fresh web 36+37/lint/typecheck gate, executable-JAR native inventory
 and Compose configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
 The windowed path/chamber compilers, production section/node wiring, official end-to-end run, benchmark, resource and

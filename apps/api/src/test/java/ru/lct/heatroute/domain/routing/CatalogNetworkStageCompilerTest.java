@@ -131,6 +131,49 @@ class CatalogNetworkStageCompilerTest {
     }
 
     @Test
+    void admitsASharedTrunkThroughAnExplicitOrthogonalBranchConfiguration() {
+        RoutingProblemSnapshot problem = sharedProblem();
+        CatalogBuildResult build = sharedBuild(problem);
+        CatalogProblemNodeRealizationResolver resolver =
+                new CatalogProblemNodeRealizationResolver();
+        AdaptiveCatalogNetworkSearch.Stage stage = compiler.compile(
+                problem, build,
+                Map.of("east", "east-port", "north", "north-port"),
+                Map.of("root", "root-port"), 3,
+                "frozen-evaluator-1", "shared-network", "nextgen",
+                compilation -> resolver.resolve(problem, compilation,
+                        Map.of("east", "east-port", "north", "north-port"),
+                        Map.of("root", "root-port")),
+                List.of(), edge -> List.of(baseSection(edge)));
+        AdaptiveCatalogNetworkSearch search = new AdaptiveCatalogNetworkSearch(
+                new CatalogFrozenNetworkRefinement(
+                        new CpSatNetworkOptimizer(new CpSatRuntime()), evaluator()));
+
+        AdaptiveCatalogNetworkSearch.Result result = search.solve(
+                stage, new ConflictStore(), new AcceptedSolutionArchive(3),
+                (current, request, remainingNanos) -> {
+                    throw new AssertionError("Complete shared catalog must not expand");
+                }, settings());
+
+        assertThat(result.getOutcome()).as(result.getReason())
+                .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
+        assertThat(result.getAccepted().getConnections()).hasSize(2);
+        assertThat(result.getAccepted().getEdges()).hasSize(3);
+        assertThat(result.getAccepted().getNodes())
+                .filteredOn(node -> "new_branch_chamber".equals(node.getNodeType()))
+                .singleElement().satisfies(node -> {
+                    assertThat(node.isChamber()).isTrue();
+                    assertThat(node.getCoordinate().getXM()).isEqualByComparingTo("10.0");
+                    assertThat(node.getCoordinate().getYM()).isEqualByComparingTo("0.0");
+                });
+        assertThat(stage.getProblem().getNodeConfigurations())
+                .anySatisfy(configuration ->
+                        assertThat(configuration.getIncidentAssetIds()).hasSize(3));
+        assertThat(stage.getIdentity().getDecisionKeys())
+                .anyMatch(key -> key.startsWith("NODE_CONFIGURATION_SELECTED:"));
+    }
+
+    @Test
     void rejectsCatalogBuildFromAnotherProblemSnapshot() {
         RoutingProblemSnapshot problem = problem();
         RoutingCatalogSnapshot wrong = new RoutingCatalogSnapshot(
@@ -204,6 +247,7 @@ class CatalogNetworkStageCompilerTest {
                         3, "frozen-evaluator-1", "network", "nextgen-bounded");
 
         assertThat(preparation.getStage()).isEmpty();
+        assertThat(preparation.getStageIncompleteReason()).contains("empty_catalog");
         assertThat(preparation.getGeneratedCatalog().getBuildResult().isComplete()).isFalse();
         assertThat(preparation.getGeneratedCatalog().getBuildResult().getRemainingWork())
                 .contains("unrouted-pair:root:one");
@@ -230,6 +274,59 @@ class CatalogNetworkStageCompilerTest {
                 Map.of("bounded_router", true), List.of(), List.of());
     }
 
+    private CatalogBuildResult sharedBuild(RoutingProblemSnapshot problem) {
+        List<CatalogMetricPoint> east = List.of(
+                new CatalogMetricPoint(0, 0),
+                new CatalogMetricPoint(10_000, 0),
+                new CatalogMetricPoint(20_000, 0));
+        List<CatalogMetricPoint> north = List.of(
+                new CatalogMetricPoint(0, 0),
+                new CatalogMetricPoint(10_000, 0),
+                new CatalogMetricPoint(10_000, 10_000));
+        PhysicalAssetCompiler.Result physical = new PhysicalAssetCompiler().compile(List.of(
+                new PhysicalAssetCompiler.CandidatePath("east-path", "surface",
+                        CatalogPhysicalAsset.ConstructionMode.NEW_CONSTRUCTION,
+                        "chain:east", east),
+                new PhysicalAssetCompiler.CandidatePath("north-path", "surface",
+                        CatalogPhysicalAsset.ConstructionMode.NEW_CONSTRUCTION,
+                        "chain:north", north)));
+        DirectedPathOption eastOption = option(problem, physical, "east-path",
+                "east-port", east);
+        DirectedPathOption northOption = option(problem, physical, "north-path",
+                "north-port", north);
+        RoutingCatalogSnapshot catalog = new RoutingCatalogSnapshot(
+                problem.getSnapshotHash(), problem.getRuleId(), problem.getRuleVersion(),
+                "catalog-shared", physical.getPhysicalAssets(),
+                List.of(eastOption, northOption));
+        return new CatalogBuildResult(catalog,
+                Map.of("paths", 2L,
+                        "physical_assets", (long) physical.getPhysicalAssets().size()),
+                Map.of("bounded_router", true), List.of(), List.of());
+    }
+
+    private DirectedPathOption option(RoutingProblemSnapshot problem,
+            PhysicalAssetCompiler.Result physical, String pathId,
+            String demandPort, List<CatalogMetricPoint> points) {
+        return new DirectedPathOption(pathId, "root-port", demandPort,
+                PathAdmissionCertificate.Direction.FORWARD, "normal", points,
+                physical.path(pathId).getPhysicalAssetIds(), List.of(),
+                10_000L, 10_000L, new DirectedPathOption.Provenance(
+                        "bounded-router", "router-1", problem.getSnapshotHash(),
+                        "window:shared"), List.of());
+    }
+
+    private RouteSection baseSection(CatalogFrozenCandidateAssembler.EdgeAssembly edge) {
+        double length = 0.0;
+        for (int index = 1; index < edge.getCoordinates().size(); index++) {
+            RouteCoordinate left = edge.getCoordinates().get(index - 1);
+            RouteCoordinate right = edge.getCoordinates().get(index);
+            length += Math.hypot(right.getXM().doubleValue() - left.getXM().doubleValue(),
+                    right.getYM().doubleValue() - left.getYM().doubleValue());
+        }
+        return new RouteSection(
+                "base", null, null, edge.getCoordinates(), length, null);
+    }
+
     private Map<String, CatalogFrozenCandidateAssembler.NodeRealization> realizations(
             CatalogNetworkProblemCompiler.Compilation compilation) {
         Map<String, CatalogFrozenCandidateAssembler.NodeRealization> result = new LinkedHashMap<>();
@@ -254,6 +351,24 @@ class CatalogNetworkStageCompilerTest {
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
                 List.of(new RoutingProblemSnapshot.Demand(
                         "one", BigDecimal.ONE, new CatalogMetricPoint(20_000, 0), "connection-one")),
+                List.of(new RoutingProblemSnapshot.RootCandidate(
+                        "root", new CatalogMetricPoint(0, 0), List.of(),
+                        new RoutingProblemSnapshot.RootRealization(
+                                "existing_root", true, 0, "root", null))));
+    }
+
+    private RoutingProblemSnapshot sharedProblem() {
+        return new RoutingProblemSnapshot(
+                UUID.fromString("00000000-0000-0000-0000-000000000004"),
+                "source-4", "extended", "nextgen-1", "official", "rules-1",
+                "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
+                List.of(
+                        new RoutingProblemSnapshot.Demand(
+                                "east", BigDecimal.ONE,
+                                new CatalogMetricPoint(20_000, 0), "connection-east"),
+                        new RoutingProblemSnapshot.Demand(
+                                "north", BigDecimal.ONE,
+                                new CatalogMetricPoint(10_000, 10_000), "connection-north")),
                 List.of(new RoutingProblemSnapshot.RootCandidate(
                         "root", new CatalogMetricPoint(0, 0), List.of(),
                         new RoutingProblemSnapshot.RootRealization(

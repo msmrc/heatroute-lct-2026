@@ -37,6 +37,56 @@ class CpSatNetworkOptimizerTest {
     }
 
     @Test
+    void selectsOneExactIncidentConfigurationForEveryUsedNode() {
+        List<NetworkConstraintProblem.Node> nodes = List.of(
+                managedNode("root", true, 0, false),
+                managedNode("junction", false, 0, false),
+                managedNode("terminal-1", false, 1, true),
+                managedNode("terminal-2", false, 1, true));
+        List<NetworkConstraintProblem.Asset> assets = List.of(
+                asset("trunk", "root", "junction", 1, option(100, 2, 0)),
+                asset("branch-1", "junction", "terminal-1", 1, option(50, 1, 0)),
+                asset("branch-2", "junction", "terminal-2", 1, option(50, 1, 0)));
+        List<NetworkConstraintProblem.NodeConfiguration> configurations = List.of(
+                configuration("root-config", "root", "trunk"),
+                configuration("junction-config", "junction", "trunk", "branch-1", "branch-2"),
+                configuration("terminal-1-config", "terminal-1", "branch-1"),
+                configuration("terminal-2-config", "terminal-2", "branch-2"));
+        NetworkConstraintProblem problem = new NetworkConstraintProblem(
+                nodes, assets, configurations, List.of());
+
+        CpSatNetworkOptimizer.Result result = optimizer.solve(problem, 5.0, 2026);
+
+        assertThat(result.getStatus()).isEqualTo(CpSatNetworkOptimizer.Status.OPTIMAL);
+        assertThat(result.getSelectedNodeConfigurations()).containsExactlyInAnyOrder(
+                "root-config", "junction-config", "terminal-1-config", "terminal-2-config");
+        assertThat(result.getSelectedAssets()).containsExactlyInAnyOrder(
+                "trunk", "branch-1", "branch-2");
+    }
+
+    @Test
+    void nodeConfigurationLiteralCanExcludeOneExactLocalAssignment() {
+        List<NetworkConstraintProblem.Node> nodes = List.of(
+                managedNode("root", true, 0, false),
+                managedNode("terminal", false, 1, true));
+        List<NetworkConstraintProblem.Asset> assets = List.of(
+                asset("connection", "root", "terminal", 1, option(50, 1, 0)));
+        List<NetworkConstraintProblem.NodeConfiguration> configurations = List.of(
+                configuration("root-config", "root", "connection"),
+                configuration("terminal-config", "terminal", "connection"));
+        NetworkConstraintProblem.Conflict cut = NetworkConstraintProblem.Conflict.ofLiterals(
+                List.of(NetworkConstraintProblem.DecisionLiteral.nodeConfiguration(
+                        "root-config", true)), "rejected_root_configuration");
+        NetworkConstraintProblem problem = new NetworkConstraintProblem(
+                nodes, assets, configurations, List.of(cut));
+
+        CpSatNetworkOptimizer.Result result = optimizer.solve(problem, 5.0, 2026);
+
+        assertThat(result.getStatus()).isEqualTo(CpSatNetworkOptimizer.Status.INFEASIBLE);
+        assertThat(result.getSelectedNodeConfigurations()).isEmpty();
+    }
+
+    @Test
     void choosesAmongMultipleAllowedRoots() {
         NetworkConstraintProblem problem = new NetworkConstraintProblem(
                 List.of(
@@ -190,5 +240,15 @@ class CpSatNetworkOptimizerTest {
 
     private NetworkConstraintProblem.DiameterOption option(int diameter, long capacity, long cost) {
         return new NetworkConstraintProblem.DiameterOption(diameter, capacity, cost);
+    }
+
+    private NetworkConstraintProblem.Node managedNode(
+            String id, boolean root, long demand, boolean terminal) {
+        return new NetworkConstraintProblem.Node(id, root, demand, terminal, true);
+    }
+
+    private NetworkConstraintProblem.NodeConfiguration configuration(
+            String id, String nodeId, String... assetIds) {
+        return new NetworkConstraintProblem.NodeConfiguration(id, nodeId, List.of(assetIds));
     }
 }

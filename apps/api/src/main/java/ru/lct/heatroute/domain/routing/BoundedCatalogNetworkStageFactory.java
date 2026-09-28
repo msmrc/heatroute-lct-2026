@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.catalog.RoutingProblemSnapshot;
+import ru.lct.heatroute.domain.optimization.CandidateAssemblyIncompleteException;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 /** Собирает начальную стадию N03→N05 с единым подготовленным окном объектов. */
@@ -42,16 +43,21 @@ public final class BoundedCatalogNetworkStageFactory {
         CatalogEdgeSectionAssemblerFactory.PreparedAssembler sectionAssembler =
                 sectionAssemblerFactory.prepare(window);
         if (generated.getBuildResult().getSnapshot().getPathOptions().isEmpty()) {
-            return new Preparation(generated, window, sectionAssembler, null);
+            return new Preparation(generated, window, sectionAssembler, null, "empty_catalog");
         }
-        AdaptiveCatalogNetworkSearch.Stage stage = stageCompiler.compilePrepared(
-                problem, generated.getBuildResult(), generated.getDemandPortById(),
-                generated.getRootPortById(), flowScaleDecimals, checkerVersion,
-                candidateIdPrefix, strategy,
-                compilation -> nodeResolver.resolve(problem, compilation,
-                        generated.getDemandPortById(), generated.getRootPortById()),
-                window, sectionAssembler);
-        return new Preparation(generated, window, sectionAssembler, stage);
+        try {
+            AdaptiveCatalogNetworkSearch.Stage stage = stageCompiler.compilePrepared(
+                    problem, generated.getBuildResult(), generated.getDemandPortById(),
+                    generated.getRootPortById(), flowScaleDecimals, checkerVersion,
+                    candidateIdPrefix, strategy,
+                    compilation -> nodeResolver.resolve(problem, compilation,
+                            generated.getDemandPortById(), generated.getRootPortById()),
+                    window, sectionAssembler);
+            return new Preparation(generated, window, sectionAssembler, stage, null);
+        } catch (CandidateAssemblyIncompleteException exception) {
+            return new Preparation(generated, window, sectionAssembler, null,
+                    exception.getReason());
+        }
     }
 
     public static final class Preparation {
@@ -59,15 +65,18 @@ public final class BoundedCatalogNetworkStageFactory {
         private final PreparedRoutingFeatureWindow featureWindow;
         private final CatalogEdgeSectionAssemblerFactory.PreparedAssembler sectionAssembler;
         private final AdaptiveCatalogNetworkSearch.Stage stage;
+        private final String stageIncompleteReason;
 
         private Preparation(BoundedRootDemandCatalogGenerator.GeneratedCatalog generatedCatalog,
                 PreparedRoutingFeatureWindow featureWindow,
                 CatalogEdgeSectionAssemblerFactory.PreparedAssembler sectionAssembler,
-                AdaptiveCatalogNetworkSearch.Stage stage) {
+                AdaptiveCatalogNetworkSearch.Stage stage,
+                String stageIncompleteReason) {
             this.generatedCatalog = generatedCatalog;
             this.featureWindow = featureWindow;
             this.sectionAssembler = sectionAssembler;
             this.stage = stage;
+            this.stageIncompleteReason = stageIncompleteReason;
         }
 
         public BoundedRootDemandCatalogGenerator.GeneratedCatalog getGeneratedCatalog() {
@@ -79,6 +88,9 @@ public final class BoundedCatalogNetworkStageFactory {
         }
         public Optional<AdaptiveCatalogNetworkSearch.Stage> getStage() {
             return Optional.ofNullable(stage);
+        }
+        public Optional<String> getStageIncompleteReason() {
+            return Optional.ofNullable(stageIncompleteReason);
         }
     }
 }

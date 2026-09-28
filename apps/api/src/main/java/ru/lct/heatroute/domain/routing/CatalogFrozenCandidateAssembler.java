@@ -97,10 +97,12 @@ public final class CatalogFrozenCandidateAssembler {
         Set<String> retainedNodes = retainedNodes(
                 usedNodes, incoming, outgoing, masterResult, compilation);
         Map<String, String> routeNodeIds = routeNodeIds(usedNodes, compilation);
+        Map<String, NodeRealization> selectedNodeRealizations = selectedNodeRealizations(
+                usedNodes, explicitNodeRealizations, compilation, masterResult);
         List<RouteNode> nodes = routeNodes(retainedNodes, masterResult,
-                compilation, routeNodeIds, explicitNodeRealizations);
+                compilation, routeNodeIds, selectedNodeRealizations);
         EdgeResult edgeResult = routeEdges(arcs, outgoing, retainedNodes,
-                compilation, routeNodeIds, explicitNodeRealizations, sectionAssembler);
+                compilation, routeNodeIds, selectedNodeRealizations, sectionAssembler);
         List<RouteConnection> connections = connections(compilation);
         boolean reconstructionRequired = arcs.stream().anyMatch(arc ->
                 arc.physicalAsset.getConstructionMode()
@@ -221,14 +223,14 @@ public final class CatalogFrozenCandidateAssembler {
         List<RouteNode> result = new ArrayList<>();
         for (String nodeId : retainedNodes) {
             CatalogNetworkProblemCompiler.NodeBinding binding = compilation.node(nodeId);
-            if (!binding.isExplicitPort()) {
-                throw new CandidateAssemblyIncompleteException("missing_chamber_configuration",
-                        "A retained physical boundary requires an explicit port: " + nodeId);
-            }
             NodeRealization realization = explicitRealizations.get(nodeId);
             if (realization == null) {
-                throw new CandidateAssemblyIncompleteException("missing_node_realization",
-                        "Missing explicit node realization: " + nodeId);
+                String reason = binding.isExplicitPort()
+                        ? "missing_node_realization" : "missing_chamber_configuration";
+                String label = binding.isExplicitPort()
+                        ? "Missing explicit node realization: "
+                        : "Missing selected node configuration: ";
+                throw new CandidateAssemblyIncompleteException(reason, label + nodeId);
             }
             boolean root = master.getSelectedRoots().contains(nodeId);
             RouteCoordinate coordinate = coordinate(binding);
@@ -238,6 +240,54 @@ public final class CatalogFrozenCandidateAssembler {
         }
         result.sort(Comparator.comparing(RouteNode::getId));
         return List.copyOf(result);
+    }
+
+    private static Map<String, NodeRealization> selectedNodeRealizations(
+            Set<String> usedNodes,
+            Map<String, NodeRealization> explicitRealizations,
+            CatalogNetworkProblemCompiler.Compilation compilation,
+            CpSatNetworkOptimizer.Result master) {
+        Map<String, NodeRealization> result = new LinkedHashMap<>(explicitRealizations);
+        boolean managed = compilation.getProblem().getNodes().stream()
+                .anyMatch(NetworkConstraintProblem.Node::isConfigurationRequired);
+        if (!managed) return Collections.unmodifiableMap(result);
+        Set<String> configuredNodes = new LinkedHashSet<>();
+        for (String configurationId : master.getSelectedNodeConfigurations()) {
+            CatalogNetworkProblemCompiler.NodeConfigurationBinding binding =
+                    compilation.nodeConfiguration(configurationId);
+            if (binding == null) {
+                throw new IllegalArgumentException(
+                        "Master selected an unknown node configuration: " + configurationId);
+            }
+            String nodeId = binding.getConfiguration().getNodeId();
+            if (!usedNodes.contains(nodeId) || !configuredNodes.add(nodeId)) {
+                throw new IllegalArgumentException(
+                        "Selected node configuration has invalid ownership: " + configurationId);
+            }
+            NodeRealization selected = new NodeRealization(
+                    binding.getNodeType(), binding.isChamber(),
+                    binding.getBaseIncidentSections(), binding.getTargetId(),
+                    binding.getExistingIncidentDiameter());
+            NodeRealization explicit = result.get(nodeId);
+            if (explicit == null) result.put(nodeId, selected);
+            else if (!sameRealization(explicit, selected)) {
+                throw new IllegalArgumentException(
+                        "Selected configuration changes explicit node semantics: " + nodeId);
+            }
+        }
+        if (!configuredNodes.equals(usedNodes)) {
+            throw new CandidateAssemblyIncompleteException("missing_chamber_configuration",
+                    "Every used catalog node requires one selected configuration");
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    private static boolean sameRealization(NodeRealization left, NodeRealization right) {
+        return left.nodeType.equals(right.nodeType)
+                && left.chamber == right.chamber
+                && left.baseIncidentSections == right.baseIncidentSections
+                && Objects.equals(left.targetId, right.targetId)
+                && Objects.equals(left.existingIncidentDiameter, right.existingIncidentDiameter);
     }
 
     private static EdgeResult routeEdges(List<SelectedArc> arcs,

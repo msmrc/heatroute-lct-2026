@@ -167,8 +167,21 @@ public final class AdaptiveCatalogNetworkSearch {
             NetworkConstraintProblem.Node retained = after.node(node.getId());
             if (retained == null || retained.isAllowedRoot() != node.isAllowedRoot()
                     || retained.isTerminal() != node.isTerminal()
-                    || retained.getDemandUnits() != node.getDemandUnits()) {
+                    || retained.getDemandUnits() != node.getDemandUnits()
+                    || retained.isConfigurationRequired() != node.isConfigurationRequired()) {
                 throw new IllegalArgumentException("master node was removed or changed: " + node.getId());
+            }
+        }
+        for (NetworkConstraintProblem.NodeConfiguration configuration
+                : before.getNodeConfigurations()) {
+            NetworkConstraintProblem.NodeConfiguration retained =
+                    after.nodeConfiguration(configuration.getId());
+            if (retained == null
+                    || !retained.getNodeId().equals(configuration.getNodeId())
+                    || !retained.getIncidentAssetIds().equals(
+                            configuration.getIncidentAssetIds())) {
+                throw new IllegalArgumentException(
+                        "node configuration was removed or changed: " + configuration.getId());
             }
         }
         for (NetworkConstraintProblem.Asset asset : before.getAssets()) {

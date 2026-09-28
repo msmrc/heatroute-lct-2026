@@ -94,7 +94,7 @@ public final class CatalogNetworkProblemCompiler {
         for (NodeAccumulator value : nodeData.values()) nodes.add(value.freeze());
         NetworkConstraintProblem problem = new NetworkConstraintProblem(nodes, modelAssets, conflicts);
         return new Compilation(problem, arcBindings, topology.nodeBindings,
-                demandBindings, rootNodeById, flowScaleDecimals,
+                demandBindings, rootNodeById, Map.of(), flowScaleDecimals,
                 ObjectiveKind.LINEARIZED_CATALOG_MILLI_RUBLES);
     }
 
@@ -298,17 +298,22 @@ public final class CatalogNetworkProblemCompiler {
         private final Map<String, NodeBinding> nodeBindings;
         private final Map<String, DemandBinding> demandBindings;
         private final Map<String, String> rootNodeById;
+        private final Map<String, NodeConfigurationBinding> nodeConfigurationBindings;
         private final int flowScaleDecimals;
         private final ObjectiveKind objectiveKind;
 
         private Compilation(NetworkConstraintProblem problem, Map<String, ArcBinding> arcBindings,
                 Map<String, NodeBinding> nodeBindings, Map<String, DemandBinding> demandBindings,
-                Map<String, String> rootNodeById, int flowScaleDecimals, ObjectiveKind objectiveKind) {
+                Map<String, String> rootNodeById,
+                Map<String, NodeConfigurationBinding> nodeConfigurationBindings,
+                int flowScaleDecimals, ObjectiveKind objectiveKind) {
             this.problem = problem;
             this.arcBindings = Collections.unmodifiableMap(new LinkedHashMap<>(arcBindings));
             this.nodeBindings = Collections.unmodifiableMap(new LinkedHashMap<>(nodeBindings));
             this.demandBindings = Collections.unmodifiableMap(new LinkedHashMap<>(demandBindings));
             this.rootNodeById = Collections.unmodifiableMap(new LinkedHashMap<>(rootNodeById));
+            this.nodeConfigurationBindings = Collections.unmodifiableMap(
+                    new LinkedHashMap<>(nodeConfigurationBindings));
             this.flowScaleDecimals = flowScaleDecimals;
             this.objectiveKind = objectiveKind;
         }
@@ -321,8 +326,84 @@ public final class CatalogNetworkProblemCompiler {
         public Collection<DemandBinding> getDemandBindings() { return demandBindings.values(); }
         public DemandBinding demand(String id) { return demandBindings.get(id); }
         public Map<String, String> getRootNodeById() { return rootNodeById; }
+        public Collection<NodeConfigurationBinding> getNodeConfigurationBindings() {
+            return nodeConfigurationBindings.values();
+        }
+        public NodeConfigurationBinding nodeConfiguration(String id) {
+            return nodeConfigurationBindings.get(id);
+        }
         public int getFlowScaleDecimals() { return flowScaleDecimals; }
         public ObjectiveKind getObjectiveKind() { return objectiveKind; }
+
+        /** Возвращает ту же топологию с обязательными точными конфигурациями каждого узла. */
+        public Compilation withNodeConfigurations(
+                Collection<NodeConfigurationBinding> supplied) {
+            Objects.requireNonNull(supplied, "node configurations");
+            Map<String, NodeConfigurationBinding> bindings = new LinkedHashMap<>();
+            List<NetworkConstraintProblem.NodeConfiguration> configurations = new ArrayList<>();
+            for (NodeConfigurationBinding binding : supplied) {
+                Objects.requireNonNull(binding, "node configuration");
+                NetworkConstraintProblem.NodeConfiguration configuration =
+                        binding.getConfiguration();
+                if (!nodeBindings.containsKey(configuration.getNodeId())) {
+                    throw new IllegalArgumentException(
+                            "Configuration references an unknown compiled node: "
+                                    + configuration.getNodeId());
+                }
+                if (bindings.put(configuration.getId(), binding) != null) {
+                    throw new IllegalArgumentException(
+                            "Duplicate node configuration binding: " + configuration.getId());
+                }
+                configurations.add(configuration);
+            }
+            List<NetworkConstraintProblem.Node> managedNodes = new ArrayList<>();
+            for (NetworkConstraintProblem.Node node : problem.getNodes()) {
+                managedNodes.add(new NetworkConstraintProblem.Node(
+                        node.getId(), node.isAllowedRoot(), node.getDemandUnits(),
+                        node.isTerminal(), true));
+            }
+            NetworkConstraintProblem configuredProblem = new NetworkConstraintProblem(
+                    managedNodes, problem.getAssets(), configurations, problem.getConflicts());
+            return new Compilation(configuredProblem, arcBindings, nodeBindings,
+                    demandBindings, rootNodeById, bindings, flowScaleDecimals, objectiveKind);
+        }
+    }
+
+    /** Связывает master-конфигурацию с точной семантикой публикуемого RouteNode. */
+    public static final class NodeConfigurationBinding {
+        private final NetworkConstraintProblem.NodeConfiguration configuration;
+        private final String nodeType;
+        private final boolean chamber;
+        private final int baseIncidentSections;
+        private final String targetId;
+        private final Integer existingIncidentDiameter;
+
+        public NodeConfigurationBinding(
+                NetworkConstraintProblem.NodeConfiguration configuration,
+                String nodeType, boolean chamber, int baseIncidentSections,
+                String targetId, Integer existingIncidentDiameter) {
+            this.configuration = Objects.requireNonNull(configuration, "configuration");
+            this.nodeType = required(nodeType, "node type");
+            if (baseIncidentSections < 0) {
+                throw new IllegalArgumentException("Base incident sections cannot be negative");
+            }
+            if (existingIncidentDiameter != null && existingIncidentDiameter <= 0) {
+                throw new IllegalArgumentException("Existing incident diameter must be positive");
+            }
+            this.chamber = chamber;
+            this.baseIncidentSections = baseIncidentSections;
+            this.targetId = targetId;
+            this.existingIncidentDiameter = existingIncidentDiameter;
+        }
+
+        public NetworkConstraintProblem.NodeConfiguration getConfiguration() {
+            return configuration;
+        }
+        public String getNodeType() { return nodeType; }
+        public boolean isChamber() { return chamber; }
+        public int getBaseIncidentSections() { return baseIncidentSections; }
+        public String getTargetId() { return targetId; }
+        public Integer getExistingIncidentDiameter() { return existingIncidentDiameter; }
     }
 
     public static final class NodeBinding {

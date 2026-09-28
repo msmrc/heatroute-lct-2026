@@ -59,6 +59,11 @@ final class CorridorTerminalRouter {
             Coordinate exit = egress.exit();
             double required = point.distance(exit);
             if (required <= 0.001) continue;
+            if (exit.distance(port) <= 0.01) {
+                RoutePath candidate = checkedTerminalEgress(egress, diameter);
+                if (candidate != null && (best == null || candidate.lengthM() < best.lengthM())) best = candidate;
+                continue;
+            }
             double nx = (exit.x - point.x) / required, ny = (exit.y - point.y) / required;
             double along = (port.x - point.x) * nx + (port.y - point.y) * ny;
             if (along <= required + 0.01) continue;
@@ -149,6 +154,10 @@ final class CorridorTerminalRouter {
             Coordinate exit = egress.exit();
             double required = start.distance(exit);
             if (!Double.isFinite(required) || required <= 0.001) continue;
+            if (exit.distance(end) <= 0.01) {
+                addDistinct(candidates, checkedTerminalEgress(egress, diameter));
+                continue;
+            }
             double nx = (exit.x - start.x) / required, ny = (exit.y - start.y) / required;
             double t = (end.x - start.x) * nx + (end.y - start.y) * ny;
             Coordinate projection = new Coordinate(start.x + nx * t, start.y + ny * t);
@@ -252,6 +261,12 @@ final class CorridorTerminalRouter {
                 path.coordinates().stream().map(p -> new RouteCoordinate(p.x, p.y)).collect(Collectors.toList()),
                 path.sections(), null, diameter);
         return new EngineeringRouteEvaluator().evaluate(List.of(edge)).bendCount() == 0 ? path : null;
+    }
+
+    private RoutePath checkedTerminalEgress(OfficialRouteGeometryRules.NormalEgress egress, int diameter) {
+        RoutePath path = router.withCheckedCorridorTerminalEgress(
+                egress, diameter, environment, RouteTraversal.REVERSED);
+        return soundGeometry(path, diameter) ? path : null;
     }
 
     private RoutePath checkedOutside(List<Coordinate> coordinates,

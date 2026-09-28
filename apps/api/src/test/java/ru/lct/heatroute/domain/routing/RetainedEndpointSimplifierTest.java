@@ -231,6 +231,61 @@ class RetainedEndpointSimplifierTest {
     }
 
     @Test
+    void prefersTwoRightAnglesOverThreeObtuseTurnsOnParallelBoundaryAxes() {
+        List<Coordinate> points = List.of(
+                c(0, 0), c(10, 0), c(30, 0), c(32, 1), c(31, 3), c(31, 30), c(40, 30), c(50, 30));
+        RouteEdge original = edge(points, List.of(), 50);
+
+        RoutePath shortened = simplify(original, List.of(), List.of());
+
+        assertThat(shortened).isNotNull();
+        assertTerminalSegments(original, shortened);
+        EngineeringRouteEvaluator.Evaluation geometry = new EngineeringRouteEvaluator()
+                .evaluate(List.of(asEdge(shortened, 50)));
+        assertThat(geometry.invalidAngleCount()).as("coordinates=%s", shortened.coordinates()).isZero();
+        assertThat(geometry.bendCount()).isEqualTo(2);
+        assertThat(shortened.coordinates()).contains(c(10, 30), c(40, 30));
+    }
+
+    @Test
+    void acceptsASmallLengthIncreaseToReplaceThreeObtuseTurnsWithTwoRightAngles() {
+        List<Coordinate> points = List.of(
+                c(33.391, 83.836), c(0, 0), c(-3.700, -9.290), c(-17.757, -11.235),
+                c(-21.211, -6.796), c(-20.450, -4.924), c(-15.032, 8.406));
+        RouteEdge original = edge(points, List.of(), 125);
+
+        RoutePath regularized = simplify(original, List.of(), List.of());
+
+        assertThat(regularized).isNotNull();
+        assertThat(regularized.lengthM()).isGreaterThan(original.getLengthM().doubleValue());
+        assertTerminalSegments(original, regularized);
+        EngineeringRouteEvaluator.Evaluation geometry = new EngineeringRouteEvaluator()
+                .evaluate(List.of(asEdge(regularized, 125)));
+        assertThat(geometry.invalidAngleCount()).isZero();
+        assertThat(geometry.insufficientSpacingCount()).isZero();
+        assertThat(geometry.bendCount()).isEqualTo(2);
+    }
+
+    @Test
+    void usesPreservedOuterAxesWhenShortInteriorLinksHideAnOrthogonalShortcut() {
+        List<Coordinate> points = List.of(
+                c(0, 0), c(9.273, -3.742), c(8.922, -6.643),
+                c(32.317, -24.207), c(31.564, -26.081), c(26.751, -38.053));
+        RouteEdge original = edge(points, List.of(), 125);
+
+        RoutePath regularized = simplify(original, List.of(), List.of());
+
+        assertThat(regularized).isNotNull();
+        assertTerminalSegments(original, regularized);
+        EngineeringRouteEvaluator.Evaluation geometry = new EngineeringRouteEvaluator()
+                .evaluate(List.of(asEdge(regularized, 125)));
+        assertThat(geometry.invalidAngleCount()).isZero();
+        assertThat(geometry.insufficientSpacingCount()).isZero();
+        assertThat(geometry.bendCount()).isEqualTo(1);
+        assertThat(geometry.preferredAngleDeviation()).isLessThan(0.01);
+    }
+
+    @Test
     void acceptsExactly512CoordinatesButRejects513() {
         RouteEdge atLimit = edge(subdividedDetour(512), List.of(), 50);
         RoutePath shortened = simplify(atLimit, List.of(), List.of());
@@ -257,21 +312,16 @@ class RetainedEndpointSimplifierTest {
     }
 
     @Test
-    void candidateWithAnIllegalSpliceStillRequiresIndependentWholeRouteValidation() {
+    void rejectsAnIllegalSpliceWhenTheRetainedNeighbourDirectionsAreKnown() {
         List<Coordinate> points = List.of(c(-10, 0), c(0, 0), c(10, 0), c(10, 10), c(-10, 10), c(-10, 20));
         RouteEdge original = edge(points, List.of(), 50);
         assertThat(OfficialRouteDeflectionRules.validatePolyline(original.getId(), original.getCoordinates()).getIssues()).isEmpty();
         RoutePath candidate = simplify(original, List.of(), List.of());
-        assertThat(candidate).isNotNull();
-        assertTerminalSegments(original, candidate);
-        RouteEdge result = asEdge(candidate, 50);
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", original.getCoordinates().get(0), true, true, 2, "support"),
                 new RouteNode("demand:one", "demand_connection", original.getCoordinates().get(points.size() - 1), false, false, 0, null));
         assertThat(new OfficialRouteValidator(rules).validate(nodes, List.of(original), List.of())).isEmpty();
-        // This is deliberately NOT an accepted route: the outer planner must reject the splice.
-        assertThat(new OfficialRouteValidator(rules).validate(nodes, List.of(result), List.of()))
-                .anySatisfy(issue -> assertThat(issue.getCode()).isEqualTo("ROUTE_DEFLECTION_EXCEEDED"));
+        assertThat(candidate).isNull();
     }
 
     @Test

@@ -67,6 +67,8 @@ class OfficialChamberRelocationTest {
             assertThat(new EngineeringRouteEvaluator().evaluate(improved.getEdges()).bendCount()).isZero();
             assertThat(improved.getEconomics().getCalculatedCost()).isLessThan(baseline.getEconomics().getCalculatedCost());
             assertThat(new OfficialRouteValidator(rules).validate(improved.getNodes(), improved.getEdges(), List.of())).isEmpty();
+            assertThat(new ExpertChamberRouteValidator().validate(improved.getNodes(), improved.getEdges())).isEmpty();
+            assertThat(ExpertRouteBendRules.validate(improved.getNodes(), improved.getEdges())).isEmpty();
             if (depth) assertThat(improved.getEdges()).allSatisfy(e -> assertThat(e.getDepthProfile().isComplete()).isTrue());
             assertThat(baseline.getTotalLengthM()).isEqualByComparingTo("80");
         }
@@ -237,6 +239,70 @@ class OfficialChamberRelocationTest {
         List<RoutePath> choices = terminals.localAlternatives("one", c(20, 10), c(0, 10), 50);
         assertThat(calls).hasValue(0);
         assertThat(choices).isNotEmpty().anyMatch(path -> Math.abs(path.lengthM() - 20) < 0.001);
+    }
+
+    @Test
+    void relocatedChamberOnTheBuildingNormalUsesTheDirectCheckedApproach() {
+        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        ImportedOfficialFeature home = new ImportedOfficialFeature("home", "restriction",
+                new ObjectMapper().createObjectNode().put("restriction_type", "oks"),
+                new GeometryFactory().createPolygon(new Coordinate[] {
+                        c(0, 0), c(20, 0), c(20, 20), c(0, 20), c(0, 0)}));
+        List<ImportedOfficialFeature> features = List.of(home);
+        OfficialRoutingEnvironment environment = new OfficialObstacleRouter(rules).prepare(features);
+        Coordinate connection = c(1, 10), chamber = c(-10, 10);
+        OfficialRouteGeometryRules.NormalEgress egress = rules.normalEgressCandidates(
+                features, 50, connection, chamber,
+                RoutePlannerTuning.stable().getEngineeringEgressExtraM()).stream()
+                .findFirst().orElseThrow();
+        OfficialRoutePlanner.Demand demand = new OfficialRoutePlanner.Demand(
+                "one", "one", connection, BigDecimal.ONE, egress);
+
+        RoutePath path = ReflectionTestUtils.invokeMethod(
+                planner, "directTerminalApproach", demand, chamber, 50, environment);
+
+        assertThat(path).isNotNull();
+        assertThat(path.coordinates().get(0).distance(connection)).isLessThan(0.002);
+        assertThat(path.coordinates().get(path.coordinates().size() - 1).distance(chamber)).isLessThan(0.002);
+        RouteEdge checked = edge("direct", "demand:one", "chamber", path.coordinates(), 1);
+        assertThat(new EngineeringRouteEvaluator().evaluate(List.of(checked)).bendCount()).isZero();
+        assertThat(ExpertRouteBendRules.validate(List.of(
+                new RouteNode("demand:one", "demand_connection", p(1, 10), false, false, 0, null),
+                new RouteNode("chamber", "new_branch_chamber", p(-10, 10), true, false, 0, null)),
+                List.of(checked))).isEmpty();
+    }
+
+    @Test
+    void bendReductionAcceptsOnlySubHalfDegreeDigitizedJunctionDrift() {
+        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        EngineeringRouteEvaluator evaluator = new EngineeringRouteEvaluator();
+        List<RouteEdge> beforeEdges = List.of(
+                edge("left", "j", "left-end", List.of(c(0, 0), c(-10, 0)), 1),
+                edge("right", "j", "right-end", List.of(c(0, 0), c(10, 0)), 1),
+                edge("branch", "j", "branch-end", List.of(c(0, 0), c(0, 10)), 1),
+                edge("detour", "x", "y", List.of(c(100, 0), c(110, 0), c(110, 10), c(120, 10)), 1));
+        EngineeringRouteEvaluator.Evaluation before = evaluator.evaluate(beforeEdges);
+
+        assertThat(improvesJunctionGeometry(planner, before, evaluator.evaluate(
+                straightenedWithJunctionAngle(89.8)))).isTrue();
+        assertThat(improvesJunctionGeometry(planner, before, evaluator.evaluate(
+                straightenedWithJunctionAngle(89.7)))).isFalse();
+    }
+
+    private boolean improvesJunctionGeometry(OfficialRoutePlanner planner,
+            EngineeringRouteEvaluator.Evaluation before, EngineeringRouteEvaluator.Evaluation after) {
+        return Boolean.TRUE.equals(ReflectionTestUtils.invokeMethod(
+                planner, "improvesJunctionGeometry", before, after));
+    }
+
+    private List<RouteEdge> straightenedWithJunctionAngle(double angleDegrees) {
+        double angle = Math.toRadians(angleDegrees);
+        return List.of(
+                edge("left", "j", "left-end", List.of(c(0, 0), c(-10, 0)), 1),
+                edge("right", "j", "right-end", List.of(c(0, 0), c(10, 0)), 1),
+                edge("branch", "j", "branch-end", List.of(
+                        c(0, 0), c(10 * Math.cos(angle), 10 * Math.sin(angle))), 1),
+                edge("detour", "x", "y", List.of(c(100, 0), c(120, 0)), 1));
     }
 
     private RouteEdge edge(String id, String from, String to, List<Coordinate> points, int flow) {

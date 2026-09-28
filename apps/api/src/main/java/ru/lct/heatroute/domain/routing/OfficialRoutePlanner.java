@@ -51,6 +51,7 @@ public class OfficialRoutePlanner {
     public static final String ALGORITHM_VERSION = RoutePlannerTuning.STABLE_ALGORITHM_VERSION;
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double LENGTH_EPSILON_M = 1e-9;
+    private static final double DIGITIZED_JUNCTION_ALIGNMENT_TOLERANCE_DEGREES = 0.5;
     private static final double MAX_SHARED_PAIR_DISTANCE_M = 500.0;
     private static final int MAX_SHARED_PAIR_CANDIDATES = 4;
     private static final long MAX_SHARED_TARGETS_PER_PAIR = 1;
@@ -77,6 +78,8 @@ public class OfficialRoutePlanner {
     private static final double ENGINEERING_PRIMARY_DEVIATION_RATIO = 0.05;
     private static final double ENGINEERING_RELAXED_DEVIATION_RATIO = 0.10;
     private static final double DEFAULT_EGRESS_EXTRA_M = 10.0;
+    private static final BigDecimal MAX_ENGINEERING_REGULARIZATION_COST_INCREASE = new BigDecimal("1250000");
+    private static final BigDecimal MAX_ENGINEERING_REGULARIZATION_LENGTH_INCREASE = new BigDecimal("50.000");
 
     private final OfficialRouteValidator validator;
     private final OfficialObstacleRouter obstacleRouter;
@@ -2792,55 +2795,107 @@ public class OfficialRoutePlanner {
         RouteVariant current = baseline;
         for (int pass = 0; pass < 2; pass++) {
             VariantDraft source = new VariantDraft(current.getNodes(), current.getEdges(), current.getConnections());
+            Set<String> terminalNodeIds = demandsByNode.keySet();
             List<RouteNode> chambers = current.getNodes().stream().filter(this::mergeableBranchChamber)
                     .filter(node -> incidentEdges(source, node.getId()).size() >= 3
                             && incidentEdges(source, node.getId()).size() <= 4)
-                    .sorted(Comparator.comparingDouble((RouteNode node) -> chamberApproachDetour(source, node)).reversed()
-                            .thenComparing(RouteNode::getId)).limit(4).collect(Collectors.toList());
+                    .sorted(Comparator.comparingDouble((RouteNode node) ->
+                                    terminalChamberPriority(source, node, terminalNodeIds)).reversed()
+                            .thenComparing(RouteNode::getId)).limit(12).collect(Collectors.toList());
             Map<String, AssessedRouteDraft> drafts = new LinkedHashMap<>();
+            Map<String, AssessedRouteDraft> alignedDraftsByChamber = new LinkedHashMap<>();
             EngineeringRouteEvaluator.Evaluation currentGeometry = engineeringEvaluator.evaluate(current.getEdges());
+            int chamberIndex = 0;
             for (RouteNode chamber : chambers) {
                 if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException("Chamber relocation cancelled");
                 List<RouteEdge> incident = incidentEdges(source, chamber.getId()).stream()
                         .sorted(Comparator.comparing(RouteEdge::getId)).collect(Collectors.toList());
                 int diameter = incident.stream().mapToInt(RouteEdge::getDiameter).max().orElseThrow();
                 org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope(chamber.getCoordinate().toCoordinate());
-                bounds.expandBy(40.001);
+                bounds.expandBy(TerminalAlignedChamberRelocations.MAX_RELOCATION_M + 0.001);
                 java.util.function.Predicate<Coordinate> blocked = environment.preparePointClearance(diameter, bounds);
-                for (Coordinate at : CorridorChamberRelocations.build(chamber, incident,
-                        corridorEdgeOrientation(incident), point -> !blocked.test(point)
-                                && source.nodes.values().stream().noneMatch(node ->
-                                        node.getCoordinate().toCoordinate().distance(point) <= 0.01))) {
+                java.util.function.Predicate<Coordinate> allowed = point -> !blocked.test(point)
+                        && source.nodes.values().stream().noneMatch(node ->
+                                node.getCoordinate().toCoordinate().distance(point) <= 0.01);
+                List<Coordinate> positions = new ArrayList<>(TerminalAlignedChamberRelocations.build(
+                        chamber, incident, terminalNodeIds, allowed));
+                // Более широкий Hanan-поиск сохраняем только для первых четырёх дефектов;
+                // остальные получают дешёвые целевые позиции на нормали фасада.
+                if (chamberIndex < 4) {
+                    for (Coordinate point : CorridorChamberRelocations.build(chamber, incident,
+                            corridorEdgeOrientation(incident), allowed)) {
+                        if (positions.size() == 8) break;
+                        if (positions.stream().noneMatch(existing -> existing.equals2D(point))) positions.add(point);
+                    }
+                }
+                chamberIndex++;
+                for (Coordinate at : positions) {
                     VariantDraft candidate = rebuildBranchJunction(source, Set.of(chamber.getId()), Set.of(),
-                            chamber.getId(), "", incident, at, demandsByNode, environment, true, true);
+                            chamber.getId(), "", incident, at, demandsByNode, environment, true, true, true);
                     if (candidate == null) continue;
                     EngineeringRouteEvaluator.Evaluation geometry = engineeringEvaluator.evaluate(candidate.edges);
-                    if (!improvesJunctionGeometry(currentGeometry, geometry)
+                    boolean improvesTerminal = improvesTerminalApproachGeometry(
+                            incident, candidate.edges, terminalNodeIds);
+                    if ((!improvesJunctionGeometry(currentGeometry, geometry)
+                            && !(improvesTerminal && preservesJunctionGeometry(currentGeometry, geometry)))
                             || !isFinalGeometryValid(candidate, environment)) continue;
                     BigDecimal score = draftScore(candidate);
-                    if (score != null) drafts.putIfAbsent(draftGeometrySignature(candidate),
-                            new AssessedRouteDraft(candidate, score, totalRouteLength(candidate), geometry.bendCount()));
+                    if (score != null) {
+                        AssessedRouteDraft assessed = new AssessedRouteDraft(
+                                candidate, score, totalRouteLength(candidate), geometry.bendCount());
+                        drafts.putIfAbsent(draftGeometrySignature(candidate), assessed);
+                        if (improvesTerminal) {
+                            AssessedRouteDraft previous = alignedDraftsByChamber.get(chamber.getId());
+                            if (previous == null || assessed.score().compareTo(previous.score()) < 0
+                                    || (assessed.score().compareTo(previous.score()) == 0
+                                            && assessed.lengthM() < previous.lengthM())) {
+                                alignedDraftsByChamber.put(chamber.getId(), assessed);
+                            }
+                        }
+                    }
                 }
             }
-            List<VariantDraft> selected = AssessedRouteDraft.byScoreAndBends(
-                    new ArrayList<>(drafts.values()), this::draftGeometrySignature);
+            List<VariantDraft> selected = new ArrayList<>();
+            Set<String> selectedSignatures = new HashSet<>();
+            Set<String> alignedSignatures = new HashSet<>();
+            for (AssessedRouteDraft aligned : alignedDraftsByChamber.values()) {
+                String signature = draftGeometrySignature(aligned.draft());
+                if (selectedSignatures.add(signature)) selected.add(aligned.draft());
+                alignedSignatures.add(signature);
+            }
+            for (VariantDraft draft : AssessedRouteDraft.byScoreAndBends(
+                    new ArrayList<>(drafts.values()), this::draftGeometrySignature)) {
+                if (selectedSignatures.add(draftGeometrySignature(draft))) selected.add(draft);
+            }
             RouteVariant best = current;
+            RouteVariant bestAligned = null;
             for (VariantDraft draft : selected) {
+                boolean aligned = alignedSignatures.contains(draftGeometrySignature(draft));
                 // Не теряем ранее допустимый способ доводки. Для уже ограниченного отбора
                 // сравниваем и вариант, сохраняющий совместно построенные подходы к камере.
                 for (TerminalApproachPolicy policy : TerminalApproachPolicy.values()) {
                     RouteVariant candidate = withEngineeringAssessment(finish(current.getId(), current.getStrategy(),
                             draft, features, parameters, reconstructionRequired, environment, policy));
+                    EngineeringRouteEvaluator.Evaluation candidateGeometry =
+                            engineeringEvaluator.evaluate(candidate.getEdges());
+                    RouteVariant budgetCeiling = aligned ? baseline : current;
                     if (!candidate.isValid() || !candidate.getEconomics().isComplete()
-                            || candidate.getTotalLengthM().compareTo(current.getTotalLengthM()) > 0
-                            || candidate.getEconomics().getCalculatedCost().compareTo(current.getEconomics().getCalculatedCost()) > 0
-                            || !improvesJunctionGeometry(current.getEdges(), candidate.getEdges())
+                            || candidate.getTotalLengthM().compareTo(budgetCeiling.getTotalLengthM()) > 0
+                            || candidate.getEconomics().getCalculatedCost().compareTo(
+                                    budgetCeiling.getEconomics().getCalculatedCost()) > 0
+                            || (!improvesJunctionGeometry(currentGeometry, candidateGeometry)
+                                    && !(aligned && preservesJunctionGeometry(currentGeometry, candidateGeometry)))
                             || (parameters.isDepthEnabled() && candidate.getEdges().stream().anyMatch(edge ->
                                     edge.getDepthProfile() == null || !edge.getDepthProfile().isComplete()
                                             || !edge.getDepthProfile().getIssues().isEmpty()))) continue;
-                    if (best == current || candidate.getEconomics().getScore().compareTo(best.getEconomics().getScore()) < 0) best = candidate;
+                    if (aligned) {
+                        if (bestAligned == null || candidate.getEconomics().getScore().compareTo(
+                                bestAligned.getEconomics().getScore()) < 0) bestAligned = candidate;
+                    } else if (best == current || candidate.getEconomics().getScore().compareTo(
+                            best.getEconomics().getScore()) < 0) best = candidate;
                 }
             }
+            if (bestAligned != null) best = bestAligned;
             if (best == current) break;
             current = best;
         }
@@ -2856,6 +2911,18 @@ public class OfficialRoutePlanner {
         }).sum();
     }
 
+    /** Камеры с многоколенным вводом рассматриваются раньше длинных, но уже прямых стволов. */
+    private double terminalChamberPriority(VariantDraft source, RouteNode chamber, Set<String> terminalNodeIds) {
+        List<RouteEdge> terminalEdges = incidentEdges(source, chamber.getId()).stream()
+                .filter(edge -> terminalNodeIds.contains(edge.getUpstreamNodeId())
+                        || terminalNodeIds.contains(edge.getDownstreamNodeId()))
+                .collect(Collectors.toList());
+        EngineeringRouteEvaluator.Evaluation geometry = engineeringEvaluator.evaluate(terminalEdges);
+        return geometry.bendCount() * 10_000.0
+                + geometry.preferredAngleDeviation() * 100.0
+                + chamberApproachDetour(source, chamber);
+    }
+
     private boolean improvesJunctionGeometry(List<RouteEdge> beforeEdges, List<RouteEdge> afterEdges) {
         return improvesJunctionGeometry(engineeringEvaluator.evaluate(beforeEdges), engineeringEvaluator.evaluate(afterEdges));
     }
@@ -2863,13 +2930,40 @@ public class OfficialRoutePlanner {
     private boolean improvesJunctionGeometry(EngineeringRouteEvaluator.Evaluation before,
             EngineeringRouteEvaluator.Evaluation after) {
         return (after.bendCount() < before.bendCount() || after.irregularJunctionAngleCount() < before.irregularJunctionAngleCount())
-                && after.bendCount() <= before.bendCount()
+                && preservesJunctionGeometry(before, after);
+    }
+
+    private boolean preservesJunctionGeometry(EngineeringRouteEvaluator.Evaluation before,
+            EngineeringRouteEvaluator.Evaluation after) {
+        return after.bendCount() <= before.bendCount()
                 && after.invalidAngleCount() <= before.invalidAngleCount()
                 && after.insufficientSpacingCount() <= before.insufficientSpacingCount()
                 && after.irregularJunctionAngleCount() <= before.irregularJunctionAngleCount()
                 && after.totalAngleDeviation() <= before.totalAngleDeviation() + 1e-7
                 && after.preferredAngleDeviation() <= before.preferredAngleDeviation() + 1e-7
-                && after.totalJunctionAngleDeviation() <= before.totalJunctionAngleDeviation() + 1e-7;
+                && after.totalJunctionAngleDeviation() <= before.totalJunctionAngleDeviation()
+                        + DIGITIZED_JUNCTION_ALIGNMENT_TOLERANCE_DEGREES + 1e-7;
+    }
+
+    private boolean improvesTerminalApproachGeometry(List<RouteEdge> beforeIncident,
+            List<RouteEdge> afterEdges, Set<String> terminalNodeIds) {
+        Set<String> terminalEdgeIds = beforeIncident.stream().filter(edge ->
+                        terminalNodeIds.contains(edge.getUpstreamNodeId())
+                                || terminalNodeIds.contains(edge.getDownstreamNodeId()))
+                .map(RouteEdge::getId).collect(Collectors.toSet());
+        if (terminalEdgeIds.isEmpty()) return false;
+        List<RouteEdge> before = beforeIncident.stream()
+                .filter(edge -> terminalEdgeIds.contains(edge.getId())).collect(Collectors.toList());
+        List<RouteEdge> after = afterEdges.stream()
+                .filter(edge -> terminalEdgeIds.contains(edge.getId())).collect(Collectors.toList());
+        if (after.size() != before.size()) return false;
+        EngineeringRouteEvaluator.Evaluation oldGeometry = engineeringEvaluator.evaluate(before);
+        EngineeringRouteEvaluator.Evaluation newGeometry = engineeringEvaluator.evaluate(after);
+        return newGeometry.bendCount() < oldGeometry.bendCount()
+                && newGeometry.invalidAngleCount() <= oldGeometry.invalidAngleCount()
+                && newGeometry.insufficientSpacingCount() <= oldGeometry.insufficientSpacingCount()
+                && newGeometry.totalAngleDeviation() <= oldGeometry.totalAngleDeviation() + 1e-7
+                && newGeometry.preferredAngleDeviation() <= oldGeometry.preferredAngleDeviation() + 1e-7;
     }
 
     /** Окончательный допуск после каждого объединения, с ограничением дорогих завершений. */
@@ -3302,6 +3396,22 @@ public class OfficialRoutePlanner {
         Set<String> extendedTerminals = new HashSet<>();
         double orientation = preciseChamber ? chamberRefinementOrientation(outerEdges, demandsByNode)
                 : corridorEdgeOrientation(outerEdges);
+        Map<String, RoutePath> directTerminalApproaches = new LinkedHashMap<>();
+        if (preciseChamber) {
+            for (RouteEdge edge : outerEdges) {
+                String outerNodeId = replacedNodeIds.contains(edge.getUpstreamNodeId())
+                        ? edge.getDownstreamNodeId() : edge.getUpstreamNodeId();
+                Demand demand = demandsByNode.get(outerNodeId);
+                RoutePath direct = directTerminalApproach(demand, coordinate, edge.getDiameter(), routingEnvironment);
+                if (direct != null) directTerminalApproaches.put(outerNodeId, direct);
+            }
+            if (directTerminalApproaches.size() == 1) {
+                RoutePath terminal = directTerminalApproaches.values().iterator().next();
+                List<Coordinate> points = terminal.coordinates();
+                Coordinate before = points.get(points.size() - 2);
+                orientation = Math.atan2(coordinate.y - before.y, coordinate.x - before.x) + Math.PI / 2.0;
+            }
+        }
         List<Coordinate> existingJunctionRays = routingEnvironment.existingDirections(mergedNode);
         if (!existingJunctionRays.isEmpty()) {
             Coordinate ray = existingJunctionRays.get(0);
@@ -3346,11 +3456,16 @@ public class OfficialRoutePlanner {
                     List<RoutePath> fresh = localOnly
                             ? terminalApproaches.localAlternatives(outerNodeId, demand.coordinate, coordinate, edge.getDiameter())
                             : terminalApproaches.alternatives(outerNodeId, demand.coordinate, coordinate, edge.getDiameter());
-                    alternatives = preciseChamber
-                            ? CorridorRetainedTerminalApproaches.buildForChamberQuality(edge, outer, coordinate, orientation,
-                                    obstacleRouter, routingEnvironment, fresh, result.edges)
-                            : CorridorRetainedTerminalApproaches.build(edge, outer, coordinate, orientation,
-                                    obstacleRouter, routingEnvironment, fresh, result.edges);
+                    RoutePath direct = preciseChamber ? directTerminalApproaches.get(outerNodeId) : null;
+                    alternatives = direct != null
+                            ? List.of(direct)
+                            : preciseChamber
+                                    ? CorridorRetainedTerminalApproaches.buildForChamberQuality(
+                                            edge, outer, coordinate, orientation,
+                                            obstacleRouter, routingEnvironment, fresh, result.edges)
+                                    : CorridorRetainedTerminalApproaches.build(
+                                            edge, outer, coordinate, orientation,
+                                            obstacleRouter, routingEnvironment, fresh, result.edges);
                 }
                 if (alternatives.isEmpty() && preciseChamber && !mergedNode.isRoot() && demand != null) {
                     extendedTerminals.add(outerNodeId);
@@ -3448,6 +3563,37 @@ public class OfficialRoutePlanner {
             return null;
         }
         return result;
+    }
+
+    /** Прямая нормаль ОКС до перенесённой камеры без сохранения старого внешнего обхода. */
+    private RoutePath directTerminalApproach(Demand demand, Coordinate chamber, int diameter,
+            OfficialRoutingEnvironment environment) {
+        if (demand == null || demand.egress == null || chamber == null) return null;
+        OfficialRouteGeometryRules.NormalEgress egress = demand.egress;
+        org.locationtech.jts.geom.Envelope bounds = new org.locationtech.jts.geom.Envelope(egress.start());
+        bounds.expandToInclude(egress.exit());
+        bounds.expandToInclude(chamber);
+        PreparedCorridor checks = obstacleRouter.prepareCorridor(
+                diameter, environment, bounds, egress.exit(), null, RouteTraversal.REVERSED);
+        RoutePath outside = checks.pathAfter(egress.start(), List.of(egress.exit(), chamber));
+        if (outside == null) return null;
+        RoutePath full = obstacleRouter.withCheckedCorridorTerminalPrefix(
+                egress, outside, diameter, environment, RouteTraversal.REVERSED);
+        if (full == null || full.coordinates().size() < 2
+                || full.coordinates().get(0).distance(demand.coordinate) > 0.01
+                || full.coordinates().get(full.coordinates().size() - 1).distance(chamber) > 0.01) return null;
+        List<RouteCoordinate> points = full.coordinates().stream()
+                .map(point -> new RouteCoordinate(point.x, point.y)).collect(Collectors.toList());
+        if (!OfficialRouteDeflectionRules.validatePolyline("direct-terminal", points).getIssues().isEmpty()) return null;
+        RouteEdge edge = new RouteEdge("direct-terminal", "demand", "chamber", full.lengthM(),
+                points, full.sections(), demand.flowTph, diameter);
+        ExpertChamberGeometryRules.PolylineSummary summary = ExpertChamberGeometryRules.summarize(points);
+        return summary != null && !summary.hasInvalidBendAngle()
+                && summary.getMinimumBendSpacingM() + LENGTH_EPSILON_M
+                        >= ExpertChamberGeometryRules.minimumBendDistanceM(diameter)
+                && summary.getLastBendDistanceM() + LENGTH_EPSILON_M
+                        >= ExpertChamberGeometryRules.minimumBendDistanceM(diameter)
+                && engineeringEvaluator.evaluate(List.of(edge)).isCompliant() ? full : null;
     }
 
     /** Косой ввод не задаёт ось ремонта камеры, даже если прямая магистраль технически раздроблена. */
@@ -4826,8 +4972,7 @@ public class OfficialRoutePlanner {
                 new VariantDraft(baseline.getNodes(), simplified, baseline.getConnections()),
                 features, parameters, reconstructionRequired, routingEnvironment, approachPolicy);
         if (!candidate.isValid() || !candidate.getEconomics().isComplete()
-                || candidate.getTotalLengthM().compareTo(baseline.getTotalLengthM()) >= 0
-                || candidate.getEconomics().getCalculatedCost().compareTo(baseline.getEconomics().getCalculatedCost()) > 0
+                || !regularizationBudgetAllows(baseline, candidate)
                 || !simplificationImprovesEngineering(baseline.getEdges(), candidate.getEdges())
                 || (parameters.isDepthEnabled() && candidate.getEdges().stream().anyMatch(edge ->
                         edge.getDepthProfile() == null || !edge.getDepthProfile().isComplete()
@@ -4859,18 +5004,37 @@ public class OfficialRoutePlanner {
             if (path == null) continue;
             RouteEdge replacement = routeEdge(edge.getId(), edge.getUpstreamNodeId(), edge.getDownstreamNodeId(),
                     path, edge.getFlowTph(), edge.getDiameter());
+            BigDecimal originalCost = economicsCalculator.marginalConnectionCost(List.of(edge), List.of());
+            BigDecimal replacementCost = economicsCalculator.marginalConnectionCost(List.of(replacement), List.of());
+            boolean geometryPriority = replacement.getLengthM().compareTo(edge.getLengthM()) > 0;
             if (!RetainedEndpointSimplifier.sameTerminalSegments(edge, replacement)
                     || !simplificationImprovesEngineering(List.of(edge), List.of(replacement))
-                    || economicsCalculator.marginalConnectionCost(List.of(replacement), List.of()).compareTo(
-                            economicsCalculator.marginalConnectionCost(List.of(edge), List.of())) > 0) continue;
+                    || replacementCost.compareTo(originalCost) > 0 && !geometryPriority) continue;
             List<RouteEdge> candidate = new ArrayList<>(current);
             candidate.set(index, replacement);
             if (!environment.validationFor(validator).validate(baseline.getNodes(), candidate,
-                    featuresForEdges(features, candidate, environment)).isEmpty()) continue;
+                    featuresForEdges(features, candidate, environment)).isEmpty()
+                    || !chamberValidator.validate(
+                            baseline.getNodes(), candidate, environment::existingDirections).isEmpty()
+                    || !ExpertRouteBendRules.validate(baseline.getNodes(), candidate).isEmpty()) continue;
             current = candidate;
             changed = true;
         }
         return changed ? current : baseline.getEdges();
+    }
+
+    /**
+     * Для полностью допустимой замены нескольких тупых углов меньшим числом прямых действует
+     * один и тот же малый бюджет независимо от знака изменения длины. Дискретная смета может
+     * немного вырасти даже у более короткой сети, поэтому знак длины не отменяет экспертный
+     * приоритет геометрии; сам приоритет отдельно подтверждает simplificationImprovesEngineering.
+     */
+    boolean regularizationBudgetAllows(RouteVariant baseline, RouteVariant candidate) {
+        BigDecimal lengthDelta = candidate.getTotalLengthM().subtract(baseline.getTotalLengthM());
+        BigDecimal costDelta = candidate.getEconomics().getCalculatedCost()
+                .subtract(baseline.getEconomics().getCalculatedCost());
+        return lengthDelta.compareTo(MAX_ENGINEERING_REGULARIZATION_LENGTH_INCREASE) <= 0
+                && costDelta.compareTo(MAX_ENGINEERING_REGULARIZATION_COST_INCREASE) <= 0;
     }
 
     private boolean simplificationImprovesEngineering(List<RouteEdge> baseline, List<RouteEdge> candidate) {

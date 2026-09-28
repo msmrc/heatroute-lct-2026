@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class ExpertRouteBendRulesTest {
     @ParameterizedTest
-    @CsvSource({"89.899,false", "89.9,true", "90,true", "119.999,true", "120,true", "120.101,false", "150,false", "180,true"})
+    @CsvSource({"89.899,false", "89.9,true", "90,true", "119.999,true", "120,true", "120.101,false", "150,false", "179.49,false", "179.51,true", "180,true"})
     void updatedInternalAngleIsNinetyToOneHundredTwentyDegrees(double internalAngle, boolean valid) {
         double turn = Math.toRadians(180 - internalAngle);
         List<RouteCoordinate> path = List.of(p(0, 0), p(1000, 0), p(1000 + 1000 * Math.cos(turn), 1000 * Math.sin(turn)));

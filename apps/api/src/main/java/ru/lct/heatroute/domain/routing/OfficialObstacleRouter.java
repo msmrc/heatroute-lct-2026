@@ -240,6 +240,37 @@ public class OfficialObstacleRouter {
         return checkedCorridorTerminalPrefix(egress, outside, diameter, environment, traversal);
     }
 
+    /**
+     * Проверяет законченную ветвь, у которой камера совпадает с концом обязательного нормального
+     * выхода из ОКС. Отдельного наружного участка здесь нет, поэтому нельзя подменять его
+     * вырожденной линией exit → exit. Льгота собственного ОКС действует только на этот ввод;
+     * все остальные ограничения коридора и специальные пересечения остаются обязательными.
+     */
+    RoutePath withCheckedCorridorTerminalEgress(OfficialRouteGeometryRules.NormalEgress egress,
+            int diameter, OfficialRoutingEnvironment environment, RouteTraversal traversal) {
+        List<Coordinate> coordinates = List.of(egress.start(), egress.exit());
+        Envelope bounds = new Envelope();
+        coordinates.forEach(bounds::expandToInclude);
+        List<Constraint> constraints = environment.corridorConstraints(diameter, bounds);
+        List<Constraint> terminalConstraints = rules.routingConstraints(
+                constraints, Set.of(), egress.start(), egress.exit()).stream()
+                .filter(constraint -> !egress.exempts(constraint))
+                .collect(java.util.stream.Collectors.toList());
+        RoutePath candidate = path(coordinates, constraints, traversal);
+        LineString line = rules.line(candidate.coordinates());
+        ConstraintIndex terminalIndex = rules.index(terminalConstraints, traversal);
+        List<Constraint> corridorConstraints = constraints.stream()
+                .filter(constraint -> !egress.exempts(constraint))
+                .collect(java.util.stream.Collectors.toList());
+        return line.isSimple()
+                && rules.joinedContactsAllowed(line, terminalIndex)
+                && turnsAllowed(candidate.coordinates(), null)
+                && rules.provisionalSegmentsAllowed(line, terminalIndex)
+                && rules.completeRoadCrossingsAllowed(line, terminalIndex)
+                && rules.lineAllowed(line, rules.index(corridorConstraints, traversal))
+                ? candidate : null;
+    }
+
     private RoutePath checkedCorridorTerminalPrefix(OfficialRouteGeometryRules.NormalEgress egress,
             RoutePath outside, int diameter, OfficialRoutingEnvironment environment, RouteTraversal traversal) {
         RoutePath candidate = withCheckedTerminalPrefix(egress, outside, diameter, environment, traversal);
@@ -1201,7 +1232,14 @@ public class OfficialObstacleRouter {
     RoutePath regularizeAfter(Coordinate previous, List<Coordinate> coordinates, int diameter,
             OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds, List<LineString> acceptedRoutes) {
         return regularizeAfterDirected(previous, coordinates, diameter, environment, exemptFeatureIds,
-                acceptedRoutes, RouteTraversal.AS_GIVEN);
+                acceptedRoutes, RouteTraversal.AS_GIVEN, false);
+    }
+
+    /** Сохраняет уже заданные оси проверяемого прямоугольного кандидата произвольной ориентации. */
+    RoutePath regularizeAfterPreservingAxes(Coordinate previous, List<Coordinate> coordinates, int diameter,
+            OfficialRoutingEnvironment environment, Set<String> exemptions, List<LineString> acceptedRoutes) {
+        return regularizeAfterDirected(previous, coordinates, diameter, environment, exemptions,
+                acceptedRoutes, RouteTraversal.AS_GIVEN, true);
     }
 
     RoutePath regularizeAfter(Coordinate previous, List<Coordinate> coordinates, int diameter,
@@ -1209,12 +1247,13 @@ public class OfficialObstacleRouter {
             RouteTraversal traversal) {
         if (traversal == RouteTraversal.AS_GIVEN) return regularizeAfter(previous, coordinates, diameter,
                 environment, exemptions, acceptedRoutes);
-        return regularizeAfterDirected(previous, coordinates, diameter, environment, exemptions, acceptedRoutes, traversal);
+        return regularizeAfterDirected(previous, coordinates, diameter, environment, exemptions,
+                acceptedRoutes, traversal, false);
     }
 
     private RoutePath regularizeAfterDirected(Coordinate previous, List<Coordinate> coordinates, int diameter,
             OfficialRoutingEnvironment environment, Set<String> exemptFeatureIds, List<LineString> acceptedRoutes,
-            RouteTraversal traversal) {
+            RouteTraversal traversal, boolean preserveAxes) {
         if (coordinates.size() < 2) {
             return null;
         }
@@ -1233,10 +1272,14 @@ public class OfficialObstacleRouter {
         List<Coordinate> constructible = snapConstructibleCorners(
                 normalized, constraintIndex, RoutePreference.ENGINEERING, previous);
         double minimumM = ExpertChamberGeometryRules.minimumBendDistanceM(diameter);
-        for (List<Coordinate> candidate : List.of(
-                expandEndpointParallelTurns(constructible, minimumM, false),
-                expandEndpointParallelTurns(constructible, minimumM, true),
-                constructible)) {
+        List<List<Coordinate>> candidates = preserveAxes
+                ? List.of(normalized,
+                        expandEndpointParallelTurns(normalized, minimumM, false),
+                        expandEndpointParallelTurns(normalized, minimumM, true),
+                        constructible)
+                : List.of(expandEndpointParallelTurns(constructible, minimumM, false),
+                        expandEndpointParallelTurns(constructible, minimumM, true), constructible);
+        for (List<Coordinate> candidate : candidates) {
             RoutePath checked = headingCheckedPath(candidate, constraints, constraintIndex, previous);
             if (checked != null) return checked;
         }

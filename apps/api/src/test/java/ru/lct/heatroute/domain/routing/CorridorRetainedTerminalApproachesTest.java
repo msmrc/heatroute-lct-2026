@@ -87,6 +87,22 @@ class CorridorRetainedTerminalApproachesTest {
     }
 
     @Test
+    void chamberOnTheOksNormalDoesNotKeepAnUnneededOffsetAfterTheEgress() throws Exception {
+        Fixture f = fixture(0, false);
+        Coordinate target = new Coordinate(-10, 10);
+        List<RoutePath> paths = CorridorRetainedTerminalApproaches.buildForChamberQuality(
+                f.edge, f.terminal, target, 0, router, router.prepare(f.features), List.of(), List.of());
+
+        assertThat(paths).isNotEmpty();
+        assertThat(paths).anySatisfy(path -> {
+            assertThat(path.coordinates()).noneMatch(point -> point.distance(f.points.get(1)) < 0.002);
+            assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edge(
+                    "direct-normal", "demand", "chamber", path.coordinates()))).bendCount()).isZero();
+        });
+        assertSafe(paths, f, target);
+    }
+
+    @Test
     void blockedNewEndpointHasNoRetainedTail() throws Exception {
         Fixture f = fixture(0, false);
         f.features.add(feature("blocked", "park", "POLYGON ((15 -55,25 -55,25 -45,15 -45,15 -55))"));

@@ -22,6 +22,10 @@ public final class OfficialRouteDeflectionRules {
     // Только верхний ограничитель вычисленной погрешности, а не безусловный допуск 0.1°.
     // На миллиметровых отрезках оценка погрешности иначе могла бы разрешить даже разворот.
     private static final double MAX_ROUNDING_TOLERANCE = Math.toRadians(0.1);
+    // Направления, отличающиеся не более чем на 0.5°, считаем одной проектной осью.
+    // Это согласовано с инженерной оценкой маршрута и не ослабляет диапазон фактических
+    // поворотов 60–90°: допуск применяется только около коллинеарного продолжения.
+    private static final double COLLINEAR_TOLERANCE = Math.toRadians(0.5);
     private static final double FLOATING_POINT_TOLERANCE = 1e-12;
 
     private OfficialRouteDeflectionRules() { }
@@ -155,6 +159,20 @@ public final class OfficialRouteDeflectionRules {
 
     /** Тот же допуск для горячего поиска; векторы в метрах получены из миллиметровых координат. */
     static boolean allowsTurn(double inX, double inY, double outX, double outY) {
+        return allowsTurn(inX, inY, outX, outY, true);
+    }
+
+    /**
+     * Для двух отдельных лучей камеры почти прямое продолжение допускается только в пределах
+     * погрешности миллиметровых координат. Допуск 0,5° относится к одной оцифрованной оси,
+     * а не разрешает два разных выхода из камеры в практически совпадающем направлении.
+     */
+    static boolean allowsJunctionContinuation(double inX, double inY, double outX, double outY) {
+        return allowsTurn(inX, inY, outX, outY, false);
+    }
+
+    private static boolean allowsTurn(double inX, double inY, double outX, double outY,
+            boolean digitizedAxisTolerance) {
         if (!Double.isFinite(inX) || !Double.isFinite(inY) || !Double.isFinite(outX) || !Double.isFinite(outY)
                 || inX == 0 && inY == 0 || outX == 0 && outY == 0) return false;
         double inLength = Math.hypot(inX, inY), outLength = Math.hypot(outX, outY);
@@ -166,7 +184,9 @@ public final class OfficialRouteDeflectionRules {
         double tolerance = Math.min(MAX_ROUNDING_TOLERANCE, rounding) + FLOATING_POINT_TOLERANCE;
         // Коллинеарное продолжение не является поворотом. Любой фактический поворот должен
         // соответствовать внутреннему углу 90–120°, то есть отклонению 60–90°.
-        return angle <= tolerance
+        double collinearTolerance = digitizedAxisTolerance
+                ? COLLINEAR_TOLERANCE + FLOATING_POINT_TOLERANCE : tolerance;
+        return angle <= collinearTolerance
                 || angle + tolerance >= MINIMUM_TURN && angle <= RIGHT_ANGLE + tolerance;
     }
 

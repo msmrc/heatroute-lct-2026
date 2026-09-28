@@ -176,7 +176,8 @@ final class CorridorJunctionAssignment {
             if (accepted.size() == choices.size()) {
                 if (accepted.size() == 2) {
                     Approach a = accepted.get(0), b = accepted.get(1);
-                    if (!OfficialRouteDeflectionRules.allowsTurn(-a.dx, -a.dy, b.dx, b.dy)) return;
+                    if (!OfficialRouteDeflectionRules.allowsJunctionContinuation(
+                            -a.dx, -a.dy, b.dx, b.dy)) return;
                 }
                 best = List.copyOf(accepted); bestLength = length; return;
             }

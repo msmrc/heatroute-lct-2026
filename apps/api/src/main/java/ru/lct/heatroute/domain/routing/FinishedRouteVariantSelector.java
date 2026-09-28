@@ -18,6 +18,12 @@ import java.util.stream.Collectors;
  */
 public final class FinishedRouteVariantSelector {
     private static final BigDecimal BALANCED_LENGTH_LIMIT = new BigDecimal("1.05");
+    // В пределах малого локального обхода роль shortest также соблюдает прямое указание
+    // выбирать меньшее число прямых углов вместо более короткой трассы с тремя тупыми углами.
+    // Бюджет фиксирован относительно настоящего минимума и не накапливается между кандидатами.
+    private static final BigDecimal SHORTEST_ENGINEERING_EXTRA_LENGTH_M = new BigDecimal("10.000");
+    private static final BigDecimal SHORTEST_ENGINEERING_LENGTH_RATIO = new BigDecimal("1.30");
+    private static final BigDecimal SHORTEST_ENGINEERING_EXTRA_COST = new BigDecimal("1250000");
     // Только погрешность вычисления углов в double, не дополнительный инженерный допуск.
     private static final double ANGULAR_COMPARISON_EPSILON = 1e-7;
     private final EngineeringRouteEvaluator engineering = new EngineeringRouteEvaluator();
@@ -86,12 +92,16 @@ public final class FinishedRouteVariantSelector {
         }
 
         Candidate originalShortest = byId(valid, "shortest");
-        Candidate shortest = engineeringCandidates.stream()
+        List<Candidate> shortestCandidates = engineeringCandidates.stream()
                 .filter(candidate -> noEngineeringRegression(candidate, originalShortest))
-                .min(Comparator.comparing((Candidate candidate) -> candidate.variant.getTotalLengthM())
-                        .thenComparing(this::compareKnownCosts)
-                        .thenComparing(candidate -> candidate.variant.getId()))
-                .orElse(null);
+                .collect(Collectors.toList());
+        Candidate absoluteShortest = shortestCandidates.stream().min(Comparator
+                .comparing((Candidate candidate) -> candidate.variant.getTotalLengthM())
+                .thenComparing(this::compareKnownCosts)
+                .thenComparing(candidate -> candidate.variant.getId())).orElse(null);
+        Candidate shortest = absoluteShortest == null ? null : shortestCandidates.stream()
+                .filter(candidate -> withinShortestEngineeringBudget(absoluteShortest, candidate))
+                .min(engineeringShortestComparator()).orElse(absoluteShortest);
         Candidate cheapest = maximumCoverageCandidates.stream()
                 .filter(this::fullyCosted)
                 .min(Comparator.comparing((Candidate candidate) -> candidate.variant.getEconomics().getCalculatedCost())
@@ -213,6 +223,34 @@ public final class FinishedRouteVariantSelector {
         // Не меняем предупреждения на худшие ради длины. Для compliant baseline оба порога равны нулю.
         return candidate.evaluation.invalidAngleCount() <= baseline.evaluation.invalidAngleCount()
                 && candidate.evaluation.insufficientSpacingCount() <= baseline.evaluation.insufficientSpacingCount();
+    }
+
+    /**
+     * Сравнивает конструктивность только в малом коридоре от фактического минимума длины.
+     * Так два прямых угла могут победить три тупых, но эвристика не превращает shortest
+     * в произвольно длинный инженерный вариант и не расширяет бюджет цепочкой улучшений.
+     */
+    private boolean withinShortestEngineeringBudget(Candidate anchor, Candidate candidate) {
+        BigDecimal length = candidate.variant.getTotalLengthM();
+        BigDecimal absoluteLimit = anchor.variant.getTotalLengthM().add(SHORTEST_ENGINEERING_EXTRA_LENGTH_M);
+        BigDecimal ratioLimit = anchor.variant.getTotalLengthM().multiply(SHORTEST_ENGINEERING_LENGTH_RATIO);
+        if (length.compareTo(absoluteLimit) > 0 || length.compareTo(ratioLimit) > 0) return false;
+        if (!fullyCosted(anchor) || !fullyCosted(candidate)) return true;
+        return candidate.variant.getEconomics().getCalculatedCost().compareTo(
+                anchor.variant.getEconomics().getCalculatedCost().add(SHORTEST_ENGINEERING_EXTRA_COST)) <= 0;
+    }
+
+    private Comparator<Candidate> engineeringShortestComparator() {
+        return Comparator
+                .comparingInt((Candidate candidate) -> candidate.evaluation.invalidAngleCount())
+                .thenComparingInt(candidate -> candidate.evaluation.insufficientSpacingCount())
+                .thenComparingInt(candidate -> candidate.evaluation.irregularJunctionAngleCount())
+                .thenComparingDouble(candidate -> candidate.evaluation.preferredAngleDeviation())
+                .thenComparingInt(candidate -> candidate.evaluation.bendCount())
+                .thenComparingDouble(candidate -> candidate.evaluation.totalJunctionAngleDeviation())
+                .thenComparing(candidate -> candidate.variant.getTotalLengthM())
+                .thenComparing(this::compareKnownCosts)
+                .thenComparing(candidate -> candidate.variant.getId());
     }
 
     private Candidate byId(List<Candidate> candidates, String id) {

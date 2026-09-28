@@ -17,6 +17,7 @@ import ru.lct.heatroute.domain.depth.OfficialDepthOptimizer;
 import ru.lct.heatroute.domain.depth.OfficialDepthPlanner;
 import ru.lct.heatroute.domain.depth.OfficialDepthProfileValidator;
 import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
+import ru.lct.heatroute.domain.economics.VariantEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstructor;
@@ -29,6 +30,19 @@ class OfficialCompliantSimplificationTest {
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
     private final OfficialPipeCatalog pipes = new OfficialPipeCatalog();
     private final ObjectMapper json = new ObjectMapper();
+
+    @Test
+    void boundedGeometryBudgetAlsoAppliesWhenTheFinishedNetworkIsShorter() {
+        OfficialRoutePlanner planner = planner(new OfficialObstacleRouter(rules));
+        RouteVariant baseline = budgetVariant("100.000", "300000000.00");
+
+        assertThat(planner.regularizationBudgetAllows(
+                baseline, budgetVariant("99.075", "300024783.41"))).isTrue();
+        assertThat(planner.regularizationBudgetAllows(
+                baseline, budgetVariant("99.075", "301250000.01"))).isFalse();
+        assertThat(planner.regularizationBudgetAllows(
+                baseline, budgetVariant("150.001", "299000000.00"))).isFalse();
+    }
 
     @Test
     void removesLegalDoglegWithoutMovingTerminalRaysOrNormalBuildingApproach() {
@@ -157,14 +171,14 @@ class OfficialCompliantSimplificationTest {
     }
 
     @Test
-    void legalCoreShortcutCannotIntroduceAnObtuseDirectionChangeAtItsSplice() {
+    void retainedNeighbourDirectionsRejectAnObtuseDirectionChangeAtTheSplice() {
         RouteEdge original = edge(List.of(c(0, 0), c(10, 0), c(10, 10), c(0, 10), c(-1, 0)));
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", point(0, 0), true, true, 2, "support"),
                 new RouteNode("demand:one", "demand_connection", point(-1, 0), false, false, 0, null));
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
         assertThat(new RetainedEndpointSimplifier().simplify(original, router, router.prepare(List.of()),
-                java.util.Set.of(), List.of())).isNotNull();
+                java.util.Set.of(), List.of())).isNull();
         RouteVariant result = planner(router).finish("test", "engineering",
                 new OfficialRoutePlanner.VariantDraft(nodes, List.of(original),
                         List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null))),
@@ -194,6 +208,15 @@ class OfficialCompliantSimplificationTest {
                 new OfficialVariantEconomicsCalculator(pipes, new OfficialEconomics()),
                 new OfficialDepthPlanner(new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipes),
                         new OfficialDepthOptimizer(pipes, new OfficialEconomics()), new OfficialDepthProfileValidator(pipes)));
+    }
+
+    private RouteVariant budgetVariant(String length, String cost) {
+        BigDecimal total = new BigDecimal(length);
+        VariantEconomics economics = new VariantEconomics(true, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal(cost),
+                total, BigDecimal.ZERO, total, BigDecimal.ZERO, List.of());
+        return new RouteVariant("budget", "engineering", List.of(), List.of(), List.of(), total,
+                List.of(), List.of(), List.of(), null, economics, null);
     }
 
     private static Coordinate c(double x, double y) { return new Coordinate(500000 + x, 6100000 + y); }

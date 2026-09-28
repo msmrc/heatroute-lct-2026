@@ -226,6 +226,38 @@ class FinishedRouteVariantSelectorTest {
     }
 
     @Test
+    void shortestPrefersTwoRightAnglesOverThreeObtuseTurnsInsideTheFixedBudget() {
+        RouteVariant absoluteShortest = withOfficialCost(
+                pathVariant("shortest", anglePath(10, 105, 120, 105)), 100_000_000);
+        RouteVariant orthogonal = withOfficialCost(
+                pathVariant("orthogonal", anglePath(14, 90, 90)), 99_000_000);
+        EngineeringRouteEvaluator.Evaluation shortestGeometry = evaluator.evaluate(absoluteShortest.getEdges());
+        EngineeringRouteEvaluator.Evaluation orthogonalGeometry = evaluator.evaluate(orthogonal.getEdges());
+        assertThat(orthogonal.getTotalLengthM().subtract(absoluteShortest.getTotalLengthM()))
+                .isBetween(new BigDecimal("2.000"), new BigDecimal("2.002"));
+        assertThat(shortestGeometry.invalidAngleCount()).isZero();
+        assertThat(shortestGeometry.bendCount()).isEqualTo(3);
+        assertThat(orthogonalGeometry.invalidAngleCount()).isZero();
+        assertThat(orthogonalGeometry.bendCount()).isEqualTo(2);
+        assertThat(orthogonalGeometry.preferredAngleDeviation())
+                .isLessThan(shortestGeometry.preferredAngleDeviation());
+
+        assertSource(role(selector.select(List.of(absoluteShortest, orthogonal)), "shortest"), orthogonal);
+    }
+
+    @Test
+    void shortestDoesNotTradeMoreThanTenMetersForRightAngles() {
+        RouteVariant absoluteShortest = withOfficialCost(
+                pathVariant("shortest", anglePath(10, 105, 120, 105)), 100_000_000);
+        RouteVariant outsideBudget = withOfficialCost(
+                pathVariant("orthogonal", anglePath(17, 90, 90)), 50_000_000);
+        assertThat(outsideBudget.getTotalLengthM().subtract(absoluteShortest.getTotalLengthM()))
+                .isGreaterThan(new BigDecimal("10.000"));
+
+        assertSource(role(selector.select(List.of(absoluteShortest, outsideBudget)), "shortest"), absoluteShortest);
+    }
+
+    @Test
     void identicalGeometryCanFillAllRolesWhilePreservingFullPayloadAndClearingRank() {
         RouteVariant balanced = variant("balanced", "engineering", 100, 300, 2, true)
                 .withEngineeringIssues(List.of(new RouteValidationIssue("ENGINEERING_WARNING", "edge", "Retained")))

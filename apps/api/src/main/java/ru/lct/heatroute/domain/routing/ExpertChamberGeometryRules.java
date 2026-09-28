@@ -19,6 +19,7 @@ public final class ExpertChamberGeometryRules {
     private static final double NUMERICAL_EPSILON_M = 1e-7;
     private static final double NODE_TOLERANCE_M = 0.01;
     private static final double MAX_ANGLE_TOLERANCE = Math.toRadians(0.1);
+    private static final double COLLINEAR_TOLERANCE = Math.toRadians(0.5);
 
     private ExpertChamberGeometryRules() { }
 
@@ -126,6 +127,8 @@ public final class ExpertChamberGeometryRules {
         RouteCoordinate first = null, previous = null, runStart = null;
         Vector firstRay = null;
         Vector previousRun = null;
+        Vector collinearAxis = null;
+        Vector lastSegment = null;
         double total = 0, firstBend = Double.POSITIVE_INFINITY, lastBend = Double.NaN;
         boolean invalidAngle = false;
         double minimumBendSpacingM = Double.POSITIVE_INFINITY;
@@ -137,23 +140,39 @@ public final class ExpertChamberGeometryRules {
             if (segment.length == 0) continue;
             if (!segment.finite()) return null;
             Vector run = Vector.between(runStart, previous);
-            if (run.length > 0 && !sameDirection(run, segment)) {
-                if (previousRun != null && !allowsBend(previousRun.dx, previousRun.dy, run.dx, run.dy)) invalidAngle = true;
-                if (!Double.isFinite(firstBend)) { firstBend = total; firstRay = run; }
+            boolean sameRoute = run.length > 0 && sameRouteDirection(run, segment);
+            if (run.length > 0 && !sameRoute) {
+                Vector completedRun = collinearAxis == null ? run : collinearAxis;
+                if (previousRun != null && !allowsBend(
+                        previousRun.dx, previousRun.dy, completedRun.dx, completedRun.dy)) invalidAngle = true;
+                if (!Double.isFinite(firstBend)) {
+                    firstBend = total;
+                    firstRay = completedRun;
+                }
                 if (Double.isFinite(lastBend)) {
                     minimumBendSpacingM = Math.min(minimumBendSpacingM, total - lastBend);
                 }
                 lastBend = total;
-                previousRun = run;
+                previousRun = completedRun;
+                collinearAxis = null;
                 runStart = previous;
+            } else if (sameRoute && !sameDirection(run, segment) && collinearAxis == null) {
+                // Сохраняем ось до единственного малого расхождения. Так оно не превращается
+                // ни в третий поворот, ни в усреднённую ось, выходящую за допуск соседнего угла.
+                collinearAxis = run;
             }
             total += segment.length;
+            lastSegment = segment;
             previous = point;
         }
         if (first == null || total == 0 || !Double.isFinite(total)) return null;
-        Vector lastRay = Vector.between(runStart, previous);
-        if (previousRun != null && !allowsBend(previousRun.dx, previousRun.dy, lastRay.dx, lastRay.dy)) invalidAngle = true;
-        if (firstRay == null) firstRay = Vector.between(first, previous);
+        Vector lastRun = collinearAxis == null ? Vector.between(runStart, previous) : collinearAxis;
+        if (previousRun != null && !allowsBend(previousRun.dx, previousRun.dy, lastRun.dx, lastRun.dy)) invalidAngle = true;
+        if (firstRay == null) firstRay = lastRun;
+        // Для строго прямого участка лучом служит весь ход: так миллиметровое округление
+        // координат не расширяет допустимый угол камеры. Если внутри хода было единственное
+        // малое расхождение оцифровки, у камеры сохраняем фактический последний сегмент.
+        Vector lastRay = collinearAxis == null ? lastRun : lastSegment;
         return new PolylineSummary(first, previous, firstRay, lastRay, total, firstBend,
                 Double.isNaN(lastBend) ? Double.POSITIVE_INFINITY : total - lastBend,
                 invalidAngle, minimumBendSpacingM);
@@ -224,6 +243,18 @@ public final class ExpertChamberGeometryRules {
 
     private static boolean sameDirection(Vector a, Vector b) {
         return a.finite() && b.finite() && angle(a, b) <= tolerance(a, b);
+    }
+
+    private static boolean sameRouteDirection(Vector a, Vector b) {
+        if (!a.finite() || !b.finite()) return false;
+        // Рядом хотя бы с одним конструктивным ходом не короче минимальных 2 м единичное
+        // расхождение оцифрованных осей до 0,5° не создаёт фиктивный поворот. Короткая ломаная
+        // сохраняет строгий допуск, чтобы последовательный дрейф нельзя было скрыть.
+        double allowed = a.length + NUMERICAL_EPSILON_M >= MIN_BEND_DISTANCE_M
+                || b.length + NUMERICAL_EPSILON_M >= MIN_BEND_DISTANCE_M
+                        ? COLLINEAR_TOLERANCE + 1e-12
+                        : tolerance(a, b);
+        return angle(a, b) <= allowed;
     }
 
     private static double angle(Vector a, Vector b) {

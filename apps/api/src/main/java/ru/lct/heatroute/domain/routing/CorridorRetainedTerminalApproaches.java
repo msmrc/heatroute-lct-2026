@@ -111,6 +111,11 @@ final class CorridorRetainedTerminalApproaches {
         }
         List<List<Coordinate>> tails = new ArrayList<>();
         boolean stationary = source.get(source.size() - 1).equals2D(junction);
+        // Если переносимая камера уже лежит на продолжении проверенной нормали ОКС,
+        // заканчиваем ввод в ней. Старый обход после выхода из ОКС больше не обязателен.
+        if (!stationary && egress != null) {
+            addTail(tails, List.of(egress.exit()), List.of(junction));
+        }
         if (stationary) {
             tails.add(outside);
         }

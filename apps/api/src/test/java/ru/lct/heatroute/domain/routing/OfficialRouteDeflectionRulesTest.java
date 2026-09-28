@@ -19,7 +19,7 @@ class OfficialRouteDeflectionRulesTest {
     @Test
     void primitiveSearchPredicateMatchesIndependentAngleFormulaAtAllLengthScales() {
         for (double length : new double[] {0.01, 0.1, 1, 10, 1000}) {
-            for (double angle : new double[] {0, 30, 45, 89.9, 90, 90.01, 90.1, 90.11, 91, 135, 180}) {
+            for (double angle : new double[] {0, 0.49, 0.5, 0.51, 30, 45, 89.9, 90, 90.01, 90.1, 90.11, 91, 135, 180}) {
                 for (double rotation : new double[] {0, 0.4, 1.7, 2.8}) {
                     List<RouteCoordinate> p = transform(turn(angle, length), rotation);
                     double ax = p.get(1).getXM().subtract(p.get(0).getXM()).doubleValue();
@@ -30,7 +30,7 @@ class OfficialRouteDeflectionRulesTest {
                     double rounding = Math.min(Math.toRadians(0.1),
                             Math.asin(Math.min(1, Math.sqrt(2) * 0.001 / Math.hypot(ax, ay)))
                                     + Math.asin(Math.min(1, Math.sqrt(2) * 0.001 / Math.hypot(bx, by))));
-                    boolean expected = change <= rounding + 1e-12
+                    boolean expected = change <= Math.toRadians(0.5) + 1e-12
                             || change + rounding + 1e-12 >= Math.PI / 3
                                     && change <= Math.PI / 2 + rounding + 1e-12;
                     assertThat(OfficialRouteDeflectionRules.allowsTurn(ax, ay, bx, by))
@@ -79,14 +79,14 @@ class OfficialRouteDeflectionRulesTest {
 
     @Test
     void isInvariantUnderReversalRotationAndMetricTranslationAtBothUpdatedBoundaries() {
-        for (double deflection : new double[] {0, 30, 60, 90, 91, 135, 180}) {
+        for (double deflection : new double[] {0, 0.49, 0.51, 30, 60, 90, 91, 135, 180}) {
             for (double rotation : new double[] {0, 0.4, 1.7, 2.8}) {
                 List<RouteCoordinate> transformed = transform(turn(deflection, 10), rotation);
                 List<RouteCoordinate> reversed = new ArrayList<>(transformed); Collections.reverse(reversed);
                 for (List<RouteCoordinate> coordinates : List.of(transformed, reversed)) {
                     assertThat(OfficialRouteDeflectionRules.validatePolyline("edge", coordinates).getIssues().isEmpty())
                             .as("deflection=%s rotation=%s", deflection, rotation)
-                            .isEqualTo(deflection == 0 || deflection >= 60 && deflection <= 90);
+                            .isEqualTo(deflection <= 0.5 || deflection >= 60 && deflection <= 90);
                 }
             }
         }
@@ -94,7 +94,7 @@ class OfficialRouteDeflectionRulesTest {
 
     @Test
     void junctionRaysAreIndependentOfCoordinateAndDeclaredEdgeDirections() {
-        for (double deflection : new double[] {0, 30, 60, 90, 91, 135}) {
+        for (double deflection : new double[] {0, 0.49, 0.51, 30, 60, 90, 91, 135}) {
             for (double rotation : new double[] {0, 0.4, 1.7}) {
                 List<RouteCoordinate> p = transform(turn(deflection, 10), rotation);
                 List<RouteNode> nodes = List.of(node("a", p.get(0)), node("joint", p.get(1)), node("b", p.get(2)));
@@ -107,8 +107,8 @@ class OfficialRouteDeflectionRulesTest {
                         var ends = List.of(first.endpoints("joint", "a"), second.endpoints("b", "joint"));
                         List<RouteValidationIssue> issues = OfficialRouteDeflectionRules.validateDegreeTwoNodes(nodes, ends);
                         assertThat(issues.isEmpty()).as("deflection=%s rotation=%s", deflection, rotation)
-                                .isEqualTo(deflection == 0 || deflection >= 60 && deflection <= 90);
-                        if (deflection > 0 && (deflection < 60 || deflection > 90)) {
+                                .isEqualTo(deflection <= 0.5 || deflection >= 60 && deflection <= 90);
+                        if (deflection > 0.5 && (deflection < 60 || deflection > 90)) {
                             assertThat(issues).extracting(RouteValidationIssue::getSubjectId).containsExactly("joint");
                         }
                     }

@@ -80,6 +80,37 @@ class CorridorTerminalRoutingTest {
     }
 
     @Test
+    void chamberAtTheMandatoryNormalExitNeedsNoArtificialOutsideDogleg() throws Exception {
+        Fixture fixture = fixture(0, 414000.00049, 6173000.00049);
+        OfficialRoutingEnvironment environment = router.prepare(fixture.features);
+        OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgressCandidates(
+                50, fixture.demand, fixture.port, 60, RouteTraversal.REVERSED).get(0);
+        Coordinate chamber = egress.exit();
+        AtomicInteger fallbackCalls = new AtomicInteger();
+        CorridorTerminalRouter terminals = new CorridorTerminalRouter(router, environment,
+                (id, end, diameter, avoidance) -> {
+                    fallbackCalls.incrementAndGet();
+                    return null;
+                }, 0);
+
+        RoutePath route = terminals.route("terminal", fixture.demand, chamber, 50);
+        List<RoutePath> local = terminals.localAlternatives("terminal", fixture.demand, chamber, 50);
+
+        assertThat(fallbackCalls).hasValue(0);
+        assertThat(route).isNotNull();
+        assertThat(local).anySatisfy(path -> assertThat(path.coordinates()).containsExactlyElementsOf(route.coordinates()));
+        assertThat(route.coordinates()).hasSize(2);
+        assertThat(route.coordinates().get(0).distance(fixture.demand)).isLessThan(ROUNDING_TOLERANCE_M);
+        assertThat(route.coordinates().get(1).distance(chamber)).isLessThan(ROUNDING_TOLERANCE_M);
+        assertPathArithmetic(route);
+        assertSafeOwnPrefix(route, fixture.features.get(0).getMetricGeometry());
+        RouteEdge edge = edgeFromTerminalPath(route);
+        assertThat(OfficialRouteDeflectionRules.validate(nodesFor(route), List.of(edge))).isEmpty();
+        assertThat(new OfficialRouteValidator(rules).validate(nodesFor(route), List.of(edge), fixture.features)).isEmpty();
+        assertThat(new EngineeringRouteEvaluator().evaluate(List.of(edge)).isCompliant()).isTrue();
+    }
+
+    @Test
     void generatedGridPortDoesNotReceiveTheExistingTieInClearanceException() throws Exception {
         ObjectMapper json = new ObjectMapper();
         List<ImportedOfficialFeature> features = List.of(

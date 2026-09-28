@@ -305,6 +305,7 @@ public class OfficialRoutePlanner {
                 reconstructionRequired, routingEnvironment);
         variants = improveSelectedChamberQuality(variants, demands, features, validatedParameters,
                 reconstructionRequired, routingEnvironment);
+        variants = refineSelectedAxisShifts(variants, features, validatedParameters, routingEnvironment);
         routingEnvironment.logVisibilitySummary("finalized_portfolio");
         for (RouteVariant variant : variants) {
             logVariantSummary(variant);
@@ -4935,6 +4936,42 @@ public class OfficialRoutePlanner {
                 path.sections(),
                 flowTph,
                 diameter);
+    }
+
+    /** Убирает доказанно лишние ступеньки последним XY-этапом; каждый перенос проходит полный допуск. */
+    List<RouteVariant> refineSelectedAxisShifts(List<RouteVariant> variants, List<ImportedOfficialFeature> features,
+            OfficialRunParameters parameters, OfficialRoutingEnvironment environment) {
+        RouteAxisShiftControl control = new RouteAxisShiftControl();
+        AxisShiftAlternativeEvaluator evaluator = new AxisShiftAlternativeEvaluator(
+                validator, obstacleRouter, networkSizer, depthPlanner, economicsCalculator);
+        List<RouteVariant> result = new ArrayList<>();
+        boolean changed = false;
+        for (RouteVariant original : variants) {
+            if (!original.isValid() || !original.getEconomics().isComplete()) {
+                result.add(original);
+                continue;
+            }
+            RouteVariant current = original;
+            // Строго уменьшающееся число поворотов ограничивает процесс размером исходной сети.
+            int maximumMoves = engineeringEvaluator.evaluate(original.getEdges()).bendCount();
+            for (int move = 0; move < maximumMoves; move++) {
+                RouteVariant at = current;
+                RouteVariant next = control.firstImprovement(at.getNodes(), at.getEdges(), replacement ->
+                        evaluator.assess(replacement, at.getId(), at.getStrategy(), at.getConnections(),
+                                featuresForEdges(features, replacement.getEdges(), environment), parameters, environment));
+                if (next == null) break;
+                current = withEngineeringAssessment(next);
+            }
+            if (current != original) {
+                changed = true;
+                LOGGER.info("Axis shift refinement role={} length_before_m={} length_after_m={} bends_before={} bends_after={}",
+                        original.getId(), original.getTotalLengthM(), current.getTotalLengthM(),
+                        engineeringEvaluator.evaluate(original.getEdges()).bendCount(),
+                        engineeringEvaluator.evaluate(current.getEdges()).bendCount());
+            }
+            result.add(current);
+        }
+        return changed ? new FinishedRouteVariantSelector().select(result, parameters.isDepthEnabled()) : variants;
     }
 
     private RoutePath edgePath(RouteEdge edge) {

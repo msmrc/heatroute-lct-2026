@@ -81,6 +81,35 @@ class FrozenNetworkEvaluatorTest {
                 .contains("EXPERT_ROUTE_BEND_ANGLE_INVALID");
     }
 
+    @Test
+    void rejectsProvenUnnecessaryAxisShiftWithoutRepairingFrozenGeometry() {
+        FrozenNetworkCandidate candidate = new FrozenNetworkCandidate("step", "shortest",
+                AxisShiftTestNetwork.nodes(), AxisShiftTestNetwork.edges(), AxisShiftTestNetwork.connections(),
+                List.of(), OfficialRunParameters.defaults(), false);
+        String originalHash = candidate.getGeometryHash();
+
+        FrozenNetworkEvaluator.Evaluation result = evaluator.evaluate(candidate);
+
+        assertThat(result.getOutcome()).isEqualTo(FrozenNetworkEvaluator.Outcome.PROVEN_REJECTED);
+        assertThat(result.getReason()).isEqualTo("unnecessary_axis_shift");
+        assertThat(result.getValidationIssues()).extracting(RouteValidationIssue::getCode)
+                .containsExactly("EXPERT_UNNECESSARY_AXIS_SHIFT");
+        assertThat(FrozenNetworkCandidate.geometryHash(candidate.getNodes(), candidate.getEdges())).isEqualTo(originalHash);
+        assertThat(candidate.getNodes().get(1).getCoordinate().getYM()).isEqualByComparingTo("5");
+    }
+
+    @Test
+    void acceptsNecessaryObstacleBypassAsFrozenGeometry() {
+        FrozenNetworkCandidate candidate = new FrozenNetworkCandidate("step", "shortest",
+                AxisShiftTestNetwork.nodes(), AxisShiftTestNetwork.edges(), AxisShiftTestNetwork.connections(),
+                List.of(AxisShiftTestNetwork.necessaryObstacle()), OfficialRunParameters.defaults(), false);
+
+        FrozenNetworkEvaluator.Evaluation result = evaluator.evaluate(candidate);
+
+        assertThat(result.getOutcome()).isEqualTo(FrozenNetworkEvaluator.Outcome.ACCEPTED);
+        assertThat(result.getAccepted().getGeometryHash()).isEqualTo(candidate.getGeometryHash());
+    }
+
     private FrozenNetworkCandidate candidate(RouteEdge edge) {
         return candidate(nodes(), List.of(edge));
     }

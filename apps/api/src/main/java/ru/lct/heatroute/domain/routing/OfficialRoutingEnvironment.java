@@ -18,7 +18,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 final class OfficialRoutingEnvironment {
     private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutingEnvironment.class);
-    private static final double WINDOW_MARGIN_M = 610.0;
+    static final double WINDOW_MARGIN_M = 610.0;
     private final List<ImportedOfficialFeature> features;
     private final RoutingFeatureSource source;
     private final OfficialRouteGeometryRules rules;

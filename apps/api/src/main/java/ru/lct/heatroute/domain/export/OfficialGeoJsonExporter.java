@@ -76,8 +76,9 @@ public class OfficialGeoJsonExporter {
         ObjectNode collection = objectMapper.createObjectNode();
         collection.put("type", "FeatureCollection");
         ArrayNode output = collection.putArray("features");
-        forEachFeature(calculation, inputFeatures, null, parameters, output::add);
-        assertValid(validator.validate(collection, allowsMissingTieInDiameter(calculation)));
+        PreparedExport prepared = prepare(calculation, inputFeatures, null, parameters);
+        emit(prepared, output::add);
+        assertValid(validator.validate(collection, prepared.allowMissingTieInDiameter));
         return collection;
     }
 
@@ -96,10 +97,7 @@ public class OfficialGeoJsonExporter {
 
     public void validateVariant(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
             String variantId, OfficialRunParameters parameters) {
-        OfficialOutputContractValidator.ValidationSession session = validator.begin(
-                allowsMissingTieInDiameter(calculation));
-        forEachFeature(calculation, inputFeatures, variantId, parameters, session::accept);
-        assertValid(session.finish());
+        validatePrepared(prepare(calculation, inputFeatures, variantId, parameters));
     }
 
     public void writeValidated(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
@@ -110,9 +108,10 @@ public class OfficialGeoJsonExporter {
     /** Проверяет весь экспорт, включая последнюю сумму, до записи первого байта. */
     public void writeValidated(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
             OfficialRunParameters parameters, OutputStream outputStream) throws IOException {
-        validate(calculation, inputFeatures, parameters);
+        PreparedExport prepared = prepare(calculation, inputFeatures, null, parameters);
+        validatePrepared(prepared);
         streamWriter.writeFeatureCollection(outputStream,
-                output -> forEachFeature(calculation, inputFeatures, null, parameters, output));
+                output -> emit(prepared, output));
     }
 
     public void writeValidatedVariant(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
@@ -122,17 +121,18 @@ public class OfficialGeoJsonExporter {
 
     public void writeValidatedVariant(JsonNode calculation, List<ImportedOfficialFeature> inputFeatures,
             String variantId, OfficialRunParameters parameters, OutputStream outputStream) throws IOException {
-        validateVariant(calculation, inputFeatures, variantId, parameters);
+        PreparedExport prepared = prepare(calculation, inputFeatures, variantId, parameters);
+        validatePrepared(prepared);
         streamWriter.writeFeatureCollection(outputStream,
-                output -> forEachFeature(calculation, inputFeatures, variantId, parameters, output));
+                output -> emit(prepared, output));
     }
 
-    private void forEachFeature(
+    /** Performs every expensive saved-result guard once and retains only compact export metadata. */
+    private PreparedExport prepare(
             JsonNode calculation,
             List<ImportedOfficialFeature> inputFeatures,
             String selectedVariantId,
-            OfficialRunParameters parameters,
-            Consumer<ObjectNode> output) {
+            OfficialRunParameters parameters) {
         Map<String, ImportedOfficialFeature> inputById = inputFeatures.stream().collect(Collectors.toMap(
                 ImportedOfficialFeature::getFeatureId,
                 feature -> feature,
@@ -157,6 +157,7 @@ public class OfficialGeoJsonExporter {
                 new ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex(inputFeatures);
         Map<JsonNode, Map<String, Integer>> chamberDiameters = new java.util.IdentityHashMap<>();
         SavedForbiddenClearanceAssessment spatial = new SavedForbiddenClearanceAssessment(inputFeatures);
+        Set<String> checkedAxisShiftInputs = new HashSet<>();
         // Проверяем все выбранные варианты до передачи первой feature потребителю потока.
         for (JsonNode variant : variants) {
             chamberDiameters.put(variant, SavedChamberAssessment.verify(variant, support, economics));
@@ -166,10 +167,29 @@ public class OfficialGeoJsonExporter {
             SavedSpecialClearanceAssessment.verify(variant, inputFeatures, pipeCatalog, specialSources);
             SavedUtilityHorizontalAssessment.verify(variant, inputFeatures, pipeCatalog);
             spatial.verify(variant);
-            SavedAxisShiftAssessment.verify(variant, inputFeatures, parameters, axisShiftEvaluator);
+            // Ролевые варианты часто имеют одну и ту же сеть. Точное равенство входа позволяет
+            // один раз выполнить дорогой независимый поиск устранимой ступеньки без доверия к ID.
+            if (checkedAxisShiftInputs.add(SavedAxisShiftAssessment.inputSignature(variant))) {
+                SavedAxisShiftAssessment.verify(
+                        variant, inputFeatures, parameters, axisShiftEvaluator);
+            }
         }
-        for (JsonNode variant : variants) {
-            appendVariant(output, variant, inputById, allowMissingTieInDiameter, chamberDiameters.get(variant));
+        return new PreparedExport(inputById, variants, allowMissingTieInDiameter,
+                chamberDiameters);
+    }
+
+    private void validatePrepared(PreparedExport prepared) {
+        OfficialOutputContractValidator.ValidationSession session = validator.begin(
+                prepared.allowMissingTieInDiameter);
+        emit(prepared, session::accept);
+        assertValid(session.finish());
+    }
+
+    private void emit(PreparedExport prepared, Consumer<ObjectNode> output) {
+        for (JsonNode variant : prepared.variants) {
+            appendVariant(output, variant, prepared.inputById,
+                    prepared.allowMissingTieInDiameter,
+                    prepared.chamberDiameters.get(variant));
         }
     }
 
@@ -180,6 +200,22 @@ public class OfficialGeoJsonExporter {
     private void assertValid(List<String> issues) {
         if (!issues.isEmpty()) {
             throw new IllegalStateException("OFFICIAL_EXPORT_INVALID: " + String.join("; ", issues));
+        }
+    }
+
+    private static final class PreparedExport {
+        private final Map<String, ImportedOfficialFeature> inputById;
+        private final List<JsonNode> variants;
+        private final boolean allowMissingTieInDiameter;
+        private final Map<JsonNode, Map<String, Integer>> chamberDiameters;
+
+        private PreparedExport(Map<String, ImportedOfficialFeature> inputById,
+                List<JsonNode> variants, boolean allowMissingTieInDiameter,
+                Map<JsonNode, Map<String, Integer>> chamberDiameters) {
+            this.inputById = inputById;
+            this.variants = variants;
+            this.allowMissingTieInDiameter = allowMissingTieInDiameter;
+            this.chamberDiameters = chamberDiameters;
         }
     }
 

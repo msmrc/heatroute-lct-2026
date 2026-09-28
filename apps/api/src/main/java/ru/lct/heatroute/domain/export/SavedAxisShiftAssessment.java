@@ -19,6 +19,67 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 final class SavedAxisShiftAssessment {
     private SavedAxisShiftAssessment() { }
 
+    /**
+     * Collision-free normalized input consumed by {@link #verify}. Derived sections, length,
+     * economics and depth samples are deliberately excluded; only depth presence affects the
+     * fallback parameters. Tokens are length-prefixed, so different inputs cannot alias.
+     */
+    static String inputSignature(JsonNode variant) {
+        StringBuilder result = new StringBuilder();
+        append(result, Integer.toString(variant.path("nodes").size()));
+        for (JsonNode node : variant.path("nodes")) {
+            RouteCoordinate coordinate = SavedRouteGeometry.coordinate(node.path("coordinate"));
+            append(result, node.path("id").asText());
+            append(result, node.path("node_type").asText());
+            append(result, decimal(coordinate.getXM()));
+            append(result, decimal(coordinate.getYM()));
+            append(result, Boolean.toString(node.path("chamber").asBoolean()));
+            append(result, Boolean.toString(node.path("root").asBoolean()));
+            append(result, Integer.toString(node.path("base_incident_sections").asInt()));
+            append(result, node.hasNonNull("target_id") ? node.path("target_id").asText() : "");
+            append(result, node.hasNonNull("existing_incident_diameter")
+                    ? Integer.toString(node.path("existing_incident_diameter").asInt()) : "");
+        }
+        boolean anyProfile = false;
+        append(result, Integer.toString(variant.path("edges").size()));
+        for (JsonNode edge : variant.path("edges")) {
+            append(result, edge.path("id").asText());
+            append(result, edge.path("upstream_node_id").asText());
+            append(result, edge.path("downstream_node_id").asText());
+            List<RouteCoordinate> points = compact(SavedRouteGeometry.points(edge.path("coordinates")));
+            append(result, Integer.toString(points.size()));
+            for (RouteCoordinate point : points) {
+                append(result, decimal(point.getXM()));
+                append(result, decimal(point.getYM()));
+            }
+            append(result, edge.path("flow_tph").isNumber()
+                    ? decimal(edge.path("flow_tph").decimalValue())
+                    : "");
+            append(result, Integer.toString(edge.path("diameter").asInt()));
+            anyProfile |= edge.hasNonNull("depth_profile");
+        }
+        append(result, Boolean.toString(anyProfile));
+        append(result, Integer.toString(variant.path("connections").size()));
+        for (JsonNode connection : variant.path("connections")) {
+            append(result, connection.path("demand_id").asText());
+            append(result, connection.path("connection_point_id").asText());
+            append(result, connection.path("flow_tph").isNumber()
+                    ? decimal(connection.path("flow_tph").decimalValue())
+                    : "");
+            append(result, connection.path("status").asText());
+            append(result, connection.hasNonNull("reason") ? connection.path("reason").asText() : "");
+        }
+        return result.toString();
+    }
+
+    private static String decimal(java.math.BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    private static void append(StringBuilder target, String value) {
+        target.append(value.length()).append(':').append(value);
+    }
+
     static void verify(JsonNode variant, List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
             AxisShiftAlternativeEvaluator evaluator) {
         List<RouteNode> nodes = new ArrayList<>();
@@ -51,6 +112,7 @@ final class SavedAxisShiftAssessment {
         }
         OfficialRunParameters effective = parameters == null ? new OfficialRunParameters(null,
                 anyProfile ? OfficialRunParameters.APPLICATION_MAXIMUM_DEPTH_M : null, anyProfile) : parameters;
+        AxisShiftAlternativeEvaluator.IndependentSession[] session = new AxisShiftAlternativeEvaluator.IndependentSession[1];
         RouteVariant alternative = new RouteAxisShiftControl().firstImprovement(nodes, edges, replacement -> {
             if (!variant.path("connections").isArray() || connections.stream().anyMatch(connection ->
                     "connected".equals(connection.getStatus()) && (connection.getFlowTph() == null
@@ -62,8 +124,9 @@ final class SavedAxisShiftAssessment {
             java.util.Set<String> connectedIds = connections.stream().filter(connection -> "connected".equals(connection.getStatus()))
                     .map(connection -> "demand:" + connection.getDemandId()).collect(java.util.stream.Collectors.toSet());
             if (!connectedIds.equals(demandIds)) fail(variant, "AXIS_SHIFT_FLOW_UNCHECKABLE");
-            return evaluator.assess(replacement, variant.path("id").asText(), variant.path("strategy").asText("saved"),
-                    connections, features, effective);
+            if (session[0] == null) session[0] = evaluator.independentSession(features);
+            return session[0].assess(replacement, variant.path("id").asText(),
+                    variant.path("strategy").asText("saved"), connections, effective);
         });
         if (alternative != null) fail(variant, "EXPERT_UNNECESSARY_AXIS_SHIFT");
     }

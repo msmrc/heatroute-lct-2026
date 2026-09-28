@@ -9,8 +9,10 @@ import static ru.lct.heatroute.domain.routing.AxisShiftTestNetwork.node;
 import static ru.lct.heatroute.domain.routing.AxisShiftTestNetwork.nodes;
 import static ru.lct.heatroute.domain.routing.AxisShiftTestNetwork.variant;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,7 @@ import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
+import ru.lct.heatroute.domain.sizing.SizedNetworkEdge;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 class RouteAxisShiftControlTest {
@@ -63,6 +66,29 @@ class RouteAxisShiftControlTest {
     @Test
     void retainsShiftWhenStraightAlternativeCrossesForbiddenSourceGeometry() {
         assertThat(align(nodes(), edges(), List.of(necessaryObstacle()), OfficialRunParameters.defaults())).isNull();
+    }
+
+    @Test
+    void reusesOnlyAnUnchangedCanonicallySizedCheckedAssembly() {
+        RouteEdge edge = edges().get(0);
+        SizedNetworkEdge canonical = new SizedNetworkEdge(edge.getId(), edge.getFlowTph(),
+                edge.getDiameter(), edge.getLengthM());
+
+        assertThat(AxisShiftAlternativeEvaluator.canReuseCheckedAssembly(
+                edge, canonical, Set.of())).isTrue();
+        assertThat(AxisShiftAlternativeEvaluator.canReuseCheckedAssembly(
+                edge, canonical, Set.of(edge.getId()))).isFalse();
+        assertThat(AxisShiftAlternativeEvaluator.canReuseCheckedAssembly(edge,
+                new SizedNetworkEdge(edge.getId(), new BigDecimal("9.000"),
+                        edge.getDiameter(), edge.getLengthM()), Set.of())).isFalse();
+        assertThat(AxisShiftAlternativeEvaluator.canReuseCheckedAssembly(edge,
+                new SizedNetworkEdge(edge.getId(), edge.getFlowTph(),
+                        edge.getDiameter() + 50, edge.getLengthM()), Set.of())).isFalse();
+        RouteEdge unverified = new RouteEdge(edge.getId(), edge.getUpstreamNodeId(),
+                edge.getDownstreamNodeId(), edge.getLengthM().doubleValue(),
+                edge.getCoordinates(), List.of(), edge.getFlowTph(), edge.getDiameter());
+        assertThat(AxisShiftAlternativeEvaluator.canReuseCheckedAssembly(
+                unverified, canonical, Set.of())).isFalse();
     }
 
     @Test

@@ -4957,7 +4957,7 @@ public class OfficialRoutePlanner {
             for (int move = 0; move < maximumMoves; move++) {
                 RouteVariant at = current;
                 RouteVariant next = control.firstImprovement(at.getNodes(), at.getEdges(), replacement ->
-                        evaluator.assess(replacement, at.getId(), at.getStrategy(), at.getConnections(),
+                        evaluator.assessPrepared(replacement, at.getId(), at.getStrategy(), at.getConnections(),
                                 featuresForEdges(features, replacement.getEdges(), environment), parameters, environment));
                 if (next == null) break;
                 current = withEngineeringAssessment(next);

@@ -12,14 +12,24 @@ CP-SAT master now covers acyclic multi-root topology, full demand flow, shared a
 capacity/diameter choice and sound pair/hyper-conflicts. Eighty random small catalogs match
 independent exhaustive enumeration.
 
+The initial N03 contracts now preserve an immutable compact problem snapshot, directed path
+geometry/provenance, physical-asset references, section ranges and per-DU admission certificates.
+Missing demand flow is rejected; explicit zero flow still requires connectivity. Build telemetry
+keeps truncation and remaining work as `CATALOG_INCOMPLETE`. The N06 proof-store foundation adds
+positive/negative asset, root and diameter literals, exact source/rule/checker/catalog scopes, invalidation
+after incompatible catalog expansion and an explicit memory bound. Active proof cuts can now be
+fed directly to the network optimizer; the compiler, expander and full refinement coordinator are
+not implemented yet.
+
 Two behavior-preserving legacy optimizations reuse the already loaded final feature window after
 depth and avoid repeated bend validation on an unchanged snapshot. Queued execution resolves the
 saved algorithm version before loading input data and reports `ENGINE_VERSION_UNAVAILABLE` on a
-mismatch. Combined focused gates pass 76/76; clean fast backend passes 2,300/0/3 in 1:48. The
+mismatch. Combined focused gates and the new catalog/proof suites pass; the latest clean fast
+backend passes 2,313/0/3. The
 fresh web 36+37/lint/typecheck gate, executable-JAR native inventory and Compose
 configuration checks pass. Docker still fails before build on the pre-existing local reparse
 socket, so the packaged glibc image/load/readiness and live Compose smoke remain unverified.
-The certified catalog, refinement loop/archive, official end-to-end run, benchmark, resource and
+The certified catalog compiler, refinement loop/archive, official end-to-end run, benchmark, resource and
 release gates remain open; source102 stays the active baseline and no speed-up is claimed.
 
 ## 2026-09-28 — source102: камеры на нормали ОКС, production PASS

@@ -6,7 +6,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,11 +60,7 @@ public final class NetworkConstraintProblem {
             if (conflict == null || !conflictSignatures.add(conflict.signature())) {
                 throw new IllegalArgumentException("Conflicts must be non-null and unique");
             }
-            for (String assetId : conflict.assetIds) {
-                if (!assetsById.containsKey(assetId)) {
-                    throw new IllegalArgumentException("Conflict references an unknown asset: " + assetId);
-                }
-            }
+            for (DecisionLiteral literal : conflict.literals) validateLiteral(literal);
         }
         this.conflicts = List.copyOf(orderedConflicts);
         this.totalDemandUnits = demand;
@@ -77,6 +72,32 @@ public final class NetworkConstraintProblem {
     public Node node(String id) { return nodesById.get(id); }
     public Asset asset(String id) { return assetsById.get(id); }
     public long getTotalDemandUnits() { return totalDemandUnits; }
+
+    private void validateLiteral(DecisionLiteral literal) {
+        switch (literal.type) {
+            case ASSET_SELECTED:
+                if (!assetsById.containsKey(literal.subjectId)) {
+                    throw new IllegalArgumentException("Conflict references an unknown asset: " + literal.subjectId);
+                }
+                return;
+            case ROOT_SELECTED:
+                Node node = nodesById.get(literal.subjectId);
+                if (node == null || !node.allowedRoot) {
+                    throw new IllegalArgumentException("Conflict references an unknown root: " + literal.subjectId);
+                }
+                return;
+            case DIAMETER_SELECTED:
+                Asset asset = assetsById.get(literal.subjectId);
+                boolean exists = asset != null && asset.diameters.stream()
+                        .anyMatch(option -> option.diameterMm == literal.diameterMm);
+                if (!exists) {
+                    throw new IllegalArgumentException("Conflict references an unknown diameter: " + literal.variableKey());
+                }
+                return;
+            default:
+                throw new IllegalStateException("Unsupported conflict literal type: " + literal.type);
+        }
+    }
 
     private static <T> List<T> sortedUnique(Collection<T> source,
             java.util.function.Function<T, String> id, String label) {
@@ -168,25 +189,97 @@ public final class NetworkConstraintProblem {
         public long getCostUnits() { return costUnits; }
     }
 
-    /** Набор физических активов, которые доказанно нельзя выбрать одновременно. */
+    /** Boolean-решение master-модели с ожидаемым значением в доказанно невозможной конъюнкции. */
+    public static final class DecisionLiteral {
+        public enum Type { ASSET_SELECTED, ROOT_SELECTED, DIAMETER_SELECTED }
+
+        private final Type type;
+        private final String subjectId;
+        private final Integer diameterMm;
+        private final boolean expected;
+
+        private DecisionLiteral(Type type, String subjectId, Integer diameterMm, boolean expected) {
+            this.type = Objects.requireNonNull(type, "type");
+            this.subjectId = required(subjectId, "literal subject");
+            if ((type == Type.DIAMETER_SELECTED && (diameterMm == null || diameterMm <= 0))
+                    || (type != Type.DIAMETER_SELECTED && diameterMm != null)) {
+                throw new IllegalArgumentException("Diameter is required only for diameter literals");
+            }
+            this.diameterMm = diameterMm;
+            this.expected = expected;
+        }
+
+        public static DecisionLiteral asset(String assetId, boolean selected) {
+            return new DecisionLiteral(Type.ASSET_SELECTED, assetId, null, selected);
+        }
+
+        public static DecisionLiteral root(String nodeId, boolean selected) {
+            return new DecisionLiteral(Type.ROOT_SELECTED, nodeId, null, selected);
+        }
+
+        public static DecisionLiteral diameter(String assetId, int diameterMm, boolean selected) {
+            return new DecisionLiteral(Type.DIAMETER_SELECTED, assetId, diameterMm, selected);
+        }
+
+        public Type getType() { return type; }
+        public String getSubjectId() { return subjectId; }
+        public Integer getDiameterMm() { return diameterMm; }
+        public boolean isExpected() { return expected; }
+
+        /** Стабильная identity Boolean-переменной без ожидаемого значения. */
+        public String variableKey() {
+            return type.name() + ":" + subjectId
+                    + (diameterMm == null ? "" : ":" + diameterMm);
+        }
+
+        private String signature() { return variableKey() + "=" + expected; }
+    }
+
+    /** Конъюнкция Boolean literals, которая доказанно не может быть истинна целиком. */
     public static final class Conflict {
-        private final List<String> assetIds;
+        private final List<DecisionLiteral> literals;
         private final String reason;
 
         public Conflict(Collection<String> assetIds, String reason) {
-            if (assetIds == null || assetIds.isEmpty()) throw new IllegalArgumentException("Conflict cannot be empty");
-            LinkedHashSet<String> unique = new LinkedHashSet<>();
-            for (String assetId : assetIds) unique.add(required(assetId, "conflict asset"));
-            if (unique.size() != assetIds.size()) throw new IllegalArgumentException("Duplicate conflict asset");
-            List<String> ordered = new ArrayList<>(unique);
-            Collections.sort(ordered);
-            this.assetIds = List.copyOf(ordered);
+            this(assetLiterals(assetIds), reason, true);
+        }
+
+        public static Conflict ofLiterals(Collection<DecisionLiteral> literals, String reason) {
+            return new Conflict(literals, reason, true);
+        }
+
+        private Conflict(Collection<DecisionLiteral> literals, String reason, boolean ignored) {
+            if (literals == null || literals.isEmpty()) throw new IllegalArgumentException("Conflict cannot be empty");
+            List<DecisionLiteral> ordered = new ArrayList<>(literals);
+            if (ordered.stream().anyMatch(Objects::isNull)) {
+                throw new IllegalArgumentException("Conflict literal cannot be null");
+            }
+            ordered.sort(Comparator.comparing(DecisionLiteral::signature));
+            Map<String, Boolean> expectations = new LinkedHashMap<>();
+            for (DecisionLiteral literal : ordered) {
+                Boolean previous = expectations.putIfAbsent(literal.variableKey(), literal.expected);
+                if (previous != null) {
+                    String detail = previous == literal.expected ? "Duplicate" : "Contradictory";
+                    throw new IllegalArgumentException(detail + " conflict literal: " + literal.variableKey());
+                }
+            }
+            this.literals = List.copyOf(ordered);
             this.reason = required(reason, "conflict reason");
         }
 
-        public List<String> getAssetIds() { return assetIds; }
+        private static List<DecisionLiteral> assetLiterals(Collection<String> assetIds) {
+            if (assetIds == null) throw new IllegalArgumentException("Conflict cannot be null");
+            List<DecisionLiteral> result = new ArrayList<>(assetIds.size());
+            for (String assetId : assetIds) result.add(DecisionLiteral.asset(assetId, true));
+            return result;
+        }
+
+        public List<DecisionLiteral> getLiterals() { return literals; }
         public String getReason() { return reason; }
-        private String signature() { return assetIds + "#" + reason; }
+        private String signature() {
+            return literals.stream().map(DecisionLiteral::signature)
+                    .collect(java.util.stream.Collectors.joining(",", "[", "]#" + reason));
+        }
     }
 
     private static String required(String value, String label) {

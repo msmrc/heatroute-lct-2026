@@ -25,6 +25,22 @@ roots and insufficient capacity. This is an exact optimum only inside the suppli
 certified geometry catalog, refinement archive and integration with the user calculation path are
 still open, so the master is deliberately not connected to `stable`.
 
+The N03 data-contract foundation now freezes the compact problem snapshot separately from large
+windowed features. A demand cannot lose its flow or receive an invented zero; an explicit zero-flow
+demand remains in the connectivity problem. Directed path options own millimetre coordinates,
+ordered physical assets, section ranges, endpoint context and provenance. Admission certificates
+are versioned by source/rules/direction/context/ДУ and distinguish `VERIFIED_ALLOWED`,
+`PROVEN_FORBIDDEN` and `UNCHECKED`. Catalog build telemetry reports truncation as
+`CATALOG_INCOMPLETE`; it cannot manufacture a geographic impossibility.
+
+The N06 proof-store foundation supports positive and negative asset, root and diameter literals.
+Every explanation is scoped to source/rules/checker/catalog identities; a full-assignment cut is active
+only when its literal set equals the current decision set, while a stable local proof survives a
+monotonic catalog extension only if all referenced physical identities remain. CP-SAT consumes
+only active proofs, and the in-memory store has an explicit capacity failure instead of unbounded
+growth or silent rule weakening. Catalog generation, adaptive expansion and the complete
+master→evaluator coordinator are still open.
+
 The earlier N04 slice still models exactly-one port-path choices and sound no-goods. Two safe
 legacy performance changes remove a redundant final PostGIS feature-window load after depth and
 reuse exact bend validation while the geometry snapshot is unchanged. Queued jobs now fence the
@@ -33,8 +49,9 @@ with `ENGINE_VERSION_UNAVAILABLE` rather than silently using another implementat
 lease-attempt fencing remains separate open work.
 
 On Windows/Temurin 11, the combined native/model/evaluator/versioning/performance-regression suite
-passes 76/76. A clean fast backend gate passes 2,300 tests with 3 existing skips and zero
-failures/errors in 1:48; a fresh web gate passes 8 Vitest files / 36 tests, 37 Node tests, ESLint
+passes 76/76; the additional catalog/proof focused suites pass. The latest clean fast backend gate
+passes 2,313 tests with 3 existing skips and zero failures/errors; a fresh web gate passes
+8 Vitest files / 36 tests, 37 Node tests, ESLint
 and TypeScript. The executable JAR contains only the required Windows and Linux
 x86-64 OR-Tools artifacts, and the Compose configurations parse. The Linux packaged-image gate
 did not run: Docker Desktop fails before build on the pre-existing zero-byte reparse socket

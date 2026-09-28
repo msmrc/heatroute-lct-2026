@@ -142,7 +142,12 @@ class CpSatNetworkOptimizerTest {
     }
 
     private boolean conflicts(NetworkConstraintProblem problem, Set<String> selected) {
-        return problem.getConflicts().stream().anyMatch(conflict -> selected.containsAll(conflict.getAssetIds()));
+        return problem.getConflicts().stream().anyMatch(conflict -> conflict.getLiterals().stream().allMatch(literal -> {
+            if (literal.getType() != NetworkConstraintProblem.DecisionLiteral.Type.ASSET_SELECTED) {
+                throw new AssertionError("Random oracle uses only asset literals");
+            }
+            return selected.contains(literal.getSubjectId()) == literal.isExpected();
+        }));
     }
 
     private long flow(String assetId, Set<String> selected) {

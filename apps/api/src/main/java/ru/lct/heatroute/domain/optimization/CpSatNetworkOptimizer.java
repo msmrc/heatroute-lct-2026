@@ -29,13 +29,36 @@ public final class CpSatNetworkOptimizer {
     }
 
     public Result solve(NetworkConstraintProblem problem, double timeLimitSeconds, int randomSeed) {
+        return solve(problem, problem.getConflicts(), timeLimitSeconds, randomSeed);
+    }
+
+    /** Применяет только те доменные cuts, proof scope которых совместим с текущим каталогом. */
+    public Result solve(NetworkConstraintProblem problem, ConflictStore conflictStore,
+            CatalogIdentity catalogIdentity, double timeLimitSeconds, int randomSeed) {
+        Objects.requireNonNull(problem, "problem");
+        Objects.requireNonNull(conflictStore, "conflictStore");
+        Objects.requireNonNull(catalogIdentity, "catalogIdentity");
+        CatalogIdentity expectedIdentity = CatalogIdentity.fromProblem(
+                catalogIdentity.getSourceSnapshotHash(), catalogIdentity.getRuleId(),
+                catalogIdentity.getRuleVersion(), catalogIdentity.getCheckerVersion(),
+                catalogIdentity.getCatalogHash(), problem);
+        if (!expectedIdentity.getDecisionKeys().equals(catalogIdentity.getDecisionKeys())) {
+            throw new IllegalArgumentException("Catalog identity does not match the network problem");
+        }
+        List<NetworkConstraintProblem.Conflict> conflicts = new ArrayList<>(problem.getConflicts());
+        conflicts.addAll(conflictStore.modelConflicts(catalogIdentity));
+        return solve(problem, conflicts, timeLimitSeconds, randomSeed);
+    }
+
+    private Result solve(NetworkConstraintProblem problem,
+            List<NetworkConstraintProblem.Conflict> conflicts, double timeLimitSeconds, int randomSeed) {
         Objects.requireNonNull(problem, "problem");
         if (!Double.isFinite(timeLimitSeconds) || timeLimitSeconds <= 0.0 || randomSeed < 0) {
             throw new IllegalArgumentException("Finite positive time and non-negative seed required");
         }
         if (Thread.currentThread().isInterrupted()) throw new CancellationException("Network solve cancelled");
         CpModel model = runtime.newModel();
-        Variables variables = build(problem, model);
+        Variables variables = build(problem, conflicts, model);
         try (CpSatRuntime.Session session = runtime.newSession(model,
                 CpSatRuntime.Settings.deterministic(timeLimitSeconds, randomSeed))) {
             CpSolverStatus status = session.solve();
@@ -51,7 +74,8 @@ public final class CpSatNetworkOptimizer {
         }
     }
 
-    private Variables build(NetworkConstraintProblem problem, CpModel model) {
+    private Variables build(NetworkConstraintProblem problem,
+            List<NetworkConstraintProblem.Conflict> conflicts, CpModel model) {
         int nodeCount = problem.getNodes().size();
         long totalDemand = problem.getTotalDemandUnits();
         Map<String, BoolVar> used = new LinkedHashMap<>();
@@ -139,13 +163,31 @@ public final class CpSatNetworkOptimizer {
         }
         model.addEquality(LinearExpr.sum(source.values().toArray(new IntVar[0])), totalDemand);
 
-        for (NetworkConstraintProblem.Conflict conflict : problem.getConflicts()) {
+        for (NetworkConstraintProblem.Conflict conflict : conflicts) {
             List<Literal> atLeastOneChanges = new ArrayList<>();
-            for (String assetId : conflict.getAssetIds()) atLeastOneChanges.add(selected.get(assetId).not());
+            for (NetworkConstraintProblem.DecisionLiteral decision : conflict.getLiterals()) {
+                BoolVar variable = conflictVariable(decision, selected, roots, diameters);
+                atLeastOneChanges.add(decision.isExpected() ? variable.not() : variable);
+            }
             model.addBoolOr(atLeastOneChanges);
         }
         model.minimize(objective);
         return new Variables(selected, roots, flows, diameters);
+    }
+
+    private BoolVar conflictVariable(NetworkConstraintProblem.DecisionLiteral literal,
+            Map<String, BoolVar> selected, Map<String, BoolVar> roots,
+            Map<String, Map<Integer, BoolVar>> diameters) {
+        switch (literal.getType()) {
+            case ASSET_SELECTED:
+                return selected.get(literal.getSubjectId());
+            case ROOT_SELECTED:
+                return roots.get(literal.getSubjectId());
+            case DIAMETER_SELECTED:
+                return diameters.get(literal.getSubjectId()).get(literal.getDiameterMm());
+            default:
+                throw new IllegalStateException("Unsupported conflict literal type: " + literal.getType());
+        }
     }
 
     private Result read(NetworkConstraintProblem problem, Variables variables,

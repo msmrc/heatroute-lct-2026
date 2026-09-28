@@ -74,42 +74,31 @@ final class SavedAxisShiftAssessment {
      */
     private static List<RouteCoordinate> compact(Iterable<RouteCoordinate> source) {
         List<RouteCoordinate> result = new ArrayList<>();
-        RouteCoordinate previous = null, penultimate = null, start = null;
-        Coordinate direction = null;
         for (RouteCoordinate point : source) {
             ensureActive();
-            if (previous != null && previous.toCoordinate().equals2D(point.toCoordinate())) continue;
-            if (result.size() < 2) {
-                result.add(point);
-                start = point;
-            } else if (direction == null) {
-                direction = vector(previous, point);
-            } else {
-                Coordinate span = vector(start, point), next = vector(previous, point);
-                double length = Math.hypot(direction.x, direction.y), nextLength = Math.hypot(next.x, next.y);
-                double distance = Math.abs(span.x * direction.y - span.y * direction.x) / length;
-                double cosine = (direction.x * next.x + direction.y * next.y) / (length * nextLength);
-                if (distance > 0.002 || cosine < Math.cos(Math.toRadians(0.5))) {
-                    add(result, previous);
-                    start = previous;
-                    direction = next;
-                }
+            if (!result.isEmpty()
+                    && result.get(result.size() - 1).toCoordinate().equals2D(point.toCoordinate())) {
+                continue;
             }
-            penultimate = previous;
-            previous = point;
+            while (result.size() >= 2 && removableCollinear(
+                    result.get(result.size() - 2), result.get(result.size() - 1), point)) {
+                result.remove(result.size() - 1);
+            }
+            result.add(point);
         }
-        if (penultimate != null) add(result, penultimate);
-        if (previous != null) add(result, previous);
         return result;
     }
 
-    private static Coordinate vector(RouteCoordinate from, RouteCoordinate to) {
-        Coordinate a = from.toCoordinate(), b = to.toCoordinate();
-        return new Coordinate(b.x - a.x, b.y - a.y);
-    }
-
-    private static void add(List<RouteCoordinate> points, RouteCoordinate point) {
-        if (points.isEmpty() || !points.get(points.size() - 1).toCoordinate().equals2D(point.toCoordinate())) points.add(point);
+    private static boolean removableCollinear(
+            RouteCoordinate first, RouteCoordinate middle, RouteCoordinate last) {
+        Coordinate a = first.toCoordinate(), b = middle.toCoordinate(), c = last.toCoordinate();
+        double abx = b.x - a.x, aby = b.y - a.y;
+        double bcx = c.x - b.x, bcy = c.y - b.y;
+        double ab = Math.hypot(abx, aby), bc = Math.hypot(bcx, bcy);
+        if (ab == 0 || bc == 0) return true;
+        double distance = Math.abs(abx * bcy - aby * bcx) / Math.hypot(c.x - a.x, c.y - a.y);
+        double cosine = (abx * bcx + aby * bcy) / (ab * bc);
+        return distance <= 0.002 && cosine >= Math.cos(Math.toRadians(0.5));
     }
 
     private static void fail(JsonNode variant, String code) {

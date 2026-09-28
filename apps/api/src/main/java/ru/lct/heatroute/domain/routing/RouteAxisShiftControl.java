@@ -171,7 +171,8 @@ public final class RouteAxisShiftControl {
                     for (Vertex at : List.of(segment.a, segment.b)) {
                         run.vertices.add(at);
                         for (Segment next : at.segments) {
-                            if (next.run == null && sameAxis(seed, next)) {
+                            if (next.run == null && sameAxis(seed, next)
+                                    && continuesStraightThrough(at, seed)) {
                                 next.run = run;
                                 pending.add(next);
                             }
@@ -183,6 +184,18 @@ public final class RouteAxisShiftControl {
                 }
                 runs.add(run);
             }
+        }
+
+        /**
+         * A collinear technical split belongs to one run, but a junction does not.  Crossing a
+         * junction here used to absorb the short perpendicular connector into a longer branch
+         * run, so the axis-shift pattern disappeared before it could be assessed.
+         */
+        private boolean continuesStraightThrough(Vertex vertex, Segment axis) {
+            for (Segment incident : vertex.segments) {
+                if (!sameAxis(axis, incident)) return false;
+            }
+            return true;
         }
 
         private Set<Run> incidentRuns(Vertex vertex) {

@@ -1,6 +1,6 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
-## 2026-09-29 — NEXTGEN: сохранены только оптимизации примитивов
+## 2026-09-29 — HeatRoute: сохранены только оптимизации примитивов
 
 В master включаются segment-query reuse и lazy visibility; preflight reachability/repair
 снят по решению пользователя, локальные правки формы маршрута исключены. Основание:
@@ -15,7 +15,8 @@ Scope/evidence: [LAZY_VISIBILITY_EXPERIMENT.md](LAZY_VISIBILITY_EXPERIMENT.md),
 на финальном локальном R3: Java 11 2409 total / 0 failures / 0 errors / 3 scale skips,
 web 36+37 PASS. Полный конкурсный baseline: 2032,870 с; R3: 1686,424 с (−17,04%),
 все 2505 значений результата совпали точно. Это первая локальная пара со вспомогательной
-нагрузкой. API/job timing ещё не получен; stable не заменён nextgen, N/R-гейты не закрываются.
+нагрузкой. API/job timing ещё не получен; на тот момент новый планировщик не был включён в production,
+N/R-гейты не закрываются.
 Подробности и оговорки — [ROUTING_PERFORMANCE_2026_09_29.md](ROUTING_PERFORMANCE_2026_09_29.md).
 
 R4: консервативный pruning крупных boundary-поддеревьев прошёл отдельные 2411 Java tests
@@ -145,7 +146,7 @@ special-секции, отступы, пересечения, лучи каме�
 Общая readiness имеет отдельный непрошедший `cp_sat` check. Source103 не production PASS;
 source102 остаётся последним production witness. VPS не обновлялся, R/G/N не закрываются.
 
-## 2026-09-28 — next-generation frozen evaluator and network master (not promoted)
+## 2026-09-28 — frozen evaluator and network master prototype (not promoted)
 
 Development under [`NETWORK_SOLVER_SPEC.md`](../../NETWORK_SOLVER_SPEC.md)
 continues without changing `stable` or any LCT engineering requirement. Pinned OR-Tools 9.15.6755,
@@ -206,7 +207,7 @@ The production snapshot boundary is also executable: the bounded core query now 
 `oks_future` objects, import identity reaches the routing adapter, and `RoutingProblemFactory`
 deterministically resolves mandatory flows and exact existing-network root rays/incidence/diameter.
 The stable adapter still delegates to source102; this is input wiring, not premature promotion.
-An internal `NextGenerationRoutePlanner` now executes that boundary through one deterministic
+An internal planner prototype now executes that boundary through one deterministic
 feature window, bounded catalog, CP-SAT/refinement, frozen admission and the existing result
 selector under a shared deadline. A production-shaped regression also fixed legal endpoint contact
 with the selected existing heat network. This component is deliberately not a registered
@@ -1748,15 +1749,14 @@ the general engineering patterns, but production code must not contain fixture c
 
 ### Isolated horizontal algorithm experiments — 23 September (superseded by primary consolidation)
 
-Run creation now persists an explicit routing profile. `stable` remains the default and retains
-`global-tree-46`; `expert_experimental` selects the separately versioned `expert-tree-1` component
-with its own bounded engineering-search tuning. Dispatch is performed through a registry that
-requires one implementation per declared profile. The UI has separate launch actions and preserves
-the latest main and experimental run independently for side-by-side inspection.
+At that historical stage, run creation persisted a choice between a baseline and a separately
+versioned research configuration with its own bounded engineering-search tuning. The UI exposed
+both actions for side-by-side inspection. This mechanism has since been removed in favour of the
+single HeatRoute production path.
 
-The two profiles intentionally share the official validator, sizing, economics, depth and export
-gates. The experimental profile cannot relax acceptance rules and contains no fixture coordinates
-or IDs. The retired experiment and its promotion are summarized in
+Both configurations intentionally shared the official validator, sizing, economics, depth and
+export gates. The research configuration could not relax acceptance rules and contained no fixture
+coordinates or IDs. The retired experiment and its promotion are summarized in
 `ROUTING_MIGRATION_HISTORY.md`; detailed dated evidence remains in this roadmap and `progress.md`. This
 closes only the experiment-isolation implementation slice; an official-dataset comparison and live
 Compose smoke are still required, and no R-stage or quality improvement is claimed.

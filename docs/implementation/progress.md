@@ -1,12 +1,12 @@
 # Current implementation progress
 
-## 2026-09-29 — сохранённые оптимизации NEXTGEN для master
+## 2026-09-29 — сохранённые оптимизации HeatRoute для master
 
 По запросу пользователя включаются только call-local segment-query reuse и lazy paged
 visibility cache с двумя focused test classes. Последний preflight reachability/repair
 эксперимент отменён: его production-код и тесты не включаются. Локальные source104/105
 правки маршрута, интерфейс и экспериментальные датасеты остаются вне этого изменения.
-Исторический isolated gate — 104/104 PASS; одиночный NEXTGEN execute — 29,712366036 с,
+Исторический isolated gate — 104/104 PASS; одиночный запуск прототипа — 29,712366036 с,
 CATALOG_INCOMPLETE/result=null. Это не новое измерение и не время построения полной сети.
 В рамках публикации тесты и дополнительные проверки не запускались по условиям задачи;
 VPS не развёртывался, N/R-гейты не закрываются. Подробности:
@@ -234,12 +234,12 @@ The final axis-shift stage reduced shortest bends 26→24 and balanced/cheapest 
 The previous source102 run on that same local import took 4617.998103 seconds: this pair differs
 by 821.287698 seconds (17.7845%), not an isolated proof of speed-up by the new control.
 [Full benchmark evidence and limitations](PRIMARY_ROUTING_103.md). The image owns
-the `65762b1` source snapshot plus this fix; later fetched nextgen input-wiring changes are not
+the `65762b1` source snapshot plus this fix; later fetched candidate-network input-wiring changes are not
 part of that timed image. The general readiness check reports `cp_sat: unavailable`; the stable
 job does not use CP-SAT and completed successfully. Existing results remain immutable. No VPS deployment or
 R/G/N closure is claimed; all earlier production/witness evidence remains snapshot-specific.
 
-## 2026-09-28 — next-generation solver: frozen admission and finite-catalog network master
+## 2026-09-28 — solver prototype: frozen admission and finite-catalog network master
 
 Implementation continues from [`NETWORK_SOLVER_SPEC.md`](../../NETWORK_SOLVER_SPEC.md)
 without changing the active `stable` planner or its engineering rules. OR-Tools CP-SAT 9.15.6755
@@ -357,7 +357,7 @@ unknown mandatory flow and derives de-duplicated exact tie-in roots through the 
 ray/incidence/diameter oracle. The calculation-core SQL now includes `oks_future` while bulky routing
 geometry remains windowed. Source102 remains the only registered stable implementation.
 
-The first `NextGenerationRoutePlanner` orchestration is now executable without registering a
+The first production-shaped planner orchestration is now executable without registering a
 second production adapter. It gives window loading, bounded catalog construction, CP-SAT
 refinement and frozen evaluation one monotonic deadline, retains catalog/proof diagnostics and
 converts only evaluator-accepted networks through the existing final selector into
@@ -1623,24 +1623,19 @@ smoke pass. Docker is unavailable on this workstation, so the repository's full 
 the long official-dataset calculation remain CI gates. This UX fix does not close a routing
 performance or official acceptance stage.
 
-## Isolated routing profiles — 2026-09-23
+## Isolated routing experiments — 2026-09-23
 
-Routing experiments now have an end-to-end profile boundary. Existing and body-less run requests
-remain on `stable` / `global-tree-46`; the separate `expert_experimental` / `expert-tree-1` Spring
-component uses its own bounded search tuning. The immutable run parameters select the algorithm
-through a registry, so job replay after a worker restart cannot silently fall back to another
-profile. Validators, sizing, economics and export remain shared and mandatory.
-
-The workspace exposes separate main and experimental actions, labels completed results with their
-profile and algorithm version, and keeps a separate pointer to the latest run of each profile for
-the current import. The retired experiment and its later promotion are summarized in
+At that historical stage the team compared a baseline and a separately tuned research
+configuration behind an explicit dispatch boundary. Validators, sizing, economics and export
+remained shared and mandatory. The mechanism has since been removed: current runs always use the
+single HeatRoute production path. The retired experiment and its later promotion are summarized in
 [ROUTING_MIGRATION_HISTORY.md](ROUTING_MIGRATION_HISTORY.md); detailed dated evidence remains in this log.
 
-The 36 focused Java 11 profile/planner tests and all 20 web tests, lint, typecheck, production
+The 36 focused Java 11 routing/planner tests and all 20 web tests, lint, typecheck, production
 builds and the reference benchmark pass. The 2026-09-23 CI follow-up fixed the two former baseline
 failures in `OfficialObstacleRouterTest` and `OfficialGeoJsonExporterTest`; the wider local Java
 suite now passes 157 tests with only three explicitly opt-in scale tests skipped. A full
-official-dataset comparison and live Compose import → both profiles → export smoke remain pending;
+official-dataset comparison and live Compose import → both configurations → export smoke remain pending;
 this infrastructure change does not close an R-stage or promote the experimental result.
 
 ## Advisory routing reference corpus — 2026-09-23

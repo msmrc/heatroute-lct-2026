@@ -98,8 +98,8 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
   extended demand flow is resolved through the linked `oks_future`, missing flow is rejected,
   coincident connection points stay distinct, and topology tie-ins become exact roots using the
   existing support incidence/ray/diameter oracle. The normal calculation adapter passes import ID,
-  source hash, contract version and profile without changing the stable planner implementation.
-- The then-current `NextGenerationRoutePlanner` owns an internal production-shaped execution path without
+  source hash, contract version and calculation settings without changing the active planner implementation.
+- The then-current planner prototype owns an internal production-shaped execution path without
   registering a second routing adapter. One monotonic budget covers deterministic bounded-window
   loading, initial catalog generation, CP-SAT refinement and frozen evaluation. The selected
   existing-network target is exempt only for its legal endpoint contact. Accepted exact networks
@@ -160,7 +160,7 @@ In a separate local Compose project, without replacing the user's running applic
   `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`;
 - local evidence is under `.tooling/optimization-20260929/evidence/r5-runtime-*`.
 
-This is R5 packaging/readiness/import evidence, not nextgen promotion, a completed API route job,
+This is R5 packaging/readiness/import evidence, not planner promotion, a completed API route job,
 or evidence for later source edits (including R6). Full API/job/export, repeatable performance,
 and the other promotion requirements above remain open. See
 [the performance report](ROUTING_PERFORMANCE_2026_09_29.md) for measured scope and pending gates.
@@ -172,7 +172,7 @@ run `7a673880-b5e3-401e-b02c-ef254aa5543b` on attempt1 in1721.878047 seconds
 (persisted created→completed, including queue). Both variants connect17/17; strict HTTP exports
 returned200 with60/74 features. Readiness, OpenAPI and the144-feature official import also pass.
 The temporary Compose project is stopped, with its data retained; the user's main stack is unchanged.
-These are R8 stable runtime results, not nextgen promotion or evidence for subsequent R9 edits.
+These are R8 baseline runtime results, not planner promotion or evidence for subsequent R9 edits.
 The in-memory baseline has different input preparation/JVM, so production-shaped speed-up still
 requires a matched baseline/final API pair. See the performance report for exact evidence and scope.
 
@@ -182,7 +182,7 @@ The isolated baseline052dedb/R10 default-2D pair passed on the same persisted of
 runtime/JVM and2-CPU/4-GiB limits:2554.766262 →1658.202680 seconds (−35.09%,1.5407x).
 Both jobs completed on attempt1; all2092 result values match exactly, both variants connect17/17,
 and strict HTTP exports return200. Temporary services are stopped with data/evidence retained.
-This is one pair, not established repeatability, nextgen registration, or closure of the remaining
+This is one pair, not established repeatability, production registration, or closure of the remaining
 promotion gates. Later R11/trial source changes were excluded from the measured runtime images.
 
 ### 2026-09-29 R13 stable API follow-up
@@ -195,7 +195,7 @@ Compared with that earlier2554.766262-second baseline this is40.06% less elapsed
 time (1.6683x), not a fresh paired repetition or established repeatability.
 The isolated API/db are stopped with volumes/evidence retained; the main stack
 is unchanged. R14 source changes are not included in this runtime evidence.
-This stable optimization does not register or promote the next-generation planner.
+This baseline optimization does not register or promote the planner prototype.
 
 ### 2026-09-29 R15 stable API follow-up
 
@@ -206,4 +206,4 @@ with the earlier2554.766262-second baseline, elapsed time is42.67% lower (1.7441
 This includes R14 angular cones and R15 dead initial-window removal; neither
 isolated attribution nor repeatability is established. The finalized-portfolio
 phase did not improve versus R13. API/db remain available for the user-requested
-browser view on local port 5175. No nextgen registration/promotion follows.
+browser view on local port 5175. No production registration or promotion follows.

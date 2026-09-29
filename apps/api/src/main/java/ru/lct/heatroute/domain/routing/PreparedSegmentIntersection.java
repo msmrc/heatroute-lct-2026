@@ -97,10 +97,52 @@ final class PreparedSegmentIntersection {
         Coordinate end = new Coordinate(points.getX(1), points.getY(1));
         if (!finite(start) || !finite(end)) return fallback.intersects(query);
         Envelope bounds = new Envelope(start, end);
+        return intersects(start, end, bounds);
+    }
+
+    /** Переиспользует подготовку только внутри одной проверки read-only отрезка по нескольким препятствиям. */
+    boolean intersectsPrepared(Query query) {
+        ensureActive();
+        Objects.requireNonNull(query, "query");
+        if (!indexed || query.line.getNumPoints() != 2) return fallback.intersects(query.line);
+        query.prepare();
+        if (!query.finite) return fallback.intersects(query.line);
+        return intersects(query.start, query.end, query.bounds);
+    }
+
+    private boolean intersects(Coordinate start, Coordinate end, Envelope bounds) {
         if (!envelope.intersects(bounds) || boundaryIndex == null) return false;
         // Если начало снаружи, вход в полигон/касание возможны только через границу любого кольца.
         if (locator.locate(start) != Location.EXTERIOR) return true;
         return boundaryIndex.intersects(bounds, start, end);
+    }
+
+    /**
+     * Ленивая подготовка принадлежащей вызывающему линии на время одного синхронного обхода.
+     * Линия не должна изменяться до конца обхода; Query не разделяется между потоками и не кешируется.
+     * Неподдерживаемые случаи продолжают передавать исходную геометрию в JTS.
+     */
+    static final class Query {
+        private final LineString line;
+        private Coordinate start;
+        private Coordinate end;
+        private Envelope bounds;
+        private boolean finite;
+        private boolean prepared;
+
+        Query(LineString line) {
+            this.line = Objects.requireNonNull(line, "query");
+        }
+
+        private void prepare() {
+            if (prepared) return;
+            CoordinateSequence points = line.getCoordinateSequence();
+            start = new Coordinate(points.getX(0), points.getY(0));
+            end = new Coordinate(points.getX(1), points.getY(1));
+            finite = PreparedSegmentIntersection.finite(start) && PreparedSegmentIntersection.finite(end);
+            if (finite) bounds = new Envelope(start, end);
+            prepared = true;
+        }
     }
 
     boolean usesIndex() { return indexed; }

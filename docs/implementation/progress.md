@@ -1,5 +1,18 @@
 # Current implementation progress
 
+## 2026-09-29 — сохранённые оптимизации NEXTGEN для master
+
+По запросу пользователя включаются только call-local segment-query reuse и lazy paged
+visibility cache с двумя focused test classes. Последний preflight reachability/repair
+эксперимент отменён: его production-код и тесты не включаются. Локальные source104/105
+правки маршрута, интерфейс и экспериментальные датасеты остаются вне этого изменения.
+Исторический isolated gate — 104/104 PASS; одиночный NEXTGEN execute — 29,712366036 с,
+CATALOG_INCOMPLETE/result=null. Это не новое измерение и не время построения полной сети.
+В рамках публикации тесты и дополнительные проверки не запускались по условиям задачи;
+VPS не развёртывался, N/R-гейты не закрываются. Подробности:
+[NEXTGEN_LAZY_VISIBILITY_EXPERIMENT.md](NEXTGEN_LAZY_VISIBILITY_EXPERIMENT.md) и
+[NEXTGEN_SEGMENT_QUERY_EXPERIMENT.md](NEXTGEN_SEGMENT_QUERY_EXPERIMENT.md).
+
 ## 2026-09-29 — routing hot-path optimization: local fast gate, benchmark pending
 
 Текущая итерация R12: первый isolated angle-cone probe27203 exact cases PASS;

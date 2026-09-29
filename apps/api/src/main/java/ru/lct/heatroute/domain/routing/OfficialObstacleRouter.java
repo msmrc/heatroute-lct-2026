@@ -2370,8 +2370,8 @@ public class OfficialObstacleRouter {
 
     private final class VisibilityCache {
         private final int nodeCount;
-        private final byte[] values;
-        private final byte[] reverseValues;
+        private final PagedVisibilityValues values;
+        private final PagedVisibilityValues reverseValues;
         private final int[] sharedNodeIds;
         private final int[] baseNodeIds;
         private final int[] crossingNodeIds;
@@ -2388,9 +2388,10 @@ public class OfficialObstacleRouter {
                 ConstraintIndex crossingConstraints, ConstraintIndex dynamicConstraints,
                 SegmentVisibilityMemo baseVisibility, SegmentVisibilityMemo crossingVisibility) {
             this.nodeCount = nodes.size();
-            this.values = new byte[nodeCount * (nodeCount - 1) / 2];
+            int pairCount = nodeCount * (nodeCount - 1) / 2;
+            this.values = new PagedVisibilityValues(pairCount);
             // У road/tram важна точка входа: обратное направление проверяется отдельно.
-            this.reverseValues = directed ? new byte[values.length] : values;
+            this.reverseValues = directed ? new PagedVisibilityValues(pairCount) : values;
             this.sharedVisibility = sharedVisibility;
             this.sharedNodeIds = sharedVisibility.ids(nodes);
             this.baseVisibility = baseVisibility;
@@ -2403,7 +2404,7 @@ public class OfficialObstacleRouter {
         }
 
         private boolean isKnownBlocked(int first, int second) {
-            return (first < second ? values : reverseValues)[index(first, second)] == 2;
+            return (first < second ? values : reverseValues).get(index(first, second)) == 2;
         }
 
         private boolean connectsEndpoints(List<Coordinate> nodes, ConstraintIndex constraints, boolean[] blockedNodes) {
@@ -2446,8 +2447,8 @@ public class OfficialObstacleRouter {
             int left = Math.min(first, second);
             int right = Math.max(first, second);
             int index = index(left, right);
-            byte[] direction = first < second ? values : reverseValues;
-            byte cached = direction[index];
+            PagedVisibilityValues direction = first < second ? values : reverseValues;
+            byte cached = direction.get(index);
             if (cached == 0) {
                 cached = sharedVisibility.get(sharedNodeIds[first], sharedNodeIds[second]);
                 if (cached == 0) {
@@ -2475,7 +2476,7 @@ public class OfficialObstacleRouter {
                     }
                     sharedVisibility.put(sharedNodeIds[first], sharedNodeIds[second], cached);
                 }
-                direction[index] = cached;
+                direction.put(index, cached);
             }
             return cached == 1;
         }

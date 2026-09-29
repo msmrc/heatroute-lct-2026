@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.locationtech.jts.algorithm.MinimumDiameter;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineSegment;
@@ -642,11 +643,16 @@ public class OfficialRouteGeometryRules {
             return false;
         }
         LineString segment = geometryFactory.createLineString(new Coordinate[] {start, end});
+        Envelope segmentBounds = segment.getEnvelopeInternal();
+        PreparedSegmentIntersection.Query intersectionQuery = null;
         LineString roadSegment = null;
-        for (Constraint constraint : constraints.query(segment.getEnvelopeInternal())) {
+        for (Constraint constraint : constraints.query(segmentBounds)) {
             if (constraint.rule.isForbidden()) {
                 if (joinedContactsChecked && constraint.joinedContact != null) continue;
-                if (intersectsInterior(segment, constraint)) {
+                if (!segmentBounds.intersects(constraint.blocked.getEnvelopeInternal())) continue;
+                // Эта линия принадлежит текущему вызову и не меняется при проверке ограничений.
+                if (intersectionQuery == null) intersectionQuery = new PreparedSegmentIntersection.Query(segment);
+                if (constraint.intersectsBlocked(segment, intersectionQuery)) {
                     return false;
                 }
                 continue;
@@ -1293,6 +1299,10 @@ public class OfficialRouteGeometryRules {
         }
 
         private boolean intersectsBlocked(LineString line) {
+            return intersectsBlocked(line, null);
+        }
+
+        private boolean intersectsBlocked(LineString line, PreparedSegmentIntersection.Query query) {
             ensureIntersectionActive();
             if (joinedContact != null) {
                 return preparedBlocked.intersects(line) && !joinedContact.permitsContact(line, blocked);
@@ -1312,7 +1322,8 @@ public class OfficialRouteGeometryRules {
             }
             ensureIntersectionActive();
             PreparedSegmentIntersection prepared = segmentIntersection;
-            return prepared == null ? preparedBlocked.intersects(line) : prepared.intersects(line);
+            if (prepared == null) return preparedBlocked.intersects(line);
+            return query == null ? prepared.intersects(line) : prepared.intersectsPrepared(query);
         }
 
         private static void ensureIntersectionActive() {

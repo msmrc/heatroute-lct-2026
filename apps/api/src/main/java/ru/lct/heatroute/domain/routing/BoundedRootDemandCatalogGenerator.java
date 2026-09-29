@@ -103,7 +103,8 @@ public final class BoundedRootDemandCatalogGenerator {
         Set<String> truncations = new LinkedHashSet<>();
         long totalPairs = Math.multiplyExact((long) problem.getRoots().size(),
                 (long) routableDemandIds.size());
-        List<RootDemandPair> orderedPairs = coverageFirstPairs(problem).stream()
+        List<RootDemandPair> orderedPairs = coverageFirstPairs(
+                problem, options.deterministicVariant).stream()
                 .filter(pair -> routableDemandIds.contains(pair.demand.getId()))
                 .collect(Collectors.toList());
         Set<String> attemptedPairs = new LinkedHashSet<>();
@@ -140,7 +141,7 @@ public final class BoundedRootDemandCatalogGenerator {
                             Map.of(), fastSharedDeadline, Math.max(1, options.maxRouteCalls / 2));
             state.routeCalls += sharedSeeds.getRouteCalls();
             completeSharedSeed = sharedSeeds.getCoveredPriorityDemandIds()
-                    .containsAll(allDemandIds);
+                    .containsAll(allDemandIds) && options.deterministicVariant == 0;
             if (completeSharedSeed) coveredDemands.addAll(allDemandIds);
         }
 
@@ -403,7 +404,9 @@ public final class BoundedRootDemandCatalogGenerator {
         // by a complete shared collector creates artificial inter-group crossings and can make
         // that incumbent disappear from the noded master.  Additive expansion can restore those
         // alternatives after acceptance without weakening the first-solve topology.
-        generated.removeIf(path -> sharedCoveredDemands.contains(path.demandId));
+        if (options.deterministicVariant == 0) {
+            generated.removeIf(path -> sharedCoveredDemands.contains(path.demandId));
+        }
         for (BoundedSharedNetworkSeedGenerator.SeedPath path : sharedSeeds.getPaths()) {
             String signature = pointSignature(path.getPoints());
             String id = "path:" + sha256(List.of(
@@ -705,7 +708,8 @@ public final class BoundedRootDemandCatalogGenerator {
      * This deterministic round-robin order prevents an early root from consuming the entire
      * catalog deadline while later demands remain completely unrepresented.
      */
-    private static List<RootDemandPair> coverageFirstPairs(RoutingProblemSnapshot problem) {
+    private static List<RootDemandPair> coverageFirstPairs(RoutingProblemSnapshot problem,
+            int deterministicVariant) {
         List<List<RoutingProblemSnapshot.RootCandidate>> rootsByDemand = new ArrayList<>();
         for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
             List<RoutingProblemSnapshot.RootCandidate> roots = new ArrayList<>(problem.getRoots());
@@ -713,6 +717,8 @@ public final class BoundedRootDemandCatalogGenerator {
                     .comparingDouble((RoutingProblemSnapshot.RootCandidate root) ->
                             distanceSquared(root.getLocation(), demand.getLocation()))
                     .thenComparing(RoutingProblemSnapshot.RootCandidate::getId));
+            rotateAlternatives(roots, deterministicVariant,
+                    stableVariantHash(demand.getId(), deterministicVariant));
             rootsByDemand.add(roots);
         }
         List<RootDemandPair> result = new ArrayList<>();
@@ -724,6 +730,24 @@ public final class BoundedRootDemandCatalogGenerator {
             }
         }
         return result;
+    }
+
+    /**
+     * Keeps variant zero byte-for-byte compatible, while later portfolio attempts start from
+     * another legal candidate instead of replaying the same nearest/first ordering. The offset
+     * is derived only from stable problem identifiers and is therefore reproducible and
+     * dataset-agnostic.
+     */
+    private static <T> void rotateAlternatives(List<T> values, int deterministicVariant,
+            int stableHash) {
+        if (deterministicVariant == 0 || values.size() < 2) return;
+        int offset = 1 + Math.floorMod(stableHash, values.size() - 1);
+        Collections.rotate(values, -offset);
+    }
+
+    private static int stableVariantHash(String value, int deterministicVariant) {
+        int hash = value.hashCode();
+        return 31 * hash + deterministicVariant;
     }
 
     private static double distanceSquared(CatalogMetricPoint left, CatalogMetricPoint right) {
@@ -765,6 +789,9 @@ public final class BoundedRootDemandCatalogGenerator {
                     new ChamberApproachCandidates().build(
                             target, existingRays, approachLength, 7.5));
             approaches.sort(Comparator.comparingDouble(terminal::distance));
+            rotateAlternatives(approaches, options.deterministicVariant,
+                    stableVariantHash(root.getId() + "\u0000" + demand.getId(),
+                            options.deterministicVariant));
             if (approaches.isEmpty()) {
                 return new PairRoutes(List.of(), false, truncations);
             }
@@ -778,7 +805,12 @@ public final class BoundedRootDemandCatalogGenerator {
             truncations.add("egress_limit:" + root.getId() + ":" + demand.getId());
             fullyEnumerated = false;
         }
-        List<OfficialRouteGeometryRules.NormalEgress> egresses = allEgresses.stream()
+        List<OfficialRouteGeometryRules.NormalEgress> orderedEgresses =
+                new ArrayList<>(allEgresses);
+        rotateAlternatives(orderedEgresses, options.deterministicVariant,
+                stableVariantHash(demand.getId() + "\u0000" + root.getId(),
+                        options.deterministicVariant));
+        List<OfficialRouteGeometryRules.NormalEgress> egresses = orderedEgresses.stream()
                 .limit(maxEgressCandidates).collect(Collectors.toList());
         if (!rootApproaches.isEmpty()) {
             return rootConstrainedRoutes(root, demand, target, terminal,
@@ -1110,9 +1142,10 @@ public final class BoundedRootDemandCatalogGenerator {
         private final int maxRouteCalls;
         private final int maxPathsPerPair;
         private final int maxEgressCandidates;
+        private final int deterministicVariant;
 
         private Options(Duration timeBudget, int maxPairs, int maxRouteCalls,
-                int maxPathsPerPair, int maxEgressCandidates) {
+                int maxPathsPerPair, int maxEgressCandidates, int deterministicVariant) {
             Objects.requireNonNull(timeBudget, "timeBudget");
             if (timeBudget.isZero() || timeBudget.isNegative()) {
                 throw new IllegalArgumentException("Positive catalog time budget is required");
@@ -1126,16 +1159,26 @@ public final class BoundedRootDemandCatalogGenerator {
                     || maxEgressCandidates < 1) {
                 throw new IllegalArgumentException("Positive catalog limits are required");
             }
+            if (deterministicVariant < 0) {
+                throw new IllegalArgumentException("Non-negative deterministic variant is required");
+            }
             this.maxPairs = maxPairs;
             this.maxRouteCalls = maxRouteCalls;
             this.maxPathsPerPair = maxPathsPerPair;
             this.maxEgressCandidates = maxEgressCandidates;
+            this.deterministicVariant = deterministicVariant;
         }
 
         public static Options bounded(Duration timeBudget, int maxPairs, int maxRouteCalls,
                 int maxPathsPerPair, int maxEgressCandidates) {
             return new Options(timeBudget, maxPairs, maxRouteCalls,
-                    maxPathsPerPair, maxEgressCandidates);
+                    maxPathsPerPair, maxEgressCandidates, 0);
+        }
+
+        /** Selects a reproducible alternate search order for a portfolio restart. */
+        public Options withDeterministicVariant(int deterministicVariant) {
+            return new Options(Duration.ofNanos(timeBudgetNanos), maxPairs, maxRouteCalls,
+                    maxPathsPerPair, maxEgressCandidates, deterministicVariant);
         }
 
         public static Options fastInitial() {

@@ -128,6 +128,30 @@ class BoundedRootDemandCatalogGeneratorTest {
     }
 
     @Test
+    void portfolioVariantBuildsAReproducibleDifferentCatalog() {
+        RoutingProblemSnapshot problem = problem(
+                List.of(
+                        demand("near-left", 10_000, 15_000),
+                        demand("near-right", 290_000, 15_000)),
+                List.of(
+                        root("left", 0, 0),
+                        root("right", 300_000, 0)));
+        BoundedRootDemandCatalogGenerator.Options primaryOptions = options(2, 32, 2);
+        BoundedRootDemandCatalogGenerator.Options alternateOptions =
+                options(2, 32, 2).withDeterministicVariant(1);
+
+        String primaryHash = generator.generate(problem, List.of(), primaryOptions)
+                .getBuildResult().getSnapshot().getCatalogHash();
+        String alternateHash = generator.generate(problem, List.of(), alternateOptions)
+                .getBuildResult().getSnapshot().getCatalogHash();
+        String repeatedAlternateHash = generator.generate(problem, List.of(), alternateOptions)
+                .getBuildResult().getSnapshot().getCatalogHash();
+
+        assertThat(alternateHash).isNotEqualTo(primaryHash);
+        assertThat(repeatedAlternateHash).isEqualTo(alternateHash);
+    }
+
+    @Test
     void approachesAnExistingRootOnlyAlongACompatibleRay() {
         RoutingProblemSnapshot.DirectionVector east =
                 new RoutingProblemSnapshot.DirectionVector(1_000, 0);

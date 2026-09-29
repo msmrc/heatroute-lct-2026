@@ -146,7 +146,8 @@ public final class HeatRoutePlanner {
                         duration(catalogBudget), doubled(settings.maxPairs),
                         doubled(settings.maxRouteCalls),
                         doubled(settings.maxPathsPerPair),
-                        doubled(settings.maxEgressCandidates));
+                        doubled(settings.maxEgressCandidates))
+                        .withDeterministicVariant(1);
         BoundedCatalogNetworkStageFactory.Preparation alternative = stageFactory.prepare(
                 problem, features, richer, FLOW_SCALE_DECIMALS, CHECKER_VERSION,
                 "heatroute", "engineering");

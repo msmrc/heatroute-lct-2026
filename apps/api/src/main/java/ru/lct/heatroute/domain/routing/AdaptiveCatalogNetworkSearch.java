@@ -201,8 +201,7 @@ public final class AdaptiveCatalogNetworkSearch {
             if (retained == null
                     || retained.isAllowedRoot() != node.isAllowedRoot()
                     || retained.isTerminal() != node.isTerminal()
-                    || retained.getDemandUnits() != node.getDemandUnits()
-                    || retained.isConfigurationRequired() != node.isConfigurationRequired()) {
+                    || retained.getDemandUnits() != node.getDemandUnits()) {
                 throw new IllegalArgumentException("root or terminal semantics changed");
             }
         }

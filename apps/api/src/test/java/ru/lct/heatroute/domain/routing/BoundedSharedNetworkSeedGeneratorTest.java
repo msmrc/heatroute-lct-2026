@@ -60,7 +60,7 @@ class BoundedSharedNetworkSeedGeneratorTest {
     }
 
     @Test
-    void adaptiveRetryPrioritizesMeasuredCoverageOverAnUnprovenNearbyChamber() {
+    void adaptiveRetryKeepsOneExistingAnchorThenPrioritizesMeasuredCoverage() {
         List<RoutingProblemSnapshot.Demand> demands = List.of(
                 demand("a", 60_000, -30_000), demand("b", 60_000, 30_000));
         RoutingProblemSnapshot.RootRealization existing =
@@ -71,7 +71,11 @@ class BoundedSharedNetworkSeedGeneratorTest {
                         "new_tie_in_chamber", true, 0, "measured", null);
         RoutingProblemSnapshot.RootCandidate unprovenNearby =
                 new RoutingProblemSnapshot.RootCandidate(
-                        "unproven-nearby", new CatalogMetricPoint(40_000, 0),
+                        "unproven-nearby", new CatalogMetricPoint(55_000, 0),
+                        List.of(), existing);
+        RoutingProblemSnapshot.RootCandidate unprovenSecond =
+                new RoutingProblemSnapshot.RootCandidate(
+                        "unproven-second", new CatalogMetricPoint(40_000, 0),
                         List.of(), existing);
         RoutingProblemSnapshot.RootCandidate provenFarther =
                 new RoutingProblemSnapshot.RootCandidate(
@@ -81,17 +85,16 @@ class BoundedSharedNetworkSeedGeneratorTest {
                 UUID.fromString("00000000-0000-0000-0000-000000000093"),
                 "source-shared", "extended", "nextgen-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
-                demands, List.of(unprovenNearby, provenFarther));
+                demands, List.of(unprovenNearby, unprovenSecond, provenFarther));
 
-        BoundedSharedNetworkSeedGenerator.Result result = generator.generate(
-                problem, router.prepare(List.of()), Set.of("a", "b"),
-                Map.of("proven-farther", Set.of("a", "b")),
-                System.nanoTime() + Duration.ofSeconds(10).toNanos(), 64);
+        List<RoutingProblemSnapshot.RootCandidate> ordered =
+                BoundedSharedNetworkSeedGenerator.eligibleRoots(
+                        problem, demands, Map.of("proven-farther", Set.of("a", "b")), false);
 
-        assertThat(result.getCoveredPriorityDemandIds()).containsExactlyInAnyOrder("a", "b");
-        assertThat(result.getPaths()).extracting(
-                BoundedSharedNetworkSeedGenerator.SeedPath::getRootId)
-                .containsOnly("proven-farther");
+        assertThat(ordered).extracting(RoutingProblemSnapshot.RootCandidate::getId)
+                .startsWith("unproven-nearby", "proven-farther")
+                .containsExactlyInAnyOrder(
+                        "unproven-nearby", "unproven-second", "proven-farther");
     }
 
     private static RoutingProblemSnapshot problem() {

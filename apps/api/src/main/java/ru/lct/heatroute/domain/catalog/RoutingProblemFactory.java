@@ -27,7 +27,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 /** Собирает малый неизменяемый input next-generation solver из production-данных импорта. */
 @Component
 public final class RoutingProblemFactory {
-    public static final String SNAPSHOT_CODE_VERSION = "nextgen-network-3";
+    public static final String SNAPSHOT_CODE_VERSION = "nextgen-network-4";
     public static final String ACTIVE_RULE_ID = "lct2026-official-routing";
     public static final String ACTIVE_RULE_VERSION = "source102";
     public static final String COST_CATALOG_VERSION = "official-cost-catalog-1";

@@ -366,7 +366,7 @@ final class BoundedSharedNetworkSeedGenerator {
         return List.copyOf(result);
     }
 
-    private static List<RoutingProblemSnapshot.RootCandidate> eligibleRoots(
+    static List<RoutingProblemSnapshot.RootCandidate> eligibleRoots(
             RoutingProblemSnapshot problem, List<RoutingProblemSnapshot.Demand> group,
             Map<String, ? extends Collection<String>> knownDemandIdsByRoot,
             boolean preferExistingRoots) {
@@ -389,13 +389,30 @@ final class BoundedSharedNetworkSeedGenerator {
                                 root.getLocation().getXM(), root.getLocation().getYM(),
                                 demand.getLocation().getXM(), demand.getLocation().getYM()))
                         .sum());
-        Comparator<RoutingProblemSnapshot.RootCandidate> order = preferExistingRoots
-                ? existingRank.thenComparing(knownCoverage)
-                : knownCoverage.thenComparing(distance).thenComparing(existingRank);
-        roots.sort(order
-                .thenComparingInt(root -> root.getRealization().getBaseIncidentSections())
+        Comparator<RoutingProblemSnapshot.RootCandidate> stableOrder = Comparator
+                .comparingInt((RoutingProblemSnapshot.RootCandidate root) ->
+                        root.getRealization().getBaseIncidentSections())
                 .thenComparing(distance)
-                .thenComparing(RoutingProblemSnapshot.RootCandidate::getId));
+                .thenComparing(RoutingProblemSnapshot.RootCandidate::getId);
+        Comparator<RoutingProblemSnapshot.RootCandidate> existingFirstOrder = existingRank
+                .thenComparing(knownCoverage)
+                .thenComparing(stableOrder);
+        Comparator<RoutingProblemSnapshot.RootCandidate> measuredOrder = knownCoverage
+                .thenComparing(distance)
+                .thenComparing(existingRank)
+                .thenComparing(stableOrder);
+        roots.sort(preferExistingRoots ? existingFirstOrder : measuredOrder);
+        if (!preferExistingRoots && !knownDemandIdsByRoot.isEmpty()) {
+            RoutingProblemSnapshot.RootCandidate existingAnchor = roots.stream()
+                    .filter(root -> "existing_chamber_tie_in".equals(
+                            root.getRealization().getNodeType()))
+                    .min(existingFirstOrder)
+                    .orElse(null);
+            if (existingAnchor != null && roots.get(0) != existingAnchor) {
+                roots.remove(existingAnchor);
+                roots.add(0, existingAnchor);
+            }
+        }
         return roots;
     }
 

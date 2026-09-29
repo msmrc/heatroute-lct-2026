@@ -1,5 +1,28 @@
 # Current implementation progress
 
+## 2026-09-29 — source103: production deployment and full VPS benchmark PASS
+
+[Полный evidence source103](PRIMARY_ROUTING_103.md): `master`/VPS развёрнуты на
+`33eae276d8582cd833c4b2f66403aa3f5b345b1b` после backup БД. Все четыре сервиса healthy;
+readiness подтверждает PostGIS и реальный CP-SAT 9.15.6755 solve, OpenAPI и публичный HTTPS
+прошли. Исправлена Linux-упаковка OR-Tools native runtime через штатный Spring Boot
+`requiresUnpack`; локально CpSat/readiness 8/8 и package PASS.
+
+Свежий stable depth-on run `c61ce71e-9763-48f8-9752-80748b9c6cdd`, job
+`5221b94a-125c-456b-86fa-51c506dc9a6c`, attempt 1 завершён за **3 253,918900 с
+(54 мин 13,919 с)**. Preferred `cheapest`: 17/17, 2 192,535 м, 29 рёбер / 30 узлов,
+296 013 322,58 ₽; engineering: 17/17, 2 242,303 м, 30/31, 304 973 207,18 ₽. Оба valid,
+обязательные validation/engineering/sizing issues пусты. Strict all-variant export PASS за
+16,542543 с: 134 feature / 55 720 bytes, SHA-256
+`68d7782fd2d420e4857ffbd520ce6aeb981deaa60a1f72718aa3d281f8092c6b`.
+
+Production UI-карта просмотрена, браузерная консоль чистая; screenshot сохранён локально как
+`output/playwright/source103-vps-latest-success.png`. Полный job **не** работает за 30 секунд:
+30,016 с — только локальный single-candidate corridor oracle. По сравнению с production
+source102 (4 382,648 с) наблюдаемое время ниже на 25,8%, но это не чистый speed benchmark,
+поскольку source103 изменил обязательный axis-shift контроль и итоговую геометрию/portfolio.
+Глобальный оптимум, третий вариант, Ubuntu 22, R9 и остальные R/G/N-gates остаются открыты.
+
 ## 2026-09-28 — source103: ускорение exact axis-shift admission (локальный PASS)
 
 Ускорен самый дорогой хвост стабильного коридорного расчёта без изменения инженерных правил

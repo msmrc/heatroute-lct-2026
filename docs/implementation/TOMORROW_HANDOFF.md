@@ -1,23 +1,24 @@
 # Handoff — Артём / PM / developer
 
-## 2026-09-28 — source103: контроль смещения оси, локальный benchmark в работе
+## 2026-09-29 — source103: production deploy и полный VPS benchmark PASS
 
-`master` синхронизирован fast-forward до `65762b1`. Добавлен контрфактический
-контроль устранимых ступенек между параллельными ходами: финальный stable-этап выпрямляет
-только полностью допустимую альтернативу, frozen-допуск/старый экспорт отклоняют её исходный
-вариант с `EXPERT_UNNECESSARY_AXIS_SHIFT`. Камеры и все подходы перестраиваются совместно;
-корни/врезки/точки ОКС неподвижны, sizing/special/depth/economics рассчитываются заново.
+[Точный evidence](PRIMARY_ROUTING_103.md). `master`/VPS: `33eae27`; до fast-forward создан
+backup БД. Compose, PostGIS, CP-SAT readiness, OpenAPI и публичный HTTPS healthy/PASS.
+Spring Boot теперь распаковывает вложенный OR-Tools native runtime до загрузки JNI.
 
-Focused-тесты добавлены, JUnit не запускался. По отдельному запросу пользователя локальный
-Docker backend собран с `-DskipTests`; запущен run `f184053e-3bd2-479e-b0ea-1ba2ffb84fb0`,
-job `c533bee7-64d2-4d49-a594-8189f51ac696`, `global-tree-103`, конкурсные 144 объекта/17 ОКС,
-без глубины, старт 28.09.2026 14:11:16 UTC. Результат и точное время пока ожидаются.
-Общая readiness сообщает `cp_sat: unavailable`; stable этот новый решатель не использует
-и job выполняется. VPS не обновлялся. Предыдущий результат source102 сохранён неизменным;
-новый run — отдельная запись. Source103 нельзя объявлять production PASS.
-Контроль локальный, не распознаёт улицы по подложке и не доказывает необходимость
-всех оставшихся смещений. Ранее существовавшие `apps/web/src/styles.css` и `datasets/experimental/`
-не входят в эту задачу; не включать их в её коммит. Проверенный witness source102 — ниже.
+Полный stable depth-on run `c61ce71e-9763-48f8-9752-80748b9c6cdd`, job
+`5221b94a-125c-456b-86fa-51c506dc9a6c`, attempt 1: 3 253,918900 с. Два valid варианта
+подключают 17/17 без validation/engineering/sizing issues; preferred `cheapest` —
+2 192,535 м / 29 рёбер / 296 013 322,58 ₽. Strict export: 16,542543 с, 134 feature,
+55 720 bytes, SHA-256 `68d7782fd2d420e4857ffbd520ce6aeb981deaa60a1f72718aa3d281f8092c6b`.
+Production UI просмотрен, console clean, локальный screenshot —
+`output/playwright/source103-vps-latest-success.png`.
+
+Не заявлять 30 секунд для полного расчёта: это было время только corridor oracle. Фактический
+VPS end-to-end job — 54 мин 13,919 с. Source103 быстрее предыдущего production source102 wall
+time на 25,8%, но одновременно изменились обязательный axis-shift контроль и результат, поэтому
+это не изолированный speed benchmark. Открыты глобальный оптимум, третий вариант, Ubuntu 22,
+R9 и остальные R/G/N-gates.
 
 ## 2026-09-28 — source102: геометрия замечаний пользователя, production PASS
 

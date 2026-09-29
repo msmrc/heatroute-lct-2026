@@ -25,16 +25,16 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
-class OfficialRoutePlannerTest {
+class RegressionRoutePlannerFixtureTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final WKTReader wktReader = new WKTReader();
     private final OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
     private final OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
-    private final OfficialRoutePlanner planner = planner(RoutePlannerTuning.fixture());
+    private final RegressionRoutePlannerFixture planner = planner(RoutePlannerTuning.fixture());
 
-    private OfficialRoutePlanner planner(RoutePlannerTuning tuning) {
-        return new OfficialRoutePlanner(
+    private RegressionRoutePlannerFixture planner(RoutePlannerTuning tuning) {
+        return new RegressionRoutePlannerFixture(
                 new OfficialRouteValidator(geometryRules),
                 new OfficialObstacleRouter(geometryRules),
                 pipeCatalog,

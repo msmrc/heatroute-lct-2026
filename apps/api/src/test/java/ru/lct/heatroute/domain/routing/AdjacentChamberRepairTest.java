@@ -71,13 +71,13 @@ class AdjacentChamberRepairTest {
         List<RouteConnection> connections = List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null),
                 new RouteConnection("two", "two", BigDecimal.ONE, "connected", null), new RouteConnection("three", "three", BigDecimal.ONE, "connected", null));
         var seed = planner.withEngineeringAssessment(planner.finish("seed", "engineering",
-                new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
         assertThat(seed.getValidationIssues()).extracting(RouteValidationIssue::getCode).containsOnly("EXPERT_CHAMBER_OBLIQUE_ENTRY");
         assertThat(seed.getValidationIssues()).extracting(RouteValidationIssue::getSubjectId).containsExactlyInAnyOrder("a", "b");
-        List<OfficialRoutePlanner.Demand> demands = List.of(
-                new OfficialRoutePlanner.Demand("one", "one", new Coordinate(10, 10), BigDecimal.ONE, null),
-                new OfficialRoutePlanner.Demand("two", "two", new Coordinate(30, 10), BigDecimal.ONE, null),
-                new OfficialRoutePlanner.Demand("three", "three", new Coordinate(30, -5), BigDecimal.ONE, null));
+        List<RegressionRoutePlannerFixture.Demand> demands = List.of(
+                new RegressionRoutePlannerFixture.Demand("one", "one", new Coordinate(10, 10), BigDecimal.ONE, null),
+                new RegressionRoutePlannerFixture.Demand("two", "two", new Coordinate(30, 10), BigDecimal.ONE, null),
+                new RegressionRoutePlannerFixture.Demand("three", "three", new Coordinate(30, -5), BigDecimal.ONE, null));
         var repaired = planner.repairMandatoryChambers(List.of(seed), demands, List.of(), parameters, false, environment);
         assertThat(repaired).isNotEmpty().allSatisfy(variant -> {
             assertThat(variant.isValid()).isTrue();

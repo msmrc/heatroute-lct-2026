@@ -182,7 +182,7 @@ class DistinctRouteAlternativesTest {
         List<RouteVariant> variants = List.of(lower, upper);
         OfficialObstacleRouter router = new OfficialObstacleRouter(new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry()));
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
 
         // Ни одна линия не касается полигона. Только общее окно включает препятствие между ними.
         assertThat(selector.select(variants, core)).containsExactly(upper);

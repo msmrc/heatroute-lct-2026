@@ -54,7 +54,7 @@ class DepthReroutePhysicalContextTest {
                         new OfficialDepthOptimizer(pipes, new OfficialEconomics()),
                         new OfficialDepthProfileValidator(pipes));
         var planner =
-                new OfficialRoutePlanner(
+                new RegressionRoutePlannerFixture(
                         new OfficialRouteValidator(rules),
                         router,
                         pipes,
@@ -112,7 +112,7 @@ class DepthReroutePhysicalContextTest {
                                 Map.of()))
                 .allSatisfy(e -> assertThat(e.getDepthProfile().isComplete()).isTrue());
         var method =
-                OfficialRoutePlanner.class.getDeclaredMethod(
+                RegressionRoutePlannerFixture.class.getDeclaredMethod(
                         "rerouteDepthConflicts",
                         List.class,
                         List.class,

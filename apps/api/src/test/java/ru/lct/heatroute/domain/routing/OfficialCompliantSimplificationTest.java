@@ -33,7 +33,7 @@ class OfficialCompliantSimplificationTest {
 
     @Test
     void boundedGeometryBudgetAlsoAppliesWhenTheFinishedNetworkIsShorter() {
-        OfficialRoutePlanner planner = planner(new OfficialObstacleRouter(rules));
+        RegressionRoutePlannerFixture planner = planner(new OfficialObstacleRouter(rules));
         RouteVariant baseline = budgetVariant("100.000", "300000000.00");
 
         assertThat(planner.regularizationBudgetAllows(
@@ -63,7 +63,7 @@ class OfficialCompliantSimplificationTest {
         for (boolean depth : List.of(false, true)) {
             for (String strategy : List.of("engineering", "shortest", "cheapest")) {
                 RouteVariant result = planner(router).finish("test", strategy,
-                        new OfficialRoutePlanner.VariantDraft(nodes(), List.of(original),
+                        new RegressionRoutePlannerFixture.VariantDraft(nodes(), List.of(original),
                                 List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null))),
                         features, new OfficialRunParameters(null, null, depth).validated(), false, environment);
                 assertThat(result.isValid()).isTrue();
@@ -112,7 +112,7 @@ class OfficialCompliantSimplificationTest {
                 .isGreaterThan(economics.marginalConnectionCost(List.of(original), List.of()));
 
         RouteVariant result = planner(router).finish("test", "engineering",
-                new OfficialRoutePlanner.VariantDraft(nodes, List.of(original),
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(original),
                         List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null))),
                 features, OfficialRunParameters.defaults(), false, router.prepare(features));
 
@@ -136,7 +136,7 @@ class OfficialCompliantSimplificationTest {
         nodes.add(new RouteNode("demand:two", "demand_connection", point(-50, 20), false, false, 0, null));
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
         RouteVariant result = planner(router).finish("test", "engineering",
-                new OfficialRoutePlanner.VariantDraft(nodes, List.of(original, other), List.of(
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(original, other), List.of(
                         new RouteConnection("one", "one", BigDecimal.ONE, "connected", null),
                         new RouteConnection("two", "two", BigDecimal.ONE, "connected", null))),
                 List.of(), OfficialRunParameters.defaults(), false, router.prepare(List.of()));
@@ -159,7 +159,7 @@ class OfficialCompliantSimplificationTest {
                 new RouteNode("demand:two", "demand_connection", point(20, 5), false, false, 0, null));
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
         RouteVariant result = planner(router).finish("test", "engineering",
-                new OfficialRoutePlanner.VariantDraft(nodes, List.of(original, other), List.of(
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(original, other), List.of(
                         new RouteConnection("one", "one", BigDecimal.ONE, "connected", null),
                         new RouteConnection("two", "two", BigDecimal.ONE, "connected", null))),
                 List.of(), OfficialRunParameters.defaults(), false, router.prepare(List.of()));
@@ -180,7 +180,7 @@ class OfficialCompliantSimplificationTest {
         assertThat(new RetainedEndpointSimplifier().simplify(original, router, router.prepare(List.of()),
                 java.util.Set.of(), List.of())).isNull();
         RouteVariant result = planner(router).finish("test", "engineering",
-                new OfficialRoutePlanner.VariantDraft(nodes, List.of(original),
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(original),
                         List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null))),
                 List.of(), OfficialRunParameters.defaults(), false, router.prepare(List.of()));
         assertThat(result.isValid()).isTrue();
@@ -202,8 +202,8 @@ class OfficialCompliantSimplificationTest {
                 rules.sections(line, List.of()), BigDecimal.ONE, 50);
     }
 
-    private OfficialRoutePlanner planner(OfficialObstacleRouter router) {
-        return new OfficialRoutePlanner(new OfficialRouteValidator(rules), router, pipes,
+    private RegressionRoutePlannerFixture planner(OfficialObstacleRouter router) {
+        return new RegressionRoutePlannerFixture(new OfficialRouteValidator(rules), router, pipes,
                 new OfficialNetworkSizer(pipes), new OfficialExistingNetworkReconstructor(pipes),
                 new OfficialVariantEconomicsCalculator(pipes, new OfficialEconomics()),
                 new OfficialDepthPlanner(new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipes),

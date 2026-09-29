@@ -14,7 +14,7 @@ import java.util.Random;
 import java.util.concurrent.CancellationException;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
-import ru.lct.heatroute.domain.routing.OfficialRoutePlanner.VariantDraft;
+import ru.lct.heatroute.domain.routing.RegressionRoutePlannerFixture.VariantDraft;
 
 class AssessedRouteDraftTest {
     @Test

@@ -53,7 +53,7 @@ class OfficialDatasetRoutingTest {
     void officialDatasetProducesValidatedObstacleAwareVariants() throws Exception {
         List<ImportedOfficialFeature> features = loadOfficialFeatures();
         TopologyAnalysis topology = new ExistingNetworkTopologyAnalyzer().analyze(features);
-        OfficialRoutePlanner planner = planner();
+        RegressionRoutePlannerFixture planner = planner();
         OfficialRunParameters parameters = new OfficialRunParameters(null, null, true);
 
         OfficialCalculationResult result = planner.plan(
@@ -180,11 +180,11 @@ class OfficialDatasetRoutingTest {
         }
     }
 
-    OfficialRoutePlanner planner() {
+    RegressionRoutePlannerFixture planner() {
         OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
         OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
-        return new OfficialRoutePlanner(
+        return new RegressionRoutePlannerFixture(
                 new OfficialRouteValidator(geometryRules),
                 new OfficialObstacleRouter(geometryRules),
                 pipeCatalog,

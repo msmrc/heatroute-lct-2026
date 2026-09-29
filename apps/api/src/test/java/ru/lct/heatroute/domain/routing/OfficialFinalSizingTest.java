@@ -52,7 +52,7 @@ class OfficialFinalSizingTest {
         RouteEdge edge = new RouteEdge("edge", "root", "demand:one", originalLine.getLength(),
                 original.stream().map(c -> new RouteCoordinate(c.x, c.y)).collect(Collectors.toList()),
                 rules.sections(originalLine, List.of()), new BigDecimal("3.5"), 50);
-        OfficialRoutePlanner.VariantDraft draft = new OfficialRoutePlanner.VariantDraft(nodes, List.of(edge),
+        RegressionRoutePlannerFixture.VariantDraft draft = new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(edge),
                 List.of(new RouteConnection("one", "one", new BigDecimal("3.5"), "connected", null)));
 
         RouteVariant result = planner(router).finish("balanced", "engineering", draft, List.of(),
@@ -78,8 +78,8 @@ class OfficialFinalSizingTest {
         assertThat(result.withEngineeringIssues(List.of()).isValid()).isFalse();
     }
 
-    private OfficialRoutePlanner planner(OfficialObstacleRouter router) {
-        return new OfficialRoutePlanner(new OfficialRouteValidator(rules), router, pipes,
+    private RegressionRoutePlannerFixture planner(OfficialObstacleRouter router) {
+        return new RegressionRoutePlannerFixture(new OfficialRouteValidator(rules), router, pipes,
                 new OfficialNetworkSizer(pipes), new OfficialExistingNetworkReconstructor(pipes),
                 new OfficialVariantEconomicsCalculator(pipes, new OfficialEconomics()),
                 new OfficialDepthPlanner(new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipes),

@@ -23,7 +23,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 /** Проверяет реальные слияния коридорных камер через окончательный sizing, геометрию и экономику. */
 class CorridorChamberMergeTest {
-    private final OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+    private final RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
     private final OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
     private final OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
@@ -185,12 +185,12 @@ class CorridorChamberMergeTest {
     @Test
     void generatingAndFinishingCandidatesDoesNotMutateSourceDraftOrConstructorOwnedLists() throws Exception {
         Fixture fixture = fixture(5, 0, 0, 0);
-        OfficialRoutePlanner.VariantDraft source = fixture.draft();
+        RegressionRoutePlannerFixture.VariantDraft source = fixture.draft();
         String inputSnapshot = mapper.writeValueAsString(List.of(fixture.nodes, fixture.edges, fixture.connections));
         String before = mapper.writeValueAsString(finish(source, fixture));
-        List<OfficialRoutePlanner.VariantDraft> candidates = candidates(source, fixture);
+        List<RegressionRoutePlannerFixture.VariantDraft> candidates = candidates(source, fixture);
         assertThat(candidates).isNotEmpty();
-        for (OfficialRoutePlanner.VariantDraft candidate : candidates) assertMerged(finish(candidate, fixture), fixture);
+        for (RegressionRoutePlannerFixture.VariantDraft candidate : candidates) assertMerged(finish(candidate, fixture), fixture);
 
         assertThat(mapper.writeValueAsString(finish(source, fixture))).isEqualTo(before);
         assertThat(mapper.writeValueAsString(List.of(fixture.nodes, fixture.edges, fixture.connections))).isEqualTo(inputSnapshot);
@@ -199,7 +199,7 @@ class CorridorChamberMergeTest {
     @Test
     void legacyPrivateDiagonalDraftsCannotPassTheStrictChamberValidator() throws Exception {
         Fixture fixture = fixture(20, 0, 0, 0);
-        OfficialRoutePlanner.VariantDraft source = fixture.draft();
+        RegressionRoutePlannerFixture.VariantDraft source = fixture.draft();
         List<RouteVariant> before = legacyCandidates(source, fixture).stream()
                 .map(draft -> finish(draft, fixture)).collect(Collectors.toList());
         assertThat(before).hasSize(3);
@@ -250,7 +250,7 @@ class CorridorChamberMergeTest {
             double length = line(north).getLength();
             edges.add(new RouteEdge("witness-north", joint.getId(), "demand:north", length, north,
                     List.of(new RouteSection("base", null, null, north, length, null)), new BigDecimal("2"), 150));
-            RouteVariant witness = finish(new OfficialRoutePlanner.VariantDraft(nodes, edges, fixture.connections), fixture);
+            RouteVariant witness = finish(new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, fixture.connections), fixture);
             assertMerged(witness, fixture);
             assertOrthogonalJoint(witness);
             assertThat(new EngineeringRouteEvaluator().evaluate(witness.getEdges()).isCompliant()).isTrue();
@@ -258,15 +258,15 @@ class CorridorChamberMergeTest {
     }
 
     @SuppressWarnings("unchecked")
-    private List<OfficialRoutePlanner.VariantDraft> legacyCandidates(OfficialRoutePlanner.VariantDraft draft,
+    private List<RegressionRoutePlannerFixture.VariantDraft> legacyCandidates(RegressionRoutePlannerFixture.VariantDraft draft,
             Fixture fixture) throws Exception {
-        java.lang.reflect.Method method = OfficialRoutePlanner.class.getDeclaredMethod("mergedBranchChamberCandidates",
-                OfficialRoutePlanner.VariantDraft.class, List.class, OfficialRoutingEnvironment.class);
+        java.lang.reflect.Method method = RegressionRoutePlannerFixture.class.getDeclaredMethod("mergedBranchChamberCandidates",
+                RegressionRoutePlannerFixture.VariantDraft.class, List.class, OfficialRoutingEnvironment.class);
         method.setAccessible(true);
-        return (List<OfficialRoutePlanner.VariantDraft>) method.invoke(planner, draft, fixture.demands(), router.prepare(fixture.features));
+        return (List<RegressionRoutePlannerFixture.VariantDraft>) method.invoke(planner, draft, fixture.demands(), router.prepare(fixture.features));
     }
 
-    private List<OfficialRoutePlanner.VariantDraft> candidates(OfficialRoutePlanner.VariantDraft draft, Fixture fixture) {
+    private List<RegressionRoutePlannerFixture.VariantDraft> candidates(RegressionRoutePlannerFixture.VariantDraft draft, Fixture fixture) {
         return planner.corridorChamberMergeCandidates(draft, fixture.demands(), router.prepare(fixture.features));
     }
 
@@ -274,7 +274,7 @@ class CorridorChamberMergeTest {
         return candidates(fixture.draft(), fixture).stream().map(draft -> finish(draft, fixture)).collect(Collectors.toList());
     }
 
-    private RouteVariant finish(OfficialRoutePlanner.VariantDraft draft, Fixture fixture) {
+    private RouteVariant finish(RegressionRoutePlannerFixture.VariantDraft draft, Fixture fixture) {
         return planner.finish("synthetic-merge", "engineering", draft, fixture.features,
                 new OfficialRunParameters(null, null, false).validated(), false, router.prepare(fixture.features));
     }
@@ -438,14 +438,14 @@ class CorridorChamberMergeTest {
             for (int i = 0; i < nodes.size(); i++) if (nodes.get(i).getId().equals(id)) nodes.set(i, replacement);
         }
 
-        private List<OfficialRoutePlanner.Demand> demands() {
-            return connections.stream().map(connection -> new OfficialRoutePlanner.Demand(connection.getDemandId(),
+        private List<RegressionRoutePlannerFixture.Demand> demands() {
+            return connections.stream().map(connection -> new RegressionRoutePlannerFixture.Demand(connection.getDemandId(),
                     connection.getConnectionPointId(), node("demand:" + connection.getDemandId()).getCoordinate().toCoordinate(),
                     connection.getFlowTph(), null)).collect(Collectors.toList());
         }
 
-        private OfficialRoutePlanner.VariantDraft draft() {
-            return new OfficialRoutePlanner.VariantDraft(nodes, edges, connections);
+        private RegressionRoutePlannerFixture.VariantDraft draft() {
+            return new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections);
         }
     }
 }

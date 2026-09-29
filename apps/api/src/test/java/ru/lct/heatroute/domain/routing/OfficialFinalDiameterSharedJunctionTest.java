@@ -434,7 +434,7 @@ class OfficialFinalDiameterSharedJunctionTest {
     @SuppressWarnings("unchecked")
     private List<RouteEdge> ensure(List<RouteNode> nodes, List<RouteEdge> edges,
             List<ImportedOfficialFeature> features, TerminalApproachPolicy policy) throws Exception {
-        Method method = OfficialRoutePlanner.class.getDeclaredMethod("ensureMandatoryEgress",
+        Method method = RegressionRoutePlannerFixture.class.getDeclaredMethod("ensureMandatoryEgress",
                 List.class, List.class, List.class, OfficialRoutingEnvironment.class, TerminalApproachPolicy.class);
         method.setAccessible(true);
         try {

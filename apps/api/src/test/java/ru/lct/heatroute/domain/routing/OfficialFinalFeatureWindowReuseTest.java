@@ -67,7 +67,7 @@ class OfficialFinalFeatureWindowReuseTest {
         OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(
                 constraints, new OfficialCrossingGeometry());
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
-        OfficialRoutePlanner planner = new OfficialRoutePlanner(
+        RegressionRoutePlannerFixture planner = new RegressionRoutePlannerFixture(
                 new OfficialRouteValidator(rules), router, pipes, new OfficialNetworkSizer(pipes),
                 new OfficialExistingNetworkReconstructor(pipes),
                 new OfficialVariantEconomicsCalculator(pipes, economics),
@@ -82,7 +82,7 @@ class OfficialFinalFeatureWindowReuseTest {
         RouteEdge edge = new RouteEdge("edge", "root", "demand:one", 20,
                 List.of(new RouteCoordinate(0, 0), new RouteCoordinate(20, 0)), List.of(),
                 new BigDecimal("1.000"), 50);
-        OfficialRoutePlanner.VariantDraft draft = new OfficialRoutePlanner.VariantDraft(nodes, List.of(edge),
+        RegressionRoutePlannerFixture.VariantDraft draft = new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(edge),
                 List.of(new RouteConnection("one", "connection-one", new BigDecimal("1.000"),
                         "connected", null)));
 
@@ -106,7 +106,7 @@ class OfficialFinalFeatureWindowReuseTest {
         OfficialPipeCatalog pipes = new OfficialPipeCatalog();
         OfficialEconomics economics = new OfficialEconomics();
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
-        OfficialRoutePlanner planner = new OfficialRoutePlanner(
+        RegressionRoutePlannerFixture planner = new RegressionRoutePlannerFixture(
                 validator, router, pipes, new OfficialNetworkSizer(pipes),
                 new OfficialExistingNetworkReconstructor(pipes),
                 new OfficialVariantEconomicsCalculator(pipes, economics),
@@ -119,7 +119,7 @@ class OfficialFinalFeatureWindowReuseTest {
         RouteEdge edge = new RouteEdge("edge", "root", "demand:one", 20,
                 List.of(new RouteCoordinate(0, 0), new RouteCoordinate(20, 0)), List.of(),
                 new BigDecimal("1.000"), 50);
-        OfficialRoutePlanner.VariantDraft draft = new OfficialRoutePlanner.VariantDraft(nodes, List.of(edge),
+        RegressionRoutePlannerFixture.VariantDraft draft = new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(edge),
                 List.of(new RouteConnection("one", "connection-one", new BigDecimal("1.000"), "connected", null)));
         return planner.finish("candidate", "balanced", draft, List.of(),
                 new OfficialRunParameters(null, null, false), false, router.prepare(List.of(), source),

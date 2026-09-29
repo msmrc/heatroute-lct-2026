@@ -125,8 +125,8 @@ class OfficialRetainedEgressTest {
         RouteEdge targetRay = edge(points(0, -20, -10, 10, 10));
         assertThat(rules.validateMandatoryEgress(targetRay, rules.line(coordinates(targetRay)), features, 50))
                 .extracting(RouteValidationIssue::getCode).containsExactly("OKS_NORMAL_EGRESS_VIOLATION");
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
-        OfficialRoutePlanner.VariantDraft draft = new OfficialRoutePlanner.VariantDraft(
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture.VariantDraft draft = new RegressionRoutePlannerFixture.VariantDraft(
                 nodes(coordinates(original)), List.of(original),
                 List.of(new RouteConnection("one", "point-one", BigDecimal.ONE, "connected", null)));
         for (boolean depth : List.of(false, true)) {
@@ -209,9 +209,9 @@ class OfficialRetainedEgressTest {
 
     private RouteVariant finish(RouteEdge original, List<ImportedOfficialFeature> features,
             String strategy, boolean depth, BigDecimal flow) {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         return planner.finish("test", strategy,
-                new OfficialRoutePlanner.VariantDraft(nodes(coordinates(original)), List.of(original),
+                new RegressionRoutePlannerFixture.VariantDraft(nodes(coordinates(original)), List.of(original),
                         List.of(new RouteConnection("one", "point-one", flow, "connected", null))),
                 features, new OfficialRunParameters(null, null, depth).validated(), false,
                 new OfficialObstacleRouter(rules).prepare(features), TerminalApproachPolicy.PRESERVE_VALID);

@@ -343,8 +343,8 @@ class OfficialFinalDiameterRoadRetentionTest {
     @SuppressWarnings("unchecked")
     private RouteEdge ensure(RouteEdge edge, List<ImportedOfficialFeature> features,
             OfficialRoutingEnvironment environment) throws Exception {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
-        Method method = OfficialRoutePlanner.class.getDeclaredMethod("ensureMandatoryEgress",
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
+        Method method = RegressionRoutePlannerFixture.class.getDeclaredMethod("ensureMandatoryEgress",
                 List.class, List.class, List.class, OfficialRoutingEnvironment.class, TerminalApproachPolicy.class);
         method.setAccessible(true);
         try {

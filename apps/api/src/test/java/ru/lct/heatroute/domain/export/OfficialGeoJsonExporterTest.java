@@ -33,7 +33,7 @@ import ru.lct.heatroute.domain.reconstruction.OfficialExistingNetworkReconstruct
 import ru.lct.heatroute.domain.routing.OfficialCalculationResult;
 import ru.lct.heatroute.domain.routing.OfficialObstacleRouter;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules;
-import ru.lct.heatroute.domain.routing.OfficialRoutePlanner;
+import ru.lct.heatroute.domain.routing.RegressionRoutePlannerFixture;
 import ru.lct.heatroute.domain.routing.OfficialRouteValidator;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
@@ -479,10 +479,10 @@ class OfficialGeoJsonExporterTest {
                 .collect(Collectors.toList());
     }
 
-    private OfficialRoutePlanner planner() {
+    private RegressionRoutePlannerFixture planner() {
         OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
-        return new OfficialRoutePlanner(
+        return new RegressionRoutePlannerFixture(
                 new OfficialRouteValidator(geometryRules),
                 new OfficialObstacleRouter(geometryRules),
                 pipeCatalog,

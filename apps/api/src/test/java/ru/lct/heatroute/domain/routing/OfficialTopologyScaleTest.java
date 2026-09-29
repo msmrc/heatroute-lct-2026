@@ -74,12 +74,12 @@ class OfficialTopologyScaleTest {
                 elapsed.toMillis(), usedHeap);
     }
 
-    private OfficialRoutePlanner planner() {
+    private RegressionRoutePlannerFixture planner() {
         OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
         OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
         OfficialEconomics economics = new OfficialEconomics();
-        return new OfficialRoutePlanner(
+        return new RegressionRoutePlannerFixture(
                 new OfficialRouteValidator(geometryRules),
                 new OfficialObstacleRouter(geometryRules),
                 pipeCatalog,

@@ -20,7 +20,7 @@ class OfficialTerminalShorteningTest {
 
     @Test
     void shortensAlreadyCompliantInputsWithoutMovingCamerasOrLosingTheControl() {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", p(-20, 0), true, true, 2, "support"),
                 new RouteNode("j", "new_branch_chamber", p(0, 0), true, false, 0, null),
@@ -33,14 +33,14 @@ class OfficialTerminalShorteningTest {
         List<RouteConnection> connections = List.of(
                 new RouteConnection("one", "one", BigDecimal.ONE, "connected", null),
                 new RouteConnection("two", "two", BigDecimal.ONE, "connected", null));
-        List<OfficialRoutePlanner.Demand> demands = List.of(
-                new OfficialRoutePlanner.Demand("one", "one", c(20, 0), BigDecimal.ONE, null),
-                new OfficialRoutePlanner.Demand("two", "two", c(0, -20), BigDecimal.ONE, null));
+        List<RegressionRoutePlannerFixture.Demand> demands = List.of(
+                new RegressionRoutePlannerFixture.Demand("one", "one", c(20, 0), BigDecimal.ONE, null),
+                new RegressionRoutePlannerFixture.Demand("two", "two", c(0, -20), BigDecimal.ONE, null));
         for (boolean depth : List.of(false, true)) {
             OfficialRoutingEnvironment environment = new OfficialObstacleRouter(rules).prepare(List.of());
             OfficialRunParameters parameters = new OfficialRunParameters(null, null, depth);
             RouteVariant baseline = planner.withEngineeringAssessment(planner.finish("balanced", "engineering",
-                    new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
+                    new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
             assertThat(baseline.isValid()).isTrue();
             assertThat(baseline.getEngineeringIssues()).isEmpty();
             assertThat(baseline.getTotalLengthM()).isEqualByComparingTo("80");
@@ -71,7 +71,7 @@ class OfficialTerminalShorteningTest {
 
     @Test
     void shorterProposalCannotCutAcrossARealForbiddenObstacle() {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature("park", "restriction",
                 new ObjectMapper().createObjectNode().put("restriction_type", "park"),
                 new GeometryFactory().createPolygon(new Coordinate[] {
@@ -91,7 +91,7 @@ class OfficialTerminalShorteningTest {
                 new RouteConnection("one", "one", BigDecimal.ONE, "connected", null),
                 new RouteConnection("two", "two", BigDecimal.ONE, "connected", null));
         RouteVariant baseline = planner.withEngineeringAssessment(planner.finish("balanced", "engineering",
-                new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), features, parameters, false, environment));
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), features, parameters, false, environment));
         assertThat(baseline.isValid()).isTrue();
         assertThat(baseline.getEngineeringIssues()).isEmpty();
         assertThat(new OfficialRouteValidator(rules).validate(nodes,
@@ -99,8 +99,8 @@ class OfficialTerminalShorteningTest {
                 features)).isNotEmpty();
 
         List<RouteVariant> roles = planner.shortenSelectedTerminals(List.of(baseline), List.of(
-                new OfficialRoutePlanner.Demand("one", "one", c(20, 0), BigDecimal.ONE, null),
-                new OfficialRoutePlanner.Demand("two", "two", c(0, -20), BigDecimal.ONE, null)),
+                new RegressionRoutePlannerFixture.Demand("one", "one", c(20, 0), BigDecimal.ONE, null),
+                new RegressionRoutePlannerFixture.Demand("two", "two", c(0, -20), BigDecimal.ONE, null)),
                 features, parameters, false, environment);
 
         assertThat(roles).isNotEmpty().allSatisfy(role -> {

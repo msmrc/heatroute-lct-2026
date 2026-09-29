@@ -37,11 +37,11 @@ class OfficialChamberQualityRefinementTest {
                     edge("b", "j", "demand:b", angle, 1, 0, 0, 20, -0.001));
             List<RouteConnection> connections = List.of(new RouteConnection("a", "a", BigDecimal.ONE, "connected", null),
                     new RouteConnection("b", "b", BigDecimal.ONE, "connected", null));
-            List<OfficialRoutePlanner.Demand> demands = List.of(
-                    new OfficialRoutePlanner.Demand("a", "a", point(angle, 30, 20).toCoordinate(), BigDecimal.ONE, null),
-                    new OfficialRoutePlanner.Demand("b", "b", point(angle, 20, -0.001).toCoordinate(), BigDecimal.ONE, null));
+            List<RegressionRoutePlannerFixture.Demand> demands = List.of(
+                    new RegressionRoutePlannerFixture.Demand("a", "a", point(angle, 30, 20).toCoordinate(), BigDecimal.ONE, null),
+                    new RegressionRoutePlannerFixture.Demand("b", "b", point(angle, 20, -0.001).toCoordinate(), BigDecimal.ONE, null));
             var seed = planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest",
-                    new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false,
+                    new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), List.of(), parameters, false,
                     environment, TerminalApproachPolicy.PRESERVE_VALID));
             assertThat(seed.isValid()).isFalse();
             assertThat(seed.getValidationIssues()).extracting(RouteValidationIssue::getCode)

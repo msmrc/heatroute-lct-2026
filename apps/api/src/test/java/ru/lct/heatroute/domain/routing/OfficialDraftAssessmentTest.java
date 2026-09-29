@@ -40,7 +40,7 @@ class OfficialDraftAssessmentTest {
         CountingSizer sizer = new CountingSizer(catalog);
         OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
-        OfficialRoutePlanner planner = new OfficialRoutePlanner(new OfficialRouteValidator(rules), router, catalog, sizer,
+        RegressionRoutePlannerFixture planner = new RegressionRoutePlannerFixture(new OfficialRouteValidator(rules), router, catalog, sizer,
                 new OfficialExistingNetworkReconstructor(catalog), new OfficialVariantEconomicsCalculator(catalog, new OfficialEconomics()),
                 new OfficialDepthPlanner(new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), catalog),
                         new OfficialDepthOptimizer(catalog, new OfficialEconomics()), new OfficialDepthProfileValidator(catalog)));
@@ -51,13 +51,13 @@ class OfficialDraftAssessmentTest {
                 edge(nodes.get(2), nodes.get(5), 3), edge(nodes.get(0), nodes.get(1), 6), edge(nodes.get(1), nodes.get(2), 4));
         List<RouteConnection> connections = List.of(connection("east", 1), connection("north", 2), connection("south", 3));
         Map<String, RouteNode> byId = nodes.stream().collect(Collectors.toMap(RouteNode::getId, n -> n));
-        List<OfficialRoutePlanner.Demand> demands = connections.stream().map(c -> new OfficialRoutePlanner.Demand(
+        List<RegressionRoutePlannerFixture.Demand> demands = connections.stream().map(c -> new RegressionRoutePlannerFixture.Demand(
                 c.getDemandId(), c.getConnectionPointId(), byId.get("demand:" + c.getDemandId()).getCoordinate().toCoordinate(),
                 c.getFlowTph(), null)).collect(Collectors.toList());
         OfficialRunParameters parameters = new OfficialRunParameters(null, null, depth).validated();
         OfficialRoutingEnvironment environment = router.prepare(List.of());
         RouteVariant source = planner.withEngineeringAssessment(planner.finish("seed", "engineering",
-                new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
         assertThat(source.isValid()).isFalse();
         assertThat(source.getValidationIssues()).extracting(RouteValidationIssue::getCode)
                 .containsExactly("EXPERT_CHAMBER_SPACING_TOO_SHORT");
@@ -111,7 +111,7 @@ class OfficialDraftAssessmentTest {
         @Override
         public NetworkSizingResult size(List<NetworkTreeEdge> edges, Map<String, BigDecimal> flow) {
             StackTraceElement[] stack = Thread.currentThread().getStackTrace();
-            if (Arrays.stream(stack).anyMatch(f -> f.getClassName().equals(OfficialRoutePlanner.class.getName())
+            if (Arrays.stream(stack).anyMatch(f -> f.getClassName().equals(RegressionRoutePlannerFixture.class.getName())
                     && f.getMethodName().equals("draftScore"))) {
                 draftCalls++;
                 if (Arrays.stream(stack).anyMatch(f -> f.getClassName().contains("TimSort")

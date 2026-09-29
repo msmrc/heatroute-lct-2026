@@ -89,7 +89,7 @@ class ForbiddenTerminalCoverageTest {
         addDemandWithOwnFootprint(features, "east-lower", 100, -40, "4", move);
         if (!ownFootprints) features.removeIf(feature -> feature.getFeatureId().startsWith("own-"));
         assertValidBaselineInput(features);
-        Logger logger = (Logger) LoggerFactory.getLogger(OfficialRoutePlanner.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(RegressionRoutePlannerFixture.class);
         ListAppender<ILoggingEvent> stages = new ListAppender<>();
         stages.start();
         logger.addAppender(stages);

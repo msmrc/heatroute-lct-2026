@@ -82,7 +82,7 @@ class GroupTieInNormalEligibilityTest {
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
         OfficialRoutingEnvironment environment = new OfficialObstacleRouter(rules).prepare(features);
         return ReflectionTestUtils.invokeMethod(new OfficialDatasetRoutingTest().planner(), "groupTieInCandidates",
-                List.of(new OfficialRoutePlanner.Demand("consumer", "connection", demand, BigDecimal.ONE, null)),
+                List.of(new RegressionRoutePlannerFixture.Demand("consumer", "connection", demand, BigDecimal.ONE, null)),
                 Map.of(), features.stream().collect(Collectors.toMap(ImportedOfficialFeature::getFeatureId, feature -> feature)),
                 incidentCounts, environment);
     }

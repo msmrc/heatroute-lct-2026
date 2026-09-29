@@ -48,9 +48,9 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
  *
  * <p>This class lives in test sources and is not packaged or registered in the application.
  */
-public class OfficialRoutePlanner {
+public class RegressionRoutePlannerFixture {
     private static final int MAX_FINAL_SIZING_GEOMETRY_PASSES = 24;
-    private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutePlanner.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(RegressionRoutePlannerFixture.class);
     public static final String ALGORITHM_VERSION = RoutePlannerTuning.FIXTURE_ALGORITHM_VERSION;
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double LENGTH_EPSILON_M = 1e-9;
@@ -97,7 +97,7 @@ public class OfficialRoutePlanner {
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     @Autowired
-    public OfficialRoutePlanner(
+    public RegressionRoutePlannerFixture(
             OfficialRouteValidator validator,
             OfficialObstacleRouter obstacleRouter,
             OfficialPipeCatalog pipeCatalog,
@@ -116,7 +116,7 @@ public class OfficialRoutePlanner {
                 RoutePlannerTuning.fixture());
     }
 
-    OfficialRoutePlanner(
+    RegressionRoutePlannerFixture(
             OfficialRouteValidator validator,
             OfficialObstacleRouter obstacleRouter,
             OfficialPipeCatalog pipeCatalog,

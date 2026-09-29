@@ -30,7 +30,7 @@ class OfficialRouteAttachmentTest {
 
     @Test
     void fullNearestChamberDoesNotReceiveAFifthRay() {
-        OfficialRoutePlanner.TreeAttachment choice = planner(new OfficialRouteValidator(rules))
+        RegressionRoutePlannerFixture.TreeAttachment choice = planner(new OfficialRouteValidator(rules))
                 .chooseTreeAttachment(demand(), draft(true), router.prepare(List.of()));
 
         assertThat(choice).isNotNull();
@@ -52,7 +52,7 @@ class OfficialRouteAttachmentTest {
                 return super.validate(nodes, edges, complete);
             }
         };
-        OfficialRoutePlanner.TreeAttachment choice = planner(finalValidator)
+        RegressionRoutePlannerFixture.TreeAttachment choice = planner(finalValidator)
                 .chooseTreeAttachment(demand(), draft(false), router.prepare(List.of()));
 
         assertThat(choice).isNotNull();
@@ -64,27 +64,27 @@ class OfficialRouteAttachmentTest {
         List<RouteNode> nodes = List.of(node("root", -100, 0, true, true),
                 node("a", 0, 0, true, false), node("demand:one", 100, 0, false, false),
                 node("demand:two", 0, 100, false, false));
-        OfficialRoutePlanner.VariantDraft source = new OfficialRoutePlanner.VariantDraft(nodes,
+        RegressionRoutePlannerFixture.VariantDraft source = new RegressionRoutePlannerFixture.VariantDraft(nodes,
                 List.of(edge(nodes.get(0), nodes.get(1)), edge(nodes.get(1), nodes.get(2)),
                         edge(nodes.get(1), nodes.get(3))),
                 List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null),
                         new RouteConnection("two", "two", BigDecimal.ONE, "connected", null)));
-        OfficialRoutePlanner.Demand demand = new OfficialRoutePlanner.Demand("new", "new",
+        RegressionRoutePlannerFixture.Demand demand = new RegressionRoutePlannerFixture.Demand("new", "new",
                 new Coordinate(10, -16), BigDecimal.ONE, null);
 
-        OfficialRoutePlanner.TreeAttachment choice = planner(new OfficialRouteValidator(rules))
+        RegressionRoutePlannerFixture.TreeAttachment choice = planner(new OfficialRouteValidator(rules))
                 .chooseTreeAttachment(demand, source, router.prepare(List.of()));
 
         assertThat(choice).isNotNull();
         assertThat(choice.junction().getId()).isEqualTo("a");
     }
 
-    private OfficialRoutePlanner.Demand demand() {
-        return new OfficialRoutePlanner.Demand("new", "new", new Coordinate(100, 100),
+    private RegressionRoutePlannerFixture.Demand demand() {
+        return new RegressionRoutePlannerFixture.Demand("new", "new", new Coordinate(100, 100),
                 BigDecimal.ONE, null);
     }
 
-    private OfficialRoutePlanner.VariantDraft draft(boolean fullNearest) {
+    private RegressionRoutePlannerFixture.VariantDraft draft(boolean fullNearest) {
         List<RouteNode> nodes = new ArrayList<>(List.of(
                 node("root", 0, 0, true, true), node("a", 100, 0, true, false),
                 node("b", 125, 0, true, false), node("demand:one", 100, -100, false, false),
@@ -104,7 +104,7 @@ class OfficialRouteAttachmentTest {
             edges.add(edge(nodes.get(1), fourth));
             connections.add(new RouteConnection("four", "four", BigDecimal.ONE, "connected", null));
         }
-        return new OfficialRoutePlanner.VariantDraft(nodes, edges, connections);
+        return new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections);
     }
 
     private RouteNode node(String id, double x, double y, boolean chamber, boolean root) {
@@ -119,8 +119,8 @@ class OfficialRouteAttachmentTest {
                 List.of(start.getCoordinate(), end.getCoordinate()), List.of(), BigDecimal.ONE, 50);
     }
 
-    private OfficialRoutePlanner planner(OfficialRouteValidator validator) {
-        return new OfficialRoutePlanner(validator, router, pipes, new OfficialNetworkSizer(pipes),
+    private RegressionRoutePlannerFixture planner(OfficialRouteValidator validator) {
+        return new RegressionRoutePlannerFixture(validator, router, pipes, new OfficialNetworkSizer(pipes),
                 new OfficialExistingNetworkReconstructor(pipes),
                 new OfficialVariantEconomicsCalculator(pipes, new OfficialEconomics()),
                 new OfficialDepthPlanner(new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipes),

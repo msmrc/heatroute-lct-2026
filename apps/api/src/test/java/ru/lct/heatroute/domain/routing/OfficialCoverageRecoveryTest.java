@@ -39,7 +39,7 @@ class OfficialCoverageRecoveryTest {
     private final OfficialPipeCatalog pipes = new OfficialPipeCatalog();
     private final OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
     private final OfficialRouteValidator validator = new OfficialRouteValidator(rules);
-    private final OfficialRoutePlanner planner = new OfficialRoutePlanner(validator, router, pipes,
+    private final RegressionRoutePlannerFixture planner = new RegressionRoutePlannerFixture(validator, router, pipes,
             new OfficialNetworkSizer(pipes), new OfficialExistingNetworkReconstructor(pipes),
             new OfficialVariantEconomicsCalculator(pipes, new OfficialEconomics()),
             new OfficialDepthPlanner(new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipes),
@@ -48,8 +48,8 @@ class OfficialCoverageRecoveryTest {
 
     @Test
     void recoversNoRouteWhenSupportingTreeAlreadyExistsWithoutLosingExistingCoverage() {
-        OfficialRoutePlanner.VariantDraft source = source();
-        List<OfficialRoutePlanner.VariantDraft> recovered = planner.recoverCoverageAlternatives(
+        RegressionRoutePlannerFixture.VariantDraft source = source();
+        List<RegressionRoutePlannerFixture.VariantDraft> recovered = planner.recoverCoverageAlternatives(
                 List.of(source), List.of(missing("missing", 50, 20)), router.prepare(List.of()));
 
         assertThat(recovered).hasSize(1);
@@ -67,7 +67,7 @@ class OfficialCoverageRecoveryTest {
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature("blocked", "restriction",
                 new ObjectMapper().createObjectNode().put("restriction_type", "park"),
                 new WKTReader().read("POLYGON ((40 10,60 10,60 30,40 30,40 10))")));
-        OfficialRoutePlanner.VariantDraft source = source();
+        RegressionRoutePlannerFixture.VariantDraft source = source();
 
         assertThat(planner.recoverCoverageAlternatives(List.of(source),
                 List.of(missing("missing", 50, 20)), router.prepare(features))).isEmpty();
@@ -81,7 +81,7 @@ class OfficialCoverageRecoveryTest {
         var source = source();
         connections(source).add(new RouteConnection("missing", "missing", new BigDecimal("3"),
                 "no_route", "NO_NON_CROSSING_ROUTE"));
-        var demand = new OfficialRoutePlanner.Demand("missing", "missing", new Coordinate(50, 20),
+        var demand = new RegressionRoutePlannerFixture.Demand("missing", "missing", new Coordinate(50, 20),
                 new BigDecimal("3"), null);
         var result = planner.recoverCoverageAlternatives(List.of(source), List.of(demand), router.prepare(List.of()));
 
@@ -101,7 +101,7 @@ class OfficialCoverageRecoveryTest {
                 new WKTReader().read("POLYGON ((20 5.4,70 5.4,70 15,20 15,20 5.4))"));
         var features = List.of(obstacle);
         var source = source();
-        var demand = new OfficialRoutePlanner.Demand("missing", "missing", new Coordinate(90, -20),
+        var demand = new RegressionRoutePlannerFixture.Demand("missing", "missing", new Coordinate(90, -20),
                 new BigDecimal("300"), null);
         var promoted = new ArrayList<RouteEdge>();
         var checking = new OfficialRouteValidator(rules) {
@@ -162,7 +162,7 @@ class OfficialCoverageRecoveryTest {
         var observed = observingRouter(starts, null, false);
         var source = source();
         connections(source).removeIf(c -> "no_route".equals(c.getStatus()));
-        var demands = new ArrayList<OfficialRoutePlanner.Demand>();
+        var demands = new ArrayList<RegressionRoutePlannerFixture.Demand>();
         for (int i = 15; i >= 0; i--) {
             String id = String.format(java.util.Locale.ROOT, "missing-%02d", i);
             connections(source).add(new RouteConnection(id, id, BigDecimal.ONE, "no_route", "NO_NON_CROSSING_ROUTE"));
@@ -180,7 +180,7 @@ class OfficialCoverageRecoveryTest {
 
     @Test
     void boundsPortfolioRecoveryToFourDistinctSupportingTrees() {
-        var sources = new ArrayList<OfficialRoutePlanner.VariantDraft>();
+        var sources = new ArrayList<RegressionRoutePlannerFixture.VariantDraft>();
         for (int i = 0; i < 6; i++) sources.add(sourceAt(-100 * i));
         var recovered = planner.recoverCoverageAlternatives(sources, List.of(missing("missing", 50, 20)),
                 router.prepare(List.of()));
@@ -205,7 +205,7 @@ class OfficialCoverageRecoveryTest {
             es.add(new RouteEdge("edge-" + i, a.getId(), b.getId(), b.getCoordinate().toCoordinate().distance(a.getCoordinate().toCoordinate()),
                     List.of(a.getCoordinate(), b.getCoordinate()), List.of(), BigDecimal.ONE, 50));
         }
-        var source = new OfficialRoutePlanner.VariantDraft(ns, es, connections(source()));
+        var source = new RegressionRoutePlannerFixture.VariantDraft(ns, es, connections(source()));
         var ends = new LinkedHashSet<String>();
         var observed = observingRouter(null, ends, false);
 
@@ -260,52 +260,52 @@ class OfficialCoverageRecoveryTest {
         };
     }
 
-    private OfficialRoutePlanner planner(OfficialObstacleRouter actualRouter, OfficialRouteValidator actualValidator) {
-        return new OfficialRoutePlanner(actualValidator, actualRouter, pipes, new OfficialNetworkSizer(pipes),
+    private RegressionRoutePlannerFixture planner(OfficialObstacleRouter actualRouter, OfficialRouteValidator actualValidator) {
+        return new RegressionRoutePlannerFixture(actualValidator, actualRouter, pipes, new OfficialNetworkSizer(pipes),
                 new OfficialExistingNetworkReconstructor(pipes), new OfficialVariantEconomicsCalculator(pipes, new OfficialEconomics()),
                 new OfficialDepthPlanner(new OfficialDepthCrossingExtractor(new OfficialConstraintCatalog(), pipes),
                         new OfficialDepthOptimizer(pipes, new OfficialEconomics()), new OfficialDepthProfileValidator(pipes)));
     }
 
-    private String signature(OfficialRoutePlanner.VariantDraft draft) {
+    private String signature(RegressionRoutePlannerFixture.VariantDraft draft) {
         return edges(draft).stream().map(e -> e.getId() + ":" + e.getCoordinates().stream()
                 .map(c -> c.getXM() + "," + c.getYM()).collect(Collectors.joining(";")))
                 .sorted().collect(Collectors.joining("|")) + connections(draft).stream()
                 .map(c -> c.getDemandId() + ":" + c.getStatus()).sorted().collect(Collectors.joining("|"));
     }
 
-    private OfficialRoutePlanner.VariantDraft source() {
+    private RegressionRoutePlannerFixture.VariantDraft source() {
         return sourceAt(0);
     }
 
-    private OfficialRoutePlanner.VariantDraft sourceAt(double y) {
+    private RegressionRoutePlannerFixture.VariantDraft sourceAt(double y) {
         RouteNode root = new RouteNode("root", "existing_chamber_tie_in",
                 new RouteCoordinate(0, y), true, true, 2, null);
         RouteNode known = new RouteNode("demand:known", "demand_connection",
                 new RouteCoordinate(100, y), false, false, 0, "known");
         RouteEdge trunk = new RouteEdge("support", root.getId(), known.getId(), 100,
                 List.of(root.getCoordinate(), known.getCoordinate()), List.of(), BigDecimal.ONE, 50);
-        return new OfficialRoutePlanner.VariantDraft(List.of(root, known), List.of(trunk),
+        return new RegressionRoutePlannerFixture.VariantDraft(List.of(root, known), List.of(trunk),
                 List.of(new RouteConnection("known", "known", BigDecimal.ONE, "connected", null),
                         new RouteConnection("missing", "missing", BigDecimal.ONE, "no_route", "NO_NON_CROSSING_ROUTE")));
     }
 
-    private OfficialRoutePlanner.Demand missing(String id, double x, double y) {
-        return new OfficialRoutePlanner.Demand(id, id, new Coordinate(x, y), BigDecimal.ONE, null);
+    private RegressionRoutePlannerFixture.Demand missing(String id, double x, double y) {
+        return new RegressionRoutePlannerFixture.Demand(id, id, new Coordinate(x, y), BigDecimal.ONE, null);
     }
 
     @SuppressWarnings("unchecked")
-    private List<RouteConnection> connections(OfficialRoutePlanner.VariantDraft draft) {
+    private List<RouteConnection> connections(RegressionRoutePlannerFixture.VariantDraft draft) {
         return (List<RouteConnection>) ReflectionTestUtils.getField(draft, "connections");
     }
 
     @SuppressWarnings("unchecked")
-    private List<RouteEdge> edges(OfficialRoutePlanner.VariantDraft draft) {
+    private List<RouteEdge> edges(RegressionRoutePlannerFixture.VariantDraft draft) {
         return (List<RouteEdge>) ReflectionTestUtils.getField(draft, "edges");
     }
 
     @SuppressWarnings("unchecked")
-    private List<RouteEdge> assertSizedValid(OfficialRoutePlanner.VariantDraft draft, List<ImportedOfficialFeature> features) {
+    private List<RouteEdge> assertSizedValid(RegressionRoutePlannerFixture.VariantDraft draft, List<ImportedOfficialFeature> features) {
         List<RouteEdge> edges = edges(draft);
         Map<String, BigDecimal> flows = connections(draft).stream().filter(c -> "connected".equals(c.getStatus()))
                 .collect(Collectors.toMap(c -> "demand:" + c.getDemandId(), RouteConnection::getFlowTph));

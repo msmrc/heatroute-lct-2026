@@ -35,7 +35,7 @@ class OfficialChamberQualitySafetyTest {
     private final OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
     private final EngineeringRouteEvaluator engineering = new EngineeringRouteEvaluator();
-    private final OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+    private final RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
     private final OfficialPipeCatalog pipes = new OfficialPipeCatalog();
     private final OfficialAxisClearance clearances = new OfficialAxisClearance(pipes, new OfficialConstraintCatalog());
     private final OfficialDepthPlanner depths = new OfficialDepthPlanner(
@@ -95,7 +95,7 @@ class OfficialChamberQualitySafetyTest {
         assertThat(engineering.evaluate(smallRoles.get(0).getEdges()).irregularJunctionAngleCount()).isZero();
 
         var environment = new OfficialObstacleRouter(rules).prepare(features);
-        OfficialRoutePlanner.VariantDraft initial = seed(1000);
+        RegressionRoutePlannerFixture.VariantDraft initial = seed(1000);
         RouteVariant original = finish(initial, features, parameters, environment);
         assertRepairableSeed(original, features, parameters);
         assertThat(original.getEdges()).extracting(RouteEdge::getDiameter).containsExactly(500, 500, 600);
@@ -141,7 +141,7 @@ class OfficialChamberQualitySafetyTest {
         assertRepairableSeed(original, features, depthParameters);
         // Независимый положительный свидетель: конечные газопроводы можно обойти снаружи,
         // сохранив обе нагрузки, нормали камер и табличный минимум до первых поворотов.
-        RouteVariant witness = finish(new OfficialRoutePlanner.VariantDraft(
+        RouteVariant witness = finish(new RegressionRoutePlannerFixture.VariantDraft(
                 original.getNodes(), List.of(
                     edge("backbone", "root", "j", 2, -100, 0, 0, 0),
                     edge("a", "j", "demand:a", 1, 0, 0, 0, 2.1, -104, 2.1, -104, 25, 30, 25, 30, 20),
@@ -258,14 +258,14 @@ class OfficialChamberQualitySafetyTest {
         return new ImportedOfficialFeature(id, objectType, attributes, geometry);
     }
 
-    private RouteVariant finish(OfficialRoutePlanner.VariantDraft draft,
+    private RouteVariant finish(RegressionRoutePlannerFixture.VariantDraft draft,
             List<ImportedOfficialFeature> features, OfficialRunParameters parameters,
             OfficialRoutingEnvironment environment) {
         return planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest", draft,
                 features, parameters, false, environment, TerminalApproachPolicy.PRESERVE_VALID));
     }
 
-    private OfficialRoutePlanner.VariantDraft seed(int flow) {
+    private RegressionRoutePlannerFixture.VariantDraft seed(int flow) {
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", point(-100, 0), true, true, 1, null, 1400),
                 new RouteNode("j", "new_branch_chamber", point(0, 0), true, false, 0, null),
@@ -276,15 +276,15 @@ class OfficialChamberQualitySafetyTest {
                 edge("a", "j", "demand:a", flow, 0, 0, 30, 20),
                 edge("b", "j", "demand:b", flow, 0, 0, 20, 19.999));
         assertThat(edges).extracting(RouteEdge::getDiameter).containsOnly(50);
-        return new OfficialRoutePlanner.VariantDraft(nodes, edges, List.of(
+        return new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, List.of(
                 new RouteConnection("a", "a", BigDecimal.valueOf(flow), "connected", null),
                 new RouteConnection("b", "b", BigDecimal.valueOf(flow), "connected", null)));
     }
 
-    private List<OfficialRoutePlanner.Demand> demands(int flow) {
+    private List<RegressionRoutePlannerFixture.Demand> demands(int flow) {
         return List.of(
-                new OfficialRoutePlanner.Demand("a", "a", point(30, 20).toCoordinate(), BigDecimal.valueOf(flow), null),
-                new OfficialRoutePlanner.Demand("b", "b", point(20, 19.999).toCoordinate(), BigDecimal.valueOf(flow), null));
+                new RegressionRoutePlannerFixture.Demand("a", "a", point(30, 20).toCoordinate(), BigDecimal.valueOf(flow), null),
+                new RegressionRoutePlannerFixture.Demand("b", "b", point(20, 19.999).toCoordinate(), BigDecimal.valueOf(flow), null));
     }
 
     private RouteEdge edge(String id, String from, String to, int flow, double... xy) {

@@ -50,12 +50,12 @@ class ExistingChamberIncidencePlanningTest {
         });
     }
 
-    private OfficialRoutePlanner planner() {
+    private RegressionRoutePlannerFixture planner() {
         OfficialConstraintCatalog constraints = new OfficialConstraintCatalog();
         OfficialRouteGeometryRules geometry = new OfficialRouteGeometryRules(constraints, new OfficialCrossingGeometry());
         OfficialPipeCatalog pipes = new OfficialPipeCatalog();
         OfficialEconomics economics = new OfficialEconomics();
-        return new OfficialRoutePlanner(new OfficialRouteValidator(geometry), new OfficialObstacleRouter(geometry), pipes,
+        return new RegressionRoutePlannerFixture(new OfficialRouteValidator(geometry), new OfficialObstacleRouter(geometry), pipes,
                 new OfficialNetworkSizer(pipes), new OfficialExistingNetworkReconstructor(pipes),
                 new OfficialVariantEconomicsCalculator(pipes, economics),
                 new OfficialDepthPlanner(new OfficialDepthCrossingExtractor(constraints, pipes),

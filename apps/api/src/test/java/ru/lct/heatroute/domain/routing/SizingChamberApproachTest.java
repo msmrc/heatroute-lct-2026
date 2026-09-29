@@ -44,7 +44,7 @@ class SizingChamberApproachTest {
 
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
         RouteVariant finished = new OfficialDatasetRoutingTest().planner().finish(
-                "sized", "engineering", new OfficialRoutePlanner.VariantDraft(nodes, List.of(original),
+                "sized", "engineering", new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(original),
                         List.of(new RouteConnection("one", "one", new BigDecimal("50"), "connected", null))),
                 features, OfficialRunParameters.defaults(), false, router.prepare(features));
 

@@ -46,7 +46,7 @@ class OfficialCorridorDatasetTest {
         OfficialObstacleRouter router = new OfficialObstacleRouter(rules);
         OfficialRoutingEnvironment environment = router.prepare(features);
         OfficialRouteValidator validator = new OfficialRouteValidator(rules);
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         boolean finish = Boolean.parseBoolean(System.getProperty("heatroute.corridor.finish", "true"));
         OfficialRunParameters parameters = new OfficialRunParameters(null, null, finish);
         // Полный портфель строится всегда; дорогую depth/economics-доводку выполняем на первых
@@ -90,7 +90,7 @@ class OfficialCorridorDatasetTest {
                 if (!issues.isEmpty()) continue;
                 RouteVariant variant = finish
                         ? planner.finish("corridor-" + finalized.size(), "engineering",
-                                OfficialRoutePlanner.VariantDraft.corridor(
+                                RegressionRoutePlannerFixture.VariantDraft.corridor(
                                         candidate.nodes(), candidate.edges(), candidate.connections()),
                                 features, parameters, false, environment)
                         : new RouteVariant("corridor-" + finalized.size(), "engineering", candidate.nodes(),
@@ -117,8 +117,8 @@ class OfficialCorridorDatasetTest {
                 if (finalized.size() >= candidateLimit) break candidateSearch;
             }
         }
-        List<OfficialRoutePlanner.Demand> mergeDemands = demands.values().stream()
-                .map(feature -> new OfficialRoutePlanner.Demand(feature.getFeatureId(), feature.getFeatureId(),
+        List<RegressionRoutePlannerFixture.Demand> mergeDemands = demands.values().stream()
+                .map(feature -> new RegressionRoutePlannerFixture.Demand(feature.getFeatureId(), feature.getFeatureId(),
                         feature.getMetricGeometry().getCoordinate(),
                         new BigDecimal(feature.getAttributes().path("flow_tph").asText()), null))
                 .collect(Collectors.toList());
@@ -180,7 +180,7 @@ class OfficialCorridorDatasetTest {
             OfficialEconomics economics = new OfficialEconomics();
             new OfficialGeoJsonExporter(mapper, catalog, economics, new OfficialOutputContractValidator(),
                     new OfficialVariantEconomicsCalculator(catalog, economics)).validate(mapper.valueToTree(
-                            new OfficialCalculationResult(OfficialRoutePlanner.ALGORITHM_VERSION,
+                            new OfficialCalculationResult(RegressionRoutePlannerFixture.ALGORITHM_VERSION,
                                     OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE, demands.size(),
                                     List.of(variant.withRank(1)), variant.getId())), features);
         });

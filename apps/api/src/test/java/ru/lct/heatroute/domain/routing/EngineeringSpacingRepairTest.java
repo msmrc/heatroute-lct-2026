@@ -32,7 +32,7 @@ class EngineeringSpacingRepairTest {
                         points, List.of(), BigDecimal.ONE, 50);
                 var connections = List.of(new RouteConnection("consumer", "consumer", BigDecimal.ONE,
                         "connected", null));
-                var draft = new OfficialRoutePlanner.VariantDraft(nodes, List.of(edge), connections);
+                var draft = new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(edge), connections);
                 var evaluator = new EngineeringRouteEvaluator();
                 assertEquals(0, evaluator.evaluate(List.of(edge)).invalidAngleCount());
                 assertEquals(1, evaluator.evaluate(List.of(edge)).insufficientSpacingCount());
@@ -41,13 +41,13 @@ class EngineeringSpacingRepairTest {
                 var router = new OfficialObstacleRouter(rules);
                 var environment = router.prepare(List.of());
                 var planner = new OfficialDatasetRoutingTest().planner();
-                var local = (OfficialRoutePlanner.VariantDraft) invoke(planner, "regularizeEngineeringEdgeLocally",
-                        new Class<?>[] {OfficialRoutePlanner.VariantDraft.class, RouteEdge.class,
+                var local = (RegressionRoutePlannerFixture.VariantDraft) invoke(planner, "regularizeEngineeringEdgeLocally",
+                        new Class<?>[] {RegressionRoutePlannerFixture.VariantDraft.class, RouteEdge.class,
                                 OfficialRoutingEnvironment.class}, draft, edge, environment);
                 assertNotNull(local, "A legal local repair is available");
                 assertTrue(evaluator.evaluate(edges(local)).isCompliant());
-                var repaired = (OfficialRoutePlanner.VariantDraft) invoke(planner, "regularizeEngineeringDraft",
-                        new Class<?>[] {OfficialRoutePlanner.VariantDraft.class, List.class,
+                var repaired = (RegressionRoutePlannerFixture.VariantDraft) invoke(planner, "regularizeEngineeringDraft",
+                        new Class<?>[] {RegressionRoutePlannerFixture.VariantDraft.class, List.class,
                                 OfficialRoutingEnvironment.class, boolean.class},
                         draft, List.of(), environment, false);
                 assertTrue(evaluator.evaluate(edges(repaired)).isCompliant(),
@@ -83,7 +83,7 @@ class EngineeringSpacingRepairTest {
         return new EngineeringRouteEvaluator().evaluate(List.of(edge));
     }
 
-    private static boolean progress(OfficialRoutePlanner planner,
+    private static boolean progress(RegressionRoutePlannerFixture planner,
             EngineeringRouteEvaluator.Evaluation candidate,
             EngineeringRouteEvaluator.Evaluation control) throws Exception {
         return (boolean) invoke(planner, "reducesHardEngineeringViolations",
@@ -91,9 +91,9 @@ class EngineeringSpacingRepairTest {
                         EngineeringRouteEvaluator.Evaluation.class}, candidate, control);
     }
 
-    private static Object invoke(OfficialRoutePlanner planner, String name, Class<?>[] types,
+    private static Object invoke(RegressionRoutePlannerFixture planner, String name, Class<?>[] types,
             Object... values) throws Exception {
-        Method method = OfficialRoutePlanner.class.getDeclaredMethod(name, types);
+        Method method = RegressionRoutePlannerFixture.class.getDeclaredMethod(name, types);
         method.setAccessible(true);
         return method.invoke(planner, values);
     }
@@ -105,7 +105,7 @@ class EngineeringSpacingRepairTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static List<RouteEdge> edges(OfficialRoutePlanner.VariantDraft draft) throws Exception {
+    private static List<RouteEdge> edges(RegressionRoutePlannerFixture.VariantDraft draft) throws Exception {
         return (List<RouteEdge>) field(draft, "edges");
     }
 

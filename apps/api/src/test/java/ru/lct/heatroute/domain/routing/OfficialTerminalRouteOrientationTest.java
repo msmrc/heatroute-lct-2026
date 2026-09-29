@@ -240,12 +240,12 @@ class OfficialTerminalRouteOrientationTest {
 
     private RoutePath planned(Fixture fixture, OfficialRouteGeometryRules.NormalEgress normal,
             OfficialRoutingEnvironment environment) throws Exception {
-        Method method = OfficialRoutePlanner.class.getDeclaredMethod("routeDemandWithEgress",
-                OfficialRoutePlanner.Demand.class, OfficialRouteGeometryRules.NormalEgress.class,
+        Method method = RegressionRoutePlannerFixture.class.getDeclaredMethod("routeDemandWithEgress",
+                RegressionRoutePlannerFixture.Demand.class, OfficialRouteGeometryRules.NormalEgress.class,
                 Coordinate.class, int.class, OfficialRoutingEnvironment.class, Set.class,
                 RoutePreference.class, List.class);
         method.setAccessible(true);
-        OfficialRoutePlanner.Demand demand = new OfficialRoutePlanner.Demand(
+        RegressionRoutePlannerFixture.Demand demand = new RegressionRoutePlannerFixture.Demand(
                 "demand", "connection", fixture.demand(), BigDecimal.ONE, normal);
         RoutePath outward;
         try {

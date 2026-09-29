@@ -22,7 +22,7 @@ class OfficialChamberRelocationTest {
 
     @Test
     void jointlyMovesCameraAndAllThreeApproachesRatherThanFreezingEachTerminalSegment() {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         OfficialRoutingEnvironment environment = new OfficialObstacleRouter(rules).prepare(List.of());
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", p(-20, 10), true, true, 2, "support"),
@@ -39,12 +39,12 @@ class OfficialChamberRelocationTest {
         for (boolean depth : List.of(false, true)) {
             OfficialRunParameters parameters = new OfficialRunParameters(null, null, depth);
             RouteVariant baseline = planner.withEngineeringAssessment(planner.finish("balanced", "engineering",
-                    new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
+                    new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
             assertThat(baseline.isValid()).isTrue();
             assertThat(baseline.getTotalLengthM()).isEqualByComparingTo("80");
             List<RouteVariant> roles = planner.relocateSelectedVariants(List.of(baseline), List.of(
-                    new OfficialRoutePlanner.Demand("one", "one", c(20, 10), BigDecimal.ONE, null),
-                    new OfficialRoutePlanner.Demand("two", "two", c(0, -20), BigDecimal.ONE, null)),
+                    new RegressionRoutePlannerFixture.Demand("one", "one", c(20, 10), BigDecimal.ONE, null),
+                    new RegressionRoutePlannerFixture.Demand("two", "two", c(0, -20), BigDecimal.ONE, null)),
                     List.of(), parameters, false, environment);
             assertThat(roles).extracting(RouteVariant::getId).containsExactly("balanced", "shortest", "cheapest");
             assertThat(roles).allSatisfy(role -> {
@@ -52,8 +52,8 @@ class OfficialChamberRelocationTest {
                 assertThat(role.isValid()).isTrue();
             });
             RouteVariant improved = planner.relocateFinishedChambers(baseline, List.of(
-                    new OfficialRoutePlanner.Demand("one", "one", c(20, 10), BigDecimal.ONE, null),
-                    new OfficialRoutePlanner.Demand("two", "two", c(0, -20), BigDecimal.ONE, null)),
+                    new RegressionRoutePlannerFixture.Demand("one", "one", c(20, 10), BigDecimal.ONE, null),
+                    new RegressionRoutePlannerFixture.Demand("two", "two", c(0, -20), BigDecimal.ONE, null)),
                     List.of(), parameters, false, environment);
             assertThat(improved.isValid()).isTrue();
             assertThat(improved.getTotalLengthM()).isEqualByComparingTo("70");
@@ -76,20 +76,20 @@ class OfficialChamberRelocationTest {
 
     @Test
     void legalLateWinnerDoesNotRequireEngineeringRepair() {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         List<RouteNode> nodes = List.of(
                 new RouteNode("root", "existing_chamber_tie_in", p(0, 0), true, true, 2, "support"),
                 new RouteNode("demand:one", "demand_connection", p(40, 0), false, false, 0, null));
         List<RouteEdge> edges = List.of(edge("late-edge", "root", "demand:one",
                 List.of(c(0, 0), c(0, 20), c(40, 20), c(40, 0)), 1));
         List<RouteConnection> connections = List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null));
-        List<OfficialRoutePlanner.Demand> demands = List.of(
-                new OfficialRoutePlanner.Demand("one", "one", c(40, 0), BigDecimal.ONE, null));
+        List<RegressionRoutePlannerFixture.Demand> demands = List.of(
+                new RegressionRoutePlannerFixture.Demand("one", "one", c(40, 0), BigDecimal.ONE, null));
         for (boolean depth : List.of(false, true)) {
             OfficialRoutingEnvironment environment = new OfficialObstacleRouter(rules).prepare(List.of());
             OfficialRunParameters parameters = new OfficialRunParameters(null, null, depth);
             RouteVariant lateWinner = planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest",
-                    new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
+                    new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), List.of(), parameters, false, environment));
             assertThat(lateWinner.isValid()).isTrue();
             assertThat(new EngineeringRouteEvaluator().evaluate(lateWinner.getEdges()).invalidAngleCount()).isZero();
             RouteVariant repair = ReflectionTestUtils.invokeMethod(planner, "repairLateEconomicWinner",
@@ -120,7 +120,7 @@ class OfficialChamberRelocationTest {
 
     @Test
     void legalObstacleDetourIsNotReplacedByUnnecessaryRepair() {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature("park", "restriction",
                 new ObjectMapper().createObjectNode().put("restriction_type", "park"),
                 new GeometryFactory().createPolygon(new Coordinate[] {
@@ -131,15 +131,15 @@ class OfficialChamberRelocationTest {
                 new RouteNode("root", "existing_chamber_tie_in", p(0, 0), true, true, 2, "support"),
                 new RouteNode("demand:one", "demand_connection", p(40, 0), false, false, 0, null));
         List<RouteConnection> connections = List.of(new RouteConnection("one", "one", BigDecimal.ONE, "connected", null));
-        List<OfficialRoutePlanner.Demand> demands = List.of(
-                new OfficialRoutePlanner.Demand("one", "one", c(40, 0), BigDecimal.ONE, null));
+        List<RegressionRoutePlannerFixture.Demand> demands = List.of(
+                new RegressionRoutePlannerFixture.Demand("one", "one", c(40, 0), BigDecimal.ONE, null));
         RouteVariant original = planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest",
-                new OfficialRoutePlanner.VariantDraft(nodes, List.of(edge("edge", "root", "demand:one",
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, List.of(edge("edge", "root", "demand:one",
                         List.of(c(0, 0), c(0, 10), c(40, 10), c(40, 0)), 1)), connections), features, parameters, false, environment));
         assertThat(original.isValid()).isTrue();
         assertThat(original.getEngineeringIssues()).isEmpty();
-        OfficialRoutePlanner.VariantDraft repaired = ReflectionTestUtils.invokeMethod(planner,
-                "regularizeEngineeringDraft", new OfficialRoutePlanner.VariantDraft(original.getNodes(),
+        RegressionRoutePlannerFixture.VariantDraft repaired = ReflectionTestUtils.invokeMethod(planner,
+                "regularizeEngineeringDraft", new RegressionRoutePlannerFixture.VariantDraft(original.getNodes(),
                         original.getEdges(), original.getConnections()), demands, environment, false);
         RouteVariant uncheckedAlternative = planner.withEngineeringAssessment(planner.finish("probe", "engineering",
                 repaired, features, parameters, false, environment));
@@ -164,7 +164,7 @@ class OfficialChamberRelocationTest {
 
     @Test
     void legalLateEconomicCandidateDoesNotDisplaceOriginalChamberRelocationOpportunities() {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         // Большой существующий ДУ делает вариант с новой корневой камерой дороже двух готовых врезок.
         List<ImportedOfficialFeature> features = List.of(new ImportedOfficialFeature("support", "heat_network",
                 new ObjectMapper().createObjectNode().put("diameter", 1000),
@@ -174,14 +174,14 @@ class OfficialChamberRelocationTest {
         List<RouteConnection> connections = List.of(
                 new RouteConnection("one", "one", BigDecimal.ONE, "connected", null),
                 new RouteConnection("two", "two", BigDecimal.ONE, "connected", null));
-        List<OfficialRoutePlanner.Demand> demands = List.of(
-                new OfficialRoutePlanner.Demand("one", "one", c(20, 10), BigDecimal.ONE, null),
-                new OfficialRoutePlanner.Demand("two", "two", c(0, -20), BigDecimal.ONE, null));
+        List<RegressionRoutePlannerFixture.Demand> demands = List.of(
+                new RegressionRoutePlannerFixture.Demand("one", "one", c(20, 10), BigDecimal.ONE, null),
+                new RegressionRoutePlannerFixture.Demand("two", "two", c(0, -20), BigDecimal.ONE, null));
         List<RouteNode> commonDemands = List.of(
                 new RouteNode("demand:one", "demand_connection", p(20, 10), false, false, 0, null),
                 new RouteNode("demand:two", "demand_connection", p(0, -20), false, false, 0, null));
         RouteVariant baseline = planner.withEngineeringAssessment(planner.finish("balanced", "engineering",
-                new OfficialRoutePlanner.VariantDraft(List.of(
+                new RegressionRoutePlannerFixture.VariantDraft(List.of(
                         new RouteNode("root", "new_tie_in_chamber", p(-20, 10), true, true, 2, "support"),
                         new RouteNode("j", "new_branch_chamber", p(0, 0), true, false, 0, null),
                         commonDemands.get(0), commonDemands.get(1)), List.of(
@@ -190,7 +190,7 @@ class OfficialChamberRelocationTest {
                         edge("c", "j", "demand:two", List.of(c(0, 0), c(0, -20)), 1)), connections),
                 features, parameters, false, environment));
         RouteVariant late = planner.withEngineeringAssessment(planner.finish("cheapest", "cheapest",
-                new OfficialRoutePlanner.VariantDraft(List.of(
+                new RegressionRoutePlannerFixture.VariantDraft(List.of(
                         new RouteNode("root-one", "existing_chamber_tie_in", p(-17, 10), true, true, 2, "support-one"),
                         new RouteNode("root-two", "existing_chamber_tie_in", p(0, -57.5), true, true, 2, "support-two"),
                         commonDemands.get(0), commonDemands.get(1)), List.of(
@@ -243,7 +243,7 @@ class OfficialChamberRelocationTest {
 
     @Test
     void relocatedChamberOnTheBuildingNormalUsesTheDirectCheckedApproach() {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         ImportedOfficialFeature home = new ImportedOfficialFeature("home", "restriction",
                 new ObjectMapper().createObjectNode().put("restriction_type", "oks"),
                 new GeometryFactory().createPolygon(new Coordinate[] {
@@ -255,7 +255,7 @@ class OfficialChamberRelocationTest {
                 features, 50, connection, chamber,
                 HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M).stream()
                 .findFirst().orElseThrow();
-        OfficialRoutePlanner.Demand demand = new OfficialRoutePlanner.Demand(
+        RegressionRoutePlannerFixture.Demand demand = new RegressionRoutePlannerFixture.Demand(
                 "one", "one", connection, BigDecimal.ONE, egress);
 
         RoutePath path = ReflectionTestUtils.invokeMethod(
@@ -274,7 +274,7 @@ class OfficialChamberRelocationTest {
 
     @Test
     void bendReductionAcceptsOnlySubHalfDegreeDigitizedJunctionDrift() {
-        OfficialRoutePlanner planner = new OfficialDatasetRoutingTest().planner();
+        RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         EngineeringRouteEvaluator evaluator = new EngineeringRouteEvaluator();
         List<RouteEdge> beforeEdges = List.of(
                 edge("left", "j", "left-end", List.of(c(0, 0), c(-10, 0)), 1),
@@ -289,7 +289,7 @@ class OfficialChamberRelocationTest {
                 straightenedWithJunctionAngle(89.7)))).isFalse();
     }
 
-    private boolean improvesJunctionGeometry(OfficialRoutePlanner planner,
+    private boolean improvesJunctionGeometry(RegressionRoutePlannerFixture planner,
             EngineeringRouteEvaluator.Evaluation before, EngineeringRouteEvaluator.Evaluation after) {
         return Boolean.TRUE.equals(ReflectionTestUtils.invokeMethod(
                 planner, "improvesJunctionGeometry", before, after));

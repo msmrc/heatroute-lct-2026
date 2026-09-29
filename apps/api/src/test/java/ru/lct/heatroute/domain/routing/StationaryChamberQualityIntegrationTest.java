@@ -36,10 +36,10 @@ class StationaryChamberQualityIntegrationTest {
                     edge("b", "j", "demand:b", angle, 1, 0, 0, 0, 50));
             var connections = List.of(new RouteConnection("a", "a", BigDecimal.ONE, "connected", null),
                     new RouteConnection("b", "b", BigDecimal.ONE, "connected", null));
-            var demands = List.of(new OfficialRoutePlanner.Demand("a", "a", point(angle, 88, 60).toCoordinate(), BigDecimal.ONE, null),
-                    new OfficialRoutePlanner.Demand("b", "b", point(angle, 0, 50).toCoordinate(), BigDecimal.ONE, null));
+            var demands = List.of(new RegressionRoutePlannerFixture.Demand("a", "a", point(angle, 88, 60).toCoordinate(), BigDecimal.ONE, null),
+                    new RegressionRoutePlannerFixture.Demand("b", "b", point(angle, 0, 50).toCoordinate(), BigDecimal.ONE, null));
             var seed = planner.withEngineeringAssessment(planner.finish("balanced", "engineering",
-                    new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false, env,
+                    new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), List.of(), parameters, false, env,
                     TerminalApproachPolicy.PRESERVE_VALID));
             assertThat(seed.isValid()).isFalse();
             assertThat(seed.getValidationIssues()).extracting(RouteValidationIssue::getCode)

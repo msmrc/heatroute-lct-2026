@@ -28,11 +28,11 @@ class PostRepairCorridorRefinementTest {
                 edge(nodes.get(2), nodes.get(3), 1), edge(nodes.get(1), nodes.get(4), 2), edge(nodes.get(2), nodes.get(5), 3));
         List<RouteConnection> connections = List.of(connection("east", 1), connection("north", 2), connection("south", 3));
         var byId = nodes.stream().collect(Collectors.toMap(RouteNode::getId, n -> n));
-        var demands = connections.stream().map(c -> new OfficialRoutePlanner.Demand(c.getDemandId(),
+        var demands = connections.stream().map(c -> new RegressionRoutePlannerFixture.Demand(c.getDemandId(),
                 c.getConnectionPointId(), byId.get("demand:" + c.getDemandId()).getCoordinate().toCoordinate(),
                 c.getFlowTph(), null)).collect(Collectors.toList());
         var seed = planner.withEngineeringAssessment(planner.finish("seed", "engineering",
-                new OfficialRoutePlanner.VariantDraft(nodes, edges, connections), List.of(), parameters, false,
+                new RegressionRoutePlannerFixture.VariantDraft(nodes, edges, connections), List.of(), parameters, false,
                 environment, TerminalApproachPolicy.PRESERVE_VALID));
         assertThat(seed.getValidationIssues()).extracting(RouteValidationIssue::getCode)
                 .containsOnly("EXPERT_CHAMBER_OBLIQUE_ENTRY");

@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.function.Function;
-import ru.lct.heatroute.domain.routing.OfficialRoutePlanner.VariantDraft;
+import ru.lct.heatroute.domain.routing.RegressionRoutePlannerFixture.VariantDraft;
 
 /**
  * Историческая оценка неизменяемого на время отбора черновика; не готовый проверенный маршрут.

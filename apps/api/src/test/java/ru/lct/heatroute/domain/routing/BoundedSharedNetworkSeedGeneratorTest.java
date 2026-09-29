@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,41 @@ class BoundedSharedNetworkSeedGeneratorTest {
         assertThat(result.getPaths()).isEmpty();
         assertThat(result.getRootAttempts()).isZero();
         assertThat(result.isDeadlineReached()).isTrue();
+    }
+
+    @Test
+    void adaptiveRetryPrioritizesMeasuredCoverageOverAnUnprovenNearbyChamber() {
+        List<RoutingProblemSnapshot.Demand> demands = List.of(
+                demand("a", 60_000, -30_000), demand("b", 60_000, 30_000));
+        RoutingProblemSnapshot.RootRealization existing =
+                new RoutingProblemSnapshot.RootRealization(
+                        "existing_chamber_tie_in", true, 0, "nearby", null);
+        RoutingProblemSnapshot.RootRealization measured =
+                new RoutingProblemSnapshot.RootRealization(
+                        "new_tie_in_chamber", true, 0, "measured", null);
+        RoutingProblemSnapshot.RootCandidate unprovenNearby =
+                new RoutingProblemSnapshot.RootCandidate(
+                        "unproven-nearby", new CatalogMetricPoint(40_000, 0),
+                        List.of(), existing);
+        RoutingProblemSnapshot.RootCandidate provenFarther =
+                new RoutingProblemSnapshot.RootCandidate(
+                        "proven-farther", new CatalogMetricPoint(0, 0),
+                        List.of(), measured);
+        RoutingProblemSnapshot problem = new RoutingProblemSnapshot(
+                UUID.fromString("00000000-0000-0000-0000-000000000093"),
+                "source-shared", "extended", "nextgen-1", "official", "rules-1",
+                "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
+                demands, List.of(unprovenNearby, provenFarther));
+
+        BoundedSharedNetworkSeedGenerator.Result result = generator.generate(
+                problem, router.prepare(List.of()), Set.of("a", "b"),
+                Map.of("proven-farther", Set.of("a", "b")),
+                System.nanoTime() + Duration.ofSeconds(10).toNanos(), 64);
+
+        assertThat(result.getCoveredPriorityDemandIds()).containsExactlyInAnyOrder("a", "b");
+        assertThat(result.getPaths()).extracting(
+                BoundedSharedNetworkSeedGenerator.SeedPath::getRootId)
+                .containsOnly("proven-farther");
     }
 
     private static RoutingProblemSnapshot problem() {

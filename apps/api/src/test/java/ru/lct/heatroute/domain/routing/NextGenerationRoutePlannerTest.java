@@ -162,7 +162,7 @@ class NextGenerationRoutePlannerTest {
     }
 
     @Test
-    void roadsAndSocialRestrictionsProduceAnExactlyAcceptedPartialResult() throws Exception {
+    void roadsAndSocialRestrictionsDoNotPublishAPartialResultAsCompleted() throws Exception {
         Path scenario = Path.of("datasets", "scenarios", "roads-kindergarten.geojson");
         if (!Files.isRegularFile(scenario)) {
             scenario = Path.of("..", "..", "datasets", "scenarios",
@@ -188,7 +188,7 @@ class NextGenerationRoutePlannerTest {
                         + rootDemandCoverage(execution) + "\n"
                         + execution.getCatalogBuild().getRemainingWork() + "\n"
                         + execution.getCatalogBuild().getTruncationReasons())
-                .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
+                .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.CATALOG_INCOMPLETE);
         assertThat(execution.getResult()).isNotNull();
         assertThat(execution.getResult().getDemandCount()).isEqualTo(17);
         long coveredDemands = execution.getCatalogBuild().getCounters()

@@ -41,6 +41,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
  */
 @Component
 public final class BoundedRootDemandCatalogGenerator {
+    private static final int MAX_COHERENT_RETRY_DEMANDS = 64;
     static final String GENERATOR_ID = "bounded-root-demand";
     static final String GENERATOR_VERSION = "1";
     private static final int SHARED_SEED_GROUP_CAPACITY = 4;
@@ -345,10 +346,19 @@ public final class BoundedRootDemandCatalogGenerator {
                 .filter(routableDemandIds::contains)
                 .forEach(hardDemands::add);
         if (!completeSharedSeed) {
-            sharedSeeds = sharedSeedGenerator.generateClustered(
-                    problem, environment, hardDemands, normalDemandsByRoot, state.deadlineNanos,
-                    Math.max(0, options.maxRouteCalls - (int) Math.min(
-                            Integer.MAX_VALUE, state.routeCalls)));
+            int remainingRouteCalls = Math.max(0, options.maxRouteCalls - (int) Math.min(
+                    Integer.MAX_VALUE, state.routeCalls));
+            // A failed cold global seed may have selected a nearby but geometrically poor root.
+            // Once standalone coverage has measured actual root-to-demand reachability, retry one
+            // coherent collector with that evidence. Pairwise clusters alone can each be valid
+            // while their union is infeasible because of crossings or chamber-degree conflicts.
+            // Large districts stay clustered to keep the bounded catalog predictable.
+            sharedSeeds = hardDemands.size() <= MAX_COHERENT_RETRY_DEMANDS
+                    ? sharedSeedGenerator.generate(problem, environment, hardDemands,
+                            normalDemandsByRoot, state.deadlineNanos, remainingRouteCalls)
+                    : sharedSeedGenerator.generateClustered(
+                            problem, environment, hardDemands, normalDemandsByRoot,
+                            state.deadlineNanos, remainingRouteCalls);
             state.routeCalls += sharedSeeds.getRouteCalls();
         }
         Objects.requireNonNull(sharedSeeds, "sharedSeeds");

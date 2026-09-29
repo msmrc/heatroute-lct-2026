@@ -26,7 +26,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
  */
 @Component
 public final class NextGenerationRoutePlanner {
-    public static final String VERSION = "nextgen-network-1";
+    public static final String VERSION = "nextgen-network-2";
     public static final String CHECKER_VERSION = "frozen-network-evaluator-1";
     private static final int FLOW_SCALE_DECIMALS = 3;
 
@@ -306,6 +306,10 @@ public final class NextGenerationRoutePlanner {
                 if (connected < problem.getDemands().size()) {
                     reason = "accepted_partial:" + connected + "/"
                             + problem.getDemands().size();
+                    return new Execution(AdaptiveCatalogNetworkSearch.Outcome.CATALOG_INCOMPLETE,
+                            reason, problem.getSnapshotHash(), build, featureCount,
+                            elapsedMillis, solved.getRefinementRuns(), conflicts,
+                            archiveSize, result);
                 }
             }
             return new Execution(solved.getOutcome(), reason,

@@ -6,10 +6,15 @@ Production build recorded during the run: 6
 
 Production release commit: `789e3f7`
 
+Final deployed repository commit used for the public-label replay: `2c32bfb`
+
 Current production algorithm: `heatroute-network-6`. The seven non-control dataset outcomes below
 were measured on commit `8d9d2fc` under the initial internal build label; the control case
 was rerun after the public rename. The rename/refactor did not change the v6 planning core, but
 historical run identifiers and timings remain explicitly attributed to the build that produced them.
+All seven calculation-capable imports were then replayed on the final deployment under the public
+`heatroute-network-6` label. The eighth supplied file remained a deterministic invalid import and
+therefore could not create a calculation run.
 
 Production health after deployment: `UP`
 
@@ -31,6 +36,26 @@ Universality is interpreted strictly: the service accepts inputs of different si
 | `neighbor-zil-north-with-roads-social.geojson` | 113 features | 17 | 0.236 s | rejected at preflight | 16 structurally isolated demands listed |
 | `official-plus-likhacheva-network-with-roads-social.geojson` | 250 features | 17 | 0.675 s | rejected at preflight | `structurally_unroutable_demands:11` |
 | `1.geojson` | 181 features | n/a | rejected before calculation | invalid import | 111 errors and 76 warnings |
+
+## Final public-label replay
+
+The final replay ran sequentially on the production VPS on 2026-09-29. Every calculation response
+reported `algorithm_version=heatroute-network-6`.
+
+| Supplied dataset | Run | VPS duration | Outcome |
+|---|---|---:|---|
+| `Датасет скорректированный.geojson` | `1b529ce7-0fcc-42b2-be28-cb462c768947` | 19.095 s | completed, valid, 17/17 |
+| `official-plus-likhacheva-network.geojson` | `f591aee5-9a5e-427d-a3a8-89e06e6fc3fd` | 102.702 s | rejected, `proven_master_infeasible` |
+| `heatroute-competition-roads-kindergarten.geojson` | `1c0311b1-7af2-4ac7-8766-c3951671c08c` | 0.694 s | rejected at preflight, demand 11 structurally unroutable |
+| `neighbor-kozhukhovo.geojson` | `9577bbc3-424a-4b2e-a0bb-75e4d51f83bd` | 0.447 s | rejected at preflight with deterministic demand list |
+| `neighbor-kozhukhovo-with-roads-social.geojson` | `0fd8d28c-5bde-4055-8bed-fc41f1df63a0` | 2.691 s | rejected at preflight with deterministic demand list |
+| `neighbor-zil-north-with-roads-social.geojson` | `1aef9697-7aa1-4600-8d10-f0a06bb239f8` | 0.061 s | rejected at preflight with deterministic demand list |
+| `official-plus-likhacheva-network-with-roads-social.geojson` | `5467d830-2a45-48f2-8cb7-7d83b74a8a5f` | 0.576 s | rejected at preflight, demand 11 structurally unroutable |
+| `1.geojson` | no run; import `e9a98e65-10c0-43e4-a6a2-e062e715970d` | n/a | invalid import: 111 errors, 76 warnings |
+
+After the matrix, the accepted control was executed once more so the public latest-result action
+continues to open a successful result. Run `8249982c-3d71-4430-9097-50e846eb5646` completed in
+15.260 s, connected 17/17 demands and is valid with zero validation, engineering and sizing issues.
 
 The accepted control runs used different identifiers:
 

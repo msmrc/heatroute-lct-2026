@@ -87,6 +87,20 @@ Full R14 не является depth-enabled full evidence более поздн
 Первый разбор записанного R12 JFR не прошёл (heap reader), повтор не выполнялся;
 это не меняет подтверждённый R12 result/тайминг, но нового CPU profile summary нет.
 
+## 2026-09-29 — source103 развёрнут и полностью проверен на VPS
+
+[Production evidence](PRIMARY_ROUTING_103.md): checkout `33eae27`, backup БД, Compose health,
+PostGIS, CP-SAT readiness, OpenAPI и публичный HTTPS — PASS. Свежий stable depth-on официальный
+run завершён attempt 1 за 3 253,918900 с: два valid варианта, оба 17/17 и без обязательных
+validation/engineering/sizing issues. Preferred `cheapest` — 2 192,535 м / 29 рёбер /
+296 013 322,58 ₽; engineering — 2 242,303 м / 30 рёбер / 304 973 207,18 ₽.
+Strict export всех вариантов PASS за 16,542543 с, 134 feature / 55 720 bytes.
+
+Это закрывает фактический source103 deploy→import reuse→new job→result→strict export smoke,
+но не доказывает глобальный оптимум и не закрывает третий вариант, Ubuntu 22, R9 или остальные
+исследовательские R/G/N-gates. Полное время — 54 мин 13,919 с; локальные 30,016 с нельзя
+представлять как время всего официального расчёта.
+
 ## 2026-09-28 — source103: performance checkpoint axis-shift admission (локальный PASS)
 
 Поведение stable и инженерные ограничения не менялись. Для локального post-processing

@@ -38,15 +38,15 @@ class OfficialRunParametersTest {
         String json = objectMapper.writeValueAsString(original);
         OfficialRunParameters restored = objectMapper.readValue(json, OfficialRunParameters.class);
 
-        assertThat(json).doesNotContain("algorithm_profile");
+        assertThat(objectMapper.readTree(json).size()).isEqualTo(3);
         assertThat(restored.isDepthEnabled()).isTrue();
     }
 
     @Test
-    void ignoresTheRemovedProfileInStoredParameters() throws Exception {
+    void ignoresUnknownFieldsInStoredParameters() throws Exception {
         OfficialRunParameters restored = new ObjectMapper().readValue(
                 "{\"minimum_depth_m\":0.7,\"maximum_depth_m\":10.0,"
-                        + "\"algorithm_profile\":\"expert_experimental\"}",
+                        + "\"removed_field\":\"outdated_value\"}",
                 OfficialRunParameters.class);
 
         assertThat(restored.getMinimumDepthM()).isEqualByComparingTo("0.7");

@@ -76,7 +76,7 @@ class OfficialJobControllerTest {
     }
 
     @Test
-    void ignoresTheRemovedAlgorithmProfileFromOlderClients() throws Exception {
+    void ignoresUnknownFieldsFromOlderClients() throws Exception {
         UUID importId = UUID.randomUUID();
         OfficialImportView imported = validImport();
         when(importService.find(importId)).thenReturn(imported);
@@ -85,7 +85,7 @@ class OfficialJobControllerTest {
 
         mockMvc.perform(post("/api/v1/official/imports/{importId}/runs", importId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"algorithm_profile\":\"expert_experimental\"}"))
+                        .content("{\"removed_field\":\"outdated_value\"}"))
                 .andExpect(status().isAccepted());
 
         ArgumentCaptor<OfficialRunParameters> parameters = ArgumentCaptor.forClass(OfficialRunParameters.class);

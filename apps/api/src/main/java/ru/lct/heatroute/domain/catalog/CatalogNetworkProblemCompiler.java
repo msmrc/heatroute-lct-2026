@@ -68,11 +68,15 @@ public final class CatalogNetworkProblemCompiler {
         Map<String, List<String>> arcsByPhysicalAsset = new LinkedHashMap<>();
         for (ArcAccumulator arc : topology.arcs.values()) {
             CatalogPhysicalAsset asset = catalogSnapshot.physicalAsset(arc.physicalAssetId);
+            String fromNodeId = topology.nodeId(arc.fromEndpointKey);
+            String toNodeId = topology.nodeId(arc.toEndpointKey);
+            // Sub-millimetre pieces may have distinct exact catalog endpoints while both freeze
+            // to the same route-grid point. They establish topological identity but are not a
+            // constructible edge and therefore must not enter the optimizer or the evaluator.
+            if (fromNodeId.equals(toNodeId)) continue;
             List<NetworkConstraintProblem.DiameterOption> diameters = diameterDomain(
                     asset, arc, catalogSnapshot, flowScaleDecimals);
             if (diameters.isEmpty()) continue;
-            String fromNodeId = topology.nodeId(arc.fromEndpointKey);
-            String toNodeId = topology.nodeId(arc.toEndpointKey);
             NetworkConstraintProblem.Asset modelAsset = new NetworkConstraintProblem.Asset(
                     arc.id, fromNodeId, toNodeId, 0L, diameters);
             modelAssets.add(modelAsset);
@@ -135,6 +139,14 @@ public final class CatalogNetworkProblemCompiler {
             pointByMember.put(firstEndpoint, asset.getFirstPoint());
             pointByMember.put(secondEndpoint, asset.getSecondPoint());
         }
+        Map<String, String> junctionMemberByPoint = new LinkedHashMap<>();
+        for (CatalogPhysicalAsset asset : catalog.getPhysicalAssets()) {
+            if (!PhysicalAssetCompiler.isJunctionContext(asset.getPhysicalContext())) continue;
+            mergeJunctionEndpoint(components, junctionMemberByPoint, asset.getPhysicalContext(),
+                    asset.getFirstPoint(), endpointKey(asset.getId(), false));
+            mergeJunctionEndpoint(components, junctionMemberByPoint, asset.getPhysicalContext(),
+                    asset.getSecondPoint(), endpointKey(asset.getId(), true));
+        }
         Map<String, ArcAccumulator> arcs = new LinkedHashMap<>();
         for (DirectedPathOption option : catalog.getPathOptions()) {
             CatalogMetricPoint current = option.getCoordinates().get(0);
@@ -184,8 +196,13 @@ public final class CatalogNetworkProblemCompiler {
                 CatalogMetricPoint candidate = pointByMember.get(member);
                 if (candidate == null) continue;
                 if (point != null && !point.equals(candidate)) {
-                    throw new IllegalArgumentException("Catalog chain joins different metric points at node: "
-                            + nodeId);
+                    if (point.getXMm() != candidate.getXMm()
+                            || point.getYMm() != candidate.getYMm()) {
+                        throw new IllegalArgumentException("Catalog chain joins different metric points at node: "
+                                + nodeId);
+                    }
+                    point = new CatalogMetricPoint(point.getXMm(), point.getYMm());
+                    continue;
                 }
                 point = candidate;
             }
@@ -194,6 +211,18 @@ public final class CatalogNetworkProblemCompiler {
             nodeBindings.put(nodeId, new NodeBinding(nodeId, point, explicitPortId));
         }
         return new Topology(nodeByMember, nodeBindings, arcs);
+    }
+
+    private static void mergeJunctionEndpoint(UnionFind components,
+            Map<String, String> memberByPoint, String context,
+            CatalogMetricPoint point, String endpointMember) {
+        // The frozen network contract exposes millimetre coordinates. Merge exact endpoints
+        // that project to the same frozen point so a sub-millimetre split cannot survive as a
+        // zero-length edge later in the pipeline.
+        String key = context + "\u0000" + point.getXMm()
+                + "\u0000" + point.getYMm();
+        String previous = memberByPoint.putIfAbsent(key, endpointMember);
+        if (previous != null) components.union(previous, endpointMember);
     }
 
     private static void putPoint(Map<String, CatalogMetricPoint> pointByMember,
@@ -342,7 +371,19 @@ public final class CatalogNetworkProblemCompiler {
         /** Возвращает ту же топологию с обязательными точными конфигурациями каждого узла. */
         public Compilation withNodeConfigurations(
                 Collection<NodeConfigurationBinding> supplied) {
+            Set<String> managedNodeIds = supplied.stream()
+                    .map(binding -> binding.getConfiguration().getNodeId())
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            return withNodeConfigurations(supplied, managedNodeIds);
+        }
+
+        /** Returns the same topology with exact configurations on the selected managed nodes. */
+        public Compilation withNodeConfigurations(
+                Collection<NodeConfigurationBinding> supplied,
+                Collection<String> managedNodeIds) {
             Objects.requireNonNull(supplied, "node configurations");
+            Objects.requireNonNull(managedNodeIds, "managed node ids");
+            Set<String> managed = Set.copyOf(managedNodeIds);
             Map<String, NodeConfigurationBinding> bindings = new LinkedHashMap<>();
             List<NetworkConstraintProblem.NodeConfiguration> configurations = new ArrayList<>();
             for (NodeConfigurationBinding binding : supplied) {
@@ -358,13 +399,15 @@ public final class CatalogNetworkProblemCompiler {
                     throw new IllegalArgumentException(
                             "Duplicate node configuration binding: " + configuration.getId());
                 }
-                configurations.add(configuration);
+                if (managed.contains(configuration.getNodeId())) {
+                    configurations.add(configuration);
+                }
             }
             List<NetworkConstraintProblem.Node> managedNodes = new ArrayList<>();
             for (NetworkConstraintProblem.Node node : problem.getNodes()) {
                 managedNodes.add(new NetworkConstraintProblem.Node(
                         node.getId(), node.isAllowedRoot(), node.getDemandUnits(),
-                        node.isTerminal(), true));
+                        node.isTerminal(), managed.contains(node.getId())));
             }
             NetworkConstraintProblem configuredProblem = new NetworkConstraintProblem(
                     managedNodes, problem.getAssets(), configurations, problem.getConflicts());

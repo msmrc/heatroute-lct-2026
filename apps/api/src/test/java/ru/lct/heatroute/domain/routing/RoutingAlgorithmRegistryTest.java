@@ -13,13 +13,13 @@ class RoutingAlgorithmRegistryTest {
     @Test
     void resolvesLegacyProfileToTheSamePrimaryImplementationAndVersion() {
         RoutingAlgorithm stable = algorithm(RoutingAlgorithmProfile.STABLE);
-        when(stable.version()).thenReturn(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
+        when(stable.version()).thenReturn(NextGenerationRoutePlanner.VERSION);
         RoutingAlgorithmRegistry registry = new RoutingAlgorithmRegistry(List.of(stable));
 
         assertThat(registry.require(RoutingAlgorithmProfile.STABLE)).isSameAs(stable);
         assertThat(registry.require(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL)).isSameAs(stable);
         assertThat(registry.require(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL).version())
-                .isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
+                .isEqualTo(NextGenerationRoutePlanner.VERSION);
     }
 
     @Test

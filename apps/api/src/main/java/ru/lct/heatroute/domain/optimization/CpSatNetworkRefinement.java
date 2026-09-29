@@ -69,7 +69,8 @@ public final class CpSatNetworkRefinement<C> {
                         "candidate_catalog_incomplete:" + exception.getReason());
             } catch (RuntimeException | LinkageError exception) {
                 return Result.ended(Outcome.ERROR, iteration,
-                        "candidate_evaluation_failure:" + exception.getClass().getSimpleName());
+                        "candidate_evaluation_failure:" + exception.getClass().getSimpleName()
+                                + ":" + failureDetail(exception));
             }
             switch (assessment.outcome) {
                 case ACCEPTED:
@@ -107,6 +108,14 @@ public final class CpSatNetworkRefinement<C> {
             if (!proof.appliesTo(identity)) return AddResult.INVALID_SCOPE;
         }
         return store.addAll(proofs) > 0 ? AddResult.ADDED : AddResult.NO_NEW_PROOF;
+    }
+
+    private static String failureDetail(Throwable failure) {
+        String message = failure.getMessage();
+        if (message == null || message.trim().isEmpty()) return "no_message";
+        String normalized = message.trim().replaceAll("\\s+", "_")
+                .replace(':', '_');
+        return normalized.length() <= 240 ? normalized : normalized.substring(0, 240);
     }
 
     private static long saturatingAdd(long left, long right) {

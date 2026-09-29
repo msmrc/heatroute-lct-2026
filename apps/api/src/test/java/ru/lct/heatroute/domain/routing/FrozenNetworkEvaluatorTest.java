@@ -110,6 +110,22 @@ class FrozenNetworkEvaluatorTest {
         assertThat(result.getAccepted().getGeometryHash()).isEqualTo(candidate.getGeometryHash());
     }
 
+    @Test
+    void mapsSpecialCrossingAngleFailureToAProvenEngineeringRejection() {
+        RouteValidationIssue issue = FrozenNetworkEvaluator.knownEngineeringIssue(
+                new IllegalArgumentException("SPECIAL_SECTION_CROSSING_ANGLE: 129"));
+
+        assertThat(issue).isNotNull();
+        assertThat(issue.getCode()).isEqualTo("SPECIAL_SECTION_CROSSING_ANGLE");
+        assertThat(issue.getSubjectId()).isEqualTo("129");
+    }
+
+    @Test
+    void leavesUnexpectedProgrammingFailuresUnclassified() {
+        assertThat(FrozenNetworkEvaluator.knownEngineeringIssue(
+                new IllegalStateException("unexpected"))).isNull();
+    }
+
     private FrozenNetworkCandidate candidate(RouteEdge edge) {
         return candidate(nodes(), List.of(edge));
     }

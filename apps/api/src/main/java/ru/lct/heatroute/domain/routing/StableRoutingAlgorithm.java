@@ -7,12 +7,19 @@ import ru.lct.heatroute.domain.run.RoutingAlgorithmProfile;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
-/** Запускает единственный основной планировщик с общей версией и поисковыми бюджетами. */
+/**
+ * Production adapter for the only enabled routing engine.
+ *
+ * <p>The historical class/profile name is retained as an API compatibility boundary. All new
+ * calculations execute the next-generation catalog/CP-SAT/exact-evaluator pipeline. There is no
+ * fallback to {@link OfficialRoutePlanner}: an incomplete NextGen result fails explicitly so that
+ * a run can never be presented as a NextGen calculation after being produced by the legacy solver.
+ */
 @Component
 public class StableRoutingAlgorithm implements RoutingAlgorithm {
-    private final OfficialRoutePlanner planner;
+    private final NextGenerationRoutePlanner planner;
 
-    public StableRoutingAlgorithm(OfficialRoutePlanner planner) {
+    public StableRoutingAlgorithm(NextGenerationRoutePlanner planner) {
         this.planner = planner;
     }
 
@@ -23,7 +30,7 @@ public class StableRoutingAlgorithm implements RoutingAlgorithm {
 
     @Override
     public String version() {
-        return RoutePlannerTuning.STABLE_ALGORITHM_VERSION;
+        return NextGenerationRoutePlanner.VERSION;
     }
 
     @Override
@@ -33,6 +40,18 @@ public class StableRoutingAlgorithm implements RoutingAlgorithm {
             TopologyAnalysis topology,
             OfficialRunParameters parameters,
             RoutingFeatureSource source) {
-        return planner.plan(features, topology, parameters, context.getInputProfile(), source);
+        NextGenerationRoutePlanner.Execution execution = planner.execute(
+                context, features, topology, parameters, source,
+                NextGenerationRoutePlanner.Settings.production());
+        OfficialCalculationResult result = execution.getResult();
+        if (execution.getOutcome() != AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED
+                || result == null) {
+            throw new NextGenerationPlanningIncompleteException(execution);
+        }
+        if (!version().equals(result.getAlgorithmVersion())) {
+            throw new IllegalStateException("Next-generation result version mismatch: "
+                    + result.getAlgorithmVersion());
+        }
+        return result;
     }
 }

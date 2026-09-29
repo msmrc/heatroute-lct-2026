@@ -21,12 +21,12 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
 /**
- * Production-shaped, deliberately unpromoted next-generation planner. It shares one deadline
- * between window loading, catalog generation, CP-SAT refinement and the exact frozen evaluator.
+ * Production next-generation planner. It shares one deadline between window loading, catalog
+ * generation, CP-SAT refinement and the exact frozen evaluator.
  */
 @Component
 public final class NextGenerationRoutePlanner {
-    public static final String VERSION = "nextgen-network-1-preview";
+    public static final String VERSION = "nextgen-network-1";
     public static final String CHECKER_VERSION = "frozen-network-evaluator-1";
     private static final int FLOW_SCALE_DECIMALS = 3;
 
@@ -206,11 +206,17 @@ public final class NextGenerationRoutePlanner {
             this.archiveCapacity = archiveCapacity;
         }
 
-        public static Settings initial() {
-            return bounded(Duration.ofSeconds(90), Duration.ofSeconds(30),
+        /** Production competition budget shared by catalog generation and exact refinement. */
+        public static Settings production() {
+            return bounded(Duration.ofSeconds(150), Duration.ofSeconds(105),
                     Duration.ofSeconds(5), Duration.ofSeconds(45),
-                    Duration.ofSeconds(10), 256, 1_024, 3, 8,
-                    16, 2026, 10_000, 8);
+                    Duration.ofSeconds(5), 256, 1_024, 3, 8,
+                    128, 2026, 10_000, 8);
+        }
+
+        /** Retained for source compatibility with the pre-promotion internal harness. */
+        public static Settings initial() {
+            return production();
         }
 
         public static Settings bounded(Duration totalBudget, Duration catalogBudget,

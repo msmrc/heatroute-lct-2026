@@ -34,6 +34,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 final class OrthogonalCorridorNetworkBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(OrthogonalCorridorNetworkBuilder.class);
     private static final int MAX_CORRIDOR_TERMINALS = 64;
+    private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
     private final OfficialObstacleRouter router;
     private final OfficialPipeCatalog pipes;
     private final OfficialRouteValidator exactValidator;
@@ -60,8 +61,21 @@ final class OrthogonalCorridorNetworkBuilder {
     List<Network> buildControl(List<Terminal> input, RouteNode root, int rootCapacity,
             List<Geometry> footprints, OfficialRoutingEnvironment environment,
             SharedSpineNetworkBuilder.TerminalRouter terminalRouter) {
+        return buildControl(input, root, rootCapacity, footprints, environment, null,
+                terminalRouter);
+    }
+
+    /**
+     * Builds the bounded control frame in a supplied district axis. Keeping independently seeded
+     * collectors in one frame makes every later intersection either collinear or orthogonal and
+     * therefore representable by the finite chamber configuration catalog.
+     */
+    List<Network> buildControl(List<Terminal> input, RouteNode root, int rootCapacity,
+            List<Geometry> footprints, OfficialRoutingEnvironment environment,
+            Double suppliedAngle,
+            SharedSpineNetworkBuilder.TerminalRouter terminalRouter) {
         return buildWithAnchors(input, root, rootCapacity, footprints, environment,
-                terminalRouter, null, false);
+                terminalRouter, suppliedAngle, false);
     }
 
     /** Сохраняет контрольную сетку и добавляет не более одной оси от допустимых вводов зданий. */
@@ -914,7 +928,7 @@ final class OrthogonalCorridorNetworkBuilder {
         private final List<RouteNode> nodes;
         private final List<RouteEdge> edges;
         private final List<RouteConnection> connections;
-        private Network(List<RouteNode> nodes, List<RouteEdge> edges, List<RouteConnection> connections) {
+        Network(List<RouteNode> nodes, List<RouteEdge> edges, List<RouteConnection> connections) {
             this.nodes = List.copyOf(nodes); this.edges = List.copyOf(edges); this.connections = List.copyOf(connections);
         }
         List<RouteNode> nodes() { return nodes; }

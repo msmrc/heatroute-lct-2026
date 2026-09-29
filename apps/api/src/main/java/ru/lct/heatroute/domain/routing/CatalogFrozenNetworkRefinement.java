@@ -8,11 +8,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Formatter;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.lct.heatroute.domain.optimization.CatalogIdentity;
 import ru.lct.heatroute.domain.optimization.ConflictExplanation;
 import ru.lct.heatroute.domain.optimization.ConflictStore;
@@ -28,6 +31,8 @@ import ru.lct.heatroute.domain.sizing.NetworkSizingIssue;
  */
 public final class CatalogFrozenNetworkRefinement {
     private static final int MAX_EVIDENCE_REFERENCES = 256;
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            CatalogFrozenNetworkRefinement.class);
 
     private final CpSatNetworkRefinement<Attempt> refinement;
     private final FrozenNetworkEvaluator evaluator;
@@ -52,12 +57,13 @@ public final class CatalogFrozenNetworkRefinement {
                 problem, catalogIdentity, conflictStore,
                 master -> new Attempt(master, Objects.requireNonNull(
                         candidateFactory.assemble(master), "frozen assembly"), null),
-                attempt -> assess(problem, catalogIdentity, archive, attempt), settings);
+                attempt -> assess(problem, catalogIdentity, conflictStore, archive, attempt), settings);
         return Result.from(raw);
     }
 
     private CpSatNetworkRefinement.Assessment<Attempt> assess(NetworkConstraintProblem problem,
-            CatalogIdentity identity, AcceptedSolutionArchive archive, Attempt attempt) {
+            CatalogIdentity identity, ConflictStore conflictStore,
+            AcceptedSolutionArchive archive, Attempt attempt) {
         FrozenNetworkCandidate candidate = attempt.assembly.getCandidate();
         FrozenNetworkEvaluator.Evaluation evaluation = evaluator.evaluate(candidate);
         switch (evaluation.getOutcome()) {
@@ -67,6 +73,45 @@ public final class CatalogFrozenNetworkRefinement {
                 archive.add(accepted);
                 return CpSatNetworkRefinement.Assessment.accepted(attempt.accepted(accepted));
             case CANONICAL_SIZING_REQUIREMENT:
+                FrozenNetworkCandidate canonical = canonicalCandidateIfFeasible(
+                        evaluation, problem, identity, conflictStore, attempt);
+                if (canonical != null) {
+                    FrozenNetworkEvaluator.Evaluation canonicalEvaluation = evaluator.evaluate(canonical);
+                    if (canonicalEvaluation.getOutcome() == FrozenNetworkEvaluator.Outcome.ACCEPTED) {
+                        AcceptedNetworkSolution canonicalAccepted = Objects.requireNonNull(
+                                canonicalEvaluation.getAccepted(), "accepted canonical solution");
+                        archive.add(canonicalAccepted);
+                        return CpSatNetworkRefinement.Assessment.accepted(
+                                attempt.accepted(canonicalAccepted));
+                    }
+                    if (canonicalEvaluation.getOutcome() == FrozenNetworkEvaluator.Outcome.UNKNOWN) {
+                        return CpSatNetworkRefinement.Assessment.unknown(
+                                requiredReason(canonicalEvaluation));
+                    }
+                    if (canonicalEvaluation.getOutcome() == FrozenNetworkEvaluator.Outcome.ERROR) {
+                        return CpSatNetworkRefinement.Assessment.error(
+                                requiredReason(canonicalEvaluation));
+                    }
+                    if (canonicalEvaluation.getOutcome()
+                            == FrozenNetworkEvaluator.Outcome.CANONICAL_SIZING_REQUIREMENT) {
+                        return CpSatNetworkRefinement.Assessment.error(
+                                "canonical_sizing_projection_mismatch");
+                    }
+                    LOGGER.info("Canonical projection rejected outcome={} reason={} validation={} sizing={}",
+                            canonicalEvaluation.getOutcome(), canonicalEvaluation.getReason(),
+                            canonicalEvaluation.getValidationIssues().stream().limit(12)
+                                    .map(issue -> issue.getCode() + ":" + issue.getSubjectId())
+                                    .collect(java.util.stream.Collectors.toList()),
+                            canonicalEvaluation.getSizingIssues().size());
+                    List<ConflictExplanation> localized = localizedEngineeringProofs(
+                            canonicalEvaluation, problem, identity, attempt, canonical);
+                    if (!localized.isEmpty()) {
+                        return CpSatNetworkRefinement.Assessment.rejected(localized);
+                    }
+                    // A geometric rejection belongs to the canonical master assignment, not to
+                    // the preliminary diameter assignment.  Let the sizing implication materialize
+                    // that assignment before an auditable engineering no-good is recorded.
+                }
                 List<ConflictExplanation> sizingProofs = canonicalSizingProofs(
                         evaluation, problem, identity, attempt);
                 if (sizingProofs.isEmpty()) {
@@ -75,6 +120,17 @@ public final class CatalogFrozenNetworkRefinement {
                 }
                 return CpSatNetworkRefinement.Assessment.sizingRequired(sizingProofs);
             case PROVEN_REJECTED:
+                LOGGER.info("Exact candidate rejected reason={} validation={} sizing={}",
+                        evaluation.getReason(),
+                        evaluation.getValidationIssues().stream().limit(32)
+                                .map(issue -> issue.getCode() + ":" + issue.getSubjectId())
+                                .collect(java.util.stream.Collectors.toList()),
+                        evaluation.getSizingIssues().size());
+                List<ConflictExplanation> directLocalized = localizedEngineeringProofs(
+                        evaluation, problem, identity, attempt, candidate);
+                if (!directLocalized.isEmpty()) {
+                    return CpSatNetworkRefinement.Assessment.rejected(directLocalized);
+                }
                 return CpSatNetworkRefinement.Assessment.rejected(fullAssignmentProof(
                         rejectionType(evaluation), evaluation.getReason(), problem, identity,
                         attempt.master, evidence(evaluation, candidate)));
@@ -85,6 +141,177 @@ public final class CatalogFrozenNetworkRefinement {
             default:
                 throw new IllegalStateException("Unsupported frozen evaluation outcome: "
                         + evaluation.getOutcome());
+        }
+    }
+
+    private static FrozenNetworkCandidate canonicalCandidateIfFeasible(
+            FrozenNetworkEvaluator.Evaluation evaluation, NetworkConstraintProblem problem,
+            CatalogIdentity identity, ConflictStore conflictStore, Attempt attempt) {
+        Map<String, Integer> canonicalDiameters = new LinkedHashMap<>(
+                attempt.master.getDiameterMm());
+        List<RouteEdge> edges = new ArrayList<>();
+        for (RouteEdge edge : attempt.assembly.getCandidate().getEdges()) {
+            FrozenNetworkEvaluator.RequiredSizing required =
+                    evaluation.getRequiredSizing().get(edge.getId());
+            if (required == null) {
+                LOGGER.info("Canonical projection unavailable: sizing missing for edge={}", edge.getId());
+                return null;
+            }
+            List<String> arcIds = attempt.assembly.arcIds(edge.getId());
+            if (arcIds == null || arcIds.isEmpty()) {
+                LOGGER.info("Canonical projection unavailable: provenance missing for edge={}", edge.getId());
+                return null;
+            }
+            for (String arcId : arcIds) {
+                NetworkConstraintProblem.Asset asset = problem.asset(arcId);
+                Long flow = attempt.master.getFlowUnits().get(arcId);
+                if (asset == null || flow == null
+                        || !attempt.master.getSelectedAssets().contains(arcId)) {
+                    LOGGER.info("Canonical projection unavailable: master arc missing arc={}", arcId);
+                    return null;
+                }
+                NetworkConstraintProblem.DiameterOption option = asset.getDiameters().stream()
+                        .filter(candidate -> candidate.getDiameterMm() == required.getDiameter())
+                        .findFirst().orElse(null);
+                if (option == null || option.getCapacityUnits() < flow) {
+                    LOGGER.info("Canonical projection unavailable: diameter/capacity arc={} diameter={} capacity={} flow={}",
+                            arcId, required.getDiameter(),
+                            option == null ? null : option.getCapacityUnits(), flow);
+                    return null;
+                }
+                Integer previous = canonicalDiameters.put(arcId, required.getDiameter());
+                if (previous == null) {
+                    LOGGER.info("Canonical projection unavailable: prior diameter missing arc={}", arcId);
+                    return null;
+                }
+            }
+            edges.add(new RouteEdge(edge.getId(), edge.getUpstreamNodeId(),
+                    edge.getDownstreamNodeId(), edge.getLengthM().doubleValue(),
+                    edge.getCoordinates(), edge.getSections(), required.getFlowTph(),
+                    required.getDiameter()));
+        }
+        List<NetworkConstraintProblem.Conflict> conflicts = new ArrayList<>(problem.getConflicts());
+        conflicts.addAll(conflictStore.modelConflicts(identity));
+        for (NetworkConstraintProblem.Conflict conflict : conflicts) {
+            boolean prohibited = true;
+            for (NetworkConstraintProblem.DecisionLiteral literal : conflict.getLiterals()) {
+                if (literal.isExpected() != literalValue(literal, attempt.master,
+                        canonicalDiameters)) {
+                    prohibited = false;
+                    break;
+                }
+            }
+            if (prohibited) {
+                LOGGER.info("Canonical projection unavailable: projected assignment is prohibited reason={}",
+                        conflict.getReason());
+                return null;
+            }
+        }
+        return attempt.assembly.getCandidate().withEdges(edges);
+    }
+
+    private static List<ConflictExplanation> localizedEngineeringProofs(
+            FrozenNetworkEvaluator.Evaluation evaluation, NetworkConstraintProblem problem,
+            CatalogIdentity identity, Attempt attempt, FrozenNetworkCandidate candidate) {
+        if (evaluation.getOutcome() != FrozenNetworkEvaluator.Outcome.PROVEN_REJECTED) {
+            return List.of();
+        }
+        Collection<String> proofEvidence = evidence(evaluation, candidate);
+        Map<String, ConflictExplanation> result = new LinkedHashMap<>();
+        for (RouteValidationIssue issue : evaluation.getValidationIssues()) {
+            if ("ROUTE_DEFLECTION_EXCEEDED".equals(issue.getCode())
+                    && issue.getSubjectId() != null) {
+                List<String> arcIds = attempt.assembly.arcIds(issue.getSubjectId());
+                if (arcIds == null) {
+                    arcIds = selectedIncidentArcIds(
+                            problem, attempt.master, issue.getSubjectId());
+                }
+                addStableTopologyProof(result, arcIds, proofEvidence, issue, identity);
+                continue;
+            }
+            if (("SELF_INTERSECTION".equals(issue.getCode())
+                    || "EXPERT_ROUTE_BEND_ANGLE_INVALID".equals(issue.getCode()))
+                    && issue.getSubjectId() != null) {
+                addStableTopologyProof(result, attempt.assembly.arcIds(issue.getSubjectId()),
+                        proofEvidence, issue, identity);
+                continue;
+            }
+            if ("EXPERT_CHAMBER_OBLIQUE_ENTRY".equals(issue.getCode())
+                    && issue.getSubjectId() != null) {
+                addStableTopologyProof(result, selectedIncidentArcIds(
+                        problem, attempt.master, issue.getSubjectId()),
+                        proofEvidence, issue, identity);
+                continue;
+            }
+            if ("CHAMBER_DEGREE_EXCEEDED".equals(issue.getCode())
+                    && issue.getSubjectId() != null) {
+                List<String> arcIds = selectedIncidentArcIds(
+                        problem, attempt.master, issue.getSubjectId());
+                if (arcIds.size() > 4) {
+                    addStableTopologyProof(result, arcIds, proofEvidence, issue, identity);
+                }
+                continue;
+            }
+            if (!"CROSSING_OUTSIDE_COMMON_NODE".equals(issue.getCode())
+                    || issue.getSubjectId() == null) continue;
+            String[] edgeIds = issue.getSubjectId().split("\\|", -1);
+            if (edgeIds.length != 2) continue;
+            LinkedHashSet<String> arcIds = new LinkedHashSet<>();
+            for (String edgeId : edgeIds) {
+                List<String> provenance = attempt.assembly.arcIds(edgeId);
+                if (provenance == null || provenance.isEmpty()) {
+                    arcIds.clear();
+                    break;
+                }
+                arcIds.addAll(provenance);
+            }
+            if (arcIds.isEmpty()) continue;
+            addStableTopologyProof(result, List.copyOf(arcIds), proofEvidence, issue, identity);
+        }
+        return List.copyOf(result.values());
+    }
+
+    private static List<String> selectedIncidentArcIds(NetworkConstraintProblem problem,
+            CpSatNetworkOptimizer.Result master, String nodeId) {
+        return problem.getAssets().stream()
+                .filter(asset -> master.getSelectedAssets().contains(asset.getId()))
+                .filter(asset -> nodeId.equals(asset.getFromNodeId())
+                        || nodeId.equals(asset.getToNodeId()))
+                .map(NetworkConstraintProblem.Asset::getId)
+                .sorted()
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    private static void addStableTopologyProof(Map<String, ConflictExplanation> result,
+            Collection<String> arcIds, Collection<String> proofEvidence,
+            RouteValidationIssue issue, CatalogIdentity identity) {
+        if (arcIds == null || arcIds.isEmpty()) return;
+        List<NetworkConstraintProblem.DecisionLiteral> literals = arcIds.stream()
+                .distinct().sorted()
+                .map(arcId -> NetworkConstraintProblem.DecisionLiteral.asset(arcId, true))
+                .collect(java.util.stream.Collectors.toList());
+        ConflictExplanation proof = new ConflictExplanation(
+                "exact_geometry", identity.getRuleId(), identity.getRuleVersion(),
+                identity.getSourceSnapshotHash(), identity.getCatalogHash(), literals,
+                proofEvidence, issue.getCode(), identity.getCheckerVersion(),
+                ConflictExplanation.ProofScope.STABLE_DECISION_SET);
+        result.putIfAbsent(proof.getSignature(), proof);
+    }
+
+    private static boolean literalValue(NetworkConstraintProblem.DecisionLiteral literal,
+            CpSatNetworkOptimizer.Result master, Map<String, Integer> canonicalDiameters) {
+        switch (literal.getType()) {
+            case ASSET_SELECTED:
+                return master.getSelectedAssets().contains(literal.getSubjectId());
+            case ROOT_SELECTED:
+                return master.getSelectedRoots().contains(literal.getSubjectId());
+            case NODE_CONFIGURATION_SELECTED:
+                return master.getSelectedNodeConfigurations().contains(literal.getSubjectId());
+            case DIAMETER_SELECTED:
+                return Objects.equals(canonicalDiameters.get(literal.getSubjectId()),
+                        literal.getDiameterMm());
+            default:
+                throw new IllegalStateException("Unsupported decision literal: " + literal.getType());
         }
     }
 
@@ -113,9 +340,14 @@ public final class CatalogFrozenNetworkRefinement {
                 if (!available) return List.of();
                 Integer selectedDiameter = attempt.master.getDiameterMm().get(arcId);
                 if (!attempt.master.getSelectedAssets().contains(arcId)
-                        || selectedDiameter == null || selectedDiameter == requiredDiameter) {
+                        || selectedDiameter == null) {
                     throw new IllegalArgumentException("Canonical sizing feedback does not differ for " + arcId);
                 }
+                // The evaluator reports the complete canonical sizing map whenever at least one
+                // frozen edge differs.  A collapsed edge can therefore reference master arcs that
+                // already have the required diameter.  They need no implication; rejecting them
+                // here used to turn a valid, partially matching assignment into an internal error.
+                if (selectedDiameter == requiredDiameter) continue;
                 result.add(sizingImplicationProof(evaluation.getReason(), problem, identity,
                         attempt.master, arcId, requiredDiameter, evidence));
             }

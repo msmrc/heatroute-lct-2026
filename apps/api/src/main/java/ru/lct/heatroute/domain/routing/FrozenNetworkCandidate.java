@@ -89,6 +89,11 @@ public final class FrozenNetworkCandidate {
     public String getGeometryHash() { return geometryHash; }
     OfficialRoutingEnvironment preparedEnvironment() { return preparedEnvironment; }
 
+    FrozenNetworkCandidate withEdges(List<RouteEdge> replacementEdges) {
+        return new FrozenNetworkCandidate(id, strategy, nodes, replacementEdges, connections,
+                relevantFeatures, preparedEnvironment, parameters, reconstructionRequired);
+    }
+
     static String geometryHash(List<RouteNode> nodes, List<RouteEdge> edges) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

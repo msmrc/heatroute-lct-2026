@@ -27,22 +27,22 @@ class CatalogNodeConfigurationCompilerTest {
             new CatalogNodeConfigurationCompiler();
 
     @Test
-    void createsAnExactChamberChoiceOnlyForCompatibleOrthogonalBranchRays() {
+    void compilesOnlyEngineeringCompatibleInternalBranchGeometry() {
         CatalogNetworkProblemCompiler.Compilation orthogonal = compileShared(true);
         CatalogNetworkProblemCompiler.Compilation oblique = compileShared(false);
 
         assertThat(orthogonal.getNodeConfigurationBindings())
-                .filteredOn(binding -> binding.isChamber()
-                        && binding.getConfiguration().getIncidentAssetIds().size() == 3)
-                .singleElement().satisfies(binding ->
-                        assertThat(binding.getNodeType()).isEqualTo("new_branch_chamber"));
+                .anyMatch(binding -> !binding.getConfiguration().getNodeId()
+                        .equals(orthogonal.getRootNodeById().get("root"))
+                        && binding.isChamber());
         assertThat(oblique.getNodeConfigurationBindings())
-                .noneMatch(binding -> binding.isChamber()
-                        && binding.getConfiguration().getIncidentAssetIds().size() == 3);
+                .noneMatch(binding -> !binding.getConfiguration().getNodeId()
+                        .equals(oblique.getRootNodeById().get("root"))
+                        && binding.isChamber());
     }
 
     @Test
-    void anExistingRootRayCannotBeReusedByANewConnection() {
+    void rejectsARootExitThatDuplicatesAnExistingChamberRay() {
         RoutingProblemSnapshot snapshot = snapshot(
                 List.of(new RoutingProblemSnapshot.Demand(
                         "d", BigDecimal.ONE, point(10_000, 0), null)),
@@ -122,7 +122,7 @@ class CatalogNodeConfigurationCompilerTest {
                 "catalog", physical.getPhysicalAssets(), options);
         CatalogNetworkProblemCompiler.Compilation base = problemCompiler.compile(
                 snapshot, catalog, demandPorts, Map.of("root", "root-port"), 3);
-        return configurationCompiler.compile(snapshot, base);
+        return configurationCompiler.compile(snapshot, catalog, base);
     }
 
     private RoutingProblemSnapshot snapshot(

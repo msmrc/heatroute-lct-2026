@@ -222,7 +222,35 @@ public final class CpSatNetworkOptimizer {
         }
         model.addEquality(LinearExpr.sum(source.values().toArray(new IntVar[0])), totalDemand);
 
+        addConflicts(model, conflicts, selected, roots, nodeConfigurations, diameters);
+        model.minimize(objective);
+        return new Variables(selected, roots, flows, diameters, nodeConfigurations);
+    }
+
+    private void addConflicts(CpModel model, List<NetworkConstraintProblem.Conflict> conflicts,
+            Map<String, BoolVar> selected, Map<String, BoolVar> roots,
+            Map<String, BoolVar> nodeConfigurations,
+            Map<String, Map<Integer, BoolVar>> diameters) {
+        Map<String, CanonicalSizingGroup> canonicalGroups = new LinkedHashMap<>();
+        List<NetworkConstraintProblem.Conflict> regular = new ArrayList<>();
         for (NetworkConstraintProblem.Conflict conflict : conflicts) {
+            NetworkConstraintProblem.DecisionLiteral consequent = canonicalSizingConsequent(conflict);
+            if (consequent == null) {
+                regular.add(conflict);
+                continue;
+            }
+            List<NetworkConstraintProblem.DecisionLiteral> topology = new ArrayList<>();
+            StringBuilder key = new StringBuilder();
+            for (NetworkConstraintProblem.DecisionLiteral literal : conflict.getLiterals()) {
+                if (literal == consequent) continue;
+                topology.add(literal);
+                key.append(literal.variableKey()).append('=').append(literal.isExpected()).append(';');
+            }
+            canonicalGroups.computeIfAbsent(key.toString(), ignored ->
+                    new CanonicalSizingGroup(topology)).add(consequent);
+        }
+
+        for (NetworkConstraintProblem.Conflict conflict : regular) {
             List<Literal> atLeastOneChanges = new ArrayList<>();
             for (NetworkConstraintProblem.DecisionLiteral decision : conflict.getLiterals()) {
                 BoolVar variable = conflictVariable(
@@ -231,8 +259,41 @@ public final class CpSatNetworkOptimizer {
             }
             model.addBoolOr(atLeastOneChanges);
         }
-        model.minimize(objective);
-        return new Variables(selected, roots, flows, diameters, nodeConfigurations);
+
+        int groupIndex = 0;
+        for (CanonicalSizingGroup group : canonicalGroups.values()) {
+            BoolVar topologyMatches = model.newBoolVar(
+                    "canonical-sizing-topology/" + groupIndex++);
+            List<Literal> topologyMayDiffer = new ArrayList<>();
+            for (NetworkConstraintProblem.DecisionLiteral decision : group.topology) {
+                BoolVar variable = conflictVariable(
+                        decision, selected, roots, nodeConfigurations, diameters);
+                topologyMayDiffer.add(decision.isExpected() ? variable.not() : variable);
+            }
+            // If every topology literal still matches, the shared guard must be true.
+            // One long clause is enough for every diameter implication in this topology.
+            topologyMayDiffer.add(topologyMatches);
+            model.addBoolOr(topologyMayDiffer);
+            for (NetworkConstraintProblem.DecisionLiteral consequent : group.consequents.values()) {
+                BoolVar requiredDiameter = conflictVariable(
+                        consequent, selected, roots, nodeConfigurations, diameters);
+                model.addBoolOr(List.of(topologyMatches.not(), requiredDiameter));
+            }
+        }
+    }
+
+    private static NetworkConstraintProblem.DecisionLiteral canonicalSizingConsequent(
+            NetworkConstraintProblem.Conflict conflict) {
+        if (!conflict.getReason().startsWith("canonical_sizing:")) return null;
+        NetworkConstraintProblem.DecisionLiteral result = null;
+        for (NetworkConstraintProblem.DecisionLiteral literal : conflict.getLiterals()) {
+            if (literal.getType() != NetworkConstraintProblem.DecisionLiteral.Type.DIAMETER_SELECTED) {
+                continue;
+            }
+            if (literal.isExpected() || result != null) return null;
+            result = literal;
+        }
+        return result;
     }
 
     private BoolVar conflictVariable(NetworkConstraintProblem.DecisionLiteral literal,
@@ -250,6 +311,20 @@ public final class CpSatNetworkOptimizer {
                 return diameters.get(literal.getSubjectId()).get(literal.getDiameterMm());
             default:
                 throw new IllegalStateException("Unsupported conflict literal type: " + literal.getType());
+        }
+    }
+
+    private static final class CanonicalSizingGroup {
+        private final List<NetworkConstraintProblem.DecisionLiteral> topology;
+        private final Map<String, NetworkConstraintProblem.DecisionLiteral> consequents =
+                new LinkedHashMap<>();
+
+        private CanonicalSizingGroup(List<NetworkConstraintProblem.DecisionLiteral> topology) {
+            this.topology = List.copyOf(topology);
+        }
+
+        private void add(NetworkConstraintProblem.DecisionLiteral consequent) {
+            consequents.putIfAbsent(consequent.variableKey(), consequent);
         }
     }
 

@@ -156,6 +156,37 @@ class BoundedRootDemandCatalogGeneratorTest {
                 });
     }
 
+    @Test
+    void seedsEnoughDistinctLegalRootsForAllMandatoryTerminals() {
+        RoutingProblemSnapshot.DirectionVector east =
+                new RoutingProblemSnapshot.DirectionVector(1_000, 0);
+        RoutingProblemSnapshot.DirectionVector west =
+                new RoutingProblemSnapshot.DirectionVector(-1_000, 0);
+        RoutingProblemSnapshot problem = problem(
+                List.of(
+                        demand("one", 50_000, 100_000),
+                        demand("two", 150_000, 100_000),
+                        demand("three", 250_000, 100_000)),
+                List.of(
+                        root("left", 0, 0, List.of(east, west)),
+                        root("right", 300_000, 0, List.of(east, west))));
+
+        BoundedRootDemandCatalogGenerator.GeneratedCatalog result = generator.generate(
+                problem, List.of(), options(6, 32, 1));
+
+        assertThat(result.getBuildResult().getCounters())
+                .containsEntry("normal_root_demands", 3L)
+                .containsEntry("normal_root_count", 2L)
+                .containsEntry("normal_root_capacity", 4L)
+                .containsEntry("normal_root_assignable_demands", 3L);
+        assertThat(result.getBuildResult().getRemainingWork())
+                .noneMatch(value -> value.startsWith("normal-root-capacity:")
+                        || value.startsWith("normal-root-assignment:"));
+        assertThat(result.getBuildResult().getSnapshot().getPathOptions())
+                .extracting(option -> option.getFromPortId())
+                .contains("root-port:left", "root-port:right");
+    }
+
     private static BoundedRootDemandCatalogGenerator.Options options(
             int pairs, int calls, int paths) {
         return BoundedRootDemandCatalogGenerator.Options.bounded(

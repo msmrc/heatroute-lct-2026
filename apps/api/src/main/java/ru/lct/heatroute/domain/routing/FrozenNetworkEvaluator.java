@@ -54,10 +54,7 @@ public final class FrozenNetworkEvaluator {
         String originalHash = candidate.getGeometryHash();
         try {
             NetworkSizingResult sizing = networkSizer.size(
-                    candidate.getEdges().stream().map(edge -> new NetworkTreeEdge(
-                            edge.getId(), edge.getUpstreamNodeId(), edge.getDownstreamNodeId(), edge.getLengthM()))
-                            .collect(Collectors.toList()),
-                    demandFlows(candidate.getConnections()));
+                    sizingEdges(candidate.getEdges()), demandFlows(candidate.getConnections()));
             if (!sizing.getIssues().isEmpty()) {
                 return Evaluation.rejected("sizing_rejected", List.of(), sizing.getIssues());
             }
@@ -110,8 +107,50 @@ public final class FrozenNetworkEvaluator {
         } catch (CancellationException exception) {
             throw exception;
         } catch (RuntimeException | LinkageError exception) {
-            return Evaluation.error("frozen_evaluator_failure", exception.getClass().getSimpleName());
+            RouteValidationIssue engineeringIssue = knownEngineeringIssue(exception);
+            if (engineeringIssue != null) {
+                return Evaluation.rejected("engineering_rejected", List.of(engineeringIssue), List.of());
+            }
+            String message = exception.getMessage();
+            return Evaluation.error("frozen_evaluator_failure",
+                    exception.getClass().getSimpleName()
+                            + (message == null || message.isBlank() ? "" : ":" + message));
         }
+    }
+
+    /**
+     * The depth extractor reports a geometrically invalid special crossing before a depth
+     * profile can be built.  That is a deterministic property of the frozen XY, not an
+     * evaluator crash: the refinement loop must be allowed to exclude this topology and
+     * ask the master solver for another one.
+     */
+    static RouteValidationIssue knownEngineeringIssue(Throwable exception) {
+        if (!(exception instanceof IllegalArgumentException)) return null;
+        String message = exception.getMessage();
+        String prefix = "SPECIAL_SECTION_CROSSING_ANGLE:";
+        if (message == null || !message.startsWith(prefix)) return null;
+        String subject = message.substring(prefix.length()).trim();
+        return new RouteValidationIssue("SPECIAL_SECTION_CROSSING_ANGLE",
+                subject.isEmpty() ? "special-section" : subject,
+                "Трасса пересекает специальный участок под недопустимым углом");
+    }
+
+    private static List<NetworkTreeEdge> sizingEdges(List<RouteEdge> edges) {
+        List<NetworkTreeEdge> result = new ArrayList<>(edges.size());
+        for (RouteEdge edge : edges) {
+            if (edge.getLengthM() == null || edge.getLengthM().signum() <= 0) {
+                String coordinates = edge.getCoordinates().stream()
+                        .map(point -> point.getXM() + "," + point.getYM())
+                        .collect(Collectors.joining(";"));
+                throw new IllegalArgumentException("Frozen edge has non-positive length: id="
+                        + edge.getId() + ", from=" + edge.getUpstreamNodeId() + ", to="
+                        + edge.getDownstreamNodeId() + ", length_m=" + edge.getLengthM()
+                        + ", coordinates=[" + coordinates + "]");
+            }
+            result.add(new NetworkTreeEdge(edge.getId(), edge.getUpstreamNodeId(),
+                    edge.getDownstreamNodeId(), edge.getLengthM()));
+        }
+        return List.copyOf(result);
     }
 
     private Map<String, BigDecimal> demandFlows(List<RouteConnection> connections) {

@@ -69,20 +69,23 @@ public final class CatalogPhysicalAsset {
     public String getFingerprint() { return fingerprint; }
 
     public double getExactLengthMm() {
-        return Math.hypot((double) secondPoint.getXMm() - firstPoint.getXMm(),
-                (double) secondPoint.getYMm() - firstPoint.getYMm());
+        return Math.hypot(secondPoint.getXMillimeters() - firstPoint.getXMillimeters(),
+                secondPoint.getYMillimeters() - firstPoint.getYMillimeters());
     }
 
     static int compare(CatalogMetricPoint left, CatalogMetricPoint right) {
-        int byX = Long.compare(left.getXMm(), right.getXMm());
-        return byX != 0 ? byX : Long.compare(left.getYMm(), right.getYMm());
+        int byX = Long.compare(left.getXMicrometers(), right.getXMicrometers());
+        return byX != 0 ? byX : Long.compare(
+                left.getYMicrometers(), right.getYMicrometers());
     }
 
     private String fingerprintOf() {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            update(digest, id, physicalContext, constructionMode, firstPoint.getXMm(), firstPoint.getYMm(),
-                    secondPoint.getXMm(), secondPoint.getYMm(), sourcePathIds.size());
+            update(digest, id, physicalContext, constructionMode,
+                    firstPoint.getXMicrometers(), firstPoint.getYMicrometers(),
+                    secondPoint.getXMicrometers(), secondPoint.getYMicrometers(),
+                    sourcePathIds.size());
             for (String sourcePathId : sourcePathIds) update(digest, sourcePathId);
             try (Formatter formatter = new Formatter(java.util.Locale.ROOT)) {
                 for (byte value : digest.digest()) formatter.format("%02x", value);

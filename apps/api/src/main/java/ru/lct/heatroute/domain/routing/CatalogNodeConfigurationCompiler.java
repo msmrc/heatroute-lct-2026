@@ -9,11 +9,15 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Formatter;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import ru.lct.heatroute.domain.catalog.CatalogNetworkProblemCompiler;
+import ru.lct.heatroute.domain.catalog.DirectedPathOption;
+import ru.lct.heatroute.domain.catalog.RoutingCatalogSnapshot;
 import ru.lct.heatroute.domain.catalog.RoutingProblemSnapshot;
 import ru.lct.heatroute.domain.optimization.CandidateAssemblyIncompleteException;
 import ru.lct.heatroute.domain.optimization.NetworkConstraintProblem;
@@ -26,9 +30,12 @@ public final class CatalogNodeConfigurationCompiler {
 
     public CatalogNetworkProblemCompiler.Compilation compile(
             RoutingProblemSnapshot snapshot,
+            RoutingCatalogSnapshot catalog,
             CatalogNetworkProblemCompiler.Compilation base) {
         Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(catalog, "catalog");
         Objects.requireNonNull(base, "base compilation");
+        Map<String, String> groupByOptionId = optionGroups(catalog);
 
         Map<String, List<ArcRay>> incoming = new LinkedHashMap<>();
         Map<String, List<ArcRay>> outgoing = new LinkedHashMap<>();
@@ -38,10 +45,21 @@ public final class CatalogNodeConfigurationCompiler {
             if (from == null || to == null) {
                 throw new IllegalArgumentException("Master asset has no compiled endpoint");
             }
+            CatalogNetworkProblemCompiler.ArcBinding arcBinding = base.arc(asset.getId());
+            if (arcBinding == null) {
+                throw new IllegalArgumentException("Master asset has no catalog binding");
+            }
+            Set<String> groups = arcBinding.getSourceOptionIds().stream()
+                    .map(groupByOptionId::get)
+                    .filter(Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            if (groups.isEmpty()) {
+                throw new IllegalArgumentException("Master asset has no certified path group");
+            }
             ArcRay fromRay = new ArcRay(asset.getId(),
-                    to.getPoint().getXMm() - from.getPoint().getXMm(),
-                    to.getPoint().getYMm() - from.getPoint().getYMm());
-            ArcRay toRay = new ArcRay(asset.getId(), -fromRay.dxMm, -fromRay.dyMm);
+                    to.getPoint().getXMicrometers() - from.getPoint().getXMicrometers(),
+                    to.getPoint().getYMicrometers() - from.getPoint().getYMicrometers(), groups);
+            ArcRay toRay = new ArcRay(asset.getId(), -fromRay.dxMm, -fromRay.dyMm, groups);
             outgoing.computeIfAbsent(from.getNodeId(), ignored -> new ArrayList<>()).add(fromRay);
             incoming.computeIfAbsent(to.getNodeId(), ignored -> new ArrayList<>()).add(toRay);
         }
@@ -70,7 +88,7 @@ public final class CatalogNodeConfigurationCompiler {
             } else {
                 local = internalConfigurations(node,
                         incoming.getOrDefault(node.getNodeId(), List.of()),
-                        outgoing.getOrDefault(node.getNodeId(), List.of()));
+                        outgoing.getOrDefault(node.getNodeId(), List.of()), groupByOptionId);
             }
             bindings.addAll(local);
             if (bindings.size() > MAX_TOTAL_CONFIGURATIONS) {
@@ -78,7 +96,12 @@ public final class CatalogNodeConfigurationCompiler {
                         "Node configuration catalog exceeds " + MAX_TOTAL_CONFIGURATIONS);
             }
         }
-        return base.withNodeConfigurations(bindings);
+        Set<String> managedNodeIds = new LinkedHashSet<>(rootByNode.keySet());
+        managedNodeIds.addAll(demandByNode.keySet());
+        // Root/terminal semantics are explicit in the master. Internal incidences remain flow
+        // choices and are validated by frozen refinement; this permits two independently seeded
+        // collectors to merge by dropping one redundant upstream leg.
+        return base.withNodeConfigurations(bindings, managedNodeIds);
     }
 
     private static List<CatalogNetworkProblemCompiler.NodeConfigurationBinding> rootConfigurations(
@@ -92,13 +115,16 @@ public final class CatalogNodeConfigurationCompiler {
         int availableRays = 4 - root.getExistingDirections().size();
         List<CatalogNetworkProblemCompiler.NodeConfigurationBinding> result = new ArrayList<>();
         if (availableRays <= 0) return result;
+        List<ArcRay> fixed = root.getExistingDirections().stream()
+                .map(direction -> new ArcRay("existing:" + direction.getDeltaXMm()
+                        + ":" + direction.getDeltaYMm(),
+                        Math.multiplyExact(direction.getDeltaXMm(), 1_000L),
+                        Math.multiplyExact(direction.getDeltaYMm(), 1_000L), Set.of("existing")))
+                .collect(java.util.stream.Collectors.toList());
         CombinationBudget budget = new CombinationBudget(node.getNodeId());
-        List<ArcRay> existing = new ArrayList<>();
-        for (RoutingProblemSnapshot.DirectionVector direction : root.getExistingDirections()) {
-            existing.add(new ArcRay("existing", direction.getDeltaXMm(), direction.getDeltaYMm()));
-        }
         combinations(outgoing, Math.min(availableRays, outgoing.size()), budget, selected -> {
-            if (selected.isEmpty() || !compatible(existing, selected)) return;
+            if (selected.isEmpty()) return;
+            if (!compatible(fixed, selected)) return;
             add(result, binding(node.getNodeId(), selected,
                     realization.getNodeType(), true,
                     realization.getBaseIncidentSections(), realization.getTargetId(),
@@ -122,8 +148,63 @@ public final class CatalogNodeConfigurationCompiler {
     private static List<CatalogNetworkProblemCompiler.NodeConfigurationBinding> internalConfigurations(
             CatalogNetworkProblemCompiler.NodeBinding node,
             List<ArcRay> incoming,
-            List<ArcRay> outgoing) {
+            List<ArcRay> outgoing,
+            Map<String, String> groupByOptionId) {
         List<CatalogNetworkProblemCompiler.NodeConfigurationBinding> result = new ArrayList<>();
+        Map<String, List<ArcRay>> certifiedIncidence = new LinkedHashMap<>();
+        Set<String> groups = new LinkedHashSet<>(groupByOptionId.values());
+        for (String group : groups) {
+            List<ArcRay> groupIncoming = incoming.stream()
+                    .filter(ray -> ray.optionGroups.contains(group))
+                    .collect(java.util.stream.Collectors.toList());
+            List<ArcRay> groupOutgoing = outgoing.stream()
+                    .filter(ray -> ray.optionGroups.contains(group))
+                    .collect(java.util.stream.Collectors.toList());
+            if (groupIncoming.size() != 1 || groupOutgoing.isEmpty()
+                    || groupOutgoing.size() > 3) continue;
+            List<ArcRay> incidence = new ArrayList<>(1 + groupOutgoing.size());
+            incidence.add(groupIncoming.get(0));
+            incidence.addAll(groupOutgoing);
+            boolean chamber = incidence.size() >= 3;
+            if (chamber && !compatible(List.of(), incidence)) continue;
+            certifiedIncidence.putIfAbsent(arcSignature(incidence), List.copyOf(incidence));
+            add(result, binding(node.getNodeId(), incidence,
+                    chamber ? "new_branch_chamber" : "technical_transition",
+                    chamber, 0, null, null));
+        }
+        // Noding creates technical vertices where independently certified paths cross or share
+        // part of the same axis. A route may continue through such a vertex without changing
+        // direction even when provenance was merged into different option groups. Only add a
+        // collinear pass-through here; turns and branches still require a certified group.
+        for (ArcRay parent : incoming) {
+            for (ArcRay child : outgoing) {
+                if (!straightContinuation(parent, child)) continue;
+                add(result, binding(node.getNodeId(), List.of(parent, child),
+                        "technical_transition", false, 0, null, null));
+            }
+        }
+        // Physical noding can place two independently certified networks on the same coordinate.
+        // One node may select only one configuration, so add the compatible union of the complete
+        // certified incidences. This permits an explicit chamber at a real shared point without
+        // inventing the arbitrary parent/child splices that previously dominated the master.
+        List<List<ArcRay>> unionClosure = new ArrayList<>(certifiedIncidence.values());
+        for (int index = 0; index < unionClosure.size(); index++) {
+            List<ArcRay> left = unionClosure.get(index);
+            for (List<ArcRay> right : List.copyOf(certifiedIncidence.values())) {
+                List<ArcRay> union = union(left, right);
+                if (union.size() < 3 || union.size() > 4
+                        || !compatible(List.of(), union)) continue;
+                String signature = arcSignature(union);
+                if (certifiedIncidence.putIfAbsent(signature, union) == null) {
+                    unionClosure.add(union);
+                    add(result, binding(node.getNodeId(), union,
+                            "new_branch_chamber", true, 0, null, null));
+                }
+            }
+        }
+        // Complete the finite engineering-compatible local universe: one parent and one to three
+        // children. This blocks arbitrary splices between certified paths in the master while
+        // exact refinement still owns spacing, obstacles and neighbouring-bend context.
         CombinationBudget budget = new CombinationBudget(node.getNodeId());
         for (ArcRay parent : incoming) {
             combinations(outgoing, Math.min(3, outgoing.size()), budget, selected -> {
@@ -133,12 +214,61 @@ public final class CatalogNodeConfigurationCompiler {
                 incidence.addAll(selected);
                 boolean chamber = incidence.size() >= 3;
                 if (chamber && !compatible(List.of(), incidence)) return;
+                if (!chamber && !validTechnicalTransition(parent, selected.get(0))) return;
                 add(result, binding(node.getNodeId(), incidence,
                         chamber ? "new_branch_chamber" : "technical_transition",
                         chamber, 0, null, null));
             });
         }
         return List.copyOf(result);
+    }
+
+    private static boolean validTechnicalTransition(ArcRay parent, ArcRay child) {
+        return straightContinuation(parent, child)
+                || ExpertChamberGeometryRules.allowsBend(
+                        parent.dxMm, parent.dyMm, child.dxMm, child.dyMm);
+    }
+
+    private static List<ArcRay> union(List<ArcRay> left, List<ArcRay> right) {
+        Map<String, ArcRay> byArc = new LinkedHashMap<>();
+        left.forEach(ray -> byArc.put(ray.arcId, ray));
+        right.forEach(ray -> byArc.putIfAbsent(ray.arcId, ray));
+        return List.copyOf(byArc.values());
+    }
+
+    private static String arcSignature(Collection<ArcRay> rays) {
+        return rays.stream().map(ray -> ray.arcId).sorted()
+                .collect(java.util.stream.Collectors.joining("\u0000"));
+    }
+
+    private static boolean straightContinuation(ArcRay parent, ArcRay child) {
+        double dot = (double) parent.dxMm * child.dxMm
+                + (double) parent.dyMm * child.dyMm;
+        if (!(dot < 0.0)) return false;
+        double cross = Math.abs((double) parent.dxMm * child.dyMm
+                - (double) parent.dyMm * child.dxMm);
+        double endpointDistance = Math.hypot(
+                (double) parent.dxMm - child.dxMm,
+                (double) parent.dyMm - child.dyMm);
+        return endpointDistance > 0.0 && cross / endpointDistance <= 2.0;
+    }
+
+    private static Map<String, String> optionGroups(RoutingCatalogSnapshot catalog) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (DirectedPathOption option : catalog.getPathOptions()) {
+            String context = option.getEndpointContext();
+            String group = context;
+            if (context.startsWith("network=")) {
+                int separator = context.indexOf(';');
+                group = separator < 0 ? context.substring("network=".length())
+                        : context.substring("network=".length(), separator);
+            }
+            if (group.isEmpty() || result.put(option.getId(), group) != null) {
+                throw new IllegalArgumentException("Path option has no unique certified group: "
+                        + option.getId());
+            }
+        }
+        return Map.copyOf(result);
     }
 
     private static CatalogNetworkProblemCompiler.NodeConfigurationBinding binding(
@@ -159,6 +289,9 @@ public final class CatalogNodeConfigurationCompiler {
     private static void add(
             List<CatalogNetworkProblemCompiler.NodeConfigurationBinding> result,
             CatalogNetworkProblemCompiler.NodeConfigurationBinding binding) {
+        String configurationId = binding.getConfiguration().getId();
+        if (result.stream().anyMatch(existing ->
+                existing.getConfiguration().getId().equals(configurationId))) return;
         if (result.size() >= MAX_CONFIGURATIONS_PER_NODE) {
             throw incomplete("per_node_configuration_limit",
                     "Node configuration catalog exceeds " + MAX_CONFIGURATIONS_PER_NODE
@@ -267,14 +400,17 @@ public final class CatalogNodeConfigurationCompiler {
         private final String arcId;
         private final long dxMm;
         private final long dyMm;
+        private final Set<String> optionGroups;
 
-        private ArcRay(String arcId, long dxMm, long dyMm) {
+        private ArcRay(String arcId, long dxMm, long dyMm,
+                Collection<String> optionGroups) {
             this.arcId = Objects.requireNonNull(arcId, "arcId");
             if (dxMm == 0L && dyMm == 0L) {
                 throw new IllegalArgumentException("Node incident arc must have a nonzero ray");
             }
             this.dxMm = dxMm;
             this.dyMm = dyMm;
+            this.optionGroups = Set.copyOf(optionGroups);
         }
     }
 

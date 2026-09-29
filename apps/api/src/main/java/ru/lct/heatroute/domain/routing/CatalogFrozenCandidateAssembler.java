@@ -275,9 +275,29 @@ public final class CatalogFrozenCandidateAssembler {
                         "Selected configuration changes explicit node semantics: " + nodeId);
             }
         }
-        if (!configuredNodes.equals(usedNodes)) {
+        Set<String> requiredConfiguredNodes = compilation.getProblem().getNodes().stream()
+                .filter(NetworkConstraintProblem.Node::isConfigurationRequired)
+                .map(NetworkConstraintProblem.Node::getId)
+                .filter(usedNodes::contains)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (!configuredNodes.equals(requiredConfiguredNodes)) {
             throw new CandidateAssemblyIncompleteException("missing_chamber_configuration",
-                    "Every used catalog node requires one selected configuration");
+                    "Every managed catalog node requires one selected configuration");
+        }
+        Map<String, Integer> selectedIncidence = new LinkedHashMap<>();
+        for (String assetId : master.getSelectedAssets()) {
+            NetworkConstraintProblem.Asset asset = compilation.getProblem().asset(assetId);
+            if (asset == null) continue;
+            selectedIncidence.merge(asset.getFromNodeId(), 1, Integer::sum);
+            selectedIncidence.merge(asset.getToNodeId(), 1, Integer::sum);
+        }
+        for (String nodeId : usedNodes) {
+            if (result.containsKey(nodeId)) continue;
+            int incidence = selectedIncidence.getOrDefault(nodeId, 0);
+            boolean chamber = incidence >= 3;
+            result.put(nodeId, new NodeRealization(
+                    chamber ? "new_branch_chamber" : "technical_transition",
+                    chamber, 0, null, null));
         }
         return Collections.unmodifiableMap(result);
     }

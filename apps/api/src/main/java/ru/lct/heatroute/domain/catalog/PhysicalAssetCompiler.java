@@ -26,6 +26,7 @@ import org.locationtech.jts.index.strtree.STRtree;
  */
 public final class PhysicalAssetCompiler {
     private static final double INTEGER_TOLERANCE = 1.0e-6;
+    public static final String JUNCTION_CONTEXT_PREFIX = "junction-network:";
 
     public Result compile(Collection<CandidatePath> suppliedPaths) {
         if (suppliedPaths == null || suppliedPaths.isEmpty()) {
@@ -109,9 +110,16 @@ public final class PhysicalAssetCompiler {
                 if (right.globalIndex <= left.globalIndex) continue;
                 intersector.computeIntersection(left.startCoordinate(), left.endCoordinate(),
                         right.startCoordinate(), right.endCoordinate());
+                if (intersector.getIntersectionNum() == 1
+                        && isJunctionContext(left.path.physicalContext)) {
+                    CatalogMetricPoint point = precisePoint(intersector.getIntersection(0));
+                    left.breakpoints.add(point);
+                    right.breakpoints.add(point);
+                    continue;
+                }
                 if (intersector.getIntersectionNum() != 2) continue;
-                CatalogMetricPoint first = integerPoint(intersector.getIntersection(0));
-                CatalogMetricPoint second = integerPoint(intersector.getIntersection(1));
+                CatalogMetricPoint first = precisePoint(intersector.getIntersection(0));
+                CatalogMetricPoint second = precisePoint(intersector.getIntersection(1));
                 if (first.equals(second)) continue;
                 left.breakpoints.add(first);
                 left.breakpoints.add(second);
@@ -125,21 +133,22 @@ public final class PhysicalAssetCompiler {
         return path.physicalContext + "\u0000" + path.constructionMode;
     }
 
-    private static CatalogMetricPoint integerPoint(Coordinate coordinate) {
-        long x = Math.round(coordinate.x);
-        long y = Math.round(coordinate.y);
-        if (Math.abs(coordinate.x - x) > INTEGER_TOLERANCE
-                || Math.abs(coordinate.y - y) > INTEGER_TOLERANCE) {
-            throw new IllegalArgumentException("Physical overlap produced a non-millimeter split point");
+    public static boolean isJunctionContext(String physicalContext) {
+        return physicalContext != null && physicalContext.startsWith(JUNCTION_CONTEXT_PREFIX);
+    }
+
+    private static CatalogMetricPoint precisePoint(Coordinate coordinate) {
+        if (!Double.isFinite(coordinate.x) || !Double.isFinite(coordinate.y)) {
+            throw new IllegalArgumentException("Physical intersection must have finite coordinates");
         }
-        return new CatalogMetricPoint(x, y);
+        return CatalogMetricPoint.fromMillimeters(coordinate.x, coordinate.y);
     }
 
     private static String identity(String context, CatalogPhysicalAsset.ConstructionMode constructionMode,
             CatalogMetricPoint first, CatalogMetricPoint second) {
         return context + "\u0000" + constructionMode + "\u0000"
-                + first.getXMm() + "\u0000" + first.getYMm()
-                + "\u0000" + second.getXMm() + "\u0000" + second.getYMm();
+                + first.getXMicrometers() + "\u0000" + first.getYMicrometers()
+                + "\u0000" + second.getXMicrometers() + "\u0000" + second.getYMicrometers();
     }
 
     private static String sha256(String value) {
@@ -261,19 +270,24 @@ public final class PhysicalAssetCompiler {
         }
 
         private Envelope envelope() {
-            return new Envelope(start.getXMm(), end.getXMm(), start.getYMm(), end.getYMm());
+            return new Envelope(start.getXMillimeters(), end.getXMillimeters(),
+                    start.getYMillimeters(), end.getYMillimeters());
         }
 
-        private Coordinate startCoordinate() { return new Coordinate(start.getXMm(), start.getYMm()); }
-        private Coordinate endCoordinate() { return new Coordinate(end.getXMm(), end.getYMm()); }
+        private Coordinate startCoordinate() {
+            return new Coordinate(start.getXMillimeters(), start.getYMillimeters());
+        }
+        private Coordinate endCoordinate() {
+            return new Coordinate(end.getXMillimeters(), end.getYMillimeters());
+        }
 
         private List<CatalogMetricPoint> orderedBreakpoints() {
             List<CatalogMetricPoint> result = new ArrayList<>(breakpoints);
-            long deltaX = end.getXMm() - start.getXMm();
-            long deltaY = end.getYMm() - start.getYMm();
+            double deltaX = end.getXMillimeters() - start.getXMillimeters();
+            double deltaY = end.getYMillimeters() - start.getYMillimeters();
             result.sort(Comparator.comparingDouble(point ->
-                    ((double) point.getXMm() - start.getXMm()) * deltaX
-                            + ((double) point.getYMm() - start.getYMm()) * deltaY));
+                    (point.getXMillimeters() - start.getXMillimeters()) * deltaX
+                            + (point.getYMillimeters() - start.getYMillimeters()) * deltaY));
             return result;
         }
     }

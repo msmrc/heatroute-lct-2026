@@ -43,6 +43,8 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 public final class BoundedRootDemandCatalogGenerator {
     static final String GENERATOR_ID = "bounded-root-demand";
     static final String GENERATOR_VERSION = "1";
+    private static final int SHARED_SEED_GROUP_CAPACITY = 4;
+    private static final int MAX_NORMAL_SEED_ATTEMPTS = 128;
     private static final List<RoutePreference> DIRECT_PREFERENCES = List.of(
             RoutePreference.ENGINEERING, RoutePreference.LEFT, RoutePreference.RIGHT);
 
@@ -94,9 +96,34 @@ public final class BoundedRootDemandCatalogGenerator {
         Set<String> coveredDemands = new LinkedHashSet<>();
         boolean stopped = false;
 
+        // Large official tasks are collector problems, not a collection of independent
+        // root-to-demand problems.  Give the coherent shared-network builder the first half of
+        // the catalog budget.  When it covers every terminal, the hundreds of visibility
+        // searches below cannot improve the first exact incumbent and are skipped entirely.
+        // An incomplete attempt is deliberately bounded, leaving both time and route calls for
+        // the proven standalone recovery path.
+        BoundedSharedNetworkSeedGenerator.Result sharedSeeds = null;
+        boolean completeSharedSeed = false;
+        if (problem.getDemands().size() > SHARED_SEED_GROUP_CAPACITY
+                && options.maxRouteCalls > 0 && !state.expired()) {
+            Set<String> allDemandIds = problem.getDemands().stream()
+                    .map(RoutingProblemSnapshot.Demand::getId)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            long fastSharedBudget = Math.min(TimeUnit.SECONDS.toNanos(30),
+                    Math.max(1L, options.timeBudgetNanos / 2L));
+            long fastSharedDeadline = Math.min(state.deadlineNanos,
+                    saturatingAdd(started, fastSharedBudget));
+            sharedSeeds = sharedSeedGenerator.generate(problem, environment, allDemandIds,
+                    Map.of(), fastSharedDeadline, Math.max(1, options.maxRouteCalls / 2));
+            state.routeCalls += sharedSeeds.getRouteCalls();
+            completeSharedSeed = sharedSeeds.getCoveredPriorityDemandIds()
+                    .containsAll(allDemandIds);
+            if (completeSharedSeed) coveredDemands.addAll(allDemandIds);
+        }
+
         // Phase 1 is intentionally cheap: at most one engineering route per pair, proceeding
         // round-robin through nearest roots until every demand has at least one path.
-        for (RootDemandPair pair : orderedPairs) {
+        for (RootDemandPair pair : completeSharedSeed ? List.<RootDemandPair>of() : orderedPairs) {
             if (coveredDemands.contains(pair.demand.getId())) continue;
             if (!canAttemptPair(state, options, truncations)) {
                 stopped = true;
@@ -146,11 +173,39 @@ public final class BoundedRootDemandCatalogGenerator {
         }
 
         Set<String> normalRootDemands = new LinkedHashSet<>();
+        Set<String> usableNormalRoots = new LinkedHashSet<>();
+        Map<String, Set<String>> normalDemandsByRoot = new LinkedHashMap<>();
+        Set<String> attemptedNormalPairs = new LinkedHashSet<>();
+        int usableNormalRootCapacity = 0;
+        Map<String, RoutingProblemSnapshot.RootCandidate> rootsById = problem.getRoots().stream()
+                .collect(Collectors.toMap(RoutingProblemSnapshot.RootCandidate::getId,
+                        root -> root, (left, right) -> left, LinkedHashMap::new));
+        // Phase 1 already produces fully checked physical paths. Reuse every path whose first
+        // run is also a valid chamber approach instead of asking the visibility router to find
+        // the same root-demand connection for a second time. On the official dataset this
+        // removes hundreds of redundant searches while keeping the exact root-ray rules.
+        for (GeneratedPath path : generated) {
+            RoutingProblemSnapshot.RootCandidate root = rootsById.get(path.rootId);
+            if (root == null || !validRootApproach(root, path.points, probeDiameter)) continue;
+            normalRootDemands.add(path.demandId);
+            if (usableNormalRoots.add(path.rootId)) {
+                usableNormalRootCapacity = Math.addExact(
+                        usableNormalRootCapacity, rootNewBranchCapacity(root));
+            }
+            normalDemandsByRoot.computeIfAbsent(
+                    path.rootId, ignored -> new LinkedHashSet<>()).add(path.demandId);
+        }
         long normalSeedDeadline = state.deadlineNanos
                 - sharedSeedReserveNanos(options, problem.getDemands().size());
-        if (!stopped && coveredDemands.size() == problem.getDemands().size()) {
+        if (!completeSharedSeed && !stopped
+                && coveredDemands.size() == problem.getDemands().size()) {
+            // First guarantee one physically legal, normal root approach per demand.
             for (RootDemandPair pair : orderedPairs) {
                 if (normalRootDemands.contains(pair.demand.getId())) continue;
+                if (state.normalSeedAttempts >= MAX_NORMAL_SEED_ATTEMPTS) {
+                    truncations.add("normal_seed_attempt_limit");
+                    break;
+                }
                 if (state.expired(normalSeedDeadline)) {
                     truncations.add("normal_seed_budget_reserved");
                     break;
@@ -165,32 +220,129 @@ public final class BoundedRootDemandCatalogGenerator {
                     stopped = true;
                     break;
                 }
+                attemptedNormalPairs.add(pair.key());
                 state.normalSeedAttempts++;
                 PairRoutes routes = routes(pair.root, pair.demand,
                         probeDiameter, environment, options, state, true, true, true);
                 generated.addAll(routes.paths);
                 truncations.addAll(routes.truncationReasons);
-                if (!routes.paths.isEmpty()) normalRootDemands.add(pair.demand.getId());
+                if (!routes.paths.isEmpty()) {
+                    normalRootDemands.add(pair.demand.getId());
+                    if (usableNormalRoots.add(pair.root.getId())) {
+                        usableNormalRootCapacity = Math.addExact(
+                                usableNormalRootCapacity, rootNewBranchCapacity(pair.root));
+                    }
+                    normalDemandsByRoot.computeIfAbsent(
+                            pair.root.getId(), ignored -> new LinkedHashSet<>())
+                            .add(pair.demand.getId());
+                    int standaloneTarget = Math.max(1,
+                            problem.getDemands().size() - 2 * SHARED_SEED_GROUP_CAPACITY);
+                    if (problem.getDemands().size() > SHARED_SEED_GROUP_CAPACITY
+                            && maximumRootAssignment(problem, normalDemandsByRoot,
+                                    normalRootDemands).getMatchedCount() >= standaloneTarget) {
+                        // A certified shared collector can carry the remaining group through
+                        // one root branch. Stop spending visibility searches on standalone
+                        // routes that cannot improve the final root-capacity assignment.
+                        break;
+                    }
+                }
+            }
+
+            // Then grow only from currently unmatched demands. Adding edges for already matched
+            // terminals cannot start an augmenting path and previously wasted most of the bounded
+            // catalog budget around the same popular roots.
+            int individualDemandTarget = normalRootDemands.size();
+            RootAssignment assignment = maximumRootAssignment(
+                    problem, normalDemandsByRoot, normalRootDemands);
+            assignmentRecovery:
+            while (assignment.getMatchedCount() < individualDemandTarget) {
+                boolean attempted = false;
+                for (RootDemandPair pair : orderedPairs) {
+                    if (!assignment.getUnmatchedDemandIds().contains(pair.demand.getId())
+                            || !attemptedNormalPairs.add(pair.key())) continue;
+                    if (state.normalSeedAttempts >= MAX_NORMAL_SEED_ATTEMPTS) {
+                        truncations.add("normal_seed_attempt_limit");
+                        break assignmentRecovery;
+                    }
+                    if (state.expired(normalSeedDeadline)) {
+                        truncations.add("normal_seed_budget_reserved");
+                        break assignmentRecovery;
+                    }
+                    if (state.routeCalls >= options.maxRouteCalls) {
+                        truncations.add("route_call_limit");
+                        stopped = true;
+                        break assignmentRecovery;
+                    }
+                    attempted = true;
+                    state.normalSeedAttempts++;
+                    PairRoutes routes = routes(pair.root, pair.demand,
+                            probeDiameter, environment, options, state,
+                            true, true, true);
+                    generated.addAll(routes.paths);
+                    truncations.addAll(routes.truncationReasons);
+                    if (routes.paths.isEmpty()) continue;
+                    if (usableNormalRoots.add(pair.root.getId())) {
+                        usableNormalRootCapacity = Math.addExact(
+                                usableNormalRootCapacity, rootNewBranchCapacity(pair.root));
+                    }
+                    normalDemandsByRoot.computeIfAbsent(
+                            pair.root.getId(), ignored -> new LinkedHashSet<>())
+                            .add(pair.demand.getId());
+                    assignment = maximumRootAssignment(
+                            problem, normalDemandsByRoot, normalRootDemands);
+                    break;
+                }
+                if (!attempted) break;
             }
         }
+
+        int individualDemandTarget = normalRootDemands.size();
+        RootAssignment rootAssignment = maximumRootAssignment(
+                problem, normalDemandsByRoot, normalRootDemands);
+        int assignableNormalDemands = rootAssignment.getMatchedCount();
 
         Set<String> hardDemands = problem.getDemands().stream()
                 .map(RoutingProblemSnapshot.Demand::getId)
                 .filter(id -> !normalRootDemands.contains(id))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        BoundedSharedNetworkSeedGenerator.Result sharedSeeds = sharedSeedGenerator.generate(
-                problem, environment, hardDemands, state.deadlineNanos,
-                Math.max(0, options.maxRouteCalls - (int) Math.min(
-                        Integer.MAX_VALUE, state.routeCalls)));
-        state.routeCalls += sharedSeeds.getRouteCalls();
+        // A demand may have a legal standalone route and still be impossible to assign because
+        // every reachable root has already spent its remaining chamber degree. Include those
+        // unmatched terminals in the shared-network repair: one trunk consumes a single root
+        // branch while serving several demands, which is exactly the topology the master model
+        // needs instead of more standalone paths to already saturated roots.
+        hardDemands.addAll(rootAssignment.getUnmatchedDemandIds());
+        // Build one coherent collector candidate for every spatial cluster, including terminals
+        // that also have a standalone route.  Restricting this stage to unmatched terminals
+        // leaves the exact master with a mixture of independent paths whose unavoidable plan
+        // crossings cannot form an engineering-valid network.  The bounded seed generator now
+        // spends at most one successful root per cluster, so complete spatial coverage fits the
+        // same production budget without enumerating redundant alternatives.
+        problem.getDemands().stream().map(RoutingProblemSnapshot.Demand::getId)
+                .forEach(hardDemands::add);
+        if (!completeSharedSeed) {
+            sharedSeeds = sharedSeedGenerator.generate(
+                    problem, environment, hardDemands, normalDemandsByRoot, state.deadlineNanos,
+                    Math.max(0, options.maxRouteCalls - (int) Math.min(
+                            Integer.MAX_VALUE, state.routeCalls)));
+            state.routeCalls += sharedSeeds.getRouteCalls();
+        }
+        Objects.requireNonNull(sharedSeeds, "sharedSeeds");
+        Set<String> sharedCoveredDemands = sharedSeeds.getCoveredPriorityDemandIds();
+        // The first production catalog needs one coherent, exactly checked incumbent before it
+        // spends time on alternatives.  Retaining standalone drafts for terminals already owned
+        // by a complete shared collector creates artificial inter-group crossings and can make
+        // that incumbent disappear from the noded master.  Additive expansion can restore those
+        // alternatives after acceptance without weakening the first-solve topology.
+        generated.removeIf(path -> sharedCoveredDemands.contains(path.demandId));
         for (BoundedSharedNetworkSeedGenerator.SeedPath path : sharedSeeds.getPaths()) {
             String signature = pointSignature(path.getPoints());
             String id = "path:" + sha256(List.of(
-                    path.getRootId(), path.getDemandId(), signature));
+                    path.getRootId(), path.getDemandId(), path.getPhysicalContext(), signature));
             generated.add(new GeneratedPath(id, path.getRootId(),
-                    path.getDemandId(), path.getPoints()));
+                    path.getDemandId(), path.getPhysicalContext(), path.getPoints()));
         }
-        normalRootDemands.addAll(sharedSeeds.getCoveredPriorityDemandIds());
+        coveredDemands.addAll(sharedCoveredDemands);
+        normalRootDemands.addAll(sharedCoveredDemands);
         if (sharedSeeds.isDeadlineReached()) truncations.add("shared_seed_deadline");
 
         for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
@@ -198,10 +350,21 @@ public final class BoundedRootDemandCatalogGenerator {
                 remaining.add("normal-root-demand:" + demand.getId());
             }
         }
+        if (usableNormalRootCapacity < individualDemandTarget) {
+            remaining.add("normal-root-capacity:" + usableNormalRootCapacity
+                    + "/" + individualDemandTarget);
+        }
+        if (assignableNormalDemands < individualDemandTarget) {
+            remaining.add("normal-root-assignment:" + assignableNormalDemands
+                    + "/" + individualDemandTarget);
+            remaining.add("normal-root-unmatched:"
+                    + String.join(",", rootAssignment.getUnmatchedDemandIds()));
+        }
 
         // Phase 2 spends the remaining budget on alternatives only after terminal coverage.
         if (!stopped && coveredDemands.size() == problem.getDemands().size()
-                && normalRootDemands.size() == problem.getDemands().size()) {
+                && normalRootDemands.size() == problem.getDemands().size()
+                && sharedSeeds.getPaths().isEmpty()) {
             for (RootDemandPair pair : orderedPairs) {
                 if (!attemptedPairs.add(pair.key())) continue;
                 if (!canAttemptPair(state, options, truncations)) break;
@@ -236,6 +399,9 @@ public final class BoundedRootDemandCatalogGenerator {
         counters.put("demands_covered", (long) coveredDemands.size());
         counters.put("normal_seed_attempts", state.normalSeedAttempts);
         counters.put("normal_root_demands", (long) normalRootDemands.size());
+        counters.put("normal_root_count", (long) usableNormalRoots.size());
+        counters.put("normal_root_capacity", (long) usableNormalRootCapacity);
+        counters.put("normal_root_assignable_demands", (long) assignableNormalDemands);
         counters.put("shared_seed_root_attempts", sharedSeeds.getRootAttempts());
         counters.put("shared_seed_networks", sharedSeeds.getNetworksExamined());
         counters.put("shared_seed_paths", (long) sharedSeeds.getPaths().size());
@@ -260,7 +426,96 @@ public final class BoundedRootDemandCatalogGenerator {
 
     private static long sharedSeedReserveNanos(Options options, int demandCount) {
         if (demandCount < 2) return 0L;
-        return Math.min(TimeUnit.SECONDS.toNanos(8), options.timeBudgetNanos / 3L);
+        // Shared collectors cover up to four terminals with one root branch and arrive already
+        // certified as one non-crossing topology. They are both more valuable to the master and
+        // cheaper overall than exhausting hundreds of standalone root approaches first.
+        return Math.min(TimeUnit.SECONDS.toNanos(30), options.timeBudgetNanos / 2L);
+    }
+
+    private static int rootNewBranchCapacity(
+            RoutingProblemSnapshot.RootCandidate root) {
+        return Math.max(0, 4 - root.getExistingDirections().size());
+    }
+
+    private static boolean validRootApproach(
+            RoutingProblemSnapshot.RootCandidate root,
+            List<CatalogMetricPoint> points, int diameterMm) {
+        if (root.getRealization() == null || points.size() < 2
+                || rootNewBranchCapacity(root) == 0) return false;
+        List<RouteCoordinate> coordinates = points.stream()
+                .map(point -> new RouteCoordinate(point.getXM(), point.getYM()))
+                .collect(Collectors.toList());
+        ExpertChamberGeometryRules.PolylineSummary summary =
+                ExpertChamberGeometryRules.summarize(coordinates);
+        if (summary == null || summary.hasInvalidBendAngle()
+                || summary.hasShortBendSpacing()
+                || summary.getFirstBendDistanceM() + 1.0e-9
+                        < ExpertChamberGeometryRules.minimumBendDistanceM(diameterMm)) {
+            return false;
+        }
+        for (RoutingProblemSnapshot.DirectionVector direction : root.getExistingDirections()) {
+            if (!ExpertChamberGeometryRules.compatibleRays(
+                    summary.getFirstDx(), summary.getFirstDy(),
+                    direction.getDeltaXMm(), direction.getDeltaYMm())) return false;
+        }
+        return true;
+    }
+
+    /** Maximum deterministic capacitated demand-to-root matching for generated legal approaches. */
+    private static RootAssignment maximumRootAssignment(RoutingProblemSnapshot problem,
+            Map<String, Set<String>> demandIdsByRoot, Collection<String> eligibleDemandIds) {
+        Map<String, RoutingProblemSnapshot.RootCandidate> rootsById = problem.getRoots().stream()
+                .collect(Collectors.toMap(RoutingProblemSnapshot.RootCandidate::getId,
+                        root -> root, (left, right) -> left, LinkedHashMap::new));
+        Map<String, String> demandBySlot = new LinkedHashMap<>();
+        Set<String> eligible = Set.copyOf(eligibleDemandIds);
+        List<RoutingProblemSnapshot.Demand> demands = problem.getDemands().stream()
+                .filter(demand -> eligible.contains(demand.getId()))
+                .collect(Collectors.toCollection(ArrayList::new));
+        demands.sort(Comparator.comparing(RoutingProblemSnapshot.Demand::getId));
+        Set<String> unmatched = new LinkedHashSet<>();
+        for (RoutingProblemSnapshot.Demand demand : demands) {
+            if (!assignDemandToRootSlot(demand.getId(), demandIdsByRoot, rootsById,
+                    demandBySlot, new LinkedHashSet<>())) unmatched.add(demand.getId());
+        }
+        return new RootAssignment(demands.size() - unmatched.size(), unmatched);
+    }
+
+    private static boolean assignDemandToRootSlot(String demandId,
+            Map<String, Set<String>> demandIdsByRoot,
+            Map<String, RoutingProblemSnapshot.RootCandidate> rootsById,
+            Map<String, String> demandBySlot, Set<String> visitedSlots) {
+        List<String> rootIds = demandIdsByRoot.entrySet().stream()
+                .filter(entry -> entry.getValue().contains(demandId))
+                .map(Map.Entry::getKey).sorted().collect(Collectors.toList());
+        for (String rootId : rootIds) {
+            RoutingProblemSnapshot.RootCandidate root = rootsById.get(rootId);
+            if (root == null) continue;
+            for (int slot = 0; slot < rootNewBranchCapacity(root); slot++) {
+                String slotId = rootId + "\u0000" + slot;
+                if (!visitedSlots.add(slotId)) continue;
+                String displaced = demandBySlot.get(slotId);
+                if (displaced == null || assignDemandToRootSlot(displaced,
+                        demandIdsByRoot, rootsById, demandBySlot, visitedSlots)) {
+                    demandBySlot.put(slotId, demandId);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static final class RootAssignment {
+        private final int matchedCount;
+        private final Set<String> unmatchedDemandIds;
+
+        private RootAssignment(int matchedCount, Collection<String> unmatchedDemandIds) {
+            this.matchedCount = matchedCount;
+            this.unmatchedDemandIds = Set.copyOf(unmatchedDemandIds);
+        }
+
+        private int getMatchedCount() { return matchedCount; }
+        private Set<String> getUnmatchedDemandIds() { return unmatchedDemandIds; }
     }
 
     private static List<GeneratedPath> distinctGenerated(List<GeneratedPath> supplied) {
@@ -504,7 +759,8 @@ public final class BoundedRootDemandCatalogGenerator {
             if (points.size() < 2) continue;
             String signature = pointSignature(points);
             String id = "path:" + sha256(List.of(root.getId(), demand.getId(), signature));
-            result.add(new GeneratedPath(id, root.getId(), demand.getId(), points));
+            result.add(new GeneratedPath(id, root.getId(), demand.getId(),
+                    "surface:new:path:" + id, points));
         }
         result.sort(Comparator.comparing(path -> path.id));
         return new PairRoutes(result, fullyEnumerated, truncations);
@@ -520,7 +776,12 @@ public final class BoundedRootDemandCatalogGenerator {
         }
         List<PhysicalAssetCompiler.CandidatePath> raw = new ArrayList<>(generated.size());
         for (GeneratedPath path : generated) {
-            raw.add(new PhysicalAssetCompiler.CandidatePath(path.id, "surface:new",
+            // Every selected seed contributes to one physical candidate network. Noding their
+            // intersections makes a crossing an explicit constructible junction and lets the
+            // exact master keep a connected forest rather than publish overlapping pipes.
+            String networkContext = PhysicalAssetCompiler.JUNCTION_CONTEXT_PREFIX
+                    + problem.getSnapshotHash();
+            raw.add(new PhysicalAssetCompiler.CandidatePath(path.id, networkContext,
                     CatalogPhysicalAsset.ConstructionMode.NEW_CONSTRUCTION,
                     "root-demand:" + path.rootId + ":" + path.demandId, path.points));
         }
@@ -529,7 +790,8 @@ public final class BoundedRootDemandCatalogGenerator {
         for (GeneratedPath path : generated) {
             DirectedPathOption.Section section = new DirectedPathOption.Section(
                     "checked_path", null, null, 0, path.points.size() - 1);
-            String context = "root=" + path.rootId + ";demand=" + path.demandId;
+            String context = "network=" + path.physicalContext
+                    + ";root=" + path.rootId + ";demand=" + path.demandId;
             PathAdmissionCertificate certificate = new PathAdmissionCertificate(
                     PathAdmissionCertificate.Level.COMPLETE_PHYSICAL_PATH,
                     PathAdmissionCertificate.Status.VERIFIED_ALLOWED,
@@ -607,7 +869,8 @@ public final class BoundedRootDemandCatalogGenerator {
     }
 
     private static String pointSignature(List<CatalogMetricPoint> points) {
-        return points.stream().map(point -> point.getXMm() + ":" + point.getYMm())
+        return points.stream().map(point -> point.getXMicrometers()
+                        + ":" + point.getYMicrometers())
                 .collect(Collectors.joining(";"));
     }
 
@@ -804,13 +1067,16 @@ public final class BoundedRootDemandCatalogGenerator {
         private final String id;
         private final String rootId;
         private final String demandId;
+        private final String physicalContext;
         private final List<CatalogMetricPoint> points;
 
         private GeneratedPath(String id, String rootId, String demandId,
-                List<CatalogMetricPoint> points) {
+                String physicalContext, List<CatalogMetricPoint> points) {
             this.id = id;
             this.rootId = rootId;
             this.demandId = demandId;
+            this.physicalContext = Objects.requireNonNull(
+                    physicalContext, "physicalContext");
             this.points = points;
         }
     }

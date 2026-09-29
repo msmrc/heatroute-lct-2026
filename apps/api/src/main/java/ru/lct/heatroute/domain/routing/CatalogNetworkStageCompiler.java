@@ -88,7 +88,7 @@ public final class CatalogNetworkStageCompiler {
         CatalogNetworkProblemCompiler.Compilation baseCompilation = problemCompiler.compile(
                 problemSnapshot, catalog, demandPortById, rootPortById, flowScaleDecimals);
         CatalogNetworkProblemCompiler.Compilation compilation = nodeConfigurationCompiler.compile(
-                problemSnapshot, baseCompilation);
+                problemSnapshot, catalog, baseCompilation);
         Map<String, CatalogFrozenCandidateAssembler.NodeRealization> nodeRealizations = Map.copyOf(
                 Objects.requireNonNull(nodeRealizationResolver.resolve(compilation),
                         "node realizations"));

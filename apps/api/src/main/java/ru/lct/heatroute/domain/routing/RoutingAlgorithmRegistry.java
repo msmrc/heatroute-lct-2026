@@ -6,7 +6,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.run.RoutingAlgorithmProfile;
 
-/** Разрешает основной профиль и устаревшее API-имя в одну реализацию алгоритма. */
+/** Resolves both compatible API profile names to the single production NextGen adapter. */
 @Component
 public class RoutingAlgorithmRegistry {
     private final Map<RoutingAlgorithmProfile, RoutingAlgorithm> algorithms;
@@ -33,7 +33,7 @@ public class RoutingAlgorithmRegistry {
     public RoutingAlgorithm require(RoutingAlgorithmProfile profile) {
         if (profile == RoutingAlgorithmProfile.STABLE
                 || profile == RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL) {
-            // Сохранённые параметры и старые API-клиенты читаются без миграции данных.
+            // Persisted parameters and old API clients remain readable without data migration.
             return algorithms.get(RoutingAlgorithmProfile.STABLE);
         }
         throw new IllegalArgumentException("Unsupported algorithm_profile: " + profile);

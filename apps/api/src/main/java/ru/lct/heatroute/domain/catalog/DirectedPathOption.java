@@ -121,7 +121,8 @@ public final class DirectedPathOption {
                     provenance.generatorId, provenance.generatorVersion, provenance.sourceSnapshotHash,
                     provenance.windowFingerprint);
             update(digest, coordinates.size());
-            for (CatalogMetricPoint point : coordinates) update(digest, point.getXMm(), point.getYMm());
+            for (CatalogMetricPoint point : coordinates) update(digest,
+                    point.getXMicrometers(), point.getYMicrometers());
             update(digest, physicalAssetIds.size());
             for (String assetId : physicalAssetIds) update(digest, assetId);
             update(digest, sections.size());
@@ -172,8 +173,8 @@ public final class DirectedPathOption {
         for (int index = 1; index < points.size(); index++) {
             CatalogMetricPoint left = points.get(index - 1);
             CatalogMetricPoint right = points.get(index);
-            total += Math.hypot((double) right.getXMm() - left.getXMm(),
-                    (double) right.getYMm() - left.getYMm());
+            total += Math.hypot(right.getXMillimeters() - left.getXMillimeters(),
+                    right.getYMillimeters() - left.getYMillimeters());
         }
         if (!Double.isFinite(total) || total > Long.MAX_VALUE) {
             throw new IllegalArgumentException("Path length exceeds the catalog integer range");

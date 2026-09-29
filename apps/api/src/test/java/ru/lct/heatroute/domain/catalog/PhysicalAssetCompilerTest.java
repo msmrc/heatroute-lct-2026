@@ -54,6 +54,34 @@ class PhysicalAssetCompilerTest {
     }
 
     @Test
+    void junctionNetworkExplicitlyNodesAnIntegerXyCrossing() {
+        String context = PhysicalAssetCompiler.JUNCTION_CONTEXT_PREFIX + "test";
+        PhysicalAssetCompiler.Result result = compiler.compile(List.of(
+                path("horizontal", context, points(0, 5_000, 10_000, 5_000)),
+                path("vertical", context, points(5_000, 0, 5_000, 10_000))));
+
+        assertThat(result.getPhysicalAssets()).hasSize(4);
+        assertThat(result.path("horizontal").getTraversals()).hasSize(2);
+        assertThat(result.path("vertical").getTraversals()).hasSize(2);
+    }
+
+    @Test
+    void junctionNetworkStoresAFractionalIntersectionWithoutAMillimetreKink() {
+        String context = PhysicalAssetCompiler.JUNCTION_CONTEXT_PREFIX + "fractional";
+        PhysicalAssetCompiler.Result result = compiler.compile(List.of(
+                path("horizontal", context, points(0, 0, 3, 0)),
+                path("diagonal", context, points(0, -1, 3, 1))));
+
+        assertThat(result.getPhysicalAssets()).hasSize(4);
+        assertThat(result.path("horizontal").getTraversals()).hasSize(2);
+        assertThat(result.path("diagonal").getTraversals()).hasSize(2);
+        assertThat(result.getPhysicalAssets()).anySatisfy(asset ->
+                assertThat(List.of(asset.getFirstPoint(), asset.getSecondPoint()))
+                        .anyMatch(point -> point.getXMicrometers() == 1_500L
+                                && point.getYMicrometers() == 0L));
+    }
+
+    @Test
     void technicalSplitDoesNotChangePhysicalCoverageOrExactLength() {
         PhysicalAssetCompiler.Result result = compiler.compile(List.of(
                 path("single", "surface:new", points(0, 0, 10_000, 0)),

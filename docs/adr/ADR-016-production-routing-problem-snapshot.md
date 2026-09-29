@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the unpromoted next-generation solver.
+Accepted for the HeatRoute network solver.
 
 ## Context
 
@@ -16,7 +16,7 @@ represented honestly by the new solver.
 
 `OfficialCalculationService` now passes an immutable `RoutingExecutionContext` containing import ID,
 source SHA-256, input contract version and profile. The stable adapter consumes only the profile, so
-this contract change does not promote or invoke the next-generation solver.
+this contract change does not itself change the active network solver.
 
 `RoutingProblemFactory` converts the bounded production core into a deterministic snapshot. It keeps
 connection points as distinct demands, resolves flow first on the connection and then on its linked
@@ -33,5 +33,5 @@ geometries remain lazy window reads.
 - Changes in import bytes, profile, parameters, roots, flows or active versions change snapshot
   identity.
 - Missing demand flow is input incompleteness, not an invented zero-flow demand.
-- Promotion remains blocked: a production `NextGenerationRoutePlanner`, portfolio integration and
+- Delivery remains blocked until `HeatRoutePlanner`, portfolio integration and
   the N00-N11 gates are still required before the stable adapter may delegate to this snapshot path.

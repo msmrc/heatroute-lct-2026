@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the unpromoted next-generation solver.
+Accepted for the HeatRoute network solver.
 
 ## Context
 

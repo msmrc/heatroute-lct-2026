@@ -15,7 +15,7 @@ The web app is a truthful client of the calculation API. The current home screen
 - a switchable EPSG:32637 engineering schematic;
 - strict official-output layers for complete/ranked variants, fetched per `variant_id`; incomplete
   organizer data stays on an explicitly non-exportable calculation preview;
-- conditional download of the validated seven-type GeoJSON;
+- conditional download of the validated four-type GeoJSON;
 - a separate system-information page for product version, team, stack and API documentation.
 
 Runtime/framework labels, readiness badges, Swagger links and theme controls do not belong on the

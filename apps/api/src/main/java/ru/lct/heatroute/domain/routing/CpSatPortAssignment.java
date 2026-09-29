@@ -18,8 +18,8 @@ import ru.lct.heatroute.domain.optimization.CpSatRuntime;
 import ru.lct.heatroute.domain.optimization.DiscreteChoiceProblem;
 
 /**
- * Первый next-generation срез: совместно выбирает геометрии вводов фиксированного дерева.
- * Он не используется legacy stable и не заменяет итоговый validator замороженной сети.
+ * Совместно выбирает геометрию вводов для фиксированной топологии дерева.
+ * Итоговую геометрию и инженерные ограничения повторно проверяет frozen evaluator.
  */
 final class CpSatPortAssignment {
     private static final double LENGTH_SCALE = 1_000_000.0;

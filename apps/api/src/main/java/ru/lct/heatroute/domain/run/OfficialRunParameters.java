@@ -1,51 +1,55 @@
 package ru.lct.heatroute.domain.run;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+@Schema(description = "Parameters of an immutable HeatRoute calculation")
 public class OfficialRunParameters {
     public static final BigDecimal PUBLISHED_MINIMUM_DEPTH_M = new BigDecimal("0.7");
     public static final BigDecimal ORDINARY_DEPTH_M = new BigDecimal("3.0");
     public static final BigDecimal DEFAULT_MAXIMUM_DEPTH_M = new BigDecimal("10.0");
     public static final BigDecimal APPLICATION_MAXIMUM_DEPTH_M = new BigDecimal("50.0");
 
+    @Schema(name = "minimum_depth_m", description = "Minimum depth used only when depth_enabled is true",
+            example = "0.7", defaultValue = "0.7", minimum = "0.7", maximum = "3.0")
     private final BigDecimal minimumDepthM;
+    @Schema(name = "maximum_depth_m", description = "Maximum depth used only when depth_enabled is true",
+            example = "10.0", defaultValue = "10.0", minimum = "3.0", maximum = "50.0")
     private final BigDecimal maximumDepthM;
+    @Schema(name = "depth_enabled", description = "Enable the optional depth/profile stage",
+            example = "false", defaultValue = "false")
     private final boolean depthEnabled;
-    private final RoutingAlgorithmProfile algorithmProfile;
-
     public OfficialRunParameters(BigDecimal minimumDepthM, BigDecimal maximumDepthM) {
-        this(minimumDepthM, maximumDepthM, false, RoutingAlgorithmProfile.STABLE);
+        this(minimumDepthM, maximumDepthM, false);
     }
 
     public OfficialRunParameters(
             BigDecimal minimumDepthM,
             BigDecimal maximumDepthM,
             boolean depthEnabled) {
-        this(minimumDepthM, maximumDepthM, depthEnabled, RoutingAlgorithmProfile.STABLE);
+        this.minimumDepthM = minimumDepthM == null ? PUBLISHED_MINIMUM_DEPTH_M : minimumDepthM;
+        this.maximumDepthM = maximumDepthM == null ? DEFAULT_MAXIMUM_DEPTH_M : maximumDepthM;
+        this.depthEnabled = depthEnabled;
     }
 
     @JsonCreator
-    public OfficialRunParameters(
+    public static OfficialRunParameters fromJson(
             @JsonProperty("minimum_depth_m") BigDecimal minimumDepthM,
             @JsonProperty("maximum_depth_m") BigDecimal maximumDepthM,
-            @JsonProperty("depth_enabled") Boolean depthEnabled,
-            @JsonProperty("algorithm_profile") RoutingAlgorithmProfile algorithmProfile) {
-        this.minimumDepthM = minimumDepthM == null ? PUBLISHED_MINIMUM_DEPTH_M : minimumDepthM;
-        this.maximumDepthM = maximumDepthM == null ? DEFAULT_MAXIMUM_DEPTH_M : maximumDepthM;
-        this.depthEnabled = Boolean.TRUE.equals(depthEnabled);
-        this.algorithmProfile = algorithmProfile == null
-                ? RoutingAlgorithmProfile.STABLE
-                : algorithmProfile;
+            @JsonProperty("depth_enabled") Boolean depthEnabled) {
+        return new OfficialRunParameters(
+                minimumDepthM, maximumDepthM, Boolean.TRUE.equals(depthEnabled));
     }
 
     public static OfficialRunParameters defaults() {
         return new OfficialRunParameters(
                 PUBLISHED_MINIMUM_DEPTH_M,
                 DEFAULT_MAXIMUM_DEPTH_M,
-                false,
-                RoutingAlgorithmProfile.STABLE);
+                false);
     }
 
     public OfficialRunParameters validated() {
@@ -70,5 +74,4 @@ public class OfficialRunParameters {
     public BigDecimal getMinimumDepthM() { return minimumDepthM; }
     public BigDecimal getMaximumDepthM() { return maximumDepthM; }
     public boolean isDepthEnabled() { return depthEnabled; }
-    public RoutingAlgorithmProfile getAlgorithmProfile() { return algorithmProfile; }
 }

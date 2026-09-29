@@ -18,17 +18,17 @@ public class OfficialCalculationService {
     private final OfficialImportRepository importRepository;
     private final OfficialFeatureRepository featureRepository;
     private final ExistingNetworkTopologyAnalyzer topologyAnalyzer;
-    private final RoutingAlgorithmRegistry algorithmRegistry;
+    private final RoutingAlgorithm algorithm;
 
     public OfficialCalculationService(
             OfficialImportRepository importRepository,
             OfficialFeatureRepository featureRepository,
             ExistingNetworkTopologyAnalyzer topologyAnalyzer,
-            RoutingAlgorithmRegistry algorithmRegistry) {
+            RoutingAlgorithm algorithm) {
         this.importRepository = importRepository;
         this.featureRepository = featureRepository;
         this.topologyAnalyzer = topologyAnalyzer;
-        this.algorithmRegistry = algorithmRegistry;
+        this.algorithm = algorithm;
     }
 
     @Transactional(readOnly = true)
@@ -48,9 +48,11 @@ public class OfficialCalculationService {
         if (imported == null || !"valid".equals(imported.getState())) {
             return null;
         }
-        RoutingAlgorithm algorithm = expectedAlgorithmVersion == null
-                ? algorithmRegistry.require(parameters.getAlgorithmProfile())
-                : algorithmRegistry.requireVersion(parameters.getAlgorithmProfile(), expectedAlgorithmVersion);
+        if (expectedAlgorithmVersion != null
+                && !expectedAlgorithmVersion.equals(algorithm.version())) {
+            throw new RoutingEngineVersionUnavailableException(
+                    expectedAlgorithmVersion, algorithm.version());
+        }
         // Core network and demand types are materialized; bulky restrictions and existing OKS
         // geometries remain behind the PostGIS windowed routing source.
         List<ImportedOfficialFeature> features = new ArrayList<>();
@@ -61,7 +63,7 @@ public class OfficialCalculationService {
                 importId, imported.getReport().getSha256(),
                 imported.getReport().getContractVersion(),
                 imported.getReport().getInputProfile());
-        return algorithm.plan(
+        return this.algorithm.plan(
                 context,
                 features,
                 topology,

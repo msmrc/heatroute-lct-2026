@@ -1,10 +1,10 @@
-# HeatRoute Next: ТЗ на промышленный алгоритм совместного проектирования сети
+# HeatRoute: ТЗ на промышленный алгоритм совместного проектирования сети
 
 Дата: 28.09.2026. Назначение: реализация нового рабочего движка для сервиса ЛЦТ-2026, а не отчёт об исследовании и не изолированный прототип.
 
 ## 0. Команда исполняющему Codex
 
-Реализуй в существующем Java-сервисе новый расчётный движок: **конечный каталог инженерных вариантов → совместный выбор сети через OR-Tools CP-SAT → точный инженерный расчёт → запоминание доказанных конфликтов → адресное расширение каталога**. Доведи его до обычного пользовательского пути: загрузка данных, очередь, расчёт, карта, ранжирование, сохранение и строгий экспорт. После приёмки новый движок должен обслуживать `stable`; результат только в тесте, CLI или experimental-режиме не считается поставкой.
+Реализуй в существующем Java-сервисе расчётный движок: **конечный каталог инженерных вариантов → совместный выбор сети через OR-Tools CP-SAT → точный инженерный расчёт → запоминание доказанных конфликтов → адресное расширение каталога**. Доведи его до обычного пользовательского пути: загрузка данных, очередь, расчёт, карта, ранжирование, сохранение и строгий экспорт. После приёмки движок должен быть единственным production-алгоритмом; результат только в тесте или CLI не считается поставкой.
 
 Реализуй этапы N00–N12 ниже. Небольшие внутренние проверки и сравнительные эксперименты обязательны, но являются этапами разработки, а не конечным результатом. Не заканчивай работу на фразе «прототип показал перспективность». Если критерий приёмки не достигнут, укажи незакрытый критерий и продолжай разрешённую работу; не ослабляй ограничения и не выдавай недоделанный движок за готовый.
 
@@ -14,7 +14,7 @@
 
 [CODEX_OPTIMIZATION_AND_REFACTOR_SPEC.md](E:/job/_lct2026/heatroute_codex/CODEX_OPTIMIZATION_AND_REFACTOR_SPEC.md) описывает ускорения с сохранением прежнего результата. Используй оттуда проверенные локальные оптимизации, baseline и правила окружения, но **не блокируй новый алгоритм требованием побайтового совпадения маршрутов со старым**. Здесь разрешены новые маршруты и топологии при выполнении инженерных и сравнительных критериев качества. Для переноса старых методов и локальных performance-правок exact differential gate по-прежнему обязателен.
 
-Данный файл самодостаточен для постановки новой архитектуры. Имена новых классов ниже — проектируемые компоненты, а не утверждение, что они уже существуют. Все gates в этом документе на момент написания **не выполнены**. Код приложения при подготовке ТЗ не менялся, solver не устанавливался, новые замеры не проводились.
+Файл самодостаточен для постановки новой архитектуры. Имена классов ниже описывают проектируемые компоненты. Все gates в этом документе на момент написания **не выполнены**. Код приложения при подготовке ТЗ не менялся, solver не устанавливался, новые замеры не проводились.
 
 ## 1. Контекст, границы и источники
 
@@ -22,7 +22,7 @@
 
 До этого файла существовали untracked `CODEX_OPTIMIZATION_AND_REFACTOR_SPEC.md` и `LCT2026_PRESENTATION_HANDOFF.md`; сохранить их. До первой Git-команды новой сессии проверить точный корень через `git rev-parse --show-toplevel` из указанного проекта; у всех Git-команд явно задавать рабочий каталог. Не сканировать Git из домашнего каталога или корня диска.
 
-Все новые инструменты, Maven/npm caches, native extraction, benchmark bundles, temporary files и профили — на E:. Предпочтительный tooling root `E:\job\.tooling`; проектные артефакты — `.tooling\nextgen` внутри репозитория. Не менять Downloads и активный Codex home. Docker приложения, конфигурация и WSL data сохраняют существующее размещение на E:. Прямое указание пользователя о E: имеет приоритет над историческим Mac-путём в репозиторном AGENTS.
+Все новые инструменты, Maven/npm caches, native extraction, benchmark bundles, temporary files и профили — на E:. Предпочтительный tooling root `E:\job\.tooling`; проектные артефакты — `.tooling\network-solver` внутри репозитория. Не менять Downloads и активный Codex home. Docker приложения, конфигурация и WSL data сохраняют существующее размещение на E:. Прямое указание пользователя о E: имеет приоритет над историческим Mac-путём в репозиторном AGENTS.
 
 Прочитать:
 
@@ -145,7 +145,7 @@ CP-SAT работает с целочисленными ограничениям
 
 | Существующий компонент | Использование / изменение |
 |---|---|
-| `routing/OfficialRoutePlanner` | Не переписывать одним diff. Извлечь генераторы и evaluator; старый planner сохранить для offline baseline и rollback-версии |
+| Прежний последовательный planner | Извлечь проверенные генераторы и evaluator; после приёмки убрать сам planner из production-кода |
 | `routing/OrthogonalCorridorGrid`, `OrthogonalCorridorNetworkBuilder`, `CorridorTreeBuilder` | Источники осей/коридоров/seed-кандидатов, не доказательство полноты и не готовый verified catalog |
 | `routing/CorridorTerminalRouter`, `OfficialObstacleRouter`, `PreparedCorridor` | Предлагать геометрию локальных путей; сохранить A*, JTS и специальные проходы как строительные блоки |
 | `routing/CorridorPortSearch.solveWithPaths` | Первая вертикальная интеграция совместного выбора вместо эвристического исключения одного порта; конечная поставка не ограничивается этой подзадачей |
@@ -154,7 +154,7 @@ CP-SAT работает с целочисленными ограничениям
 | `depth/OfficialDepthPlanner`, `CriticalDepthNetworkSolver` | Совместная задача глубины, не независимый расчёт каждой трубы |
 | `economics/OfficialVariantEconomicsCalculator`, `engineering/OfficialEconomics` | Точная стоимость/score, источник итогового ранжирования |
 | `routing/FinishedRouteVariantSelector`, `DistinctRouteAlternatives` | Переиспользовать действующие правила ролей и distinct; не заводить второй несогласованный selector |
-| `routing/StableRoutingAlgorithm`, `RoutingAlgorithmRegistry`, `OfficialCalculationService` | Версионирование и один production adapter нового движка |
+| `routing/HeatRouteRoutingAlgorithm`, `OfficialCalculationService` | Версионирование и единственный production adapter движка |
 | `job/OfficialJobWorker`, `OfficialJobRepository`, `run/OfficialRunService` | Native cancellation, fencing попыток, согласованное сохранение и версия queued job |
 | `export/OfficialGeoJsonExporter`, Saved*-assessment | Независимая проверка результата перед экспортом; не обходить solver-флагом |
 
@@ -173,7 +173,7 @@ CP-SAT работает с целочисленными ограничениям
 | `ConflictExplanation` / `ConflictStore` | Проверяемые, версионированные внешние cuts |
 | `AdaptiveCatalogExpander` | Адресное добавление отсутствующих обходов/корней/камер |
 | `AcceptedSolutionArchive` | Неизменяемые полностью допущенные варианты, exact metrics и distinct |
-| `NextGenerationRoutePlanner` | Общий deadline, solve/check/refine, диагностика и result assembly |
+| `HeatRoutePlanner` | Общий deadline, solve/check/refine, диагностика и result assembly |
 | `RoutingExecutionDescriptor`, `RoutingCancellation` | Версия выполнения, deadline и остановка Java/native |
 
 Не создавать все классы пустыми заранее. Вводить по этапам с тестами; малые value objects можно объединять, если сохраняется ясная ответственность. Не плодить универсальные `Utils` и не передавать весь старый planner как service locator.
@@ -447,11 +447,13 @@ Durable outcome должен быть явным: пустой archive посл�
 
 ## 12. Интеграция, устойчивость и native runtime
 
-### 12.1. Единственный production-профиль
+### 12.1. Единственный production-алгоритм
 
-`RoutingAlgorithmRegistry` сейчас допускает ровно один `STABLE`; `expert_experimental` — legacy alias того же алгоритма. Во время разработки новый planner вызывается из тестов/внутреннего adapter, не регистрируется вторым `RoutingAlgorithm @Component`. После приёмки единственный `StableRoutingAlgorithm` делегирует новому planner; старое wire-name поведение сохраняется.
+В Spring-контексте регистрируется ровно один `RoutingAlgorithm`: `HeatRouteRoutingAlgorithm`.
+Он напрямую вызывает `HeatRoutePlanner`. API не принимает профиль алгоритма и не содержит registry
+для выбора реализации. Прежний planner не входит в production artifact.
 
-Назначить новую уникальную algorithm version, связанную с кодом/model/rules/solver manifest. Не записывать новый результат под `global-tree-102`. `OfficialRunService` сохраняет version при постановке, но нынешний worker выбирает реализацию позже по parameters: это разрыв. Добавить immutable execution descriptor; worker проверяет/разрешает сохранённую версию до расчёта. Не выполнять молча старый queued job новым engine. Разрешён явный отказ `ENGINE_VERSION_UNAVAILABLE` с возможностью создать новый run; completed legacy результаты читаются без пересчёта.
+Назначить уникальную algorithm version, связанную с кодом/model/rules/solver manifest. `OfficialRunService` сохраняет version при постановке, а worker проверяет сохранённую версию до расчёта. Не выполнять молча queued job другой версией engine. Разрешён явный отказ `ENGINE_VERSION_UNAVAILABLE` с возможностью создать новый run; ранее завершённые результаты читаются без пересчёта.
 
 ### 12.2. Сохраняемые endpoints
 
@@ -465,7 +467,7 @@ Durable outcome должен быть явным: пустой archive посл�
 | Отмена | `DELETE /api/v1/official/jobs/{jobId}` |
 | Строгая выгрузка | `GET /api/v1/official/runs/{runId}/export?variant_id=...` |
 
-Для конкурсного замера body run: `{"depth_enabled":true,"algorithm_profile":"stable"}`. Preserve SNAKE_CASE и старые defaults. Solver metadata/доказательства хранить в отдельном внутреннем диагностическом артефакте/manifest, не добавлять полей в strict GeoJSON. Если для UI нужны новые поля прогресса, делать additive versioned API change с schema/controller/frontend тестами, не случайные Jackson getters.
+Для конкурсного замера body run: `{"depth_enabled":true}`. Preserve SNAKE_CASE и defaults. Solver metadata/доказательства хранить в отдельном внутреннем диагностическом артефакте/manifest, не добавлять полей в strict GeoJSON. Если для UI нужны новые поля прогресса, делать additive versioned API change с schema/controller/frontend тестами, не случайные Jackson getters.
 
 UI должен показывать корректные этапы, elapsed time, реальное покрытие, длину/стоимость/ДУ/глубину и причины частичного результата. Не показывать fabricated проценты прогресса и слово «оптимальный» без допустимого proof scope. Изменение UI ограничить этими данными, без общего редизайна.
 
@@ -547,11 +549,11 @@ Native loader извлекает ресурсы во временный ката
 - `CpSatRuntimeSmokeTest`: actual pinned native, Java11, packaged image/non-root/temp, known optimum, repeated load/solve и asynchronous stop.
 - `NativeCancellationRaceTest`: до регистрации, между регистрацией и native handle, во время solve, evaluator и перед persistence; slot не освобождается раньше завершения.
 - `JobAttemptFencingIntegrationTest`: реальная DB, lease transfer, stale result, rollback между run/job updates, cancel/complete, executor rejection, repeat claim errors, смерть JVM и повторная попытка.
-- `ExecutionVersionCompatibilityTest`: queued run старой версии не выполняется под новой подписью; legacy completed result читается; один STABLE и legacy alias сохранены.
-- `NextGenerationOfficialApiTest`: import→run(depth=true)→result→export, 17/17, все variants проходят schema/Saved*-допуск; повторный export после рестарта.
+- `ExecutionVersionCompatibilityTest`: queued run старой версии не выполняется под новой подписью; ранее завершённый result читается.
+- `HeatRouteOfficialApiTest`: import→run(depth=true)→result→export, 17/17, все variants проходят schema/Saved*-допуск; повторный export после рестарта.
 - `NativeMemoryBudgetTest`: многократные runs, модель у лимита, отказ по budget без OOM, отсутствие роста RSS после установившегося прогрева; учёт Java+native.
 
-Сохранить `RoutingAlgorithmRegistryTest`, `OfficialRunParametersTest`, `OfficialJsonSchemaContractTest`, controller/export tests, frontend tests. Native dependency нельзя прятать за skipped tests на production target.
+Сохранить `OfficialRunParametersTest`, `OfficialJsonSchemaContractTest`, controller/export tests и frontend tests. Native dependency нельзя прятать за skipped tests на production target.
 
 ### Corpus и защита от подгонки
 

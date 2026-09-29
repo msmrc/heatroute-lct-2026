@@ -1,63 +1,135 @@
-# HeatRoute technical specification
+# Техническая спецификация HeatRoute
 
-**Baseline:** 2026-09-15. This document summarizes the official implementation contract; the
-organizer PDF/DOCX remains authoritative.
+**Актуализация:** 29.09.2026. Официальное ТЗ и письменные разъяснения организаторов имеют
+приоритет над этим документом.
 
-## Goal
+## Цель
 
-For every `oks_future` in one official GeoJSON, automatically produce up to three materially
-different valid heating-network variants. A variant may share trunks, use one or more tie-ins,
-must respect restrictions, size pipes from aggregated flow, calculate reconstruction toward the
-source, calculate official cost and score, and preserve partial results for disconnected OKS.
+По одному GeoJSON автоматически построить до трёх содержательно разных вариантов новой тепловой
+сети для всех `oks_connection_point`. Каждый опубликованный вариант должен быть связным,
+инженерно допустимым, рассчитанным по расходам и ДУ, оценённым по стоимости и пригодным для
+машиночитаемой выгрузки.
 
-## Required platform
+Три варианта не являются обязательными. Если система нашла один допустимый вариант, она не должна
+создавать косметические дубликаты ради количества.
 
-| Layer | Decision |
+## Обязательный результат
+
+- новая сеть как единая топология, а не набор независимых линий;
+- выбранные точки присоединения и камеры;
+- агрегированный `flow_tph` и ДУ каждого нового участка;
+- длина, способ прокладки и стоимость;
+- список неподключённых ОКС, если полный результат объективно не найден;
+- `variant_summary` с rank, score и компонентами стоимости;
+- строгий GeoJSON в EPSG:4326.
+
+Глубина и продольный профиль являются дополнительной возможностью. Они не должны блокировать
+обязательный 2D-результат.
+
+## Платформа
+
+| Слой | Реализация |
 |---|---|
 | Backend | Java 11, Spring Boot 2.6.3 |
-| API docs | springdoc-openapi-ui 1.7.0 |
-| Geometry | JTS + PostGIS; Proj4J for EPSG:4326 → EPSG:32637 |
-| Persistence | PostgreSQL 17 / PostGIS, JDBC, Liquibase |
-| Long work | PostgreSQL-backed durable jobs with atomic claim, lease, retry and cancellation |
-| Web | React, TypeScript, Vite |
-| Delivery | Docker Compose compatible with 1.29.2; target acceptance OS Ubuntu Server 22 |
+| Геометрия | JTS 1.20, Proj4J, PostGIS 3.5 |
+| Оптимизация | OR-Tools CP-SAT 9.15 |
+| Хранение | PostgreSQL 17, Spring JDBC, Liquibase |
+| Долгие задания | PostgreSQL-backed queue с claim, lease, retry и cancellation |
+| Web | React 19, TypeScript, Vite, MapLibre GL |
+| API | REST, springdoc OpenAPI/Swagger |
+| Контракты | GeoJSON, JSON Schema Draft 2020-12 |
+| Поставка | Docker Compose; целевая приёмка на Ubuntu Server 22 |
 
-`apps/api` is the only backend module. API and worker logic may share one JVM during development,
-but heavy calculations must remain restart-safe and detachable into a dedicated worker process.
+`apps/api` является единственным backend-модулем. API и worker могут работать в одном JVM, но
+состояние run/job хранится в PostgreSQL и переживает перезапуск процесса.
 
-## Pipeline
+## Production pipeline
 
-1. Stream a single WGS84 FeatureCollection and validate seven input types and typed references.
-2. Persist source bytes metadata, report, WGS84 geometry and projected EPSG:32637 geometry.
-3. Validate existing-network upstream topology to a source and create feasible tie-in candidates.
-4. Route all future OKS jointly; compare shared and separate connections.
-5. Normalize routes into trees, place chambers, reject cycles/crossings outside common nodes.
-6. Aggregate `flow_tph` bottom-up, select minimum official DU and enforce continuous-length limits.
-7. Propagate incremental flow upstream and calculate segment/chamber reconstruction.
-8. Apply exact forbidden buffers and permitted special-crossing geometry.
-9. Calculate official component costs, penalties and score; rank at most three diverse variants.
-10. Independently validate and stream the strict official output GeoJSON.
+1. Потоково принять один WGS84 `FeatureCollection`, проверить типы, ID, ссылки и геометрию.
+2. Сохранить исходный hash, отчёт импорта и геометрию в WGS84/EPSG:32637.
+3. Создать неизменяемый `RoutingProblemSnapshot`.
+4. Построить bounded-каталог obstacle-aware трасс, корней и общих ветвей.
+5. Объединить совпадающие сегменты в канонические physical assets.
+6. Скомпилировать CP-SAT-модель общей сети и выбрать топологию.
+7. Собрать frozen-кандидат, агрегировать расходы, назначить ДУ и стоимость.
+8. Выполнить независимую инженерную проверку.
+9. При локальном конфликте расширить каталог и повторить решение в пределах budget.
+10. Сохранить только прошедшие допуск варианты и отдать строгий GeoJSON.
 
-## Non-functional requirements
+Production endpoints используют `HeatRoutePlanner` через единственный адаптер
+`HeatRouteRoutingAlgorithm`. Профилей алгоритма и выбора альтернативного планировщика нет.
 
-- input up to 3 GB and output up to 500 MB without whole-file heap materialization;
-- operation on a 16 GB machine and up to 50 concurrent users;
-- deterministic results for equal input, algorithm version and catalogs;
-- structured stable error codes with request IDs; no stack traces or filesystem paths in API;
-- durable job progress, cooperative cancellation and recovery after process restart;
-- no manual route editing required before the demonstration;
-- public deployment exposes only 80/443; database and API remain loopback/internal.
+## Ключевые инварианты
 
-## Core invariants
+- каждый нерутовый узел имеет один путь upstream;
+- общая физическая труба представлена и оплачена один раз;
+- расход общего участка равен сумме downstream-потребителей;
+- ДУ выбирается из официального каталога по расходу и непрерывной длине;
+- одинаковый поток на непрерывном участке означает один ДУ на всём участке;
+- разветвление реализуется допустимой конфигурацией камеры;
+- новые участки не пересекаются вне общего узла;
+- обязательные пространственные ограничения проверяются после итогового sizing;
+- опубликованный вариант имеет пустые validation, engineering и sizing issues;
+- экспорт содержит только поля, разрешённые для его object type.
 
-- each new non-root network edge has exactly one upstream path;
-- branches occur only in chambers; a chamber has at most four incident sections;
-- new sections do not cross each other except at a shared node;
-- upstream flow equals the sum of downstream demand;
-- DU is the minimum catalog entry covering flow and continuous length;
-- a chamber does not reset the same-DU continuous-length counter;
-- reconstruction is emitted only where required DU exceeds existing DU;
-- no-route for one OKS does not discard valid routes for the others;
-- every exported feature contains only fields allowed for its output type.
+Детальные правила геометрии находятся в
+[ACTIVE_ROUTING_RULES.md](implementation/ACTIVE_ROUTING_RULES.md).
 
-Implementation sequence and current truth are in `implementation/OFFICIAL_TZ_ROADMAP.md`.
+## API
+
+Основной сценарий:
+
+1. `POST /api/v1/official/imports`;
+2. `POST /api/v1/official/imports/{importId}/runs`;
+3. `GET /api/v1/official/jobs/{jobId}` или `GET /api/v1/official/runs/{runId}`;
+4. `GET /api/v1/official/runs/{runId}/export?variant_id=...`.
+
+Swagger UI: `/api/v1/swagger-ui.html`. OpenAPI JSON: `/api/v1/openapi`.
+
+Каждый run сохраняет:
+
+- `input_sha256`;
+- `algorithm_version`;
+- параметры глубины и профиль совместимости;
+- состояние, время создания и завершения;
+- варианты и причины недопуска.
+
+## Выходной контракт
+
+Один `FeatureCollection` содержит только:
+
+1. `heat_network`;
+2. `heat_chamber`;
+3. `technical_node`;
+4. `variant_summary`.
+
+JSON Schema проверяет форму отдельных features. `OfficialOutputContractValidator` дополнительно
+проверяет глобальную уникальность ID, ссылки, WGS84, число summary и арифметику варианта.
+
+## Нефункциональные требования
+
+- детерминированный результат при одинаковых данных, версиях и параметрах;
+- один явный production-контур без скрытого переключения реализации;
+- явные стабильные коды ошибок без stack trace и путей файловой системы;
+- durable progress, кооперативная отмена и восстановление job после перезапуска;
+- потоковый импорт до 3 ГБ и экспорт до 500 МБ без удержания полного дерева JSON в heap;
+- работа на машине с 16 ГБ RAM;
+- до 50 параллельных API-сессий;
+- наружу на VPS открыты только 80/443 и SSH, Postgres и API остаются internal/loopback.
+
+Размерные и конкурентные проверки не заменяют геометрический benchmark: отдельно фиксируются
+пропускная способность ввода/вывода и время полного расчёта HeatRoute.
+
+## Контрольный production witness
+
+Run `32df0407-22a4-42b2-8426-2bb88be8d46e` от 29.09.2026:
+
+- сборка алгоритма 6;
+- 17 из 17 точек подключены;
+- 15,918 с между `created_at` и `completed_at` повторного run; cold run — 19,017 с;
+- 2 170,113 м новой сети;
+- 300 092 048,85 ₽;
+- validation / engineering / sizing issues: 0 / 0 / 0.
+
+Это воспроизводимое свидетельство для конкретного набора. Оно не является гарантией фиксированного
+времени на скрытом городском наборе и не доказывает глобальный оптимум непрерывной задачи.

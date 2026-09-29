@@ -1,57 +1,124 @@
-# Acceptance gates
+# Критерии приёмки HeatRoute
 
-An R-stage is complete only when its roadmap checklist and evidence are both complete.
+Этот документ является release gate, а не рекламным описанием. При конфликте приоритет имеют
+официальное ТЗ и письменные разъяснения организаторов от 29.09.2026.
 
-## Every change
+## A. Запуск и поставка
 
-- Java 11 Maven tests pass.
-- Web lint, typecheck, tests and production build pass.
-- Compose validates and starts from a clean checkout without secret defaults in production.
-- API changes update `/v3/api-docs` and `packages/api-client/openapi.json`.
-- A failure path is tested as well as the happy path.
+- [ ] Репозиторий собирается на Java 11.
+- [ ] `docker compose up --build -d --wait` поднимает db, api и web.
+- [ ] Целевой комплект проверен на Ubuntu Server 22 и совместимом Docker Compose.
+- [ ] `/api/v1/health/ready` подтверждает PostGIS и реальный CP-SAT solve.
+- [ ] Swagger UI и OpenAPI доступны без доступа к внутренней сети.
+- [ ] Postgres и внутренний API-порт не опубликованы наружу.
 
-## Official P0 release
+## B. Единый production-алгоритм
 
-The active supplied-dataset gate follows
-`implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`. Reconstruction/depth evidence is retained for
-strict/optional profiles and does not replace the following 2D gates.
+- [ ] Создание run вызывает `HeatRouteRoutingAlgorithm` и `HeatRoutePlanner`.
+- [ ] API и UI не принимают профиль алгоритма и не выбирают альтернативную реализацию.
+- [ ] В production-контексте зарегистрирован ровно один `RoutingAlgorithm`.
+- [ ] Неполный расчёт завершается диагностикой и не публикуется как готовый результат.
+- [ ] Ответ run содержит `algorithm_version` с префиксом `heatroute-network-`.
 
-- one run handles all demand objects (`oks_future` in strict profile or direct connection points in
-  supplied profile) and automatically chooses feasible tie-ins;
-- shared/separate topology, chambers and tree invariants pass independent validation;
-- official flow, 18-row DU table and continuous lengths are exact;
-- every demand exits its containing OKS along a validated normal egress segment;
-- connect-vs-penalty, bend ×1.5, overlap max `K_special` and per-ray tie-in cost are exact;
-- every restriction and special crossing has positive, boundary and negative tests;
-- official costs, penalties and score reproduce appendix examples;
-- up to three alternatives are materially different and ranked deterministically;
-- supplied-profile GeoJSON is downloadable and ranked without reconstruction baseline; strict
-  reconstruction output remains valid when all source fields exist;
-- partial no-route output preserves successful OKS and lists/penalizes failures;
-- 3 GB input, 500 MB output, 16 GB RAM and 50-user evidence is recorded;
-- clean Ubuntu Server 22 / docker-compose 1.29.2 deployment and restart recovery pass;
-- UI displays the official output rather than a legacy/internal model.
+## C. Импорт
 
-Current local smoke evidence and open gates are in `implementation/progress.md`.
+- [ ] Принимается один GeoJSON `FeatureCollection` в EPSG:4326.
+- [ ] Проверяются object type, geometry, свойства, ID и типизированные ссылки.
+- [ ] Ошибки содержат feature index или ID и стабильный код.
+- [ ] Повтор одинакового contract+SHA не создаёт дубликат импорта.
+- [ ] Отсутствующие инженерные значения не подменяются выдуманными.
+- [ ] Вход до 3 ГБ обрабатывается потоково в установленном memory budget.
 
-## Current evidence snapshot (2026-09-16)
+## D. Топология сети
 
-| Gate | State | Evidence / qualification |
-|---|---|---|
-| All-demand routing, automatic tie-ins, tree/chambers, partial no-route | Passed | 17-demand clean-stack calculation plus focused R4 tests |
-| Flow, 18-row DU catalog, continuous length and reconstruction | Passed on contract-complete input | Supplied file omits reconstruction baseline/direction fields |
-| Published 2D restrictions and special crossings | Passed | Exact-value positive/boundary/negative matrix |
-| Cost, penalty, score and deterministic rank | Passed on contract-complete input | Appendix 10.8 illustrative-number discrepancy is documented |
-| Strict seven-type output and UI consumer | Passed on contract-complete input | Draft 2020-12 schema is published/tested; supplied incomplete file correctly returns `OFFICIAL_EXPORT_INCOMPLETE` |
-| 3 GiB input / ≥500 MiB output / memory below 16 GiB | Passed | Run `35112046184` plus full topology runs `35119722470` and `35120995991` |
-| 50 concurrent users | Passed for public API sessions | Runs `35126566499` and `35129162919`; 50 simultaneous imports, one durable ID; both include the connection-pool starvation fix |
-| Ubuntu 22 / docker-compose 1.29.2 / restart recovery | Passed in clean CI | Run `35129162919`; production-like host may still be requested |
-| Full calculation beyond supplied topology | Passed on project 2× profile | Run `35119722470`: 288 features, 34 demands, 408 candidates, 481,092 KiB peak RSS; organizer/PM must still approve the maximum profile |
-| Supplied-file score/rank/export without reconstruction | Implemented, verification pending | Supplied profile bypasses reconstruction gating; strict profile retains it |
-| Normal OKS egress and Q&A economics rules | Implemented, verification pending | Normal exit, connect-vs-penalty, bend ×1.5, overlap max coefficient and per-ray tie-in are integrated |
-| Bounded 2–3 GB calculation | Partial | Repository/JDBC reads are keyset-paged; analyzer/planner still materialize the accumulated feature list |
+- [ ] Все выбранные потребители имеют путь к допустимому корню.
+- [ ] Каждый нерутовый узел имеет один upstream.
+- [ ] Циклы и несвязанные компоненты не публикуются.
+- [ ] Разветвления реализованы допустимыми конфигурациями камер.
+- [ ] Общий physical asset представлен и оплачивается один раз.
+- [ ] До трёх вариантов действительно различаются; искусственные дубликаты не создаются.
+- [ ] Один валидный вариант является допустимым конкурсным результатом.
 
-Detailed byte/memory and concurrency measurements are in
-`implementation/R9_INPUT_SCALE_EVIDENCE.md` and
-`implementation/R9_CONCURRENCY_EVIDENCE.md`; the complete route measurement is in
-`implementation/R9_TOPOLOGY_SCALE_EVIDENCE.md`.
+## E. Геометрия по разъяснениям 29.09
+
+- [ ] `railway` не пересекается.
+- [ ] Поворот с изменением направления не более 90° допустим без отдельного surcharge.
+- [ ] Запрет нельзя обходить искусственным коротким сегментом между двумя поворотами.
+- [ ] Между новыми камерами нет придуманного минимального расстояния.
+- [ ] Если выбранная врезка находится не далее 10 м от пригодной существующей камеры и итоговая
+      степень не превышает 4, используется эта камера.
+- [ ] Газ, кабель и существующая теплосеть получают special-участок по 2 м с каждой стороны вдоль
+      оси новой трубы.
+- [ ] Для существующей или новой камеры внутри дороги/трамвая special-проход остаётся прямым, а
+      дополнительные 3 м добавляются только со стороны выхода из препятствия.
+- [ ] Для ОКС сначала рассматривается ближайшая пригодная точка внешней границы; альтернативная
+      точка разрешена при необоснованном или невозможном проходе.
+- [ ] Последний участок от границы ОКС до connection point прямой.
+
+## F. Потоки и ДУ
+
+- [ ] Расходы агрегируются от потребителей к корню.
+- [ ] На continuous same-flow part используется один ДУ.
+- [ ] При превышении предельной длины повышается ДУ всего continuous part.
+- [ ] Выбранный ДУ присутствует в официальном каталоге.
+- [ ] После sizing повторяются зависящие от ДУ геометрические проверки.
+- [ ] `sizing_issues` пуст для публикуемого варианта.
+
+## G. Экономика
+
+- [ ] Общий участок входит в стоимость один раз.
+- [ ] Новая камера и каждое присоединение считаются по действующему каталогу.
+- [ ] Каждый новый линейный участок, входящий в существующую камеру, учитывает стоимость
+      присоединения 5 млн ₽.
+- [ ] `calculated_cost` равна сумме опубликованных компонентов.
+- [ ] `score` применяется только для ранжирования вариантов этого решения.
+- [ ] Геометрический запрет нельзя снять более выгодной стоимостью.
+
+## H. Результат и экспорт
+
+- [ ] Публикуются только `heat_network`, `heat_chamber`, `technical_node` и
+      `variant_summary`.
+- [ ] Все features соответствуют JSON Schema Draft 2020-12.
+- [ ] IDs глобально уникальны, ссылки разрешаются, координаты лежат в WGS84.
+- [ ] На вариант приходится ровно один `variant_summary`.
+- [ ] Экспорт конкретного `variant_id` повторно проходит server-side preflight.
+- [ ] Выход до 500 МБ записывается потоково.
+
+## I. Воспроизводимость
+
+- [ ] Run неизменяемо хранит `input_sha256`, параметры и `algorithm_version`.
+- [ ] Одинаковые вход, каталоги, версия и параметры дают детерминированный результат.
+- [ ] Job переживает перезапуск worker и не выполняется двумя workers одновременно.
+- [ ] Отмена кооперативна и оставляет понятное состояние.
+- [ ] В API нет stack trace, секретов и локальных путей.
+
+## J. Конкурсный witness
+
+Для публичного контрольного run:
+
+- [x] ID: `32df0407-22a4-42b2-8426-2bb88be8d46e`;
+- [x] сборка алгоритма 6;
+- [x] 17 из 17 подключений;
+- [x] `validation_issues = []`;
+- [x] `engineering_issues = []`;
+- [x] `sizing_issues = []`;
+- [x] 15,918 с между созданием и завершением повторного run; cold run — 19,017 с;
+- [x] 2 170,113 м новой сети;
+- [x] 300 092 048,85 ₽.
+
+Эти отметки подтверждают конкретный witness, но не закрывают автоматически все пункты A-I и не
+доказывают глобальный оптимум или фиксированное время на скрытом наборе.
+
+## Команды финального smoke
+
+```bash
+BASE=https://130-49-150-217.sslip.io
+
+curl --fail --silent "$BASE/api/v1/health/ready"
+curl --fail --silent "$BASE/api/v1/openapi"
+curl --fail --silent "$BASE/api/v1/official/runs/latest"
+curl --fail --silent "$BASE/api/v1/official/contracts/output.schema.json"
+```
+
+Перед подачей дополнительно запускаются backend tests, web tests, lint, typecheck и build из
+`README.md`.

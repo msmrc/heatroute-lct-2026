@@ -16,7 +16,6 @@ class OfficialRunParametersTest {
         assertThat(parameters.getMinimumDepthM()).isEqualByComparingTo("0.7");
         assertThat(parameters.getMaximumDepthM()).isEqualByComparingTo("10.0");
         assertThat(parameters.isDepthEnabled()).isFalse();
-        assertThat(parameters.getAlgorithmProfile()).isEqualTo(RoutingAlgorithmProfile.STABLE);
     }
 
     @Test
@@ -28,49 +27,30 @@ class OfficialRunParametersTest {
     }
 
     @Test
-    void keepsTheLegacyProfileInsideImmutableParameters() {
-        OfficialRunParameters parameters = new OfficialRunParameters(
-                null,
-                null,
-                false,
-                RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL).validated();
-
-        assertThat(parameters.getAlgorithmProfile())
-                .isEqualTo(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
-    }
-
-    @Test
-    void roundTripsTheLegacyProfileWithoutRewritingSavedParameters() throws Exception {
+    void roundTripsCalculationParameters() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper()
                 .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
         OfficialRunParameters original = new OfficialRunParameters(
                 null,
                 null,
-                false,
-                RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
+                true);
 
         String json = objectMapper.writeValueAsString(original);
         OfficialRunParameters restored = objectMapper.readValue(json, OfficialRunParameters.class);
 
-        assertThat(json).contains("\"algorithm_profile\":\"expert_experimental\"");
-        assertThat(restored.getAlgorithmProfile())
-                .isEqualTo(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
+        assertThat(json).doesNotContain("algorithm_profile");
+        assertThat(restored.isDepthEnabled()).isTrue();
     }
 
     @Test
-    void readsOlderParametersWithoutAProfileAsPrimary() throws Exception {
+    void ignoresTheRemovedProfileInStoredParameters() throws Exception {
         OfficialRunParameters restored = new ObjectMapper().readValue(
-                "{\"minimum_depth_m\":0.7,\"maximum_depth_m\":10.0}",
+                "{\"minimum_depth_m\":0.7,\"maximum_depth_m\":10.0,"
+                        + "\"algorithm_profile\":\"expert_experimental\"}",
                 OfficialRunParameters.class);
 
-        assertThat(restored.getAlgorithmProfile()).isEqualTo(RoutingAlgorithmProfile.STABLE);
-    }
-
-    @Test
-    void stillRejectsUnknownProfilesInsteadOfSilentlySelectingPrimary() {
-        assertThatThrownBy(() -> RoutingAlgorithmProfile.fromWireName("unknown_algorithm"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Unknown algorithm_profile");
+        assertThat(restored.getMinimumDepthM()).isEqualByComparingTo("0.7");
+        assertThat(restored.isDepthEnabled()).isFalse();
     }
 
     @Test

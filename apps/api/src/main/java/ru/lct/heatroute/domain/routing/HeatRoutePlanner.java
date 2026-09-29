@@ -21,12 +21,12 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
 /**
- * Production next-generation planner. It shares one deadline between window loading, catalog
+ * Production HeatRoute planner. It shares one deadline between window loading, catalog
  * generation, CP-SAT refinement and the exact frozen evaluator.
  */
 @Component
-public final class NextGenerationRoutePlanner {
-    public static final String VERSION = "nextgen-network-6";
+public final class HeatRoutePlanner {
+    public static final String VERSION = "heatroute-network-6";
     public static final String CHECKER_VERSION = "frozen-network-evaluator-1";
     private static final int FLOW_SCALE_DECIMALS = 3;
 
@@ -36,7 +36,7 @@ public final class NextGenerationRoutePlanner {
     private final AdaptiveCatalogNetworkSearch search;
     private final FinishedRouteVariantSelector selector = new FinishedRouteVariantSelector();
 
-    public NextGenerationRoutePlanner(
+    public HeatRoutePlanner(
             RoutingProblemFactory problemFactory,
             RoutingFeatureWindowLoader featureWindowLoader,
             BoundedCatalogNetworkStageFactory stageFactory,
@@ -79,7 +79,7 @@ public final class NextGenerationRoutePlanner {
                         settings.maxPathsPerPair, settings.maxEgressCandidates);
         BoundedCatalogNetworkStageFactory.Preparation prepared = stageFactory.prepare(
                 problem, features, catalogOptions, FLOW_SCALE_DECIMALS, CHECKER_VERSION,
-                "nextgen", "engineering");
+                "heatroute", "engineering");
         CatalogBuildResult build = prepared.getGeneratedCatalog().getBuildResult();
         if (prepared.getStage().isEmpty()) {
             return Execution.incomplete(problem, build, features.size(), elapsedMillis(started),
@@ -159,7 +159,7 @@ public final class NextGenerationRoutePlanner {
 
     private static void ensureActive() {
         if (Thread.currentThread().isInterrupted()) {
-            throw new CancellationException("Next-generation route planning cancelled");
+            throw new CancellationException("HeatRoute planning cancelled");
         }
     }
 
@@ -194,7 +194,7 @@ public final class NextGenerationRoutePlanner {
                     || maxPairs <= 0 || maxRouteCalls <= 0 || maxPathsPerPair <= 0
                     || maxEgressCandidates <= 0 || maxRefinementIterations <= 0
                     || randomSeed < 0 || maxConflicts <= 0 || archiveCapacity <= 0) {
-                throw new IllegalArgumentException("Invalid next-generation planner settings");
+                throw new IllegalArgumentException("Invalid HeatRoute planner settings");
             }
             this.maxPairs = maxPairs;
             this.maxRouteCalls = maxRouteCalls;
@@ -214,7 +214,7 @@ public final class NextGenerationRoutePlanner {
                     128, 2026, 10_000, 8);
         }
 
-        /** Retained for source compatibility with the pre-promotion internal harness. */
+        /** Retained for source compatibility with the internal test harness. */
         public static Settings initial() {
             return production();
         }

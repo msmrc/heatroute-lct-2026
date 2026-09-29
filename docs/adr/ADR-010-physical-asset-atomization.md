@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the next-generation solver branch; not promoted to `stable`.
+Accepted for the HeatRoute network solver.
 
 ## Context
 

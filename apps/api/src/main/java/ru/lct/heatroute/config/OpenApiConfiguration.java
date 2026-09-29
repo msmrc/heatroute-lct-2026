@@ -16,7 +16,9 @@ public class OpenApiConfiguration {
                 .servers(List.of(new Server().url("/").description("Same-origin HeatRoute API")))
                 .info(new Info()
                         .title("HeatRoute API")
-                        .version("0.1.0-java")
-                        .description("LCT 2026 district-heating route calculation backend"));
+                        .version("2026.09-heatroute")
+                        .description("LCT 2026 district-heating network synthesis API. "
+                                + "Each immutable run exposes the exact algorithm_version, input SHA-256 "
+                                + "and validation result."));
     }
 }

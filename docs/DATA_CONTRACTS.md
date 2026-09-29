@@ -1,111 +1,114 @@
-# Official data contracts
+# Контракты данных HeatRoute
 
-For the active supplied-dataset interpretation, read
-`implementation/ORGANIZER_VIDEO_CLARIFICATIONS.md`. Exact PDF/DOCX fields remain the strict
-profile, while the later organizer Q&A permits a reduced result without existing-network
-reconstruction. The reduced output whitelist still requires written confirmation; until then the
-implementation must not fabricate missing reconstruction fields.
+Актуальная трактовка основана на официальном ТЗ и письменных разъяснениях организаторов от
+29.09.2026. Машиночитаемые схемы находятся в [`docs/contracts`](contracts/README.md).
 
-## Input
+## Вход
 
-`POST /api/v1/official/imports` accepts one multipart field `file` containing a GeoJSON
-`FeatureCollection` in EPSG:4326. Current Java inspection streams features and rejects duplicate
-IDs, invalid geometry/property combinations and broken typed references. Contract v2 reports an
-`input_profile` and separates blocking `errors` from non-blocking `warnings`.
+`POST /api/v1/official/imports` принимает multipart-поле `file` с одним GeoJSON
+`FeatureCollection` в EPSG:4326. Импорт потоково считает SHA-256, проверяет геометрию, типы
+свойств, уникальность ID и типизированные ссылки. Повторный импорт тех же байтов не создаёт копию
+набора.
 
-`POST /api/v1/official/imports/demo` opens the repository's exact
-`datasets/official/lct-2026.geojson` through the same inspection and PostGIS persistence path. It
-is an idempotent bootstrap for a fresh local database, not a precomputed or fabricated result.
+`POST /api/v1/official/imports/demo` импортирует
+`datasets/official/lct-2026.geojson` тем же кодом. Это удобный bootstrap, а не подмена результата
+предрасчитанными данными.
 
-| `object_type` | Geometry | Role |
+| `object_type` | Геометрия | Назначение |
 |---|---|---|
-| `source` | Point | Heat source |
-| `heat_network` | LineString | Existing network section |
-| `heat_chamber` | Point | Existing chamber |
-| `oks_future` | Polygon/MultiPolygon | Future building |
-| `oks_connection_point` | Point | Required OKS connection point |
-| `oks_existing` | Polygon/MultiPolygon | Existing building / exclusion |
-| `restriction` | type-dependent | Spatial restriction |
+| `source` | Point | Источник теплоснабжения |
+| `heat_network` | LineString | Существующий участок сети |
+| `heat_chamber` | Point | Существующая камера |
+| `oks_future` | Polygon / MultiPolygon | Перспективный ОКС |
+| `oks_connection_point` | Point | Точка подключения ОКС |
+| `oks_existing` | Polygon / MultiPolygon | Существующий ОКС / препятствие |
+| `restriction` | По типу ограничения | Пространственное ограничение |
 
-The official technical fields are `id`, `object_type`, `diameter`, `flow_tph`, `heat_load`,
-`oks_id`, `restriction_type` and `upstream_object_id`, required according to object type.
-Unknown or missing required values must produce localized errors with feature index/ID and field.
+Основные инженерные поля: `id`, `object_type`, `diameter`, `flow_tph`, `heat_load`,
+`oks_id`, `restriction_type` и `upstream_object_id`. Требования к ним зависят от типа объекта.
 
-The supplied reference dataset is accepted through the `baseline_input` profile: numeric IDs and
-direct demand on connection points are normal contract values. Missing existing-network reconstruction fields
-remain actionable warnings. No missing engineering value is silently invented. See
-`implementation/SUPPLIED_DATASET_AUDIT.md`.
+Конкурсный файл принимается как `baseline_input`. Отсутствующие данные не заменяются
+«правдоподобными» значениями: блокирующие проблемы попадают в `errors`, ограничения исходного
+набора, не мешающие обязательному 2D-расчёту, попадают в `warnings`.
 
-The machine-readable Draft 2020-12 contracts are versioned in `docs/contracts`. The extended input,
-the explicitly separate baseline input profile and the output are compiled
-by a standards-compliant validator in CI. JSON Schema covers per-feature shape and scalar rules;
-the streaming Java validators additionally enforce uniqueness, references, topology and totals.
+## API расчёта
 
-## Current Java API
+| Метод | Путь | Назначение |
+|---|---|---|
+| GET | `/api/v1/health/live` | Жив ли процесс |
+| GET | `/api/v1/health/ready` | Готовы PostGIS и CP-SAT |
+| POST | `/api/v1/official/imports` | Импорт GeoJSON |
+| POST | `/api/v1/official/imports/demo` | Импорт конкурсного fixture |
+| GET | `/api/v1/official/imports/{importId}` | Состояние импорта |
+| GET | `/api/v1/official/imports/{importId}/map` | Данные исходной карты |
+| POST | `/api/v1/official/imports/{importId}/runs` | Запуск расчёта HeatRoute |
+| GET | `/api/v1/official/jobs/{jobId}` | Прогресс durable job |
+| DELETE | `/api/v1/official/jobs/{jobId}` | Кооперативная отмена |
+| GET | `/api/v1/official/runs/{runId}` | Run и варианты |
+| GET | `/api/v1/official/runs/latest` | Последний run |
+| GET | `/api/v1/official/runs/{runId}/export` | Строгий GeoJSON |
 
-- `GET /api/v1/health/live`
-- `GET /api/v1/health/ready`
-- `POST /api/v1/official/imports`
-- `POST /api/v1/official/imports/demo`
-- `GET /api/v1/official/imports/{id}`
-- `GET /api/v1/official/imports/{id}/topology`
-- `GET /api/v1/official/imports/{id}/map`
-- `POST /api/v1/official/imports/{id}/jobs/topology`
-- `POST /api/v1/official/imports/{id}/runs`
-- `GET /api/v1/official/jobs/{id}`
-- `DELETE /api/v1/official/jobs/{id}`
-- `GET /api/v1/official/runs/latest`
+Swagger UI доступен по `/api/v1/swagger-ui.html`, OpenAPI JSON по `/api/v1/openapi`.
 
-Run creation accepts an optional JSON body with `minimum_depth_m`, `maximum_depth_m` and
-`algorithm_profile`. Missing depth values become 0.7 and 10.0 m; a missing profile becomes
-`stable`. The alternative `expert_experimental` profile runs an isolated planner version for
-side-by-side research without changing the default algorithm. The validated parameters are stored
-in `official_runs.parameters` and returned with every run, so a queued calculation is reproducible
-across worker restarts. The application rejects a search maximum above 50.0 m to keep the 0.5 m
-candidate grid bounded. The profile workflow is documented in
-`implementation/EXPERIMENTAL_ROUTING.md`.
-- `GET /api/v1/official/runs/{id}`
-- `GET /api/v1/official/runs/{id}/export`
-- `GET /api/v1/official/contracts/input.schema.json`
-- `GET /api/v1/official/contracts/provided-dataset.schema.json`
-- `GET /api/v1/official/contracts/output.schema.json`
-- `/api/v1/swagger-ui.html` and `/api/v1/openapi`
+## Параметры run
 
-## Required output
+```json
+{
+  "minimum_depth_m": 0.7,
+  "maximum_depth_m": 10.0,
+  "depth_enabled": false
+}
+```
 
-One GeoJSON FeatureCollection per result containing only these seven types:
+Все поля необязательны. По умолчанию расчёт глубины выключен. API всегда запускает один
+production-алгоритм HeatRoute, поэтому клиенту не нужно выбирать профиль или реализацию.
+
+Параметры сохраняются вместе с run. Wire-JSON использует `snake_case`; ответ содержит
+`input_sha256` и `algorithm_version`, поэтому результат можно связать с конкретным входом и
+версией расчётного ядра.
+
+## Выход
+
+Актуальный экспорт содержит только четыре типа features:
 
 1. `heat_network`;
-2. `tie_in`;
-3. `heat_network_reconstruction`;
-4. `heat_chamber`;
-5. `heat_chamber_reconstruction`;
-6. `technical_node`;
-7. `variant_summary` — exactly one non-spatial summary per variant.
+2. `heat_chamber`;
+3. `technical_node`;
+4. `variant_summary`.
 
-No unrelated fields with `null` are permitted. The 2D adapter emits the exact per-type field
-whitelists from the organizer appendix. `OfficialOutputContractValidator` independently checks
-allowed/required fields, scalar types, WGS84 geometry, globally unique IDs, network-node references
-and exactly one summary per variant. Contract tests also prove component-sum equality and ID
-scoping across multiple alternatives. Optional R8 output now adds numeric `depth_start` and
-`depth_end` to new heat-network sections and writes a third coordinate: the negative elevation of
-the calculated pair-envelope axis. Two-dimensional consumers remain compatible with these valid
-GeoJSON positions.
+`tie_in`, `heat_network_reconstruction` и `heat_chamber_reconstruction` не входят в текущий
+строгий whitelist. Информация о выбранном присоединении представлена топологией узлов и участков,
+а актуальная экономика находится в summary.
 
-Only valid variants with complete economics and an integer rank are exportable. If an input file
-cannot establish reconstruction baselines, the endpoint returns
-`409 OFFICIAL_EXPORT_INCOMPLETE`; it never publishes a plausible-looking partial official result.
-The optional `variant_id` query limits the same validated contract to one alternative for the map;
-omitting it downloads every ranked alternative in one FeatureCollection.
+`OfficialOutputContractValidator` проверяет:
 
-## Coordinate and size rules
+- разрешённые и обязательные поля каждого типа;
+- геометрию и диапазоны WGS84;
+- глобальную уникальность ID;
+- ссылки участков на узлы;
+- один `variant_summary` на вариант;
+- согласованность стоимости и итоговых показателей.
 
-- API geometry: EPSG:4326; metric calculations: EPSG:32637.
-- Length, clearance, split and angle operations are performed in the projected CRS.
-- Upload limit: 3 GB; output limit: 500 MB.
-- Input inspection is streaming. Export performs a feature-by-feature preflight contract pass and
-  then writes the FeatureCollection incrementally with Jackson `JsonGenerator`; the complete output
-  tree is not retained. Clean Ubuntu 22 / Java 11 probes reached exactly 3 GiB input and at least
-  500 MiB valid output under a 512 MiB heap cap. A full doubled supplied-geometry calculation also
-  passes on clean Ubuntu 22 / Java 11 with 34/34 demands connected.
-- Every result records input SHA-256, contract/catalog/algorithm versions and assumptions.
+Экспорт можно ограничить одним вариантом через `variant_id`. Без параметра сервер выгружает все
+сохранённые ranked-варианты одного run.
+
+## Геометрия и размеры
+
+- API и экспорт: EPSG:4326;
+- метрические вычисления: EPSG:32637;
+- positions могут содержать две координаты, а при включённом depth ещё и Z;
+- предельный вход: 3 ГБ;
+- предельный выход: 500 МБ;
+- импорт и запись результата выполняются потоково.
+
+JSON Schema проверяет форму каждой feature. Топологические и арифметические инварианты между
+features остаются обязанностью Java-валидатора.
+
+## Опубликованные схемы
+
+- `GET /api/v1/official/contracts/input.schema.json`;
+- `GET /api/v1/official/contracts/provided-dataset.schema.json`;
+- `GET /api/v1/official/contracts/output.schema.json`.
+
+Схемы компилируются и проверяются в тестах. Их изменение считается изменением API-контракта, а не
+редакцией справочного текста.

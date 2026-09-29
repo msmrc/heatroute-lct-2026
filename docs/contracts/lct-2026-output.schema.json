@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://heatroute.dragons.team/contracts/lct-2026-output.schema.json",
   "title": "HeatRoute LCT 2026 official result",
-  "description": "Strict GeoJSON result contract. Cross-feature uniqueness, references and exactly one summary per variant are additionally checked by OfficialOutputContractValidator.",
+  "description": "Strict four-type GeoJSON result contract: heat_network, heat_chamber, technical_node and variant_summary. Cross-feature uniqueness, references and exactly one summary per variant are additionally checked by OfficialOutputContractValidator.",
   "type": "object",
   "required": ["type", "features"],
   "additionalProperties": false,
@@ -117,59 +117,6 @@
         }
       ]
     },
-    "tieIn": {
-      "allOf": [
-        { "$ref": "#/$defs/featureEnvelope" },
-        {
-          "properties": {
-            "geometry": { "$ref": "#/$defs/point" },
-            "properties": {
-              "type": "object",
-              "required": ["id", "object_type", "variant_id", "existing_object_id", "existing_object_type", "required_diameter", "cost"],
-              "additionalProperties": false,
-              "properties": {
-                "id": { "$ref": "#/$defs/id" },
-                "object_type": { "const": "tie_in" },
-                "variant_id": { "$ref": "#/$defs/id" },
-                "existing_object_id": { "$ref": "#/$defs/id" },
-                "existing_object_type": { "enum": ["heat_network", "heat_chamber"] },
-                "existing_diameter": { "$ref": "#/$defs/diameter" },
-                "required_diameter": { "$ref": "#/$defs/diameter" },
-                "cost": { "$ref": "#/$defs/money" }
-              }
-            }
-          }
-        }
-      ]
-    },
-    "networkReconstruction": {
-      "allOf": [
-        { "$ref": "#/$defs/featureEnvelope" },
-        {
-          "properties": {
-            "geometry": { "$ref": "#/$defs/lineString" },
-            "properties": {
-              "type": "object",
-              "required": ["id", "object_type", "variant_id", "existing_object_id", "existing_flow_tph", "added_flow_tph", "calculated_flow_tph", "existing_diameter", "required_diameter", "length", "cost"],
-              "additionalProperties": false,
-              "properties": {
-                "id": { "$ref": "#/$defs/id" },
-                "object_type": { "const": "heat_network_reconstruction" },
-                "variant_id": { "$ref": "#/$defs/id" },
-                "existing_object_id": { "$ref": "#/$defs/id" },
-                "existing_flow_tph": { "$ref": "#/$defs/flow" },
-                "added_flow_tph": { "$ref": "#/$defs/flow" },
-                "calculated_flow_tph": { "$ref": "#/$defs/flow" },
-                "existing_diameter": { "$ref": "#/$defs/diameter" },
-                "required_diameter": { "$ref": "#/$defs/diameter" },
-                "length": { "$ref": "#/$defs/length" },
-                "cost": { "$ref": "#/$defs/money" }
-              }
-            }
-          }
-        }
-      ]
-    },
     "heatChamber": {
       "allOf": [
         { "$ref": "#/$defs/featureEnvelope" },
@@ -185,30 +132,6 @@
                 "object_type": { "const": "heat_chamber" },
                 "variant_id": { "$ref": "#/$defs/id" },
                 "diameter": { "$ref": "#/$defs/diameter" },
-                "cost": { "$ref": "#/$defs/money" }
-              }
-            }
-          }
-        }
-      ]
-    },
-    "chamberReconstruction": {
-      "allOf": [
-        { "$ref": "#/$defs/featureEnvelope" },
-        {
-          "properties": {
-            "geometry": { "$ref": "#/$defs/point" },
-            "properties": {
-              "type": "object",
-              "required": ["id", "object_type", "variant_id", "existing_object_id", "existing_diameter", "required_diameter", "cost"],
-              "additionalProperties": false,
-              "properties": {
-                "id": { "$ref": "#/$defs/id" },
-                "object_type": { "const": "heat_chamber_reconstruction" },
-                "variant_id": { "$ref": "#/$defs/id" },
-                "existing_object_id": { "$ref": "#/$defs/id" },
-                "existing_diameter": { "$ref": "#/$defs/diameter" },
-                "required_diameter": { "$ref": "#/$defs/diameter" },
                 "cost": { "$ref": "#/$defs/money" }
               }
             }

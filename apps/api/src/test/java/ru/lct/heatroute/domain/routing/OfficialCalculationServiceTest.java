@@ -27,10 +27,9 @@ class OfficialCalculationServiceTest {
     private final OfficialImportRepository importRepository = mock(OfficialImportRepository.class);
     private final OfficialFeatureRepository featureRepository = mock(OfficialFeatureRepository.class);
     private final ExistingNetworkTopologyAnalyzer topologyAnalyzer = mock(ExistingNetworkTopologyAnalyzer.class);
-    private final RoutingAlgorithmRegistry algorithmRegistry = mock(RoutingAlgorithmRegistry.class);
     private final RoutingAlgorithm routingAlgorithm = mock(RoutingAlgorithm.class);
     private final OfficialCalculationService service = new OfficialCalculationService(
-            importRepository, featureRepository, topologyAnalyzer, algorithmRegistry);
+            importRepository, featureRepository, topologyAnalyzer, routingAlgorithm);
 
     @Test
     void loadsCalculationModelThroughBoundedRepositoryConsumer() {
@@ -56,7 +55,6 @@ class OfficialCalculationServiceTest {
                 .when(featureRepository)
                 .forEachCalculationCoreByImport(eq(importId), eq(OfficialFeatureRepository.DEFAULT_PAGE_SIZE), any());
         when(topologyAnalyzer.analyze(any())).thenReturn(topology);
-        when(algorithmRegistry.require(any())).thenReturn(routingAlgorithm);
         when(routingAlgorithm.plan(any(), any(), eq(topology), any(), any()))
                 .thenReturn(expected);
 
@@ -67,7 +65,6 @@ class OfficialCalculationServiceTest {
         assertThat(features.getValue()).containsExactly(first, second);
         verify(featureRepository).forEachCalculationCoreByImport(
                 eq(importId), eq(OfficialFeatureRepository.DEFAULT_PAGE_SIZE), any());
-        verify(algorithmRegistry).require(ru.lct.heatroute.domain.run.RoutingAlgorithmProfile.STABLE);
         ArgumentCaptor<RoutingExecutionContext> context =
                 ArgumentCaptor.forClass(RoutingExecutionContext.class);
         verify(routingAlgorithm).plan(context.capture(), any(), eq(topology), any(), any());
@@ -87,7 +84,7 @@ class OfficialCalculationServiceTest {
 
         assertThat(service.calculate(importId)).isNull();
 
-        verifyNoInteractions(featureRepository, topologyAnalyzer, algorithmRegistry, routingAlgorithm);
+        verifyNoInteractions(featureRepository, topologyAnalyzer, routingAlgorithm);
     }
 
     @Test
@@ -98,14 +95,12 @@ class OfficialCalculationServiceTest {
         when(imported.getState()).thenReturn("valid");
         when(imported.getReport()).thenReturn(report);
         when(importRepository.find(importId)).thenReturn(Optional.of(imported));
-        when(algorithmRegistry.requireVersion(
-                ru.lct.heatroute.domain.run.RoutingAlgorithmProfile.STABLE, "retired"))
-                .thenThrow(new RoutingEngineVersionUnavailableException("retired", "current"));
+        when(routingAlgorithm.version()).thenReturn("current");
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.calculate(
                 importId, ru.lct.heatroute.domain.run.OfficialRunParameters.defaults(), "retired"))
                 .isInstanceOf(RoutingEngineVersionUnavailableException.class);
 
-        verifyNoInteractions(featureRepository, topologyAnalyzer, routingAlgorithm);
+        verifyNoInteractions(featureRepository, topologyAnalyzer);
     }
 }

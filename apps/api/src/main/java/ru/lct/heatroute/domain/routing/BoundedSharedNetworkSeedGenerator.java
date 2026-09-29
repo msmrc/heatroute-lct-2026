@@ -288,7 +288,7 @@ final class BoundedSharedNetworkSeedGenerator {
             List<ImportedOfficialFeature> features = featuresFor(at, environment);
             RouteVariant improved = new RouteAxisShiftControl().firstImprovement(
                     at.nodes(), at.edges(), replacement -> axisShiftEvaluator.assessPrepared(
-                            replacement, "nextgen-seed", "engineering", at.connections(),
+                            replacement, "heatroute-seed", "engineering", at.connections(),
                             features, problem.getParameters(), environment));
             if (improved == null) break;
             current = new OrthogonalCorridorNetworkBuilder.Network(
@@ -317,7 +317,7 @@ final class BoundedSharedNetworkSeedGenerator {
         Coordinate terminal = coordinate(demand.getLocation());
         List<OfficialRouteGeometryRules.NormalEgress> egresses =
                 environment.normalEgressCandidates(diameter, terminal, junction,
-                        RoutePlannerTuning.stable().getEngineeringEgressExtraM(),
+                        HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M,
                         RouteTraversal.REVERSED);
         for (int index = 0; index < Math.min(MAX_FALLBACK_EGRESSES, egresses.size()); index++) {
             if (!state.canRoute()) return null;

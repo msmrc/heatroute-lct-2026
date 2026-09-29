@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Download, Eye, FileJson2, LoaderCircle, Play, RotateCcw, UploadCloud, XCircle } from "lucide-react";
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Card, ProgressBar, StateView, StatusBadge } from "../components/ui/primitives";
@@ -26,13 +26,6 @@ import {
 const IMPORT_KEY = "heatroute.officialImportId";
 const JOB_KEY = "heatroute.officialJobId";
 const RUN_KEY = "heatroute.officialRunId";
-const STABLE_RUN_KEY = "heatroute.officialStableRunId";
-const EXPERIMENTAL_RUN_KEY = "heatroute.officialExperimentalRunId";
-
-/** Старое API-имя профиля теперь запускает основной алгоритм; архив определяет фактическая версия. */
-function isArchivedExperiment(run: OfficialRun): boolean {
-  return run.algorithm_version.startsWith("expert-tree-");
-}
 
 function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : error instanceof Error ? error.message : "Неизвестная ошибка";
@@ -76,24 +69,10 @@ export function OfficialWorkspacePage() {
   const [runId, setRunId] = useState(() => localStorage.getItem(RUN_KEY) ?? "");
   const [processingFilename, setProcessingFilename] = useState("");
   const [downloadingVariantIds, setDownloadingVariantIds] = useState<Set<string>>(() => new Set());
-  const stableRunId = localStorage.getItem(STABLE_RUN_KEY) ?? "";
-  const experimentalRunId = localStorage.getItem(EXPERIMENTAL_RUN_KEY) ?? "";
 
   function rememberRun(value: OfficialRun) {
     localStorage.setItem(RUN_KEY, value.id);
     setRunId(value.id);
-    if (isArchivedExperiment(value)) {
-      localStorage.setItem(EXPERIMENTAL_RUN_KEY, value.id);
-    } else {
-      localStorage.setItem(STABLE_RUN_KEY, value.id);
-    }
-  }
-
-  function openRun(id: string) {
-    localStorage.setItem(RUN_KEY, id);
-    localStorage.removeItem(JOB_KEY);
-    setRunId(id);
-    setJobId("");
   }
 
   const imported = useQuery({
@@ -138,8 +117,6 @@ export function OfficialWorkspacePage() {
       localStorage.setItem(IMPORT_KEY, importedValue.id);
       localStorage.removeItem(JOB_KEY);
       localStorage.removeItem(RUN_KEY);
-      localStorage.removeItem(STABLE_RUN_KEY);
-      localStorage.removeItem(EXPERIMENTAL_RUN_KEY);
       setImportId(importedValue.id);
       setJobId("");
       setRunId("");
@@ -175,8 +152,6 @@ export function OfficialWorkspacePage() {
         localStorage.setItem(IMPORT_KEY, demoImport.id);
         localStorage.removeItem(JOB_KEY);
         localStorage.removeItem(RUN_KEY);
-        localStorage.removeItem(STABLE_RUN_KEY);
-        localStorage.removeItem(EXPERIMENTAL_RUN_KEY);
         setImportId(demoImport.id);
         setJobId("");
         setRunId("");
@@ -185,10 +160,6 @@ export function OfficialWorkspacePage() {
         return;
       }
       if (!value) return;
-      if (localStorage.getItem(IMPORT_KEY) !== value.import_id) {
-        localStorage.removeItem(STABLE_RUN_KEY);
-        localStorage.removeItem(EXPERIMENTAL_RUN_KEY);
-      }
       localStorage.setItem(IMPORT_KEY, value.import_id);
       setImportId(value.import_id);
       rememberRun(value);
@@ -217,9 +188,7 @@ export function OfficialWorkspacePage() {
     onError: (error) => toast.error(errorText(error)),
   });
   const startRun = useMutation({
-    mutationFn: () => createOfficialRun(importId, {
-      algorithm_profile: "stable",
-    }),
+    mutationFn: () => createOfficialRun(importId),
     onSuccess: (value) => {
       rememberRun(value);
       queryClient.setQueryData(["official-run", value.id], value);
@@ -244,16 +213,7 @@ export function OfficialWorkspacePage() {
   const currentImport = imported.data;
   const currentJob = job.data;
   const currentRun = run.data;
-  useEffect(() => {
-    if (!currentRun) return;
-    if (isArchivedExperiment(currentRun)) {
-      localStorage.setItem(EXPERIMENTAL_RUN_KEY, currentRun.id);
-    } else {
-      localStorage.setItem(STABLE_RUN_KEY, currentRun.id);
-    }
-  }, [currentRun]);
   const activeRun = currentRun && currentJob?.run_id === currentRun.id ? currentRun : undefined;
-  const archivedExperiment = currentRun ? isArchivedExperiment(currentRun) : false;
   const isJobActive = currentJob?.state === "queued" || currentJob?.state === "running" || currentJob?.state === "cancel_requested";
   const isRunActive = currentRun?.state === "queued" || currentRun?.state === "running";
   const isRunLoading = Boolean(runId) && run.isPending && !run.isError;
@@ -329,28 +289,13 @@ export function OfficialWorkspacePage() {
             </div>
           </div>
           <div className="map-workspace-status">
-            <CheckCircle2 size={16} /> Данные проверены <span>·</span> {archivedExperiment ? "Архивный эксперимент" : "Расчёт"} <span>·</span> {currentRun.algorithm_version}
+            <CheckCircle2 size={16} /> Данные проверены <span>·</span> Расчёт <span>·</span> {currentRun.algorithm_version}
           </div>
           <div className="map-workspace-actions">
-            {((archivedExperiment && stableRunId && stableRunId !== currentRun.id)
-              || (!archivedExperiment && experimentalRunId && experimentalRunId !== currentRun.id)) ? (
-              <details>
-                <summary>Сохранённые расчёты</summary>
-                {archivedExperiment ? (
-                  <Button variant="outline" onClick={() => openRun(stableRunId)}>
-                    <Eye size={16} /> Последний основной расчёт
-                  </Button>
-                ) : (
-                  <Button variant="outline" onClick={() => openRun(experimentalRunId)}>
-                    <Eye size={16} /> Архивный результат
-                  </Button>
-                )}
-              </details>
-            ) : null}
             <Button
               variant="outline"
               disabled={startRun.isPending}
-              title="Рассчитать все варианты основным алгоритмом"
+              title="Рассчитать все варианты"
               onClick={() => startRun.mutate()}
             >
               {startRun.isPending

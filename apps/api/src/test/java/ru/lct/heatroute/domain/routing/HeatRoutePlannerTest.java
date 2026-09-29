@@ -39,7 +39,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
-class NextGenerationRoutePlannerTest {
+class HeatRoutePlannerTest {
     private final ObjectMapper mapper = new ObjectMapper();
     private final WKTReader wkt = new WKTReader();
 
@@ -65,7 +65,7 @@ class NextGenerationRoutePlannerTest {
             }
         };
 
-        NextGenerationRoutePlanner.Execution execution = planner().execute(
+        HeatRoutePlanner.Execution execution = planner().execute(
                 context(), core, topology, OfficialRunParameters.defaults(), source, settings());
 
         assertThat(execution.getOutcome()).as(execution.getReason())
@@ -77,7 +77,7 @@ class NextGenerationRoutePlannerTest {
         assertThat(execution.getArchiveSize()).isEqualTo(1);
         assertThat(execution.getResult()).isNotNull();
         assertThat(execution.getResult().getAlgorithmVersion())
-                .isEqualTo(NextGenerationRoutePlanner.VERSION);
+                .isEqualTo(HeatRoutePlanner.VERSION);
         assertThat(execution.getResult().getDemandCount()).isEqualTo(1);
         assertThat(execution.getResult().getPreferredVariantId()).isEqualTo("balanced");
         assertThat(execution.getResult().getVariants()).singleElement().satisfies(variant -> {
@@ -116,7 +116,7 @@ class NextGenerationRoutePlannerTest {
             }
         };
 
-        NextGenerationRoutePlanner.Execution execution = planner().execute(
+        HeatRoutePlanner.Execution execution = planner().execute(
                 context(), core, topology, OfficialRunParameters.defaults(), source, settings());
 
         assertThat(execution.getOutcome())
@@ -127,7 +127,7 @@ class NextGenerationRoutePlannerTest {
     }
 
     @Test
-    void officialDatasetProducesAnExactlyAcceptedNextGenerationResult() throws Exception {
+    void officialDatasetProducesAnExactlyAcceptedHeatRouteResult() throws Exception {
         List<ImportedOfficialFeature> features = new OfficialDatasetRoutingTest()
                 .loadOfficialFeatures();
         TopologyAnalysis topology = new ExistingNetworkTopologyAnalyzer().analyze(features);
@@ -136,11 +136,11 @@ class NextGenerationRoutePlannerTest {
                 "cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130",
                 "heatroute-input-v2", OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
 
-        NextGenerationRoutePlanner.Execution execution = planner().execute(
+        HeatRoutePlanner.Execution execution = planner().execute(
                 context, features, topology,
                 new OfficialRunParameters(null, null, true),
                 new InMemoryRoutingFeatureSource(features),
-                NextGenerationRoutePlanner.Settings.production());
+                HeatRoutePlanner.Settings.production());
 
         assertThat(execution.getOutcome()).as(execution.getReason() + "\n"
                         + "elapsed_ms=" + execution.getElapsedMillis()
@@ -154,7 +154,7 @@ class NextGenerationRoutePlannerTest {
                 .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
         assertThat(execution.getResult()).isNotNull();
         assertThat(execution.getResult().getAlgorithmVersion())
-                .isEqualTo(NextGenerationRoutePlanner.VERSION);
+                .isEqualTo(HeatRoutePlanner.VERSION);
         assertThat(execution.getResult().getDemandCount()).isEqualTo(17);
         assertThat(execution.getResult().getVariants()).isNotEmpty().allMatch(RouteVariant::isValid);
         assertThat(execution.getResult().getVariants()).allSatisfy(variant ->
@@ -176,11 +176,11 @@ class NextGenerationRoutePlannerTest {
                 "acac7a6885f53faa360becde85bcfea6571eb01c60bcf106da7b2c378918125b",
                 "heatroute-input-v2", OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
 
-        NextGenerationRoutePlanner.Execution execution = planner().execute(
+        HeatRoutePlanner.Execution execution = planner().execute(
                 context, features, topology,
                 new OfficialRunParameters(null, null, true),
                 new InMemoryRoutingFeatureSource(features),
-                NextGenerationRoutePlanner.Settings.production());
+                HeatRoutePlanner.Settings.production());
 
         assertThat(execution.getOutcome()).as(execution.getReason() + "\n"
                         + "elapsed_ms=" + execution.getElapsedMillis() + "\n"
@@ -201,7 +201,7 @@ class NextGenerationRoutePlannerTest {
     }
 
     private static Map<String, List<String>> rootDemandCoverage(
-            NextGenerationRoutePlanner.Execution execution) {
+            HeatRoutePlanner.Execution execution) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         execution.getCatalogBuild().getSnapshot().getPathOptions().forEach(option ->
                 result.computeIfAbsent(option.getFromPortId(), ignored -> new java.util.ArrayList<>())
@@ -211,7 +211,7 @@ class NextGenerationRoutePlannerTest {
 
     private static String modelDiagnostics(RoutingExecutionContext context,
             List<ImportedOfficialFeature> features, TopologyAnalysis topology,
-            NextGenerationRoutePlanner.Execution execution) {
+            HeatRoutePlanner.Execution execution) {
         RoutingProblemSnapshot snapshot = new RoutingProblemFactory().create(
                 context, new OfficialRunParameters(null, null, true), features, topology);
         Set<String> availablePorts = execution.getCatalogBuild().getSnapshot().getPathOptions()
@@ -284,7 +284,7 @@ class NextGenerationRoutePlannerTest {
     }
 
     private static String groupTopologyDiagnostics(
-            NextGenerationRoutePlanner.Execution execution,
+            HeatRoutePlanner.Execution execution,
             CatalogNetworkProblemCompiler.Compilation base,
             NetworkConstraintProblem configured,
             Set<String> rootNodeIds, Set<String> demandNodeIds) {
@@ -354,7 +354,7 @@ class NextGenerationRoutePlannerTest {
                 nodes, base.getAssets(), configurations, base.getConflicts());
     }
 
-    private NextGenerationRoutePlanner planner() {
+    private HeatRoutePlanner planner() {
         OfficialConstraintCatalog constraints = new OfficialConstraintCatalog();
         OfficialPipeCatalog pipes = new OfficialPipeCatalog();
         OfficialEconomics economics = new OfficialEconomics();
@@ -376,13 +376,13 @@ class NextGenerationRoutePlannerTest {
                         new BoundedRootDemandCatalogGenerator(router, pipes),
                         new CatalogProblemNodeRealizationResolver(),
                         new CatalogEdgeSectionAssemblerFactory(router), stageCompiler);
-        return new NextGenerationRoutePlanner(
+        return new HeatRoutePlanner(
                 new RoutingProblemFactory(), new RoutingFeatureWindowLoader(), stageFactory,
                 new CpSatRuntime(), evaluator);
     }
 
-    private NextGenerationRoutePlanner.Settings settings() {
-        return NextGenerationRoutePlanner.Settings.bounded(
+    private HeatRoutePlanner.Settings settings() {
+        return HeatRoutePlanner.Settings.bounded(
                 Duration.ofSeconds(30), Duration.ofSeconds(10), Duration.ofSeconds(1),
                 Duration.ofSeconds(15), Duration.ofSeconds(1),
                 8, 32, 4, 4, 5, 2026, 100, 3);

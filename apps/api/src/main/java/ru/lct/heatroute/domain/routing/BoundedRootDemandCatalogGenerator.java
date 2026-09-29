@@ -37,7 +37,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
 /**
  * Быстрый начальный N03-каталог: несколько проверенных root-to-demand путей без запуска
- * полного legacy planner. Генератор намеренно не заявляет полноту общего дерева/камер.
+ * полного перебора маршрутов. Генератор намеренно не заявляет полноту общего дерева/камер.
  */
 @Component
 public final class BoundedRootDemandCatalogGenerator {
@@ -561,7 +561,7 @@ public final class BoundedRootDemandCatalogGenerator {
         for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
             Coordinate terminal = coordinate(demand.getLocation());
             if (!environment.normalEgressCandidates(probeDiameter, terminal, targetPoint,
-                            RoutePlannerTuning.stable().getEngineeringEgressExtraM(),
+                            HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M,
                             RouteTraversal.REVERSED).isEmpty()) {
                 continue;
             }
@@ -773,7 +773,7 @@ public final class BoundedRootDemandCatalogGenerator {
         }
         List<OfficialRouteGeometryRules.NormalEgress> allEgresses =
                 environment.normalEgressCandidates(diameter, terminal, target,
-                        RoutePlannerTuning.stable().getEngineeringEgressExtraM(),
+                        HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M,
                         RouteTraversal.REVERSED);
         if (!coverageOnly && allEgresses.size() > maxEgressCandidates) {
             truncations.add("egress_limit:" + root.getId() + ":" + demand.getId());

@@ -49,8 +49,7 @@ public final class RoutingProblemSnapshot {
         this.featureSourceVersion = required(featureSourceVersion, "feature source version");
         OfficialRunParameters sourceParameters = Objects.requireNonNull(parameters, "parameters").validated();
         this.parameters = new OfficialRunParameters(sourceParameters.getMinimumDepthM(),
-                sourceParameters.getMaximumDepthM(), sourceParameters.isDepthEnabled(),
-                sourceParameters.getAlgorithmProfile()).validated();
+                sourceParameters.getMaximumDepthM(), sourceParameters.isDepthEnabled()).validated();
         this.demands = sortedUnique(demands, Demand::getId, "demand");
         this.roots = sortedUnique(roots, RootCandidate::getId, "root");
         if (this.demands.isEmpty() || this.roots.isEmpty()) {
@@ -79,8 +78,7 @@ public final class RoutingProblemSnapshot {
             update(digest, importId, sourceHash, inputProfile, METRIC_CRS, codeVersion, ruleId,
                     ruleVersion, costCatalogVersion, featureSourceVersion,
                     parameters.getMinimumDepthM().stripTrailingZeros().toPlainString(),
-                    parameters.getMaximumDepthM().stripTrailingZeros().toPlainString(), parameters.isDepthEnabled(),
-                    parameters.getAlgorithmProfile());
+                    parameters.getMaximumDepthM().stripTrailingZeros().toPlainString(), parameters.isDepthEnabled());
             update(digest, demands.size());
             for (Demand demand : demands) update(digest, demand.id, demand.flowTph.toPlainString(),
                     demand.location.getXMm(), demand.location.getYMm(),

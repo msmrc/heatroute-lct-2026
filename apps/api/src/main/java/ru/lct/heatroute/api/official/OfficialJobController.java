@@ -1,6 +1,9 @@
 package ru.lct.heatroute.api.official;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import org.springframework.http.HttpHeaders;
@@ -64,7 +67,17 @@ public class OfficialJobController {
     }
 
     @PostMapping("/imports/{importId}/runs")
-    @Operation(operationId = "createOfficialRun", summary = "Queue an immutable all-demand route calculation")
+    @Operation(
+            operationId = "createOfficialRun",
+            summary = "Queue an immutable HeatRoute network calculation",
+            description = "Runs the HeatRoute network calculation for every demand point. "
+                    + "The response records the exact algorithm_version and input SHA-256.",
+            responses = @ApiResponse(
+                    responseCode = "202",
+                    description = "Immutable HeatRoute run accepted",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = OfficialRunView.class))))
     public ResponseEntity<OfficialRunView> createRun(
             @PathVariable UUID importId,
             @RequestBody(required = false) OfficialRunParameters parameters) {

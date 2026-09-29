@@ -2,7 +2,7 @@
 
 - Status: accepted for staged implementation; not promoted to `stable`
 - Date: 2026-09-28
-- Related specification: [`CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md`](../../CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md)
+- Related specification: [`NETWORK_SOLVER_SPEC.md`](../../NETWORK_SOLVER_SPEC.md)
 
 ## Context
 

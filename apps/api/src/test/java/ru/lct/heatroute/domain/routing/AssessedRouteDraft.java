@@ -12,7 +12,7 @@ import java.util.function.Function;
 import ru.lct.heatroute.domain.routing.OfficialRoutePlanner.VariantDraft;
 
 /**
- * Оценка неизменяемого на время отбора черновика; не готовый проверенный маршрут.
+ * Историческая оценка неизменяемого на время отбора черновика; не готовый проверенный маршрут.
  * Живёт только в одном проходе: после изменения сети sizing и оценки вычисляются заново.
  */
 final class AssessedRouteDraft {

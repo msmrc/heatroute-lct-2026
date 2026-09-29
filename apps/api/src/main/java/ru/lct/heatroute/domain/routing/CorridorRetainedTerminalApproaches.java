@@ -97,7 +97,7 @@ final class CorridorRetainedTerminalApproaches {
         if (source.stream().anyMatch(point -> !finite(point))
                 || source.get(0).distance(terminal.getCoordinate().toCoordinate()) > 0.001) return List.of();
         List<NormalEgress> egresses = environment.normalEgressCandidates(edge.getDiameter(), source.get(0), source.get(1),
-                RoutePlannerTuning.stable().getEngineeringEgressExtraM(), traversal);
+                HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M, traversal);
         NormalEgress egress = null;
         List<Coordinate> outside = source;
         if (!egresses.isEmpty()) {

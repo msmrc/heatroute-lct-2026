@@ -26,7 +26,6 @@ import ru.lct.heatroute.domain.job.OfficialJobService;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.run.OfficialRunService;
 import ru.lct.heatroute.domain.run.OfficialRunView;
-import ru.lct.heatroute.domain.run.RoutingAlgorithmProfile;
 
 @WebMvcTest(OfficialJobController.class)
 class OfficialJobControllerTest {
@@ -77,7 +76,7 @@ class OfficialJobControllerTest {
     }
 
     @Test
-    void queuesTheExplicitExperimentalAlgorithmProfile() throws Exception {
+    void ignoresTheRemovedAlgorithmProfileFromOlderClients() throws Exception {
         UUID importId = UUID.randomUUID();
         OfficialImportView imported = validImport();
         when(importService.find(importId)).thenReturn(imported);
@@ -91,8 +90,9 @@ class OfficialJobControllerTest {
 
         ArgumentCaptor<OfficialRunParameters> parameters = ArgumentCaptor.forClass(OfficialRunParameters.class);
         verify(runService).create(eq(imported), parameters.capture());
-        assertThat(parameters.getValue().getAlgorithmProfile())
-                .isEqualTo(RoutingAlgorithmProfile.EXPERT_EXPERIMENTAL);
+        assertThat(parameters.getValue().getMinimumDepthM()).isEqualByComparingTo("0.7");
+        assertThat(parameters.getValue().getMaximumDepthM()).isEqualByComparingTo("10.0");
+        assertThat(parameters.getValue().isDepthEnabled()).isFalse();
     }
 
     private OfficialImportView validImport() {

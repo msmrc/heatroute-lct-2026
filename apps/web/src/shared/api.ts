@@ -71,14 +71,10 @@ export interface OfficialRun {
   completed_at?: string;
 }
 
-/** Legacy alias remains readable; new UI calculations always request stable. */
-export type RoutingAlgorithmProfile = "stable" | "expert_experimental";
-
 export interface OfficialRunParameters {
   minimum_depth_m?: number;
   maximum_depth_m?: number;
   depth_enabled?: boolean;
-  algorithm_profile?: RoutingAlgorithmProfile;
 }
 
 export interface OfficialRouteCoordinate {

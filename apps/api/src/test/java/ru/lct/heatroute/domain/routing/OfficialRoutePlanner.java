@@ -23,7 +23,6 @@ import org.locationtech.jts.operation.distance.DistanceOp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import ru.lct.heatroute.domain.depth.DepthProfileResult;
 import ru.lct.heatroute.domain.depth.OfficialDepthPlanner;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
@@ -44,7 +43,11 @@ import ru.lct.heatroute.domain.topology.ExistingNetworkIncidence;
 import ru.lct.heatroute.domain.topology.TieInCandidate;
 import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 
-@Component
+/**
+ * Historical regression fixture for the retired planner.
+ *
+ * <p>This class lives in test sources and is not packaged or registered in the application.
+ */
 public class OfficialRoutePlanner {
     private static final int MAX_FINAL_SIZING_GEOMETRY_PASSES = 24;
     private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutePlanner.class);

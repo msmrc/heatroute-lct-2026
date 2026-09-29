@@ -2,11 +2,11 @@
 
 - Status: accepted for staged implementation; not promoted to `stable`
 - Date: 2026-09-28
-- Related specification: [`CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md`](../../CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md)
+- Related specification: [`NETWORK_SOLVER_SPEC.md`](../../NETWORK_SOLVER_SPEC.md)
 
 ## Context
 
-The next-generation engine must combine topology, shared physical assets, flow and diameter
+The HeatRoute engine must combine topology, shared physical assets, flow and diameter
 choices without allowing a discrete optimum to bypass the existing engineering calculations.
 Geometry objects and imported attributes are mutable, while the legacy planner may repair a draft
 during finishing. A master solution therefore cannot itself be treated as an exportable network.

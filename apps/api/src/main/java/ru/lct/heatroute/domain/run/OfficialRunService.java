@@ -7,21 +7,20 @@ import ru.lct.heatroute.domain.input.OfficialImportView;
 import ru.lct.heatroute.domain.job.OfficialJobRepository;
 import ru.lct.heatroute.domain.job.OfficialJobView;
 import ru.lct.heatroute.domain.routing.RoutingAlgorithm;
-import ru.lct.heatroute.domain.routing.RoutingAlgorithmRegistry;
 
 @Service
 public class OfficialRunService {
     private final OfficialRunRepository runRepository;
     private final OfficialJobRepository jobRepository;
-    private final RoutingAlgorithmRegistry algorithmRegistry;
+    private final RoutingAlgorithm algorithm;
 
     public OfficialRunService(
             OfficialRunRepository runRepository,
             OfficialJobRepository jobRepository,
-            RoutingAlgorithmRegistry algorithmRegistry) {
+            RoutingAlgorithm algorithm) {
         this.runRepository = runRepository;
         this.jobRepository = jobRepository;
-        this.algorithmRegistry = algorithmRegistry;
+        this.algorithm = algorithm;
     }
 
     @Transactional
@@ -34,7 +33,6 @@ public class OfficialRunService {
         OfficialRunParameters validated = parameters == null
                 ? OfficialRunParameters.defaults()
                 : parameters.validated();
-        RoutingAlgorithm algorithm = algorithmRegistry.require(validated.getAlgorithmProfile());
         OfficialRunView run = runRepository.create(
                 imported.getId(),
                 imported.getReport().getSha256(),

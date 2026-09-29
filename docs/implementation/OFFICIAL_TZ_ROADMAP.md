@@ -147,7 +147,7 @@ source102 остаётся последним production witness. VPS не об�
 
 ## 2026-09-28 — next-generation frozen evaluator and network master (not promoted)
 
-Development under [`CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md`](../../CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md)
+Development under [`NETWORK_SOLVER_SPEC.md`](../../NETWORK_SOLVER_SPEC.md)
 continues without changing `stable` or any LCT engineering requirement. Pinned OR-Tools 9.15.6755,
 the cancellable Java/native adapter, readiness capability solve and Windows/Linux-x86-64-only
 dependency set are in place. `FrozenNetworkEvaluator` now owns the frozen-topology admission path

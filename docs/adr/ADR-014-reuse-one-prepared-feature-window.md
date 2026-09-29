@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for the unpromoted next-generation solver.
+Accepted for the HeatRoute network solver.
 
 ## Context
 
@@ -20,7 +20,7 @@ environment for exact evaluation; the evaluator falls back to its old local prep
 legacy/directly constructed candidates.
 
 An empty bounded catalog remains an incomplete preparation without constructing an invalid empty
-master. The single-window path is opt-in to the next-generation stage and does not change the
+master. The single-window path is opt-in to the catalog stage and does not change the
 stable planner.
 
 ## Consequences

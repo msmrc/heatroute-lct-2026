@@ -30,7 +30,7 @@ final class RootChamberApproaches {
             }
         }
         for (OfficialRouteGeometryRules.NormalEgress egress : environment.normalEgressCandidates(
-                diameter, demand, chamber, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED)) {
+                diameter, demand, chamber, HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M, RouteTraversal.REVERSED)) {
             for (List<Coordinate> outside : NormalCorridorTransitions.build(
                     egress.start(), egress.exit(), chamber, orientation, minimum + 0.1)) {
                 List<Coordinate> points = new ArrayList<>(List.of(egress.start()));

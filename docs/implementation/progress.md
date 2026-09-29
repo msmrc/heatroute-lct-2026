@@ -241,7 +241,7 @@ R/G/N closure is claimed; all earlier production/witness evidence remains snapsh
 
 ## 2026-09-28 — next-generation solver: frozen admission and finite-catalog network master
 
-Implementation continues from [`CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md`](../../CODEX_NEXTGEN_NETWORK_SOLVER_SPEC.md)
+Implementation continues from [`NETWORK_SOLVER_SPEC.md`](../../NETWORK_SOLVER_SPEC.md)
 without changing the active `stable` planner or its engineering rules. OR-Tools CP-SAT 9.15.6755
 is pinned for Java 11; `CpSatRuntime` loads JNI before model construction, uses one deterministic
 worker and handles stop-before-registration, explicit cancellation and interruption of the Java

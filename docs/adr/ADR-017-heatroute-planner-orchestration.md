@@ -1,4 +1,4 @@
-# ADR-017: Unpromoted next-generation planner orchestration
+# ADR-017: HeatRoute planner orchestration
 
 ## Status
 
@@ -13,7 +13,7 @@ conversion to the existing calculation-result contract. Registering an incomplet
 
 ## Decision
 
-`NextGenerationRoutePlanner` is an internal Spring component, not a registered routing algorithm.
+`HeatRoutePlanner` is the production planner behind the single registered routing algorithm.
 It builds the immutable problem, loads one deterministic routing-feature window, prepares the
 bounded catalog stage, runs CP-SAT/refinement and publishes only evaluator-accepted solutions.
 Window loading, catalog generation, native search and final evaluation share one monotonic time
@@ -38,7 +38,7 @@ accepted result.
 
 ## Consequences
 
-- The full new stack can execute production-shaped data without invoking the legacy planner.
+- The full stack executes production-shaped data through one planner.
 - A valid seed produces an ordinary, fully sized and costed result; failure remains diagnostic.
 - The active `stable` implementation and API/job selection are unchanged.
 - Targeted expansion, three-role enumeration, official-dataset/API/export gates and performance

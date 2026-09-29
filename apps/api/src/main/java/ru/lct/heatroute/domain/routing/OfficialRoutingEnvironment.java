@@ -23,6 +23,7 @@ final class OfficialRoutingEnvironment {
     private final RoutingFeatureSource source;
     private final OfficialRouteGeometryRules rules;
     private final PreparedRoutingConstraints preparedWindowConstraints;
+    private final PreparedNormalEgressMemo normalEgressMemo;
     private final Map<OfficialRouteValidator, OfficialRouteValidator.ValidationSession> validationSessions
             = new IdentityHashMap<>();
     private final ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex existingSupport;
@@ -57,6 +58,9 @@ final class OfficialRoutingEnvironment {
         this.source = source;
         this.rules = rules;
         this.preparedWindowConstraints = new PreparedRoutingConstraints(rules);
+        // Не обходим переопределённые egress-правила: reuse допустим только для известной реализации.
+        this.normalEgressMemo = rules.hasStandardPreparationRules()
+                ? new PreparedNormalEgressMemo(rules) : null;
         this.existingSupport = new ru.lct.heatroute.domain.topology.ExistingNetworkSupportIndex(features);
     }
 
@@ -130,12 +134,16 @@ final class OfficialRoutingEnvironment {
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
             int diameter, Coordinate point, Coordinate target) {
-        return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target);
+        if (normalEgressMemo == null) return rules.normalEgressTowards(
+                featuresInWindow(point, target), diameter, point, target);
+        return orderedNormalEgresses(diameter, point, target, RouteTraversal.AS_GIVEN).stream().findFirst();
     }
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
             int diameter, Coordinate point, Coordinate target, RouteTraversal traversal) {
-        return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target, traversal);
+        if (normalEgressMemo == null) return rules.normalEgressTowards(
+                featuresInWindow(point, target), diameter, point, target, traversal);
+        return orderedNormalEgresses(diameter, point, target, traversal).stream().findFirst();
     }
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
@@ -143,19 +151,17 @@ final class OfficialRoutingEnvironment {
             Coordinate point,
             Coordinate target,
             double maximumAlternativeEgressExtraM) {
-        return rules.normalEgressTowards(
-                featuresInWindow(point, target),
-                diameter,
-                point,
-                target,
-                maximumAlternativeEgressExtraM);
+        if (normalEgressMemo == null) return rules.normalEgressTowards(
+                featuresInWindow(point, target), diameter, point, target, maximumAlternativeEgressExtraM);
+        return normalEgressTowards(diameter, point, target);
     }
 
     java.util.Optional<OfficialRouteGeometryRules.NormalEgress> normalEgressTowards(
             int diameter, Coordinate point, Coordinate target,
             double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
-        return rules.normalEgressTowards(featuresInWindow(point, target), diameter, point, target,
-                maximumAlternativeEgressExtraM, traversal);
+        if (normalEgressMemo == null) return rules.normalEgressTowards(featuresInWindow(point, target),
+                diameter, point, target, maximumAlternativeEgressExtraM, traversal);
+        return normalEgressTowards(diameter, point, target, traversal);
     }
 
     List<OfficialRouteGeometryRules.NormalEgress> normalEgressCandidates(
@@ -163,19 +169,25 @@ final class OfficialRoutingEnvironment {
             Coordinate point,
             Coordinate target,
             double maximumAlternativeEgressExtraM) {
-        return rules.normalEgressCandidates(
-                featuresInWindow(point, target),
-                diameter,
-                point,
-                target,
-                maximumAlternativeEgressExtraM);
+        if (normalEgressMemo == null) return rules.normalEgressCandidates(
+                featuresInWindow(point, target), diameter, point, target, maximumAlternativeEgressExtraM);
+        return orderedNormalEgresses(diameter, point, target, RouteTraversal.AS_GIVEN);
     }
 
     List<OfficialRouteGeometryRules.NormalEgress> normalEgressCandidates(
             int diameter, Coordinate point, Coordinate target,
             double maximumAlternativeEgressExtraM, RouteTraversal traversal) {
-        return rules.normalEgressCandidates(featuresInWindow(point, target), diameter, point, target,
-                maximumAlternativeEgressExtraM, traversal);
+        if (normalEgressMemo == null) return rules.normalEgressCandidates(featuresInWindow(point, target),
+                diameter, point, target, maximumAlternativeEgressExtraM, traversal);
+        return orderedNormalEgresses(diameter, point, target, traversal);
+    }
+
+    private List<OfficialRouteGeometryRules.NormalEgress> orderedNormalEgresses(
+            int diameter, Coordinate point, Coordinate target, RouteTraversal traversal) {
+        List<ImportedOfficialFeature> windowFeatures = featuresInWindow(point, target);
+        List<OfficialRouteGeometryRules.NormalEgress> prepared = normalEgressMemo.prepare(
+                windowFeatures, diameter, point, traversal);
+        return rules.sortNormalEgressesForTarget(prepared, target);
     }
 
     boolean pointInsideForbiddenClearance(int diameter, Coordinate point) {

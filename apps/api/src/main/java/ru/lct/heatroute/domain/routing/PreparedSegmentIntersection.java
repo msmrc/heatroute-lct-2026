@@ -17,7 +17,6 @@ import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.locationtech.jts.index.strtree.AbstractNode;
-import org.locationtech.jts.index.strtree.Boundable;
 import org.locationtech.jts.index.strtree.ItemBoundable;
 import org.locationtech.jts.index.strtree.STRtree;
 
@@ -31,7 +30,7 @@ final class PreparedSegmentIntersection {
     private final PreparedGeometry fallback;
     private final Envelope envelope;
     private final IndexedPointInAreaLocator locator;
-    private final AbstractNode root;
+    private final BoundaryIndex boundaryIndex;
     private final boolean indexed;
 
     PreparedSegmentIntersection(Geometry source) {
@@ -71,7 +70,7 @@ final class PreparedSegmentIntersection {
         ensureActive();
         if (!indexed || owned.isEmpty()) {
             locator = null;
-            root = null;
+            boundaryIndex = null;
             return;
         }
         STRtree tree = new STRtree();
@@ -82,8 +81,7 @@ final class PreparedSegmentIntersection {
             for (int j = 0; j < polygon.getNumInteriorRing(); j++) addRing(tree, polygon.getInteriorRingN(j));
         }
         tree.build();
-        root = tree.getRoot();
-        materializeBounds(root);
+        boundaryIndex = BoundaryIndex.flatten(tree.getRoot());
         locator = new IndexedPointInAreaLocator(owned);
         // Завершаем ленивую подготовку до публикации: последующие запросы не меняют индекс.
         locator.locate(owned.getCoordinate());
@@ -99,28 +97,13 @@ final class PreparedSegmentIntersection {
         Coordinate end = new Coordinate(points.getX(1), points.getY(1));
         if (!finite(start) || !finite(end)) return fallback.intersects(query);
         Envelope bounds = new Envelope(start, end);
-        if (!envelope.intersects(bounds) || root == null) return false;
+        if (!envelope.intersects(bounds) || boundaryIndex == null) return false;
         // Если начало снаружи, вход в полигон/касание возможны только через границу любого кольца.
         if (locator.locate(start) != Location.EXTERIOR) return true;
-        return intersectsBoundary(root, bounds, start, end);
+        return boundaryIndex.intersects(bounds, start, end);
     }
 
     boolean usesIndex() { return indexed; }
-
-    private static boolean intersectsBoundary(Boundable item, Envelope bounds,
-            Coordinate start, Coordinate end) {
-        if (!((Envelope) item.getBounds()).intersects(bounds)) return false;
-        if (item instanceof ItemBoundable) {
-            RingEdge edge = (RingEdge) ((ItemBoundable) item).getItem();
-            return intersectsEdge(start, end, edge);
-        }
-        ensureActive();
-        // Ранний выход по первому пересечению, без списка всех рёбер в envelope запроса.
-        for (Object child : ((AbstractNode) item).getChildBoundables()) {
-            if (intersectsBoundary((Boundable) child, bounds, start, end)) return true;
-        }
-        return false;
-    }
 
     /**
      * После пересечения envelopes достаточно точных знаков ориентации JTS.
@@ -156,14 +139,6 @@ final class PreparedSegmentIntersection {
         }
     }
 
-    private static void materializeBounds(AbstractNode node) {
-        ensureActive();
-        for (Object child : node.getChildBoundables()) {
-            if (child instanceof AbstractNode) materializeBounds((AbstractNode) child);
-        }
-        node.getBounds();
-    }
-
     private static boolean finite(Geometry geometry) {
         Coordinate[] points = geometry.getCoordinates();
         for (int i = 0; i < points.length; i++) {
@@ -185,5 +160,135 @@ final class PreparedSegmentIntersection {
         private final Coordinate start;
         private final Coordinate end;
         private RingEdge(Coordinate start, Coordinate end) { this.start = start; this.end = end; }
+    }
+
+    /**
+     * Неизменяемый preorder-снимок STRtree. В hot path нет рекурсии, Boundable и ленивых bounds JTS;
+     * skipAfterSubtree сохраняет исходный DFS-порядок и позволяет пропустить целое непересекающееся поддерево.
+     */
+    private static final class BoundaryIndex {
+        // Координаты в этом диапазоне дают representable разности ≥ 2^-452 и произведения
+        // далеко от underflow/overflow. Mixed-scale значения отключают только shortcut.
+        private static final double MIN_SAFE_ORIENTATION_COORDINATE = 0x1.0p-400;
+        private static final double MAX_SAFE_ORIENTATION_COORDINATE = 0x1.0p400;
+        // Две ориентации окупаются при отсечении большого поддерева, но не десятка листьев.
+        private static final int MIN_LINE_SHORTCUT_ENTRIES = 64;
+        private final double[] minX;
+        private final double[] minY;
+        private final double[] maxX;
+        private final double[] maxY;
+        private final int[] skipAfterSubtree;
+        private final RingEdge[] edges;
+        private final boolean[] lineShortcutSafe;
+
+        private BoundaryIndex(int entries) {
+            minX = new double[entries];
+            minY = new double[entries];
+            maxX = new double[entries];
+            maxY = new double[entries];
+            skipAfterSubtree = new int[entries];
+            edges = new RingEdge[entries];
+            lineShortcutSafe = new boolean[entries];
+        }
+
+        private static BoundaryIndex flatten(AbstractNode root) {
+            int entries = entryCount(root);
+            BoundaryIndex index = new BoundaryIndex(entries);
+            int next = write(root, index, 0);
+            if (next != entries) throw new IllegalStateException("Incomplete STRtree flattening");
+            return index;
+        }
+
+        private static int entryCount(Object boundable) {
+            ensureActive();
+            if (boundable instanceof ItemBoundable) return 1;
+            int count = 1;
+            AbstractNode node = (AbstractNode) boundable;
+            for (Object child : node.getChildBoundables()) count += entryCount(child);
+            return count;
+        }
+
+        private static int write(Object boundable, BoundaryIndex index, int entry) {
+            ensureActive();
+            Envelope bounds = (Envelope) ((boundable instanceof ItemBoundable)
+                    ? ((ItemBoundable) boundable).getBounds() : ((AbstractNode) boundable).getBounds());
+            index.minX[entry] = bounds.getMinX();
+            index.minY[entry] = bounds.getMinY();
+            index.maxX[entry] = bounds.getMaxX();
+            index.maxY[entry] = bounds.getMaxY();
+            int next = entry + 1;
+            if (boundable instanceof ItemBoundable) {
+                index.edges[entry] = (RingEdge) ((ItemBoundable) boundable).getItem();
+            } else {
+                for (Object child : ((AbstractNode) boundable).getChildBoundables()) {
+                    next = write(child, index, next);
+                }
+            }
+            index.skipAfterSubtree[entry] = next;
+            index.lineShortcutSafe[entry] = next - entry >= MIN_LINE_SHORTCUT_ENTRIES
+                    && hasSafeCoordinates(index.minX[entry], index.minY[entry], index.maxX[entry], index.maxY[entry]);
+            return next;
+        }
+
+        private boolean intersects(Envelope bounds, Coordinate start, Coordinate end) {
+            // Ранний выход по первому пересечению без списков кандидатов или обхода JTS Boundable.
+            boolean queryLineShortcutSafe = edges.length >= MIN_LINE_SHORTCUT_ENTRIES
+                    && hasSafeCoordinates(start.x, start.y, end.x, end.y);
+            Coordinate corner = queryLineShortcutSafe ? new Coordinate() : null;
+            for (int entry = 0; entry < edges.length;) {
+                if (!intersectsEnvelope(entry, bounds)) {
+                    entry = skipAfterSubtree[entry];
+                    continue;
+                }
+                RingEdge edge = edges[entry];
+                if (edge == null) {
+                    if (queryLineShortcutSafe && lineShortcutSafe[entry]
+                            && strictlyOnOneSideOfSegmentLine(entry, start, end, corner)) {
+                        entry = skipAfterSubtree[entry];
+                        continue;
+                    }
+                    ensureActive();
+                    entry++;
+                } else {
+                    if (intersectsEdge(start, end, edge)) return true;
+                    entry++;
+                }
+            }
+            return false;
+        }
+
+        private boolean intersectsEnvelope(int entry, Envelope bounds) {
+            return minX[entry] <= bounds.getMaxX() && maxX[entry] >= bounds.getMinX()
+                    && minY[entry] <= bounds.getMaxY() && maxY[entry] >= bounds.getMinY();
+        }
+
+        private static boolean hasSafeCoordinates(double first, double second, double third, double fourth) {
+            return hasSafeCoordinate(first) && hasSafeCoordinate(second)
+                    && hasSafeCoordinate(third) && hasSafeCoordinate(fourth);
+        }
+
+        private static boolean hasSafeCoordinate(double value) {
+            if (value == 0.0) return true;
+            double magnitude = Math.abs(value);
+            return magnitude >= MIN_SAFE_ORIENTATION_COORDINATE
+                    && magnitude <= MAX_SAFE_ORIENTATION_COORDINATE;
+        }
+
+        /**
+         * Прямоугольник выпуклый: два support-угла дают min/max знаки affine orientation.
+         * Если они строго одинаковы, ни одно ребро поддерева не пересечёт отрезок. Нулевой знак
+         * отключает отсечение, поэтому касания и крайние finite координаты сохраняют exact path.
+         */
+        private boolean strictlyOnOneSideOfSegmentLine(
+                int entry, Coordinate start, Coordinate end, Coordinate corner) {
+            // sign(dx) chooses y-support; sign(dy) has opposite x-support in cross product.
+            corner.x = end.y > start.y ? maxX[entry] : minX[entry];
+            corner.y = end.x > start.x ? minY[entry] : maxY[entry];
+            int minimumSide = Orientation.index(start, end, corner);
+            if (minimumSide == 0) return false;
+            corner.x = end.y > start.y ? minX[entry] : maxX[entry];
+            corner.y = end.x > start.x ? maxY[entry] : minY[entry];
+            return sameNonzeroSign(minimumSide, Orientation.index(start, end, corner));
+        }
     }
 }

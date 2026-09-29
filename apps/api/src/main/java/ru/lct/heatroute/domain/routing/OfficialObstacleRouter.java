@@ -1799,6 +1799,8 @@ public class OfficialObstacleRouter {
             Coordinate current = nodes.get(state.node);
             double incomingX = state.previous < 0 ? initialX : (millimetresX[state.node] - millimetresX[state.previous]) / 1000.0;
             double incomingY = state.previous < 0 ? initialY : (millimetresY[state.node] - millimetresY[state.previous]) / 1000.0;
+            OfficialRouteDeflectionRules.PreparedDirection incoming = state.previous >= 0 || previous != null
+                    ? OfficialRouteDeflectionRules.prepareDirection(incomingX, incomingY) : null;
             for (int next = 0; next < size; next++) {
                 // segmentAllowed запрещает даже касание blocked-геометрии концом отрезка.
                 // У такого узла нет допустимых рёбер; индексы сохраняем ради прежнего tie-breaking.
@@ -1812,8 +1814,8 @@ public class OfficialObstacleRouter {
                 boolean freeTerminalLink = state.node == 0 && previous == null || next == 1 && following == null;
                 if (minimumSegmentM > 0 && !freeTerminalLink
                         && current.distance(target) + 1e-7 < minimumSegmentM) continue;
-                if ((state.previous >= 0 || previous != null) && !OfficialRouteDeflectionRules.allowsTurn(
-                        incomingX, incomingY,
+                if (incoming != null && !OfficialRouteDeflectionRules.allowsTurn(
+                        incoming,
                         (millimetresX[next] - millimetresX[state.node]) / 1000.0,
                         (millimetresY[next] - millimetresY[state.node]) / 1000.0)) {
                     rejectedTurns++;
@@ -2306,7 +2308,7 @@ public class OfficialObstacleRouter {
         private static final int MAX_CACHED_SEGMENTS = 1_000_000;
         private final boolean directed;
         private final Map<ExactPointKey, Integer> pointIds = new HashMap<>();
-        private final LongByteTable segmentValues = new LongByteTable();
+        private final SegmentVisibilityTable segmentValues = new SegmentVisibilityTable();
 
         SegmentVisibilityMemo() { this(true); }
 
@@ -2363,63 +2365,6 @@ public class OfficialObstacleRouter {
         @Override
         public int hashCode() {
             return 31 * Long.hashCode(x) + Long.hashCode(y);
-        }
-    }
-
-    /** Primitive open-addressed table: 0 is unknown, 1 is visible, 2 is blocked. */
-    private static final class LongByteTable {
-        private static final double LOAD_FACTOR = 0.6;
-        private long[] keys = new long[1024];
-        private byte[] values = new byte[1024];
-        private int size;
-
-        private int size() {
-            return size;
-        }
-
-        private byte get(long key) {
-            int index = index(key, keys.length);
-            while (values[index] != 0) {
-                if (keys[index] == key) return values[index];
-                index = (index + 1) & (keys.length - 1);
-            }
-            return 0;
-        }
-
-        private void put(long key, byte value) {
-            if ((size + 1) > keys.length * LOAD_FACTOR) resize();
-            int index = index(key, keys.length);
-            while (values[index] != 0) {
-                if (keys[index] == key) {
-                    values[index] = value;
-                    return;
-                }
-                index = (index + 1) & (keys.length - 1);
-            }
-            keys[index] = key;
-            values[index] = value;
-            size++;
-        }
-
-        private void resize() {
-            long[] oldKeys = keys;
-            byte[] oldValues = values;
-            keys = new long[oldKeys.length * 2];
-            values = new byte[oldValues.length * 2];
-            size = 0;
-            for (int index = 0; index < oldKeys.length; index++) {
-                if (oldValues[index] != 0) put(oldKeys[index], oldValues[index]);
-            }
-        }
-
-        private int index(long key, int capacity) {
-            long mixed = key;
-            mixed ^= mixed >>> 33;
-            mixed *= 0xff51afd7ed558ccdl;
-            mixed ^= mixed >>> 33;
-            mixed *= 0xc4ceb9fe1a85ec53l;
-            mixed ^= mixed >>> 33;
-            return (int) mixed & (capacity - 1);
         }
     }
 

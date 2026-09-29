@@ -300,13 +300,42 @@ public class OfficialRouteGeometryRules {
     private List<NormalEgress> directedNormalEgressCandidates(
             List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
             Coordinate target, RouteTraversal traversal) {
-        List<NormalEgress> result = nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal).stream()
+        return sortNormalEgressesForTarget(
+                prepareNormalEgresses(features, diameter, connectionPoint, traversal), target);
+    }
+
+    /** Полная target-независимая подготовка допустимых нормалей; порядок до target-sort не является контрактом. */
+    List<NormalEgress> prepareNormalEgresses(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint,
+            RouteTraversal traversal) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        return padPreparedNormalEgresses(features, diameter, traversal,
+                nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal));
+    }
+
+    /** Добавляет только поисковый запас к уже проверенным исходным нормалям, сохраняя их порядок. */
+    List<NormalEgress> padPreparedNormalEgresses(
+            List<ImportedOfficialFeature> features, int diameter, RouteTraversal traversal,
+            List<NormalEgress> nearest) {
+        Objects.requireNonNull(traversal, "Route traversal is required");
+        return nearest.stream()
                 .map(egress -> withNavigationMargin(egress, features, diameter, traversal))
                 .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /** Применяет единственную target-зависимую часть исходного упорядочивания к полной подготовке. */
+    List<NormalEgress> sortNormalEgressesForTarget(List<NormalEgress> prepared, Coordinate target) {
+        List<NormalEgress> result = new ArrayList<>(prepared);
         result.sort(Comparator.comparingDouble((NormalEgress exit) -> exit.exit().distance(target))
                 .thenComparing(NormalEgress::oksId)
                 .thenComparingDouble(exit -> exit.exit().x).thenComparingDouble(exit -> exit.exit().y));
         return result;
+    }
+
+    /** Исходные ближайшие допустимые нормали для mandatory validation, без navigation margin. */
+    List<NormalEgress> prepareNearestLegalNormalEgresses(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint, RouteTraversal traversal) {
+        return nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal);
     }
 
     private List<NormalEgress> nearestLegalNormalEgresses(
@@ -458,10 +487,17 @@ public class OfficialRouteGeometryRules {
     List<RouteValidationIssue> validateMandatoryEgress(
             RouteEdge edge, LineString route, List<ImportedOfficialFeature> features,
             int diameter, Coordinate connectionPoint) {
+        return validateMandatoryEgress(edge, route, features, diameter, connectionPoint, null);
+    }
+
+    /** Сессионный reuse заменяет только подготовку нормалей, не проверку фактического ввода. */
+    List<RouteValidationIssue> validateMandatoryEgress(
+            RouteEdge edge, LineString route, List<ImportedOfficialFeature> features,
+            int diameter, Coordinate connectionPoint, PreparedNormalEgressMemo normalEgresses) {
         List<RouteValidationIssue> issues = new ArrayList<>();
         // Рёбра направлены от врезки к потребителю. Финальный ввод проверяется отдельно;
         // близость врезки к чужому ОКС не освобождает её от проверки отступа.
-        validateEndpointEgress(edge, route, features, diameter, connectionPoint, issues);
+        validateEndpointEgress(edge, route, features, diameter, connectionPoint, issues, normalEgresses);
         return issues;
     }
 
@@ -471,13 +507,14 @@ public class OfficialRouteGeometryRules {
             List<ImportedOfficialFeature> features,
             int diameter,
             Coordinate connectionPoint,
-            List<RouteValidationIssue> issues) {
+            List<RouteValidationIssue> issues, PreparedNormalEgressMemo normalEgresses) {
         Coordinate endpoint = route.getCoordinateN(route.getNumPoints() - 1);
         Coordinate adjacent = route.getCoordinateN(route.getNumPoints() - 2);
         List<ImportedOfficialFeature> containing = containingOksFeatures(features, diameter, connectionPoint);
         if (containing.isEmpty()) return;
-        List<NormalEgress> expected = nearestLegalNormalEgresses(
-                features, diameter, connectionPoint, RouteTraversal.REVERSED);
+        List<NormalEgress> expected = normalEgresses == null
+                ? nearestLegalNormalEgresses(features, diameter, connectionPoint, RouteTraversal.REVERSED)
+                : normalEgresses.prepareRawNearest(features, diameter, connectionPoint, RouteTraversal.REVERSED);
         LineString actualLeg = line(List.of(endpoint, adjacent));
         boolean valid = expected.stream().anyMatch(egress -> followsNormal(endpoint, adjacent, egress)
                 && containing.stream().filter(feature -> feature.getFeatureId().equals(egress.oksId))
@@ -645,7 +682,8 @@ public class OfficialRouteGeometryRules {
      * проверенный контакт врезки могут начинать подход внутри этого отступа.
      */
     private boolean utilitySegmentAllowed(LineString segment, Constraint constraint) {
-        if (segment.distance(constraint.source) >= constraint.clearanceM - CLEARANCE_BOUNDARY_EPSILON_M) {
+        if (meetsUtilityClearance(segment, constraint.source,
+                constraint.clearanceM - CLEARANCE_BOUNDARY_EPSILON_M)) {
             return true;
         }
         LengthIndexedLine indexed = new LengthIndexedLine(segment);
@@ -692,6 +730,37 @@ public class OfficialRouteGeometryRules {
         }
         return cursor >= length || utilityPartAllowed(
                 indexed, cursor, length, allowedBefore, false, constraint);
+    }
+
+    /**
+     * Сохраняет точное сравнение JTS, но прекращает поиск после найденного нарушения.
+     * Порог остановки строго ниже границы: равенство остаётся допустимым только после
+     * полного поиска. Envelope-shortcut isWithinDistance здесь намеренно не используется:
+     * его округление может отличить расстояния на один ULP у границы допуска.
+     */
+    static boolean meetsUtilityClearance(LineString segment, Geometry source, double minimumDistance) {
+        if (!(minimumDistance > 0) || !Double.isFinite(minimumDistance)) {
+            return segment.distance(source) >= minimumDistance;
+        }
+        if (segment.getNumPoints() == 2 && source instanceof LineString && source.getNumPoints() == 2) {
+            LineString sourceLine = (LineString) source;
+            Coordinate a = segment.getCoordinateN(0);
+            Coordinate b = segment.getCoordinateN(1);
+            Coordinate c = sourceLine.getCoordinateN(0);
+            Coordinate d = sourceLine.getCoordinateN(1);
+            if (distanceCoordinateSafe(a) && distanceCoordinateSafe(b)
+                    && distanceCoordinateSafe(c) && distanceCoordinateSafe(d)) {
+                // Это та же единственная пара сегментов DistanceOp, без временных списков/массивов.
+                double distance = org.locationtech.jts.algorithm.Distance.segmentToSegment(a, b, c, d);
+                if (Double.isFinite(distance)) return distance >= minimumDistance;
+            }
+        }
+        return new DistanceOp(segment, source, Math.nextDown(minimumDistance)).distance() >= minimumDistance;
+    }
+
+    private static boolean distanceCoordinateSafe(Coordinate coordinate) {
+        // Запас до overflow произведений JTS; NaN/Infinity и экстремумы остаются на общем пути.
+        return Math.abs(coordinate.x) <= 0x1.0p400 && Math.abs(coordinate.y) <= 0x1.0p400;
     }
 
     private boolean utilityPartAllowed(

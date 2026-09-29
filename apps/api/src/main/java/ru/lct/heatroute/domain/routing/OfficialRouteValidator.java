@@ -105,16 +105,19 @@ public class OfficialRouteValidator {
     }
 
     /**
-     * Повторно использует только ограниченную подготовку препятствий этого валидатора.
-     * Маршруты и результаты не удерживаются; сессия не предназначена для параллельного доступа.
+     * Повторно использует ограниченную подготовку препятствий и нормалей этого валидатора.
+     * Маршруты и результаты допуска не удерживаются; сессия не предназначена для параллельного доступа.
      */
     final class ValidationSession {
         private final PreparedValidationConstraints preparedConstraints;
+        private final PreparedNormalEgressMemo normalEgresses;
         private List<ImportedOfficialFeature> incidenceFeatures;
         private ExistingNetworkIncidence incidence;
 
         private ValidationSession() {
             preparedConstraints = geometryRules == null ? null : new PreparedValidationConstraints(geometryRules);
+            normalEgresses = geometryRules != null && geometryRules.hasStandardPreparationRules()
+                    ? new PreparedNormalEgressMemo(geometryRules) : null;
         }
 
         List<RouteValidationIssue> validate(
@@ -131,7 +134,8 @@ public class OfficialRouteValidator {
                 incidenceFeatures = features;
             }
             return OfficialRouteValidator.this.validateWithResolvedIncidence(incidence.resolved(nodes), edges, features,
-                    preparedConstraints != null && preparedConstraints.supports(features) ? preparedConstraints : null);
+                    preparedConstraints != null && preparedConstraints.supports(features) ? preparedConstraints : null,
+                    normalEgresses);
         }
     }
 
@@ -142,19 +146,19 @@ public class OfficialRouteValidator {
             PreparedValidationConstraints preparedConstraints) {
         if (features == null && geometryRules == null) return validate(nodes, edges);
         return validateWithResolvedIncidence(new ExistingNetworkIncidence(features).resolved(nodes),
-                edges, features, preparedConstraints);
+                edges, features, preparedConstraints, null);
     }
 
     private List<RouteValidationIssue> validateWithResolvedIncidence(
             List<RouteNode> nodes,
             List<RouteEdge> edges,
             List<ImportedOfficialFeature> features,
-            PreparedValidationConstraints preparedConstraints) {
+            PreparedValidationConstraints preparedConstraints, PreparedNormalEgressMemo normalEgresses) {
         List<RouteValidationIssue> issues = new ArrayList<>(validate(nodes, edges));
         if (geometryRules == null) {
             return issues;
         }
-        issues.addAll(validateSpatialConstraints(nodes, edges, features, preparedConstraints, false));
+        issues.addAll(validateSpatialConstraints(nodes, edges, features, preparedConstraints, false, normalEgresses));
         if (issues.isEmpty() && !edges.isEmpty()) {
             Map<String, Set<String>> tieIns = new HashMap<>();
             for (RouteNode node : nodes) {
@@ -210,13 +214,14 @@ public class OfficialRouteValidator {
 
         /** Связность, разрешённые специальные пересечения и их разметку проверяет вызывающая сторона. */
         public List<RouteValidationIssue> validate(RouteNode upstream, RouteNode downstream, RouteEdge edge) {
-            return validateSpatialConstraints(List.of(upstream, downstream), List.of(edge), features, prepared, true);
+            return validateSpatialConstraints(List.of(upstream, downstream), List.of(edge), features, prepared, true, null);
         }
     }
 
     private List<RouteValidationIssue> validateSpatialConstraints(
             List<RouteNode> nodes, List<RouteEdge> edges, List<ImportedOfficialFeature> features,
-            PreparedValidationConstraints preparedConstraints, boolean forbiddenOnly) {
+            PreparedValidationConstraints preparedConstraints, boolean forbiddenOnly,
+            PreparedNormalEgressMemo normalEgresses) {
         List<RouteValidationIssue> issues = new ArrayList<>();
         Map<String, RouteNode> nodesById = new HashMap<>();
         nodes.forEach(node -> nodesById.put(node.getId(), node));
@@ -270,8 +275,9 @@ public class OfficialRouteValidator {
                             "Demand node must coincide with its original input connection point"));
                 }
             }
-            issues.addAll(geometryRules.validateMandatoryEgress(
-                    edge, route, features, diameter, connectionPoint));
+            issues.addAll(normalEgresses == null
+                    ? geometryRules.validateMandatoryEgress(edge, route, features, diameter, connectionPoint)
+                    : geometryRules.validateMandatoryEgress(edge, route, features, diameter, connectionPoint, normalEgresses));
             List<OfficialRouteGeometryRules.Constraint> baseConstraints = preparedConstraints == null
                     ? constraintsByDiameter.computeIfAbsent(diameter, value -> geometryRules.baseConstraints(features, value))
                     : preparedConstraints.prepareIntersecting(features, diameter, route.getEnvelopeInternal());
@@ -286,13 +292,8 @@ public class OfficialRouteValidator {
                     route.getCoordinateN(0),
                     route.getCoordinateN(route.getNumPoints() - 1));
             OfficialRouteGeometryRules.NormalEgress egress = "demand_connection".equals(downstream.getNodeType())
-                    ? geometryRules.normalEgressTowards(
-                                    features,
-                                    diameter,
-                                    connectionPoint,
-                                    route.getCoordinateN(route.getNumPoints() - 2),
-                                    RouteTraversal.REVERSED)
-                            .orElse(null)
+                    ? validationNormalEgress(features, diameter, connectionPoint,
+                            route.getCoordinateN(route.getNumPoints() - 2), normalEgresses)
                     : null;
             if (egress == null) {
                 issues.addAll(geometryRules.validate(edge, route, allConstraints));
@@ -319,6 +320,19 @@ public class OfficialRouteValidator {
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
                 .thenComparing(issue -> issue.getSubjectId() == null ? "" : issue.getSubjectId()));
         return issues;
+    }
+
+    /** Цель сортирует полный набор padded-нормалей; mandatory check отдельно использует raw-нормали. */
+    private OfficialRouteGeometryRules.NormalEgress validationNormalEgress(
+            List<ImportedOfficialFeature> features, int diameter, Coordinate point,
+            Coordinate target, PreparedNormalEgressMemo normalEgresses) {
+        if (normalEgresses == null) {
+            return geometryRules.normalEgressTowards(features, diameter, point, target, RouteTraversal.REVERSED)
+                    .orElse(null);
+        }
+        return geometryRules.sortNormalEgressesForTarget(
+                normalEgresses.prepare(features, diameter, point, RouteTraversal.REVERSED), target)
+                .stream().findFirst().orElse(null);
     }
 
     private void validateRootsAndCycles(

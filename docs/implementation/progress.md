@@ -1,5 +1,141 @@
 # Current implementation progress
 
+## 2026-09-29 — routing hot-path optimization: local fast gate, benchmark pending
+
+Текущая итерация R12: первый isolated angle-cone probe27203 exact cases PASS;
+median ordinary prepared-predicate104,3505→67,3175 мс (−35,49%, не full-route speed).
+В prepared angle gate добавлены доказанные внутренние cones, границы/скалярный и камерный
+predicate остаются прежними; добавлены3 regression tests. Первый immutable R12 build/fast
+PASS:2447/0/0/3, все10 focused tests PASS, Maven39,826 с. Первые controls6/0/0/0 PASS,
+Maven1:09; первый full R12 PASS:997,725 с, exact2505, оба17/17, exit0/noOOM.
+Это−50,92% к baseline и−9,73% к R10 по одному запуску, не established repeatability.
+Контейнер03:14:18–03:31:02 UTC,2 CPU/4 GiB, plan990,524 с; counters совпали с R10.
+Следующий R13 guarded raw reject прошёл isolated35494-case differential; ordinary kernel
+median−18,13% с одним выбросом, boundary subset не ускорился. Добавлены2 regression tests,
+первый immutable build/fast2449/0/0/3 PASS (12 focused PASS, Maven38,498 с).
+Первый controls6/0/0/0 PASS, Maven1:10; full R13 PASS:968,891 с, exact2505,
+оба17/17, exit0/noOOM. −52,34% к baseline,−2,89% к R12 по одному запуску;
+repeatability не установлена. Контейнер03:39:02–03:55:17 UTC, plan961,887 с.
+Первый packaged runtime R13 build/Compose/readiness PASS; uid10001, Java11.0.28+6,
+прежние лимиты2CPU/4GiB. Новый default2D run74470b23-fec8-4b19-8f95-1fee79ca8a55 /
+jobae628568-c07f-4366-81ae-a91b6fc18af5 completed04:24:47.094296 UTC, attempt1,
+на том же persisted import:1531,358837 с, exact2092, оба17/17, exports20060/62features.
+Это−40,06% к прежнему API baseline2554,766262 с, не повторная пара; repeatability нет.
+Временные API/db остановлены, тома и main stack сохранены. Следующий R14 wide raw cones
+прошёл первый isolated36997-case differential; ordinary kernel median60,1805→24,7045 мс
+(около−58,95%, не full route). Добавлены3 regression tests; первый build/fast PASS:
+2452/0/0/3,15 focused PASS,Maven39,554 с; первый controls6/0/0/0 PASS,Maven1:08.
+Первый full R14 PASS:905,058 с, exact2505, оба17/17, exit0/noOOM,
+04:34:00.33057534–04:49:11.10234332 UTC,2CPU/4GiB,heap256–2560,JFRprofile.
+−55,48% к baseline и−6,59% к R13; повторяемость не установлена. R14 API не запускался.
+Первый R14 JFR reader PASS (heap2560MiB),38932samples; свежие hotspots записаны
+в performance report, старый неудачный разбор R12 не повторялся.
+Инженерные границы,
+scalar/junction/final validators прежние.
+В рабочем дереве поверх R14 подготовлен R15: неиспользуемые начальные feature windows
+в finishGeometry загружаются только при depth=true; финальные окна/validation всегда
+сохраняются. Добавлены2 focused 2D tests (3calls и source-only restriction в final validator),
+старый depth=true/4calls test не изменён. Первый immutable R15 build/fast PASS:
+2454/0/0/3,Maven37,481 с; controls6/0/0/0 PASS,Maven1:06; все3 feature-window tests PASS.
+Полный R14 измерен на отдельном
+неизменяемом snapshot, не является full/API evidence для рабочего R15.
+Первый R15 runtime build/config/up/readiness PASS; фактические uid10001,
+Java11.0.28+6,2CPU/4GiB,heap256–2560/Active2. Единственный default2D API run
+ed008b95-b0e7-4689-867f-09d308260097/job698e5d64-3eda-4c40-8d1a-38d8ce3fcbb0
+запущен05:00:36.83183 UTC на прежнем persisted import; completed05:25:01.595314,
+attempt1, без error:1464,763484 с (−42,67% к прежнему API baseline2554,766262).
+Первый Export/comparator PASS:exact2092, оба17/17, HTTP200/60–62features.
+Повторяемость не установлена; это совместный эффект R14/R15, не isolated windows gain.
+API/db оставлены доступными для открытого пользователю UI на5175; повторного POST нет.
+Следующий ignored wall-frame trial скомпилирован, первый differential не прошёл
+из-за опечатки скопированной capsule formula. Исправлен только прототип;
+повторный запуск требует отдельного разрешения, production остаётся R15.
+Первый post-run разбор JFR R12 упал из-за heap768 MiB в reader; сам R12 PASS,
+повторного разбора не было, свежие hotspot percentages не заявляются.
+R11 контейнер завершился exit0/noOOM в03:07:04 UTC; сбор и exact comparison
+исправленным наблюдателем требуют отдельного разрешения после отказа auto-review.
+R11 equivalence пока не заявляется; R12/R13/R14 измерены независимо.
+
+После объединения `origin/master` зафиксирован baseline `052dedb`. Без изменения правил
+реализованы плоский индекс пересечения границ, страничная таблица exact visibility и
+ограниченный memo полной подготовки нормалей с инвалидацией изменяемых входных данных.
+Финальный снимок R3: Java 11 fast suite 2409 tests / 0 failures / 0 errors / 3 scale skips;
+web 36 Vitest + 37 Node, lint/typecheck PASS. Полный конкурсный baseline прошёл за
+2032,87 с с depth=true и strict export; R3 завершился за 1686,424 с (−17,04%).
+Все 2505 значений результата совпали точно. Это первая локальная пара со вспомогательной
+нагрузкой, не production speed claim и не закрытие N/R-gates. Изолированные микрозамеры
+и границы проверок: [рабочий отчёт](ROUTING_PERFORMANCE_2026_09_29.md).
+
+Следующий локальный снимок R4 добавляет консервативное отсечение крупных поддеревьев
+boundary index по двум support-углам; малые ветви и небезопасные масштабы идут прежним
+путём. Его отдельный fast gate: 2411 total / 0 failures / 0 errors / 3 skips. Микрозамер
+на разреженной сетке полигонов ≈2× относительно R3; full dataset R4 ещё не запускался,
+полным ускорением алгоритма это не объявляется.
+
+R5: normal-preparation memo подключён к ValidationSession. RAW обязательного ввода
+отделён от PADDED навигационной нормали; допуск сети не кешируется, custom hooks сохранены.
+Снимок candidate-r5: 2416 Java tests / 0 failures / 0 errors / 3 skips, Maven 40,124 с.
+Runtime package собран; полный конкурсный R5 запущен отдельно в прежних лимитах 2 CPU/4 ГБ.
+Полный R5 PASS: 1351,748 с (−33,51% к baseline, −19,85% к R3), все 2505 значений
+результата и финальные счётчики совпали. Отдельный packaged runtime R5: non-root Java11,
+PostGIS/CP-SAT readiness, OpenAPI и официальный импорт 144 объектов — PASS; route job/export
+ещё не проверены. Временный Compose остановлен, данные сохранены; основной API не менялся.
+
+R6: exact early-stop DistanceOp и прямой JTS two-segment calculation в первом utility-clearance
+gate; границы, special и tie-in логика сохранены. Отвергнут isWithinDistance-shortcut,
+для которого найден ULP false accept. Финальный R6 fast: 2422 tests / 0 failures / 0 errors /
+3 skips, Maven 41,969 с. Полный R6 PASS за 1313,941 с (−35,37% к baseline), все 2505
+значений и итоговые счётчики совпали точно. API/job пока не запускался.
+
+R7: стандартное сравнение JTS-геометрий ускорено без потери raw ordinates/layout/metadata,
+custom и nonfinite данные идут прежним путём; независимый pre-change oracle в тестах.
+Fast 2426/0/0/3, Maven 40,966 с; 144000 real-fixture copy comparisons: 72–74→55–58 мс.
+R8 повышает bounded preparation cache до1024 entries/400000 coordinates, чтобы избежать
+повторных buffer compilations при смене ДУ; итоговый fast 2428/0/0/3 PASS, Maven 53,728 с.
+Runtime R8 собран, пять dataset/control tests PASS за49,753 с. Полный R8 PASS за1166,131 с
+(−42,64% к baseline, −11,25% к R6), все 2505 значений совпали точно; прежние лимиты
+2 CPU/4 GiB, без параллельных тяжёлых проверок. Полный corridor oracle PASS за31,267 с
+(default8 candidates, depth=true). Изолированный R8 runtime healthy, импорт/OpenAPI/readiness
+PASS; API run7a673880-b5e3-401e-b02c-ef254aa5543b completed/attempt1 за1721,878 с.
+Оба17/17, HTTP200 strict exports60/74 features. Временный Compose остановлен с сохранением
+данных. Повторная чистая пара и matched API baseline/final остаются открытыми;
+HTTP timing нельзя напрямую сравнивать с in-memory baseline.
+
+R9 в рабочем дереве: bounded shared raw-nearest stage для RAW/PADDED нормалей только у
+стандартных rules/catalog/crossing. Длины и допуски не объединяются, оба результата входят
+в бюджет памяти. Добавлены5 focused tests; candidate-r9 fast PASS:2433/0/0/3,
+44,520 с. Exact actual-fixture RAW/PADDED probe совпал на272 парах, но краткий timing
+не даёт общего speed claim. Дополнительные6 dataset/control tests PASS, включая полный
+corridor с default8 finish-кандидатами, depth и strict export. Полный R9 PASS за1147,438 с
+(−43,56% к baseline, −1,60% к R8), все2505 значений совпали точно, оба17/17.
+Контейнер00:37:32.570–00:56:45.291 UTC,2 CPU/4 GiB, exit0, без OOM.
+Итоговые counters совпали с R8; небольшой дополнительный выигрыш требует повторяемости.
+
+Поверх R9 локально подготовлен R10: входная нормализация/asin один раз на состояние
+shortestPath, прежние outgoing/angle gates. Добавлены7 differential tests с pre-change oracle.
+После завершения R9/exact-match R10 build/fast PASS:2440/0/0/3, Maven40,507 с,
+новые7 tests PASS. Synthetic micro32768 пар совпали точно; kernel быстрее примерно15–20%,
+не весь расчёт. Dataset/control6 tests PASS; полный R10 PASS за1105,241 с
+(−45,63% к baseline, −3,68% к R9), все2505 значений совпали точно, оба17/17.
+Контейнер01:00:15.836–01:18:46.717 UTC29 сентября,2 CPU/4 GiB, exit0/без OOM;
+итоговые counters совпали с R8/R9. Повторная пара и matched API timing остаются открытыми.
+
+Matched default2D API-пара начата в отдельном `heatroute-perf-pair`: baseline run
+`e5af5016-8356-4c03-81ec-c44759bde15b` completed/attempt1 за2554,766262 с
+(42 мин34,766 с), оба17/17, оба строгих HTTP exports200. После сохранения evidence заменён
+только временный API; тот же persisted import/параметры/лимиты. R10 run
+`8e5fa18e-5fd8-4d78-b84c-a3d4ea3c9927` completed/attempt1 за1658,202680 с
+(27 мин38,203 с). API-пара PASS: **−35,09%,1,5407×**, все2092 значения совпали точно,
+оба17/17 и оба strict HTTP exports200. Это единичная пара без доказанной повторяемости.
+Параллельно подготовлен непроверенный R11 fast path для exact CoordinateArraySequence;
+После окончания тихой пары запущен R11 build/fast/probe pipeline. R11 не входит в её images.
+R11 build/fast PASS:2444 total/0 failures/0 errors/3 skips, новые4 differential tests PASS.
+Equal-copy geometry micro median54,3685 →41,065 мс; полного route speed claim нет.
+После этого первые R11 controls PASS:6/0/0/0. Полный R11 differential запущен
+02:48:29.098845378 UTC в прежних2 CPU/4 GiB/heap/JFR; итог ещё не получен.
+API-pair temporary services остановлены, данные сохранены. Outgoing-cache probe пока
+не принят: первая компиляция упала в test harness, исправление ждёт разрешения на повтор.
+
 ## 2026-09-28 — source103: ускорение exact axis-shift admission (локальный PASS)
 
 Ускорен самый дорогой хвост стабильного коридорного расчёта без изменения инженерных правил

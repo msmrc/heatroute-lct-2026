@@ -1,5 +1,92 @@
 # HeatRoute аудит соответствия официальному ТЗ и roadmap
 
+## 2026-09-29 — hot-path performance work: R3 differential, R5 fast gate
+
+Синхронизирована база `052dedb`; exact boundary/visibility/normal-egress reuse проверен
+на финальном локальном R3: Java 11 2409 total / 0 failures / 0 errors / 3 scale skips,
+web 36+37 PASS. Полный конкурсный baseline: 2032,870 с; R3: 1686,424 с (−17,04%),
+все 2505 значений результата совпали точно. Это первая локальная пара со вспомогательной
+нагрузкой. API/job timing ещё не получен; stable не заменён nextgen, N/R-гейты не закрываются.
+Подробности и оговорки — [ROUTING_PERFORMANCE_2026_09_29.md](ROUTING_PERFORMANCE_2026_09_29.md).
+
+R4: консервативный pruning крупных boundary-поддеревьев прошёл отдельные 2411 Java tests
+(0 failures/errors, 3 skips). Полный конкурсный R4 и production-shaped API/job evidence
+остаются открытыми; локальные микрозамеры не меняют статус N/R-гейтов.
+
+R5 добавляет ограниченный normal-preparation memo в ValidationSession с раздельными
+RAW/PADDED ключами и отключением для custom rules/catalog/crossing provider. Финальный
+снимок: 2416 Java tests / 0 failures / 0 errors / 3 skips, 40,124 с. Runtime-образ собран;
+полный R5 PASS за 1351,748 с (−33,51% к baseline) с точным совпадением всех 2505 значений.
+Отдельный non-root R5 runtime прошёл CP-SAT/PostGIS readiness, OpenAPI и официальный импорт;
+обычный route job/export ещё не проверен, поэтому N/R-гейты целиком не закрываются.
+
+R6: первый utility-clearance gate использует exact DistanceOp early-stop и узкий direct
+two-segment JTS путь. Regression snapshot: 2422 total / 0 failures / 0 errors / 3 skips.
+Полный R6 PASS за 1313,941 с (−35,37% к baseline), точное совпадение 2505 значений
+и итоговых счётчиков. Обычный API/job-путь остаётся открытым.
+Инженерные источники не изменены.
+
+R7 exact geometry comparison: независимый pre-change oracle и fast 2426/0/0/3 PASS.
+Повышение bounded cache budgets (R8): fast 2428/0/0/3 PASS, runtime package собран;
+полный R8 PASS за1166,131 с (−42,64% к baseline), все 2505 значений совпали точно.
+Полный corridor oracle PASS (8 кандидатов, depth=true). Изолированный R8 runtime прошёл
+readiness/OpenAPI/import и полный API/job/export:1721,878 с, attempt1, оба17/17,
+экспорты60/74 features. Это не timing-пара к in-memory baseline. Повторяемость,
+matched API baseline/final и остальные N/R-гейты остаются открытыми.
+
+Следующий R9 (shared raw-normal preparation) реализован локально, fast2433/0/0/3 PASS;
+272 real-fixture RAW/PADDED пары совпали по exact output. Ещё6 dataset/control tests PASS,
+включая полный corridor/depth/export. Полный R9 PASS за1147,438 с (−43,56% к baseline),
+все2505 значений совпали точно, оба17/17, exit0/без OOM. −1,60% к R8 по одному
+замеру ещё не доказывает устойчивое дополнительное ускорение.
+Рабочее дерево дополнительно содержит R10 (reuse входной нормализации в shortestPath).
+После успешного R9: R10 build/fast2440/0/0/3 PASS, новые7 differential tests PASS;
+synthetic32768 пар совпали точно. Dataset/control6 tests PASS; полный R10 PASS
+за1105,241 с (−45,63% к baseline, −3,68% к R9), все2505 значений совпали точно,
+оба17/17, exit0/без OOM. Это единичный in-memory замер, не matched API speed claim.
+
+Matched default2D API baseline выполнен отдельно:2554,766262 с, attempt1, оба17/17,
+оба строгих HTTP exports200. На том же persisted import/параметрах/лимитах запущен R10
+(`8e5fa18e-5fd8-4d78-b84c-a3d4ea3c9927`,02:10:52.587703 UTC29 сентября).
+R10 completed/attempt1 за1658,202680 с: **−35,09%,1,5407×** в этой matched API-паре,
+все2092 значения результата совпали точно, оба17/17 и оба strict exports200.
+Повторяемость не установлена; N/R acceptance не меняется. R11 и последующие trials
+в эту пару не входят; их проверки запускаются только после её завершения.
+
+R12 prepared angle cones: первый isolated27203-case differential PASS; synthetic kernel
+median−35,49% не является ускорением полного расчёта. Первый immutable R12 build/fast
+2447/0/0/3 PASS, включая10 focused angle tests; controls6/0/0/0 PASS. Первый full R12
+PASS:997,725 с (−50,92% к baseline,−9,73% к R10), exact2505, оба17/17, exit0/noOOM.
+Это один in-memory run, не repeatability или новый API speed claim. R11 закончил
+работу exit0/noOOM, но exact comparison отложен до разрешения повторного запуска
+исправленного наблюдателя; его equivalence отдельно не заявляется. Следующий R13 raw-reject
+прошёл первый isolated35494-case differential и первый build/fast2449/0/0/3,
+все12 focused tests PASS; controls6/0/0/0 PASS, первый full R13 PASS:968,891 с,
+exact2505, оба17/17, exit0/noOOM. −52,34% к baseline,−2,89% к R12 —один замер,
+не repeatability. Первый packaged runtime R13 build/Compose/readiness PASS; default2D
+API run74470b23-fec8-4b19-8f95-1fee79ca8a55 завершён на прежнем импорте,
+attempt1,2CPU/4GiB:1531,358837 с, exact2092, оба17/17, exports20060/62features.
+−40,06% к прежнему API baseline,1,6683×, repeatability не установлена. API/db остановлены,
+тома/main stack сохранены. Следующий R14 wide raw cones прошёл isolated36997-case probe;
+после переноса и3 новых regression tests первый build/fast2452/0/0/3 PASS,
+все15 focused PASS; controls6/0/0/0 PASS. Первый full R14 PASS:905,058 с,
+exact2505, оба17/17, exit0/noOOM. −55,48% к baseline,−6,59% к R13 по одному запуску;
+повторяемость не установлена, R14 API не запускался.
+Эти stable optimizations не закрывают N/R acceptance и не подключают новый planner.
+Отдельный рабочий R15 пропускает только неиспользуемую начальную загрузку окон
+при выключенной глубине; финальная validation остаётся обязательной. Два новых
+focused tests подготовлены; первый R15 build/fast2454/0/0/3 PASS, controls6/0/0/0 PASS,
+первый R15 runtime build/Compose/readiness PASS. API run
+ed008b95-b0e7-4689-867f-09d308260097 completed05:25:01.595314 UTC, attempt1,
+default2D на прежнем импорте/лимитах:1464,763484 с,−42,67% к прежнему API baseline.
+Первый Export/comparator PASS exact2092, оба17/17, strict exports200; повторяемость
+не установлена. API/db сохранены запущенными для пользовательского просмотра.
+Full R14 не является depth-enabled full evidence более позднего рабочего изменения.
+Следующий wall-frame пока только ignored trial: первый differential failed,
+опечатка исправлена, разрешение на повтор запрошено. В production не переносился.
+Первый разбор записанного R12 JFR не прошёл (heap reader), повтор не выполнялся;
+это не меняет подтверждённый R12 result/тайминг, но нового CPU profile summary нет.
+
 ## 2026-09-28 — source103: performance checkpoint axis-shift admission (локальный PASS)
 
 Поведение stable и инженерные ограничения не менялись. Для локального post-processing

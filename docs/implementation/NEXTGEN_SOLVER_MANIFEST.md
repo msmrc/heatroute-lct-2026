@@ -145,3 +145,65 @@ zero-byte reparse socket `C:\Users\dragon\AppData\Local\Docker\run\sailor-ingest
 2026-09-16, and machine policy rejected its removal. Linux glibc load/solve/stop, final non-root
 image, Compose readiness and live smoke are therefore **not verified**. Historical source102
 results remain the legacy comparison baseline and are not results of this solver.
+
+### 2026-09-29 local packaged-runtime follow-up (performance snapshot R5)
+
+The earlier Docker blocker is not reproduced with a bounded checkout-local build context.
+The unchanged production Dockerfile built `heatroute-api:perf-r5` from the immutable
+`candidate-r5` source snapshot (base `052dedb` plus the documented common hot-path changes).
+In a separate local Compose project, without replacing the user's running application:
+
+- final Ubuntu 22.04 image runs as `uid=10001(heatroute)`, Temurin `11.0.28+6`;
+- `/api/v1/health/ready` returns `ready`, PostGIS `3.5` and native `ortools-9.15.6755` both `ok`;
+  the CP-SAT status executes the real known-optimum capability solve before caching success;
+- bundled official import succeeds: 144 features, 633402 bytes, zero errors, source SHA-256
+  `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`;
+- local evidence is under `.tooling/optimization-20260929/evidence/r5-runtime-*`.
+
+This is R5 packaging/readiness/import evidence, not nextgen promotion, a completed API route job,
+or evidence for later source edits (including R6). Full API/job/export, repeatable performance,
+and the other promotion requirements above remain open. See
+[the performance report](ROUTING_PERFORMANCE_2026_09_29.md) for measured scope and pending gates.
+
+### 2026-09-29 R8 packaged API/job/export follow-up
+
+The isolated `heatroute-api:perf-r8` stable/source103 runtime completed official depth-enabled
+run `7a673880-b5e3-401e-b02c-ef254aa5543b` on attempt1 in1721.878047 seconds
+(persisted created→completed, including queue). Both variants connect17/17; strict HTTP exports
+returned200 with60/74 features. Readiness, OpenAPI and the144-feature official import also pass.
+The temporary Compose project is stopped, with its data retained; the user's main stack is unchanged.
+These are R8 stable runtime results, not nextgen promotion or evidence for subsequent R9 edits.
+The in-memory baseline has different input preparation/JVM, so production-shaped speed-up still
+requires a matched baseline/final API pair. See the performance report for exact evidence and scope.
+
+### 2026-09-29 matched stable API performance pair
+
+The isolated baseline052dedb/R10 default-2D pair passed on the same persisted official import,
+runtime/JVM and2-CPU/4-GiB limits:2554.766262 →1658.202680 seconds (−35.09%,1.5407x).
+Both jobs completed on attempt1; all2092 result values match exactly, both variants connect17/17,
+and strict HTTP exports return200. Temporary services are stopped with data/evidence retained.
+This is one pair, not established repeatability, nextgen registration, or closure of the remaining
+promotion gates. Later R11/trial source changes were excluded from the measured runtime images.
+
+### 2026-09-29 R13 stable API follow-up
+
+The R13 image completed run74470b23-fec8-4b19-8f95-1fee79ca8a55 on attempt1 in
+1531.358837 seconds (25m31.36s), against the same persisted import, default2D
+parameters and2-CPU/4-GiB limits. All2092 result values exactly match the earlier
+baseline; both variants connect17/17 and both strict exports return200 (60/62features).
+Compared with that earlier2554.766262-second baseline this is40.06% less elapsed
+time (1.6683x), not a fresh paired repetition or established repeatability.
+The isolated API/db are stopped with volumes/evidence retained; the main stack
+is unchanged. R14 source changes are not included in this runtime evidence.
+This stable optimization does not register or promote the next-generation planner.
+
+### 2026-09-29 R15 stable API follow-up
+
+The same-import/default2D R15 job completed on attempt1 in1464.763484 seconds
+(24m24.76s), with all2092 result values exactly matching the retained baseline.
+Both variants connect17/17; strict exports return200 (60/62features). Compared
+with the earlier2554.766262-second baseline, elapsed time is42.67% lower (1.74415x).
+This includes R14 angular cones and R15 dead initial-window removal; neither
+isolated attribution nor repeatability is established. The finalized-portfolio
+phase did not improve versus R13. API/db remain available for the user-requested
+browser view on local port5175. No nextgen registration/promotion follows.

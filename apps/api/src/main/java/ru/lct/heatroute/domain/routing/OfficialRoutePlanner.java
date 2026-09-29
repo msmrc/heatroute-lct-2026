@@ -5111,10 +5111,11 @@ public class OfficialRoutePlanner {
         NetworkSizingResult initialSizing = sizeRoutes(draft.edges, demandFlowByNode);
         List<RouteEdge> sizedEdges = ensureMandatoryEgress(
                 nodes, applySizing(draft.edges, initialSizing), features, routingEnvironment, approachPolicy);
-        List<ImportedOfficialFeature> routeFeatures = featuresForEdges(features, sizedEdges, routingEnvironment);
-        List<RouteEdge> depthReroutedEdges = parameters.isDepthEnabled()
-                ? rerouteDepthConflicts(nodes, sizedEdges, routeFeatures, parameters)
-                : sizedEdges;
+        List<RouteEdge> depthReroutedEdges = sizedEdges;
+        if (parameters.isDepthEnabled()) {
+            List<ImportedOfficialFeature> initialRouteFeatures = featuresForEdges(features, sizedEdges, routingEnvironment);
+            depthReroutedEdges = rerouteDepthConflicts(nodes, sizedEdges, initialRouteFeatures, parameters);
+        }
         NetworkSizingResult sizing = sizeRoutes(depthReroutedEdges, demandFlowByNode);
         List<RouteEdge> finalSizedEdges = ensureMandatoryEgress(
                 nodes, applySizing(depthReroutedEdges, sizing), features, routingEnvironment, approachPolicy);
@@ -5131,7 +5132,9 @@ public class OfficialRoutePlanner {
         }
         finalSizing = sizeRoutes(finalSizedEdges, demandFlowByNode);
         finalSizedEdges = applySizing(finalSizedEdges, finalSizing);
-        routeFeatures = featuresForEdges(features, finalSizedEdges, routingEnvironment);
+        // При выключенной глубине предварительные окна не нужны. Итоговые окна
+        // загружаем всегда: независимая проверка должна видеть всю готовую полилинию.
+        List<ImportedOfficialFeature> routeFeatures = featuresForEdges(features, finalSizedEdges, routingEnvironment);
         List<RouteEdge> profiledEdges = parameters.isDepthEnabled()
                 ? withDepthProfiles(nodes, finalSizedEdges, routeFeatures, parameters)
                 : finalSizedEdges;

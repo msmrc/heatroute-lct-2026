@@ -8,12 +8,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.locationtech.jts.geom.CoordinateSequence;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateXY;
+import org.locationtech.jts.geom.CoordinateXYM;
+import org.locationtech.jts.geom.CoordinateXYZM;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryComponentFilter;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.MultiPoint;
+import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.impl.CoordinateArraySequence;
+import org.locationtech.jts.geom.impl.PackedCoordinateSequence;
 import ru.lct.heatroute.domain.routing.OfficialRouteGeometryRules.Constraint;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
@@ -30,8 +40,8 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
  * возвращаемого списка и не ограничение объектов, ещё используемых потребителями после eviction.
  */
 final class PreparedRoutingConstraints {
-    private static final int DEFAULT_MAX_ENTRIES = 512;
-    private static final long DEFAULT_MAX_COORDINATES = 100_000;
+    private static final int DEFAULT_MAX_ENTRIES = 1024;
+    private static final long DEFAULT_MAX_COORDINATES = 400_000;
 
     private final OfficialRouteGeometryRules rules;
     private final int maxEntries;
@@ -122,14 +132,111 @@ final class PreparedRoutingConstraints {
     }
 
     static boolean sameGeometry(Geometry left, Geometry right) {
-        if (left.getClass() != right.getClass()
-                || left.getSRID() != right.getSRID()
-                || left.getFactory().getSRID() != right.getFactory().getSRID()
-                || left.getFactory().getClass() != right.getFactory().getClass()
-                || left.getFactory().getCoordinateSequenceFactory()
-                        != right.getFactory().getCoordinateSequenceFactory()
-                || !left.getPrecisionModel().equals(right.getPrecisionModel())
-                || !left.equalsExact(right)) {
+        int comparison = compareStandardGeometry(left, right);
+        return comparison < 0 ? sameGeometryLegacy(left, right) : comparison == 1;
+    }
+
+    /** Один raw-проход заменяет повторный XY equalsExact только для известных JTS реализаций. */
+    private static int compareStandardGeometry(Geometry left, Geometry right) {
+        if (!sameMetadata(left, right)) return 0;
+        Class<?> type = left.getClass();
+        if (type == Point.class) {
+            return compareStandardSequence(((Point) left).getCoordinateSequence(),
+                    ((Point) right).getCoordinateSequence());
+        }
+        if (type == LineString.class || type == LinearRing.class) {
+            return compareStandardSequence(((LineString) left).getCoordinateSequence(),
+                    ((LineString) right).getCoordinateSequence());
+        }
+        if (type == Polygon.class) {
+            Polygon a = (Polygon) left;
+            Polygon b = (Polygon) right;
+            if (a.getNumInteriorRing() != b.getNumInteriorRing()) return 0;
+            int shell = compareStandardGeometry(a.getExteriorRing(), b.getExteriorRing());
+            if (shell != 1) return shell;
+            for (int index = 0; index < a.getNumInteriorRing(); index++) {
+                int hole = compareStandardGeometry(a.getInteriorRingN(index), b.getInteriorRingN(index));
+                if (hole != 1) return hole;
+            }
+            return 1;
+        }
+        if (type == GeometryCollection.class || type == MultiPoint.class
+                || type == MultiLineString.class || type == MultiPolygon.class) {
+            if (left.getNumGeometries() != right.getNumGeometries()) return 0;
+            for (int index = 0; index < left.getNumGeometries(); index++) {
+                int child = compareStandardGeometry(left.getGeometryN(index), right.getGeometryN(index));
+                if (child != 1) return child;
+            }
+            return 1;
+        }
+        return -1;
+    }
+
+    /** -1 сохраняет исходную семантику virtual equalsExact для custom/нечисловых данных. */
+    private static int compareStandardSequence(CoordinateSequence left, CoordinateSequence right) {
+        if (!standardSequenceClass(left.getClass()) || !standardSequenceClass(right.getClass())) return -1;
+        if (left.size() != right.size() || left.getDimension() != right.getDimension()
+                || left.getMeasures() != right.getMeasures()) return 0;
+        int dimension = left.getDimension();
+        if (dimension < 2) return -1;
+        if (left.getClass() == CoordinateArraySequence.class
+                && right.getClass() == CoordinateArraySequence.class) {
+            return compareStandardArraySequence(left, right, dimension);
+        }
+        for (int index = 0; index < left.size(); index++) {
+            if ((left.getClass() == CoordinateArraySequence.class
+                    && !standardCoordinateClass(left.getCoordinate(index).getClass()))
+                    || (right.getClass() == CoordinateArraySequence.class
+                    && !standardCoordinateClass(right.getCoordinate(index).getClass()))) return -1;
+            for (int ordinate = 0; ordinate < dimension; ordinate++) {
+                double a = left.getOrdinate(index, ordinate);
+                double b = right.getOrdinate(index, ordinate);
+                if (ordinate < 2 && (!Double.isFinite(a) || !Double.isFinite(b))) return -1;
+                if (Double.doubleToRawLongBits(a) != Double.doubleToRawLongBits(b)) return 0;
+            }
+        }
+        return 1;
+    }
+
+    /** Сохраняет JTS ordinate layout, получая элемент массива один раз вместо каждого ordinate. */
+    private static int compareStandardArraySequence(CoordinateSequence left, CoordinateSequence right,
+            int dimension) {
+        for (int index = 0; index < left.size(); index++) {
+            Coordinate a = left.getCoordinate(index);
+            Coordinate b = right.getCoordinate(index);
+            if (!standardCoordinateClass(a.getClass()) || !standardCoordinateClass(b.getClass())) return -1;
+            for (int ordinate = 0; ordinate < dimension; ordinate++) {
+                double valueA = ordinate == 0 ? a.x : ordinate == 1 ? a.y : a.getOrdinate(ordinate);
+                double valueB = ordinate == 0 ? b.x : ordinate == 1 ? b.y : b.getOrdinate(ordinate);
+                if (ordinate < 2 && (!Double.isFinite(valueA) || !Double.isFinite(valueB))) return -1;
+                if (Double.doubleToRawLongBits(valueA) != Double.doubleToRawLongBits(valueB)) return 0;
+            }
+        }
+        return 1;
+    }
+
+    private static boolean standardSequenceClass(Class<?> type) {
+        return type == CoordinateArraySequence.class || type == PackedCoordinateSequence.Double.class
+                || type == PackedCoordinateSequence.Float.class;
+    }
+
+    private static boolean standardCoordinateClass(Class<?> type) {
+        return type == Coordinate.class || type == CoordinateXY.class || type == CoordinateXYM.class
+                || type == CoordinateXYZM.class;
+    }
+
+    private static boolean sameMetadata(Geometry left, Geometry right) {
+        return left.getClass() == right.getClass()
+                && left.getSRID() == right.getSRID()
+                && left.getFactory().getSRID() == right.getFactory().getSRID()
+                && left.getFactory().getClass() == right.getFactory().getClass()
+                && left.getFactory().getCoordinateSequenceFactory()
+                        == right.getFactory().getCoordinateSequenceFactory()
+                && left.getPrecisionModel().equals(right.getPrecisionModel());
+    }
+
+    private static boolean sameGeometryLegacy(Geometry left, Geometry right) {
+        if (!sameMetadata(left, right) || !left.equalsExact(right)) {
             return false;
         }
         // JTS equalsExact is XY-only. Keep Z, M, signed zero and sequence layout exact too;
@@ -144,11 +251,11 @@ final class PreparedRoutingConstraints {
         if (left instanceof Polygon) {
             Polygon leftPolygon = (Polygon) left;
             Polygon rightPolygon = (Polygon) right;
-            if (!sameGeometry(leftPolygon.getExteriorRing(), rightPolygon.getExteriorRing())) {
+            if (!sameGeometryLegacy(leftPolygon.getExteriorRing(), rightPolygon.getExteriorRing())) {
                 return false;
             }
             for (int index = 0; index < leftPolygon.getNumInteriorRing(); index++) {
-                if (!sameGeometry(leftPolygon.getInteriorRingN(index), rightPolygon.getInteriorRingN(index))) {
+                if (!sameGeometryLegacy(leftPolygon.getInteriorRingN(index), rightPolygon.getInteriorRingN(index))) {
                     return false;
                 }
             }
@@ -156,7 +263,7 @@ final class PreparedRoutingConstraints {
         }
         if (left instanceof GeometryCollection) {
             for (int index = 0; index < left.getNumGeometries(); index++) {
-                if (!sameGeometry(left.getGeometryN(index), right.getGeometryN(index))) {
+                if (!sameGeometryLegacy(left.getGeometryN(index), right.getGeometryN(index))) {
                     return false;
                 }
             }

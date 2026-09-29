@@ -20,6 +20,7 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.LinearRing;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
@@ -115,6 +116,55 @@ class PreparedSegmentIntersectionTest {
                 GF.createMultiPolygon(new Polygon[] {square, (Polygon) move(square, 0, 20, 20)}),
                 GF.createMultiPolygon(new Polygon[] {GF.createPolygon(), square}))) {
             differential(area, queries(area, SEED));
+        }
+    }
+
+    @Test
+    void denseMultipolygonHoleSubtreesMatchPreparedGeometry() {
+        Geometry area = holedGrid(12, 12);
+        assertThat(area.getNumPoints()).isLessThan(16_384);
+        PreparedSegmentIntersection predicate = new PreparedSegmentIntersection(area);
+        assertThat(predicate.usesIndex()).isTrue();
+        List<LineString> probes = queries(area, SEED);
+        probes.add(segment(-1, 5, 286, 5));
+        probes.add(segment(4, 4, 6, 6));
+        probes.add(segment(5, 5, 5, 5));
+        probes.add(segment(5, 5, 5, 17));
+        differential(area, probes);
+    }
+
+    @Test
+    void diagonalNodeEnvelopeRejectionMatchesPreparedGeometryForDenseAndExtremeShapes() {
+        for (Geometry area : List.of(star(2048), holedGrid(12, 12),
+                AffineTransformation.scaleInstance(0x1.0p-500, 0x1.0p-500).transform(star(128)),
+                AffineTransformation.scaleInstance(1e140, 1e140).transform(star(256)))) {
+            differential(area, longDiagonalProbes(area));
+        }
+    }
+
+    @Test
+    void mixedScaleCoordinatesRetainPreparedGeometrySemantics() throws Exception {
+        Geometry smallY = read("POLYGON ((0 0,1 0,1 1e-300,0 1e-300,0 0))");
+        Geometry largeXSmallY = read("POLYGON ((1e100 0,2e100 0,2e100 1e-300,1e100 1e-300,1e100 0))");
+        assertThat(new PreparedSegmentIntersection(smallY).usesIndex()).isTrue();
+        assertThat(new PreparedSegmentIntersection(largeXSmallY).usesIndex()).isTrue();
+        differential(smallY, List.of(
+                segment(-1, 5e-301, 2, 5e-301),
+                segment(.5, -1e-300, .5, 2e-300),
+                segment(-1, Math.nextDown(0.0), 2, Math.nextDown(0.0))));
+        differential(largeXSmallY, List.of(
+                segment(.5e100, 5e-301, 2.5e100, 5e-301),
+                segment(1.5e100, -1e-300, 1.5e100, 2e-300),
+                segment(.5e100, Math.nextDown(0.0), 2.5e100, Math.nextDown(0.0))));
+        for (double xScale : new double[] {1, 1e100}) {
+            Geometry dense = AffineTransformation.scaleInstance(xScale, 1e-300).transform(holedGrid(4, 4));
+            assertThat(dense.getNumPoints()).isGreaterThan(64);
+            assertThat(new PreparedSegmentIntersection(dense).usesIndex()).isTrue();
+            Envelope bounds = dense.getEnvelopeInternal();
+            differential(dense, List.of(
+                    segment(-xScale, bounds.getMaxY() * .5, bounds.getMaxX() + xScale, bounds.getMaxY() * .5),
+                    segment(-xScale, 0, bounds.getMaxX() + xScale, bounds.getMaxY()),
+                    segment(-xScale, Math.nextDown(0.0), bounds.getMaxX() + xScale, Math.nextDown(0.0))));
         }
     }
 
@@ -448,6 +498,19 @@ class PreparedSegmentIntersectionTest {
         queries.add(line(a, b)); queries.add(line(b, a));
     }
 
+    private static List<LineString> longDiagonalProbes(Geometry area) {
+        Envelope bounds = area.getEnvelopeInternal();
+        double span = Math.max(bounds.getWidth(), bounds.getHeight());
+        double minX = bounds.getMinX(), maxX = bounds.getMaxX();
+        double minY = bounds.getMinY(), maxY = bounds.getMaxY();
+        return List.of(
+                segment(minX - span, minY - span, maxX + span, maxY + span),
+                segment(minX - span, maxY + span, maxX + span, minY - span),
+                segment(minX - span, Math.nextDown(maxY), maxX + span, Math.nextDown(maxY)),
+                segment(minX - span, minY + span * .37, maxX + span, minY + span * .63),
+                segment(minX + span * .13, minY - span, minX + span * .87, maxY + span));
+    }
+
     private static Geometry square() throws Exception { return read("POLYGON ((0 0,20 0,20 20,0 20,0 0))"); }
     private static Geometry hole() throws Exception { return read("POLYGON ((0 0,40 0,40 40,0 40,0 0),(10 10,10 30,30 30,30 10,10 10))"); }
     private static Geometry concave() throws Exception { return read("POLYGON ((0 0,40 0,40 10,10 10,10 30,40 30,40 40,0 40,0 0))"); }
@@ -461,6 +524,20 @@ class PreparedSegmentIntersectionTest {
         }
         points[count] = new Coordinate(points[0]);
         return GF.createPolygon(points);
+    }
+
+    private static Geometry holedGrid(int columns, int rows) {
+        Polygon[] polygons = new Polygon[columns * rows];
+        int index = 0;
+        for (int row = 0; row < rows; row++) for (int column = 0; column < columns; column++) {
+            double x = column * 24.0, y = row * 24.0;
+            LinearRing shell = GF.createLinearRing(new Coordinate[] {
+                    c(x, y), c(x + 10, y), c(x + 10, y + 10), c(x, y + 10), c(x, y)});
+            LinearRing hole = GF.createLinearRing(new Coordinate[] {
+                    c(x + 4, y + 4), c(x + 4, y + 6), c(x + 6, y + 6), c(x + 6, y + 4), c(x + 4, y + 4)});
+            polygons[index++] = GF.createPolygon(shell, new LinearRing[] {hole});
+        }
+        return GF.createMultiPolygon(polygons);
     }
 
     private static Geometry move(Geometry geometry, double angle, double x, double y) {

@@ -162,6 +162,52 @@ public final class OfficialRouteDeflectionRules {
         return allowsTurn(inX, inY, outX, outY, true);
     }
 
+    /** Одно входное направление используется во всех переходах одного состояния поиска. */
+    static PreparedDirection prepareDirection(double x, double y) {
+        if (!Double.isFinite(x) || !Double.isFinite(y) || x == 0 && y == 0) {
+            return PreparedDirection.INVALID;
+        }
+        double length = Math.hypot(x, y);
+        if (!Double.isFinite(length)) return PreparedDirection.INVALID;
+        return new PreparedDirection(x / length, y / length,
+                Math.asin(Math.min(1.0, VECTOR_ROUNDING_ERROR_M / length)), true);
+    }
+
+    /** Внутренние угловые области проверяет без тригонометрии; границы идут прежним путём. */
+    static boolean allowsTurn(PreparedDirection incoming, double outX, double outY) {
+        if (!incoming.valid || !Double.isFinite(outX) || !Double.isFinite(outY)
+                || outX == 0 && outY == 0) return false;
+        double outScale = Math.max(Math.abs(outX), Math.abs(outY));
+        double inScale = Math.max(Math.abs(incoming.x), Math.abs(incoming.y));
+        if (outScale >= 0x1.0p-256 && outScale <= 0x1.0p256
+                && inScale >= 0.5 && inScale <= 2.0) {
+            double dotFloor = inScale * outScale / 16.0;
+            double rawCross = Math.abs(incoming.x * outY - incoming.y * outX);
+            double rawDot = incoming.x * outX + incoming.y * outY;
+            // Floor сохраняет знак dot и ограничивает ошибку; эти конусы удалены
+            // от границ правил более чем на 3°. См. ROUTING_ANGLE_SHORTCUT_PROOF.md.
+            if (rawDot < 0 && -rawDot * 16 >= rawCross && -rawDot >= dotFloor) return false;
+            if (rawDot > 0 && rawCross > 0 && rawCross <= 1.5 * rawDot
+                    && rawCross * 32 >= rawDot && rawDot >= dotFloor) return false;
+            if (rawDot > 0 && rawCross >= 2 * rawDot && rawDot >= dotFloor) return true;
+        }
+        double outLength = Math.hypot(outX, outY);
+        if (!Double.isFinite(outLength)) return false;
+        double bx = outX / outLength, by = outY / outLength;
+        double cross = Math.abs(incoming.x * by - incoming.y * bx);
+        double dot = incoming.x * bx + incoming.y * by;
+        // Только внутренние области текущих правил: спорные границы идут в прежний atan2.
+        // 135..180 и atan(1/32)..45 не допускаются даже при максимальной погрешности.
+        if (dot < 0 && -dot >= cross) return false;
+        if (dot > 0 && cross > 0 && cross <= dot && cross * 32 >= dot) return false;
+        // atan(2)..90 допустимы; ошибка atan2 около 90 меньше прежнего FP-допуска 1e-12.
+        if (dot >= 0 && cross > 0 && cross >= 2 * dot) return true;
+        double angle = Math.atan2(cross, dot);
+        double rounding = incoming.rounding
+                + Math.asin(Math.min(1.0, VECTOR_ROUNDING_ERROR_M / outLength));
+        return allowsAngle(angle, rounding, true);
+    }
+
     /**
      * Для двух отдельных лучей камеры почти прямое продолжение допускается только в пределах
      * погрешности миллиметровых координат. Допуск 0,5° относится к одной оцифрованной оси,
@@ -181,6 +227,10 @@ public final class OfficialRouteDeflectionRules {
         double angle = Math.atan2(Math.abs(ax * by - ay * bx), ax * bx + ay * by);
         double rounding = Math.asin(Math.min(1.0, VECTOR_ROUNDING_ERROR_M / inLength))
                 + Math.asin(Math.min(1.0, VECTOR_ROUNDING_ERROR_M / outLength));
+        return allowsAngle(angle, rounding, digitizedAxisTolerance);
+    }
+
+    private static boolean allowsAngle(double angle, double rounding, boolean digitizedAxisTolerance) {
         double tolerance = Math.min(MAX_ROUNDING_TOLERANCE, rounding) + FLOATING_POINT_TOLERANCE;
         // Коллинеарное продолжение не является поворотом. Любой фактический поворот должен
         // соответствовать внутреннему углу 90–120°, то есть отклонению 60–90°.
@@ -188,6 +238,22 @@ public final class OfficialRouteDeflectionRules {
                 ? COLLINEAR_TOLERANCE + FLOATING_POINT_TOLERANCE : tolerance;
         return angle <= collinearTolerance
                 || angle + tolerance >= MINIMUM_TURN && angle <= RIGHT_ANGLE + tolerance;
+    }
+
+    /** Неизменяемая нормализация и погрешность одного луча, без кеша между поисками. */
+    static final class PreparedDirection {
+        private static final PreparedDirection INVALID = new PreparedDirection(0, 0, 0, false);
+        private final double x;
+        private final double y;
+        private final double rounding;
+        private final boolean valid;
+
+        private PreparedDirection(double x, double y, double rounding, boolean valid) {
+            this.x = x;
+            this.y = y;
+            this.rounding = rounding;
+            this.valid = valid;
+        }
     }
 
     private static double angle(Vector incoming, Vector outgoing) {

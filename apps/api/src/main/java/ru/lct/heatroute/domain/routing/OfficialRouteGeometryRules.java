@@ -42,7 +42,10 @@ public class OfficialRouteGeometryRules {
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
     private static final double TIE_IN_CONTACT_M = 0.05;
     private static final double ROUTE_AVOIDANCE_BUFFER_M = 0.20 - CLEARANCE_BOUNDARY_EPSILON_M;
-    private static final int STRAIGHT_EGRESS_DIRECTION_COUNT = 72;
+    // The ordinary search admits at most 16 alternatives downstream, so evaluate that many
+    // evenly distributed rays. Only the no-normal fallback keeps the dense 5-degree sweep.
+    private static final int STRAIGHT_EGRESS_DIRECTION_COUNT = 16;
+    private static final int STRAIGHT_EGRESS_FALLBACK_DIRECTION_COUNT = 72;
     private static final int MAX_ALTERNATIVE_STRAIGHT_EGRESSES = 16;
     private static final Set<String> UTILITY_TYPES = Set.of(
             "gas_pipeline", "power_cable", "heat_network");
@@ -362,16 +365,19 @@ public class OfficialRouteGeometryRules {
             List<ImportedOfficialFeature> features, int diameter, Coordinate point,
             double clearance, RouteTraversal traversal, boolean nearestOnly) {
         List<WallEgress> candidates = new ArrayList<>();
+        int directionCount = nearestOnly
+                ? STRAIGHT_EGRESS_FALLBACK_DIRECTION_COUNT
+                : STRAIGHT_EGRESS_DIRECTION_COUNT;
         for (ImportedOfficialFeature feature : containing) {
             Geometry footprint = feature.getMetricGeometry();
             Geometry boundary = footprint.getBoundary();
             Envelope bounds = footprint.getEnvelopeInternal();
             double reach = Math.hypot(bounds.getWidth(), bounds.getHeight()) + 4 * clearance + 1;
-            for (int direction = 0; direction < STRAIGHT_EGRESS_DIRECTION_COUNT; direction++) {
+            for (int direction = 0; direction < directionCount; direction++) {
                 if (Thread.currentThread().isInterrupted()) {
                     throw new java.util.concurrent.CancellationException("Straight egress preparation cancelled");
                 }
-                double angle = 2 * Math.PI * direction / STRAIGHT_EGRESS_DIRECTION_COUNT;
+                double angle = 2 * Math.PI * direction / directionCount;
                 Coordinate towards = new Coordinate(point.x + reach * Math.cos(angle),
                         point.y + reach * Math.sin(angle));
                 Coordinate wall = null;

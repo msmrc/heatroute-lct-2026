@@ -94,7 +94,8 @@ final class BoundedSharedNetworkSeedGenerator {
             long deadlineNanos, int maximumFallbackRouteCalls) {
         return generate(problem, environment, priorityDemandIds, knownDemandIdsByRoot,
                 deadlineNanos, maximumFallbackRouteCalls,
-                GLOBAL_GROUP_SIZE, GLOBAL_ROOT_ATTEMPTS, GLOBAL_ROOT_ATTEMPTS, 0L, false);
+                GLOBAL_GROUP_SIZE, GLOBAL_ROOT_ATTEMPTS, GLOBAL_ROOT_ATTEMPTS, 0L,
+                knownDemandIdsByRoot.isEmpty());
     }
 
     Result generateClustered(RoutingProblemSnapshot problem,

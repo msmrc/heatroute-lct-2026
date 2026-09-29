@@ -60,6 +60,34 @@ class BoundedSharedNetworkSeedGeneratorTest {
     }
 
     @Test
+    void emptyMeasuredCoverageUsesTheProvenExistingRootOrder() {
+        List<RoutingProblemSnapshot.Demand> demands = List.of(
+                demand("a", 60_000, -30_000), demand("b", 60_000, 30_000));
+        RoutingProblemSnapshot.RootCandidate existing = new RoutingProblemSnapshot.RootCandidate(
+                "existing", new CatalogMetricPoint(0, 0), List.of(),
+                new RoutingProblemSnapshot.RootRealization(
+                        "existing_chamber_tie_in", true, 0, "existing", null));
+        RoutingProblemSnapshot.RootCandidate nearerNew = new RoutingProblemSnapshot.RootCandidate(
+                "nearer-new", new CatalogMetricPoint(55_000, 0), List.of(),
+                new RoutingProblemSnapshot.RootRealization(
+                        "new_tie_in_chamber", true, 0, "new", null));
+        RoutingProblemSnapshot problem = new RoutingProblemSnapshot(
+                UUID.fromString("00000000-0000-0000-0000-000000000094"),
+                "source-shared", "extended", "nextgen-1", "official", "rules-1",
+                "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
+                demands, List.of(nearerNew, existing));
+
+        BoundedSharedNetworkSeedGenerator.Result result = generator.generate(
+                problem, router.prepare(List.of()), Set.of("a", "b"), Map.of(),
+                System.nanoTime() + Duration.ofSeconds(10).toNanos(), 64);
+
+        assertThat(result.getCoveredPriorityDemandIds()).containsExactlyInAnyOrder("a", "b");
+        assertThat(result.getPaths()).extracting(
+                BoundedSharedNetworkSeedGenerator.SeedPath::getRootId)
+                .containsOnly("existing");
+    }
+
+    @Test
     void adaptiveRetryKeepsOneExistingAnchorThenPrioritizesMeasuredCoverage() {
         List<RoutingProblemSnapshot.Demand> demands = List.of(
                 demand("a", 60_000, -30_000), demand("b", 60_000, 30_000));

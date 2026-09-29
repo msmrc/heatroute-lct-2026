@@ -125,6 +125,20 @@ class BoundedSharedNetworkSeedGeneratorTest {
                         "unproven-nearby", "unproven-second", "proven-farther");
     }
 
+    @Test
+    void clusteredCollectorsDoNotReuseSpentRootBranches() {
+        RoutingProblemSnapshot.RootCandidate root = new RoutingProblemSnapshot.RootCandidate(
+                "root", new CatalogMetricPoint(0, 0), List.of(
+                        new RoutingProblemSnapshot.DirectionVector(-1_000, 0),
+                        new RoutingProblemSnapshot.DirectionVector(1_000, 0)),
+                new RoutingProblemSnapshot.RootRealization(
+                        "existing_chamber_tie_in", true, 2, "existing", null));
+
+        assertThat(BoundedSharedNetworkSeedGenerator.remainingRootCapacity(root, 0)).isEqualTo(2);
+        assertThat(BoundedSharedNetworkSeedGenerator.remainingRootCapacity(root, 1)).isEqualTo(1);
+        assertThat(BoundedSharedNetworkSeedGenerator.remainingRootCapacity(root, 2)).isZero();
+    }
+
     private static RoutingProblemSnapshot problem() {
         List<RoutingProblemSnapshot.Demand> demands = List.of(
                 demand("a", 60_000, -30_000), demand("b", 60_000, 30_000),

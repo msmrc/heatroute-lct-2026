@@ -50,6 +50,12 @@ public final class BoundedCatalogNetworkStageFactory {
                 catalogGenerator.generate(problem, window, options);
         CatalogEdgeSectionAssemblerFactory.PreparedAssembler sectionAssembler =
                 sectionAssemblerFactory.prepare(window);
+        if (!generated.getStructurallyUnroutableDemandIds().isEmpty()) {
+            return new Preparation(generated, window, sectionAssembler, null,
+                    "structurally_unroutable_demands:"
+                            + generated.getStructurallyUnroutableDemandIds().stream()
+                                    .sorted().collect(java.util.stream.Collectors.joining(",")));
+        }
         if (generated.getBuildResult().getSnapshot().getPathOptions().isEmpty()) {
             return new Preparation(generated, window, sectionAssembler, null, "empty_catalog");
         }

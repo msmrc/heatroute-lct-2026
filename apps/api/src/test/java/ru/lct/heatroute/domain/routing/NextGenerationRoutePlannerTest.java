@@ -189,20 +189,13 @@ class NextGenerationRoutePlannerTest {
                         + execution.getCatalogBuild().getRemainingWork() + "\n"
                         + execution.getCatalogBuild().getTruncationReasons())
                 .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.CATALOG_INCOMPLETE);
-        assertThat(execution.getResult()).isNotNull();
-        assertThat(execution.getResult().getDemandCount()).isEqualTo(17);
-        long coveredDemands = execution.getCatalogBuild().getCounters()
-                .getOrDefault("demands_covered", 0L);
-        assertThat(execution.getResult().getVariants()).isNotEmpty()
-                .allMatch(RouteVariant::isValid)
-                .allSatisfy(variant ->
-                        assertThat(variant.getConnectedDemandCount())
-                                .isEqualTo(coveredDemands));
-        assertThat(coveredDemands).isPositive().isLessThan(17);
+        assertThat(execution.getResult()).isNull();
         assertThat(execution.getReason()).isEqualTo(
-                "accepted_partial:" + coveredDemands + "/17");
+                "structurally_unroutable_demands:11");
         assertThat(execution.getCatalogBuild().getCounters())
-                .containsEntry("demands_structurally_unroutable", 1L);
+                .containsEntry("demands_structurally_unroutable", 1L)
+                .containsEntry("demands_covered", 0L)
+                .containsEntry("route_calls", 0L);
         assertThat(execution.getCatalogBuild().getRemainingWork())
                 .contains("structurally-unroutable-demand:11");
     }

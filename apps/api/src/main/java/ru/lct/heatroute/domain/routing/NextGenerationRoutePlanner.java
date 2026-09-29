@@ -26,7 +26,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
  */
 @Component
 public final class NextGenerationRoutePlanner {
-    public static final String VERSION = "nextgen-network-5";
+    public static final String VERSION = "nextgen-network-6";
     public static final String CHECKER_VERSION = "frozen-network-evaluator-1";
     private static final int FLOW_SCALE_DECIMALS = 3;
 

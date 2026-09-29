@@ -40,12 +40,16 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 final class BoundedSharedNetworkSeedGenerator {
     private static final int GLOBAL_GROUP_SIZE = 64;
     private static final int GLOBAL_ROOT_ATTEMPTS = 2;
-    private static final int CLUSTERED_GROUP_SIZE = 2;
+    // A chamber can expose at most four branches. Fill that physical capacity in one coherent
+    // group so medium districts need fewer independent collectors and fewer router invocations.
+    private static final int CLUSTERED_GROUP_SIZE = 4;
     private static final int CLUSTERED_ROOT_ATTEMPTS = 64;
     private static final int CLUSTERED_ROOT_ATTEMPTS_PER_GROUP = 3;
     private static final int DENSE_GLOBAL_ROOT_ATTEMPTS = 1;
     private static final long DENSE_GLOBAL_ROOT_ATTEMPT_BUDGET_NANOS =
             TimeUnit.SECONDS.toNanos(30);
+    private static final long ADAPTIVE_GLOBAL_ROOT_ATTEMPT_BUDGET_NANOS =
+            TimeUnit.SECONDS.toNanos(25);
     private static final long CLUSTERED_ROOT_ATTEMPT_BUDGET_NANOS =
             TimeUnit.SECONDS.toNanos(4);
     // Compare a second feasible root when the first one is not already disjoint from previously
@@ -94,7 +98,8 @@ final class BoundedSharedNetworkSeedGenerator {
             long deadlineNanos, int maximumFallbackRouteCalls) {
         return generate(problem, environment, priorityDemandIds, knownDemandIdsByRoot,
                 deadlineNanos, maximumFallbackRouteCalls,
-                GLOBAL_GROUP_SIZE, GLOBAL_ROOT_ATTEMPTS, GLOBAL_ROOT_ATTEMPTS, 0L,
+                GLOBAL_GROUP_SIZE, GLOBAL_ROOT_ATTEMPTS, GLOBAL_ROOT_ATTEMPTS,
+                ADAPTIVE_GLOBAL_ROOT_ATTEMPT_BUDGET_NANOS,
                 knownDemandIdsByRoot.isEmpty());
     }
 
@@ -140,12 +145,14 @@ final class BoundedSharedNetworkSeedGenerator {
 
         Set<String> requested = new LinkedHashSet<>(priorityDemandIds);
         List<List<RoutingProblemSnapshot.Demand>> groups = demandGroups(
-                problem, requested, maximumGroupSize, maximumRootAttempts);
+                problem, requested, maximumGroupSize, maximumRootAttempts,
+                knownDemandIdsByRoot);
         if (groups.isEmpty()) return Result.empty(false);
         SearchState state = new SearchState(deadlineNanos, maximumFallbackRouteCalls);
         List<SeedPath> paths = new ArrayList<>();
         Set<String> pathKeys = new LinkedHashSet<>();
         List<LineString> acceptedNetworkLines = new ArrayList<>();
+        Map<String, Integer> acceptedRootBranches = new LinkedHashMap<>();
         int networksExamined = 0;
 
         for (List<RoutingProblemSnapshot.Demand> group : groups) {
@@ -162,7 +169,8 @@ final class BoundedSharedNetworkSeedGenerator {
                         || !state.canStartRoot()) break;
                 RouteNode rootNode = rootNode(root);
                 if (rootNode == null) continue;
-                int rootCapacity = 4 - rootNode.getBaseIncidentSections();
+                int rootCapacity = remainingRootCapacity(root,
+                        acceptedRootBranches.getOrDefault(root.getId(), 0));
                 if (rootCapacity < 1) continue;
                 state.rootAttempts++;
                 groupRootAttempts++;
@@ -217,6 +225,15 @@ final class BoundedSharedNetworkSeedGenerator {
                 for (RoutingProblemSnapshot.Demand demand : group) {
                     SeedPath path = path(best.network, best.root, demand, physicalContext);
                     if (path != null && pathKeys.add(path.key())) paths.add(path);
+                }
+                String acceptedRootId = best.root.getId();
+                int consumedRootBranches = (int) best.network.edges().stream()
+                        .filter(edge -> acceptedRootId.equals(edge.getUpstreamNodeId())
+                                || acceptedRootId.equals(edge.getDownstreamNodeId()))
+                        .count();
+                if (consumedRootBranches > 0) {
+                    acceptedRootBranches.merge(acceptedRootId, consumedRootBranches,
+                            Math::addExact);
                 }
                 best.network.edges().stream().map(this::line).forEach(acceptedNetworkLines::add);
             }
@@ -326,7 +343,8 @@ final class BoundedSharedNetworkSeedGenerator {
 
     private static List<List<RoutingProblemSnapshot.Demand>> demandGroups(
             RoutingProblemSnapshot problem, Set<String> priorityIds,
-            int maximumGroupSize, int maximumRootAttempts) {
+            int maximumGroupSize, int maximumRootAttempts,
+            Map<String, ? extends Collection<String>> knownDemandIdsByRoot) {
         if (maximumGroupSize < 2 || maximumRootAttempts < 1) {
             throw new IllegalArgumentException("Invalid shared-network search bounds");
         }
@@ -344,27 +362,76 @@ final class BoundedSharedNetworkSeedGenerator {
                 .limit((long) maximumGroupSize * maximumRootAttempts)
                 .collect(Collectors.toCollection(ArrayList::new));
         if (priority.isEmpty()) return List.of();
-        List<List<RoutingProblemSnapshot.Demand>> result = new ArrayList<>();
-        for (int offset = 0; offset < priority.size(); offset += maximumGroupSize) {
-            List<RoutingProblemSnapshot.Demand> group = new ArrayList<>(priority.subList(
-                    offset, Math.min(priority.size(), offset + maximumGroupSize)));
-            double centerX = group.stream().mapToDouble(demand -> demand.getLocation().getXM())
-                    .average().orElseThrow();
-            double centerY = group.stream().mapToDouble(demand -> demand.getLocation().getYM())
-                    .average().orElseThrow();
-            if (group.size() < 2) {
-                Set<String> groupIds = group.stream().map(RoutingProblemSnapshot.Demand::getId)
-                        .collect(Collectors.toCollection(LinkedHashSet::new));
-                eligible.stream().filter(demand -> !groupIds.contains(demand.getId()))
-                        .sorted(Comparator.comparingDouble((RoutingProblemSnapshot.Demand demand) ->
-                                        squaredDistance(demand.getLocation().getXM(),
-                                                demand.getLocation().getYM(), centerX, centerY))
-                                .thenComparing(RoutingProblemSnapshot.Demand::getId))
-                        .limit(2 - group.size()).forEach(group::add);
+        if (knownDemandIdsByRoot.isEmpty()) {
+            List<List<RoutingProblemSnapshot.Demand>> result = new ArrayList<>();
+            for (int offset = 0; offset < priority.size(); offset += maximumGroupSize) {
+                List<RoutingProblemSnapshot.Demand> group = new ArrayList<>(priority.subList(
+                        offset, Math.min(priority.size(), offset + maximumGroupSize)));
+                if (group.size() >= 2) result.add(List.copyOf(group));
             }
-            if (group.size() >= 2) result.add(List.copyOf(group));
+            return List.copyOf(result);
+        }
+
+        // Reachability is measured by the cheap individual-router phase that precedes this
+        // search. Build each cluster around one root that is known to reach every terminal;
+        // coordinate-only chunks can contain a single blocked terminal and make the otherwise
+        // valid collector impossible. The first stable demand is used as an anchor so the result
+        // remains deterministic across JVMs and repeated competition runs.
+        Map<String, RoutingProblemSnapshot.Demand> remaining = priority.stream()
+                .collect(Collectors.toMap(RoutingProblemSnapshot.Demand::getId,
+                        demand -> demand, (left, right) -> left, LinkedHashMap::new));
+        List<List<RoutingProblemSnapshot.Demand>> result = new ArrayList<>();
+        while (remaining.size() >= 2) {
+            RoutingProblemSnapshot.Demand anchor = remaining.values().iterator().next();
+            Set<String> remainingIds = remaining.keySet();
+            RoutingProblemSnapshot.RootCandidate commonRoot = problem.getRoots().stream()
+                    .filter(root -> root.getRealization() != null)
+                    .filter(root -> reaches(root.getId(), anchor.getId(),
+                            knownDemandIdsByRoot))
+                    .filter(root -> knownCoverage(root, remainingIds,
+                            knownDemandIdsByRoot) >= 2)
+                    .sorted(Comparator
+                            .comparingInt((RoutingProblemSnapshot.RootCandidate root) ->
+                                    -knownCoverage(root, remainingIds, knownDemandIdsByRoot))
+                            .thenComparingDouble(root -> squaredDistance(
+                                    root.getLocation().getXM(), root.getLocation().getYM(),
+                                    anchor.getLocation().getXM(), anchor.getLocation().getYM()))
+                            .thenComparing(RoutingProblemSnapshot.RootCandidate::getId))
+                    .findFirst().orElse(null);
+            List<RoutingProblemSnapshot.Demand> candidates = remaining.values().stream()
+                    .filter(demand -> commonRoot == null
+                            || reaches(commonRoot.getId(), demand.getId(),
+                                    knownDemandIdsByRoot))
+                    .sorted(Comparator.comparingDouble((RoutingProblemSnapshot.Demand demand) ->
+                                    squaredDistance(demand.getLocation().getXM(),
+                                            demand.getLocation().getYM(),
+                                            anchor.getLocation().getXM(),
+                                            anchor.getLocation().getYM()))
+                            .thenComparing(RoutingProblemSnapshot.Demand::getId))
+                    .limit(maximumGroupSize)
+                    .collect(Collectors.toList());
+            if (candidates.size() < 2) {
+                candidates = remaining.values().stream()
+                        .sorted(Comparator.comparingDouble(
+                                        (RoutingProblemSnapshot.Demand demand) ->
+                                                squaredDistance(demand.getLocation().getXM(),
+                                                        demand.getLocation().getYM(),
+                                                        anchor.getLocation().getXM(),
+                                                        anchor.getLocation().getYM()))
+                                .thenComparing(RoutingProblemSnapshot.Demand::getId))
+                        .limit(maximumGroupSize).collect(Collectors.toList());
+            }
+            if (candidates.size() < 2) break;
+            result.add(List.copyOf(candidates));
+            candidates.forEach(demand -> remaining.remove(demand.getId()));
         }
         return List.copyOf(result);
+    }
+
+    private static boolean reaches(String rootId, String demandId,
+            Map<String, ? extends Collection<String>> knownDemandIdsByRoot) {
+        Collection<String> known = knownDemandIdsByRoot.get(rootId);
+        return known != null && known.contains(demandId);
     }
 
     static List<RoutingProblemSnapshot.RootCandidate> eligibleRoots(
@@ -415,6 +482,16 @@ final class BoundedSharedNetworkSeedGenerator {
             }
         }
         return roots;
+    }
+
+    static int remainingRootCapacity(RoutingProblemSnapshot.RootCandidate root,
+            int acceptedRootBranches) {
+        if (acceptedRootBranches < 0) {
+            throw new IllegalArgumentException("Accepted root branches cannot be negative");
+        }
+        RoutingProblemSnapshot.RootRealization realization = root.getRealization();
+        if (realization == null) return 0;
+        return Math.max(0, 4 - realization.getBaseIncidentSections() - acceptedRootBranches);
     }
 
     private static int knownCoverage(RoutingProblemSnapshot.RootCandidate root,

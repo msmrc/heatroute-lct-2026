@@ -1,31 +1,35 @@
 # HeatRoute v6 universality check on the production VPS
 
-> **Статус `heatroute-network-7` на 29.09: production deploy и контрольный расчёт PASS,
-> расширенная matrix выполняется.** Финальный VPS HEAD
-> `0b3f29aa122511d52242c2bdb4f89239783cd5f1`, сервисы healthy. Контрольный run
+> **Статус `heatroute-network-7` на 29.09: production deploy, контрольный расчёт и
+> последовательная matrix завершены.** Финальный VPS HEAD
+> `b492d86f0a5269327f5ea45eb22dbe412b0c9a54`, сервисы healthy. Контрольный run
 > `e4b557bb-dff0-4bd2-8aac-ea5674d59726` завершён за **29,018 с**: 17/17,
 > `valid=true`, все issue arrays пусты, 2 170,113 м. Реализованы прямые косые
 > terminal-egress кандидаты по разъяснению 29.09, консервативный structural reject,
 > per-demand ДУ и bounded portfolio restart. В routine search ограничено 16 лучей;
 > плотные 72 используются только как no-normal fallback, shared corridor сначала берёт
 > предпочтительные нормали. Локальные gates: geometry/egress 96/96, catalog/search 46/46,
-> web 33 Vitest + 37 script tests — PASS. Остальные GeoJSON ещё прогоняются
-> последовательно (Kozhukhovo running), поэтому строки v6 ниже остаются историческими и
-> не являются результатами v7.
+> web 33 Vitest + 37 script tests — PASS. Строки v6 ниже сохранены только как исторический
+> baseline и не являются результатами v7.
 
 ## HeatRoute v7 production control evidence
 
 | Dataset | Run | VPS duration | Outcome |
 |---|---|---:|---|
 | `Датасет скорректированный.geojson` | `e4b557bb-dff0-4bd2-8aac-ea5674d59726` | 29.018 s | completed, valid, 17/17; all issue arrays empty; 2,170.113 m |
+| `neighbor-kozhukhovo.geojson` | `9a9de9ae-20b9-430c-bb61-a636387feb5b` | 100.452 s | bounded rejection: `portfolio_catalog_unchanged`; not proven bad input |
+| `neighbor-zil-north-with-roads-social.geojson` | `235d235b-7ed1-41a1-9e29-62be08e6588b` | 0.222 s | structural rejection: demands 3 and 13 |
+| `official-plus-likhacheva-network.geojson` | `0869c9ad-ede1-4bbd-bf10-ebd71e785b00` | 81.713 s | bounded rejection: `empty_catalog`; not proven bad input |
+| `heatroute-competition-roads-kindergarten.geojson` | `642158d3-dbe4-46e7-a5a1-335b580c3776` | 0.341 s | structural rejection: demand 11 inside a foreign social area |
 
 UI evidence:
 
 - `output/playwright/universality/v7-2026-09-29/final-v7-corrected-17-of-17-ui-wide.png`;
-- `output/playwright/universality/v7-2026-09-29/final-v7-corrected-17-of-17-ui.png`.
+- `output/playwright/universality/v7-2026-09-29/final-v7-corrected-17-of-17-ui.png`;
+- `output/playwright/universality/v7-2026-09-29/final-v7-roads-kindergarten-structural-rejection.png`.
 
-Полная v7-матрица и сравнение остальных входов будут добавлены только после фактического
-завершения соответствующих VPS runs; текущий результат не является заявлением об их исходе.
+Кожухово и official+likhacheva не объявляются плохими входами: поиск завершился без полного
+каталога. ZIL и roads-kindergarten отклонены по конкретным запрещённым пересечениям.
 
 Date: 2026-09-29 (Europe/Moscow)
 

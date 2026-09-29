@@ -1,6 +1,6 @@
 # Current implementation progress
 
-## 2026-09-29 — `heatroute-network-7`: production VPS PASS, расширенная matrix выполняется
+## 2026-09-29 — `heatroute-network-7`: production VPS PASS, matrix завершена
 
 Подготовлена версия `heatroute-network-7` по дополнительному разъяснению от 29.09:
 для выхода из здания больше не требуется только нормаль к границе. Нормаль остаётся
@@ -33,16 +33,19 @@ catalog/search integration — **46/46 PASS**, web — **33 Vitest + 37 script t
 сохраняет новые косые выходы, не умножая без необходимости дорогой каталог.
 
 Production VPS обновлён до финального HEAD
-`0b3f29aa122511d52242c2bdb4f89239783cd5f1`, сервисы healthy. Контрольный запуск v7
+`b492d86f0a5269327f5ea45eb22dbe412b0c9a54`, сервисы healthy. Контрольный запуск v7
 `e4b557bb-dff0-4bd2-8aac-ea5674d59726` завершён за **29,018 с**: 17/17 обязательных
 подключений, `valid=true`, все массивы validation/engineering/sizing issues пусты,
 суммарная длина 2 170,113 м. Сохранены UI-скриншоты
 `output/playwright/universality/v7-2026-09-29/final-v7-corrected-17-of-17-ui-wide.png` и
 `output/playwright/universality/v7-2026-09-29/final-v7-corrected-17-of-17-ui.png`.
-Это подтверждает production deployment и один полный контрольный расчёт, но не заменяет
-матрицу остальных входов: их последовательный VPS replay ещё выполняется, Kozhukhovo на
-момент записи находится в работе. До завершения матрицы исходы v6 ниже остаются только
-историческим baseline и не переносятся автоматически на v7.
+Последовательная VPS-матрица завершена. Кожухово после исправления restart-invariant
+завершилось bounded-отказом `portfolio_catalog_unchanged` за 100,452 с; это ограничение
+поиска, а не доказательство плохого GeoJSON. Official+Likhacheva аналогично вернул
+`empty_catalog` за 81,713 с. ZIL (demands 3 и 13) и roads-kindergarten (demand 11)
+быстро отклонены по конкретным запрещённым пересечениям. Частичный или невалидный результат
+ни в одном случае не опубликован. Подробная таблица и run IDs находятся в
+`HEATROUTE_UNIVERSALITY_VPS_2026-09-29.md`.
 
 ## 2026-09-29 — сохранённые оптимизации HeatRoute для master
 

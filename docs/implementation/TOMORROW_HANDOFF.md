@@ -238,7 +238,7 @@ Official лучший1982,571 м/17of17, roads2141,981 м/16of17 + proven blocke
 smoke: `.tooling/expert95/production-smoke.py` (official) и `production-smoke-roads.py`.
 Оба создают POST один раз, resume GET-only; не повторять создание после сетевого сбоя.
 Depth96 готовится в isolated integration: owned patch + только3planner hunks + exporter
-+ rootapplication-context.patch. Не копировать старый OfficialRoutePlanner целиком.
++ rootapplication-context.patch. Не копировать старый монолит маршрутизации целиком.
 До его broad/fresh проверок source96 не является релизом. R/G, scale и скорость открыты.
 
 ## Актуально: source95 — fresh official/roads выполняются
@@ -434,7 +434,7 @@ Full85session20838 завершён:1318/1314PASS/1compactFAIL/3skip, original77
 ради допуска цены/длины; candidate offer и acceptance policy — отдельная следующая работа.
 Evidence `.tooling/source83-joint-audit.febI2W/EVIDENCE.md`.
 Arendt получил только `CorridorLinkApproaches`+новыйtest: checked direct-tail gap; Mill —
-`OfficialRoutePlanner`+новыйtest/helper: bounded coverage completion для no_route.
+регрессионная фикстура + новый test/helper: bounded coverage completion для no_route.
 Оба изменения для следующего checkpoint, не часть проверенного86; не смешивать targets.
 Отдельный unresolved exact own-OKS corner guard описан в
 `.tooling/roads-regression-audit.4mZZNB/EVIDENCE.txt`; не ослаблять final validator.

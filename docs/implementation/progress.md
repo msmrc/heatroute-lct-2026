@@ -2377,7 +2377,7 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
   the focused official-dataset scenario and still failed the zero-warning criterion. It was
   removed from the active algorithm instead of shipping a slower incomplete repair.
 - Focused verification passes 35/35 tests across `EngineeringRouteEvaluatorTest`,
-  `OfficialObstacleRouterTest` and `OfficialRoutePlannerTest`. The official-dataset regression
+  `OfficialObstacleRouterTest` and `RegressionRoutePlannerFixtureTest`. The official-dataset regression
   now requires exactly three variants and 17/17 connections; the attempted zero-warning assertion
   correctly failed and remains an open topology-rebuild gate rather than being hidden.
 - The last published comparison run before removing the rejected dogleg is
@@ -2396,7 +2396,7 @@ occupied by unrelated local processes, so the verified instance uses `WEB_HOST_P
   connected OKS count and cost; they no longer substitute absent sibling strategies with zeros.
 - Focused web verification passed: `RouteVisualization.test.tsx`, 3/3 tests. Focused Java
   verification passed 18/18 tests in `EngineeringRouteEvaluatorTest` and
-  `OfficialRoutePlannerTest`; stale index-based expectations were aligned with the three-strategy
+  `RegressionRoutePlannerFixtureTest`; stale index-based expectations were aligned with the three-strategy
   contract. Full tests, lint and typecheck were not run by the user's explicit scope limitation.
 - This restores comparison visibility but does not declare the expert geometry gate complete.
   Corrected-dataset engineering/shortest warnings still identify the subtrees that need topology-

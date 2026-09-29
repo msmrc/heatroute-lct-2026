@@ -762,7 +762,7 @@ plan1531122 мс. Finalization остаётся основным этапом и
 
 Read-only разбор `OfficialDatasetRoutingTest`, `OfficialCalculationService`,
 адаптера расчёта, `OfficialFeatureRepository`, `OfficialObstacleRouter` и
-`OfficialRoutePlanner` отделил подтверждённые различия от гипотез о скорости.
+регрессионной фикстуры маршрутизации отделил подтверждённые различия от гипотез о скорости.
 Сохранённый ответ `api-r13-2d-import.json` содержит
 `report.input_profile = baseline_input`: профиль совпадает с доменным тестом и не
 объясняет разницу времени. В обоих случаях используется stable planner.
@@ -828,7 +828,7 @@ Metadata benchmark image показывает `JAVA_VERSION=jdk-11.0.30+7`, то
 
 ### R15: пропуск неиспользуемых начальных окон в 2D (fast/controls/API PASS)
 
-`OfficialRoutePlanner.finishGeometry` загружал `featuresForEdges(sizedEdges)`
+Исторический `finishGeometry` загружал `featuresForEdges(sizedEdges)`
 до условного depth reroute; в режиме depth=false эта переменная не читалась,
 а затем заменялась результатом `featuresForEdges(finalSizedEdges)`. Первую
 загрузку перенесли внутрь depth-enabled branch. Обязательные egress/regularization,

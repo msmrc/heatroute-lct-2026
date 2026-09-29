@@ -109,7 +109,7 @@ OfficialJobWorker
 
 | Файл | Что важно |
 |---|---|
-| [OfficialRoutePlanner.java](E:/job/_lct2026/heatroute_codex/apps/api/src/main/java/ru/lct/heatroute/domain/routing/OfficialRoutePlanner.java) | 5999 строк; `plan` около 162, `repairMandatoryChambers` 2512, `finish` 4961, `finishGeometry` 5052, `featuresForEdges` 5482 |
+| `RegressionRoutePlannerFixture.java` (только тесты) | 5999 строк исторической реализации; используется как регрессионный эталон и не входит в production JAR |
 | [OfficialObstacleRouter.java](E:/job/_lct2026/heatroute_codex/apps/api/src/main/java/ru/lct/heatroute/domain/routing/OfficialObstacleRouter.java) | 2535 строк; `findUncached` около 930, `routeCacheKey` 1168, `SegmentVisibilityMemo` 2302, `VisibilityCache` 2443 |
 | [OfficialRoutingEnvironment.java](E:/job/_lct2026/heatroute_codex/apps/api/src/main/java/ru/lct/heatroute/domain/routing/OfficialRoutingEnvironment.java) | Per-run prepared constraints, validator sessions, route cache и visibility memo; состояние не thread-safe |
 | [OfficialFeatureRepository.java](E:/job/_lct2026/heatroute_codex/apps/api/src/main/java/ru/lct/heatroute/domain/topology/OfficialFeatureRepository.java) | Core-загрузка и PostGIS windows, SQL около 123; WKB/JSON materialization около 178 |
@@ -169,7 +169,7 @@ Baseline/candidate запускать из отдельно зафиксиров
 
 ### P01. Повторная выборка features после присвоения глубины — начать здесь
 
-**Где:** `routing/OfficialRoutePlanner.finishGeometry`, около 5092–5097; `depth/OfficialDepthPlanner.withProfile`.
+**Где:** историческая тестовая фикстура маршрутизации и `depth/OfficialDepthPlanner.withProfile`.
 
 **Наблюдение:** после final sizing вычисляется `routeFeatures`; затем создаются edges с профилями; validator снова вызывает `featuresForEdges` для того же XY-пути. Текущий `withProfile` сохраняет coordinates, endpoints, DU и sections. В windowed-пути это повтор SQL + materialization по рёбрам.
 

@@ -201,7 +201,7 @@
 
 ### Разделить построение, оценку и ранжирование
 
-Сейчас `OfficialRoutePlanner` объединяет эти роли в одном классе. Целевая оркестрация:
+На момент аудита прежний монолит объединял эти роли в одном классе. Целевая оркестрация:
 
 ```java
 RoutingContext context = contextFactory.create(input);
@@ -218,7 +218,7 @@ return variantRanker.rank(evaluations);
 
 ### Не превращать неизвестный расход в ноль
 
-Сейчас в `OfficialRoutePlanner.demands()`:
+На момент аудита в историческом `demands()`:
 
 ```java
 BigDecimal resolvedFlow = flow == null ? BigDecimal.ZERO : flow;
@@ -287,7 +287,7 @@ B-10 исправлен и проверен в source90 быстрым набо�
 
 | ID | Место / наблюдение | Проверка закрытия |
 |---|---|---|
-| B-01 | `OfficialFeatureRepository.forEachCalculationCoreByImport` исключает `oks_future`; `OfficialRoutePlanner.demands` подставляет нулевой расход при отсутствии данных | Реальный extended import с расходом только на связанном ОКС сохраняет его в результате; отсутствие расхода даёт предметную ошибку |
+| B-01 | `OfficialFeatureRepository.forEachCalculationCoreByImport` исключает `oks_future`; исторический `demands` подставляет нулевой расход при отсутствии данных | Реальный extended import с расходом только на связанном ОКС сохраняет его в результате; отсутствие расхода даёт предметную ошибку |
 | B-02 | `RouteVariant.isValid` игнорирует sizing issues; допуск к rank/export не требует завершённой включённой глубины | Ошибка любого обязательного этапа блокирует rank/export; отключённая глубина не блокирует baseline 2D |
 | B-03 | Прежний `OfficialNetworkSizer` менял ДУ при неизменном расходе и сбрасывал длину техническим разбиением | Source99: единые компоненты расхода, минимальные ДУ снизу вверх, Q1/Q2 и все 18 границ; 2188 fast PASS/3 scale skip. Свежие full/Compose ещё не проверены; см. PRIMARY_ROUTING_99.md |
 | B-04 | `OfficialVariantEconomicsCalculator.connectionCostsMoreThanPenalty` тестируется отдельно, но не вызывается планировщиком | Сквозные случаи выгодного подключения, выгодного штрафа и общей ветки проверяют принятую организаторами objective |

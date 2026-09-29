@@ -44,7 +44,7 @@ Status: functional R8 implementation complete for the published depth rules
 - `OfficialDepthPlannerTest`: six cases for geometry-to-chainage projection, exact/linear/rounded
   tie-in exclusion, the five-centimetre endpoint snap boundary, retained interior overlap and
   verified profile generation.
-- `OfficialObstacleRouterTest` and `OfficialRoutePlannerTest` prove the separate plan detour and
+- `OfficialObstacleRouterTest` and `RegressionRoutePlannerFixtureTest` prove the separate plan detour and
   the repeated vertical check.
 - `OfficialGeoJsonExporterTest` asserts technical-node references, numeric depth properties and
   exact XYZ segmentation.

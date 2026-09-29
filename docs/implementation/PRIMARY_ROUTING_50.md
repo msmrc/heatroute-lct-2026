@@ -119,7 +119,7 @@ Live не обновлялся; Docker/Compose и `pwsh` в этом окруж�
 Focused gate `CorridorTreeBuilderTest`, `OrthogonalCorridorGridTest`,
 `OfficialCorridorDatasetTest`: 39/39 PASS (`.tooling/corridor-fourth.log`).
 
-Затем тот же официальный набор впервые пропущен через настоящий `OfficialRoutePlanner.finish`
+Затем тот же официальный набор впервые пропущен через исторический этап `finish`
 для всех 14 коридорных кандидатов: финальные ДУ, регуляризация, стоимость и включённая глубина.
 Проверка прошла за 13,568 с (`.tooling/corridor-fifth.log/.json`). Однако эти кандидаты пока
 2067–2272 м, 13–15 новых камер, с 3–7 оставшимися экспертными угловыми замечаниями. Успех

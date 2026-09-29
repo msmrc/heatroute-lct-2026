@@ -44,7 +44,7 @@ public final class CatalogNetworkStageCompiler {
             CatalogFrozenCandidateAssembler.EdgeSectionAssembler sectionAssembler) {
         return compileInternal(problemSnapshot, buildResult, demandPortById, rootPortById,
                 flowScaleDecimals, checkerVersion, candidateIdPrefix, strategy,
-                nodeRealizationResolver, relevantFeatures, null, sectionAssembler);
+                nodeRealizationResolver, relevantFeatures, null, sectionAssembler, List.of());
     }
 
     public AdaptiveCatalogNetworkSearch.Stage compilePrepared(
@@ -58,7 +58,23 @@ public final class CatalogNetworkStageCompiler {
         Objects.requireNonNull(featureWindow, "featureWindow");
         return compileInternal(problemSnapshot, buildResult, demandPortById, rootPortById,
                 flowScaleDecimals, checkerVersion, candidateIdPrefix, strategy,
-                nodeRealizationResolver, null, featureWindow, sectionAssembler);
+                nodeRealizationResolver, null, featureWindow, sectionAssembler, List.of());
+    }
+
+    public AdaptiveCatalogNetworkSearch.Stage compilePrepared(
+            RoutingProblemSnapshot problemSnapshot,
+            CatalogBuildResult buildResult, Map<String, String> demandPortById,
+            Map<String, String> rootPortById, int flowScaleDecimals,
+            String checkerVersion, String candidateIdPrefix, String strategy,
+            NodeRealizationResolver nodeRealizationResolver,
+            PreparedRoutingFeatureWindow featureWindow,
+            CatalogFrozenCandidateAssembler.EdgeSectionAssembler sectionAssembler,
+            Collection<String> excludedDemandIds) {
+        Objects.requireNonNull(featureWindow, "featureWindow");
+        return compileInternal(problemSnapshot, buildResult, demandPortById, rootPortById,
+                flowScaleDecimals, checkerVersion, candidateIdPrefix, strategy,
+                nodeRealizationResolver, null, featureWindow, sectionAssembler,
+                excludedDemandIds);
     }
 
     private AdaptiveCatalogNetworkSearch.Stage compileInternal(
@@ -69,7 +85,8 @@ public final class CatalogNetworkStageCompiler {
             NodeRealizationResolver nodeRealizationResolver,
             Collection<ImportedOfficialFeature> relevantFeatures,
             PreparedRoutingFeatureWindow featureWindow,
-            CatalogFrozenCandidateAssembler.EdgeSectionAssembler sectionAssembler) {
+            CatalogFrozenCandidateAssembler.EdgeSectionAssembler sectionAssembler,
+            Collection<String> excludedDemandIds) {
         Objects.requireNonNull(problemSnapshot, "problemSnapshot");
         Objects.requireNonNull(buildResult, "buildResult");
         String checker = required(checkerVersion, "checker version");
@@ -86,7 +103,8 @@ public final class CatalogNetworkStageCompiler {
         }
 
         CatalogNetworkProblemCompiler.Compilation baseCompilation = problemCompiler.compile(
-                problemSnapshot, catalog, demandPortById, rootPortById, flowScaleDecimals);
+                problemSnapshot, catalog, demandPortById, rootPortById, flowScaleDecimals,
+                excludedDemandIds);
         CatalogNetworkProblemCompiler.Compilation compilation = nodeConfigurationCompiler.compile(
                 problemSnapshot, catalog, baseCompilation);
         Map<String, CatalogFrozenCandidateAssembler.NodeRealization> nodeRealizations = Map.copyOf(

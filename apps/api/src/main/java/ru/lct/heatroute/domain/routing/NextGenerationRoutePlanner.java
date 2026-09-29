@@ -298,7 +298,17 @@ public final class NextGenerationRoutePlanner {
                 int featureCount, long elapsedMillis,
                 AdaptiveCatalogNetworkSearch.Result solved, int conflicts, int archiveSize,
                 OfficialCalculationResult result) {
-            return new Execution(solved.getOutcome(), solved.getReason(),
+            String reason = solved.getReason();
+            if (solved.getOutcome() == AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED
+                    && result != null) {
+                long connected = result.getVariants().stream()
+                        .mapToLong(RouteVariant::getConnectedDemandCount).max().orElse(0L);
+                if (connected < problem.getDemands().size()) {
+                    reason = "accepted_partial:" + connected + "/"
+                            + problem.getDemands().size();
+                }
+            }
+            return new Execution(solved.getOutcome(), reason,
                     problem.getSnapshotHash(), build, featureCount, elapsedMillis,
                     solved.getRefinementRuns(), conflicts, archiveSize, result);
         }

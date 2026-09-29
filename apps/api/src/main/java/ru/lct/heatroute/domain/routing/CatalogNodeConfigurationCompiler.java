@@ -98,9 +98,15 @@ public final class CatalogNodeConfigurationCompiler {
         }
         Set<String> managedNodeIds = new LinkedHashSet<>(rootByNode.keySet());
         managedNodeIds.addAll(demandByNode.keySet());
-        // Root/terminal semantics are explicit in the master. Internal incidences remain flow
-        // choices and are validated by frozen refinement; this permits two independently seeded
-        // collectors to merge by dropping one redundant upstream leg.
+        // Internal junctions that have a finite engineering configuration catalog must select
+        // one of those configurations in the master.  Leaving such a node unmanaged made a
+        // shared trunk look feasible to CP-SAT but left the frozen assembler without an exact
+        // chamber realization. Nodes for which no exact local incidence can be enumerated remain
+        // unmanaged and are still validated or collapsed by the frozen assembler.
+        bindings.stream().map(binding -> binding.getConfiguration().getNodeId())
+                .filter(nodeId -> !rootByNode.containsKey(nodeId)
+                        && !demandByNode.containsKey(nodeId))
+                .forEach(managedNodeIds::add);
         return base.withNodeConfigurations(bindings, managedNodeIds);
     }
 

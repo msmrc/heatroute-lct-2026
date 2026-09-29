@@ -1089,6 +1089,13 @@ public class OfficialRouteGeometryRules {
         return "oks".equals(constraintType(feature));
     }
 
+    boolean isSpecialConstraintFeature(ImportedOfficialFeature feature) {
+        String type = constraintType(feature);
+        return type != null && catalog.find(type)
+                .map(rule -> !rule.isForbidden())
+                .orElse(false);
+    }
+
     String constraintType(ImportedOfficialFeature feature) {
         if ("restriction".equals(feature.getObjectType())) {
             String type = feature.getAttributes().path("restriction_type").asText();

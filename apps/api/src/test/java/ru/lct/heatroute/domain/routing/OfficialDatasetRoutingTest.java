@@ -277,13 +277,22 @@ class OfficialDatasetRoutingTest {
     }
 
     List<ImportedOfficialFeature> loadOfficialFeatures() throws Exception {
-        JsonNode root;
         try (InputStream input = getClass().getResourceAsStream("/official/lct-2026.geojson")) {
             if (input == null) {
                 throw new IllegalStateException("Official dataset test resource is missing");
             }
-            root = objectMapper.readTree(input);
+            return loadFeatures(input);
         }
+    }
+
+    List<ImportedOfficialFeature> loadFeatures(Path path) throws Exception {
+        try (InputStream input = Files.newInputStream(path)) {
+            return loadFeatures(input);
+        }
+    }
+
+    private List<ImportedOfficialFeature> loadFeatures(InputStream input) throws Exception {
+        JsonNode root = objectMapper.readTree(input);
         CRSFactory crsFactory = new CRSFactory();
         CoordinateReferenceSystem wgs84 = crsFactory.createFromParameters(
                 "WGS84", "+proj=longlat +datum=WGS84 +no_defs");

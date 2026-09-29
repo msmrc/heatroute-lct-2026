@@ -44,6 +44,7 @@ public final class BoundedRootDemandCatalogGenerator {
     static final String GENERATOR_ID = "bounded-root-demand";
     static final String GENERATOR_VERSION = "1";
     private static final int SHARED_SEED_GROUP_CAPACITY = 4;
+    private static final int DENSE_SPECIAL_LAYER_THRESHOLD = 32;
     private static final int MAX_NORMAL_SEED_ATTEMPTS = 128;
     private static final List<RoutePreference> DIRECT_PREFERENCES = List.of(
             RoutePreference.ENGINEERING, RoutePreference.LEFT, RoutePreference.RIGHT);
@@ -76,6 +77,12 @@ public final class BoundedRootDemandCatalogGenerator {
         ProbeDiameter probe = probeDiameter(problem);
         int probeDiameter = probe.diameterMm;
         OfficialRoutingEnvironment environment = featureWindow.environment();
+        Set<String> structurallyUnroutableDemands = structurallyUnroutableDemands(
+                problem, environment, probeDiameter);
+        Set<String> routableDemandIds = problem.getDemands().stream()
+                .map(RoutingProblemSnapshot.Demand::getId)
+                .filter(id -> !structurallyUnroutableDemands.contains(id))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
         Map<String, String> demandPorts = new LinkedHashMap<>();
         for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
@@ -90,11 +97,16 @@ public final class BoundedRootDemandCatalogGenerator {
         List<String> remaining = new ArrayList<>();
         Set<String> truncations = new LinkedHashSet<>();
         long totalPairs = Math.multiplyExact((long) problem.getRoots().size(),
-                (long) problem.getDemands().size());
-        List<RootDemandPair> orderedPairs = coverageFirstPairs(problem);
+                (long) routableDemandIds.size());
+        List<RootDemandPair> orderedPairs = coverageFirstPairs(problem).stream()
+                .filter(pair -> routableDemandIds.contains(pair.demand.getId()))
+                .collect(Collectors.toList());
         Set<String> attemptedPairs = new LinkedHashSet<>();
         Set<String> coveredDemands = new LinkedHashSet<>();
         boolean stopped = false;
+        long clusteredReserveNanos = sharedSeedReserveNanos(
+                options, routableDemandIds.size());
+        long standaloneDeadline = state.deadlineNanos - clusteredReserveNanos;
 
         // Large official tasks are collector problems, not a collection of independent
         // root-to-demand problems.  Give the coherent shared-network builder the first half of
@@ -104,17 +116,23 @@ public final class BoundedRootDemandCatalogGenerator {
         // the proven standalone recovery path.
         BoundedSharedNetworkSeedGenerator.Result sharedSeeds = null;
         boolean completeSharedSeed = false;
-        if (problem.getDemands().size() > SHARED_SEED_GROUP_CAPACITY
+        long specialConstraintCount = features.stream()
+                .filter(router.rules()::isSpecialConstraintFeature)
+                .count();
+        boolean denseSpecialLayer = specialConstraintCount >= DENSE_SPECIAL_LAYER_THRESHOLD;
+        if (routableDemandIds.size() > SHARED_SEED_GROUP_CAPACITY
                 && options.maxRouteCalls > 0 && !state.expired()) {
-            Set<String> allDemandIds = problem.getDemands().stream()
-                    .map(RoutingProblemSnapshot.Demand::getId)
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-            long fastSharedBudget = Math.min(TimeUnit.SECONDS.toNanos(30),
-                    Math.max(1L, options.timeBudgetNanos / 2L));
+            Set<String> allDemandIds = new LinkedHashSet<>(routableDemandIds);
+            long fastSharedBudget = Math.min(TimeUnit.SECONDS.toNanos(
+                            denseSpecialLayer ? 30 : 25),
+                    Math.max(1L, options.timeBudgetNanos / 3L));
             long fastSharedDeadline = Math.min(state.deadlineNanos,
                     saturatingAdd(started, fastSharedBudget));
-            sharedSeeds = sharedSeedGenerator.generate(problem, environment, allDemandIds,
-                    Map.of(), fastSharedDeadline, Math.max(1, options.maxRouteCalls / 2));
+            sharedSeeds = denseSpecialLayer
+                    ? sharedSeedGenerator.generateDense(problem, environment, allDemandIds,
+                            fastSharedDeadline, Math.max(1, options.maxRouteCalls / 2))
+                    : sharedSeedGenerator.generate(problem, environment, allDemandIds,
+                            Map.of(), fastSharedDeadline, Math.max(1, options.maxRouteCalls / 2));
             state.routeCalls += sharedSeeds.getRouteCalls();
             completeSharedSeed = sharedSeeds.getCoveredPriorityDemandIds()
                     .containsAll(allDemandIds);
@@ -125,6 +143,11 @@ public final class BoundedRootDemandCatalogGenerator {
         // round-robin through nearest roots until every demand has at least one path.
         for (RootDemandPair pair : completeSharedSeed ? List.<RootDemandPair>of() : orderedPairs) {
             if (coveredDemands.contains(pair.demand.getId())) continue;
+            if (state.expired(standaloneDeadline)) {
+                truncations.add("clustered_seed_budget_reserved");
+                stopped = true;
+                break;
+            }
             if (!canAttemptPair(state, options, truncations)) {
                 stopped = true;
                 break;
@@ -132,7 +155,7 @@ public final class BoundedRootDemandCatalogGenerator {
             attemptedPairs.add(pair.key());
             state.pairsAttempted++;
             PairRoutes routes = routes(pair.root, pair.demand,
-                    probeDiameter, environment, options, state, true, false, true);
+                    probeDiameter, environment, options, state, true, true, true);
             record(pair, routes, generated, remaining, truncations);
             if (!routes.paths.isEmpty()) coveredDemands.add(pair.demand.getId());
             if (state.routeCalls >= options.maxRouteCalls) {
@@ -147,11 +170,12 @@ public final class BoundedRootDemandCatalogGenerator {
         if (!stopped && coveredDemands.size() < problem.getDemands().size()) {
             recovery:
             for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
+                if (structurallyUnroutableDemands.contains(demand.getId())) continue;
                 if (coveredDemands.contains(demand.getId())) continue;
                 for (RootDemandPair pair : orderedPairs) {
                     if (!pair.demand.getId().equals(demand.getId())) continue;
-                    if (state.expired()) {
-                        truncations.add("time_budget");
+                    if (state.expired(standaloneDeadline)) {
+                        truncations.add("clustered_seed_budget_reserved");
                         stopped = true;
                         break recovery;
                     }
@@ -162,7 +186,7 @@ public final class BoundedRootDemandCatalogGenerator {
                     }
                     state.recoveryAttempts++;
                     PairRoutes routes = routes(pair.root, pair.demand,
-                            probeDiameter, environment, options, state, false, false, true);
+                            probeDiameter, environment, options, state, false, true, true);
                     record(pair, routes, generated, remaining, truncations);
                     if (!routes.paths.isEmpty()) {
                         coveredDemands.add(demand.getId());
@@ -195,8 +219,7 @@ public final class BoundedRootDemandCatalogGenerator {
             normalDemandsByRoot.computeIfAbsent(
                     path.rootId, ignored -> new LinkedHashSet<>()).add(path.demandId);
         }
-        long normalSeedDeadline = state.deadlineNanos
-                - sharedSeedReserveNanos(options, problem.getDemands().size());
+        long normalSeedDeadline = standaloneDeadline;
         if (!completeSharedSeed && !stopped
                 && coveredDemands.size() == problem.getDemands().size()) {
             // First guarantee one physically legal, normal root approach per demand.
@@ -303,6 +326,7 @@ public final class BoundedRootDemandCatalogGenerator {
 
         Set<String> hardDemands = problem.getDemands().stream()
                 .map(RoutingProblemSnapshot.Demand::getId)
+                .filter(routableDemandIds::contains)
                 .filter(id -> !normalRootDemands.contains(id))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         // A demand may have a legal standalone route and still be impossible to assign because
@@ -318,9 +342,10 @@ public final class BoundedRootDemandCatalogGenerator {
         // spends at most one successful root per cluster, so complete spatial coverage fits the
         // same production budget without enumerating redundant alternatives.
         problem.getDemands().stream().map(RoutingProblemSnapshot.Demand::getId)
+                .filter(routableDemandIds::contains)
                 .forEach(hardDemands::add);
         if (!completeSharedSeed) {
-            sharedSeeds = sharedSeedGenerator.generate(
+            sharedSeeds = sharedSeedGenerator.generateClustered(
                     problem, environment, hardDemands, normalDemandsByRoot, state.deadlineNanos,
                     Math.max(0, options.maxRouteCalls - (int) Math.min(
                             Integer.MAX_VALUE, state.routeCalls)));
@@ -346,6 +371,10 @@ public final class BoundedRootDemandCatalogGenerator {
         if (sharedSeeds.isDeadlineReached()) truncations.add("shared_seed_deadline");
 
         for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
+            if (structurallyUnroutableDemands.contains(demand.getId())) {
+                remaining.add("structurally-unroutable-demand:" + demand.getId());
+                continue;
+            }
             if (!normalRootDemands.contains(demand.getId())) {
                 remaining.add("normal-root-demand:" + demand.getId());
             }
@@ -362,15 +391,15 @@ public final class BoundedRootDemandCatalogGenerator {
         }
 
         // Phase 2 spends the remaining budget on alternatives only after terminal coverage.
-        if (!stopped && coveredDemands.size() == problem.getDemands().size()
-                && normalRootDemands.size() == problem.getDemands().size()
+        if (!stopped && coveredDemands.size() == routableDemandIds.size()
+                && normalRootDemands.size() == routableDemandIds.size()
                 && sharedSeeds.getPaths().isEmpty()) {
             for (RootDemandPair pair : orderedPairs) {
                 if (!attemptedPairs.add(pair.key())) continue;
                 if (!canAttemptPair(state, options, truncations)) break;
                 state.pairsAttempted++;
                 PairRoutes routes = routes(pair.root, pair.demand,
-                        probeDiameter, environment, options, state, false, false, false);
+                        probeDiameter, environment, options, state, false, true, false);
                 record(pair, routes, generated, remaining, truncations);
                 if (state.routeCalls >= options.maxRouteCalls
                         && (state.pairsAttempted < totalPairs || !routes.diversityCovered)) {
@@ -397,6 +426,8 @@ public final class BoundedRootDemandCatalogGenerator {
         counters.put("pairs_attempted", state.pairsAttempted);
         counters.put("recovery_attempts", state.recoveryAttempts);
         counters.put("demands_covered", (long) coveredDemands.size());
+        counters.put("demands_structurally_unroutable",
+                (long) structurallyUnroutableDemands.size());
         counters.put("normal_seed_attempts", state.normalSeedAttempts);
         counters.put("normal_root_demands", (long) normalRootDemands.size());
         counters.put("normal_root_count", (long) usableNormalRoots.size());
@@ -421,7 +452,28 @@ public final class BoundedRootDemandCatalogGenerator {
         CatalogBuildResult build = new CatalogBuildResult(compiled.catalog, counters, coverage,
                 distinctSorted(remaining), distinctSorted(truncations));
         return new GeneratedCatalog(build, demandPorts, rootPorts, probeDiameter,
-                windowFingerprint);
+                windowFingerprint, structurallyUnroutableDemands);
+    }
+
+    private static Set<String> structurallyUnroutableDemands(
+            RoutingProblemSnapshot problem, OfficialRoutingEnvironment environment,
+            int probeDiameter) {
+        if (problem.getRoots().isEmpty()) return Set.of();
+        RoutingProblemSnapshot.RootCandidate target = problem.getRoots().get(0);
+        Coordinate targetPoint = coordinate(target.getLocation());
+        Set<String> result = new LinkedHashSet<>();
+        for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
+            Coordinate terminal = coordinate(demand.getLocation());
+            if (!environment.normalEgressCandidates(probeDiameter, terminal, targetPoint,
+                            RoutePlannerTuning.stable().getEngineeringEgressExtraM(),
+                            RouteTraversal.REVERSED).isEmpty()) {
+                continue;
+            }
+            if (environment.pointInsideForbiddenClearance(probeDiameter, terminal)) {
+                result.add(demand.getId());
+            }
+        }
+        return Collections.unmodifiableSet(result);
     }
 
     private static long sharedSeedReserveNanos(Options options, int demandCount) {
@@ -429,7 +481,7 @@ public final class BoundedRootDemandCatalogGenerator {
         // Shared collectors cover up to four terminals with one root branch and arrive already
         // certified as one non-crossing topology. They are both more valuable to the master and
         // cheaper overall than exhausting hundreds of standalone root approaches first.
-        return Math.min(TimeUnit.SECONDS.toNanos(30), options.timeBudgetNanos / 2L);
+        return Math.min(TimeUnit.SECONDS.toNanos(45), options.timeBudgetNanos / 2L);
     }
 
     private static int rootNewBranchCapacity(
@@ -994,15 +1046,19 @@ public final class BoundedRootDemandCatalogGenerator {
         private final Map<String, String> rootPortById;
         private final int probeDiameterMm;
         private final String windowFingerprint;
+        private final Set<String> structurallyUnroutableDemandIds;
 
         private GeneratedCatalog(CatalogBuildResult buildResult,
                 Map<String, String> demandPortById, Map<String, String> rootPortById,
-                int probeDiameterMm, String windowFingerprint) {
+                int probeDiameterMm, String windowFingerprint,
+                Collection<String> structurallyUnroutableDemandIds) {
             this.buildResult = buildResult;
             this.demandPortById = Collections.unmodifiableMap(new LinkedHashMap<>(demandPortById));
             this.rootPortById = Collections.unmodifiableMap(new LinkedHashMap<>(rootPortById));
             this.probeDiameterMm = probeDiameterMm;
             this.windowFingerprint = windowFingerprint;
+            this.structurallyUnroutableDemandIds = Set.copyOf(
+                    structurallyUnroutableDemandIds);
         }
 
         public CatalogBuildResult getBuildResult() { return buildResult; }
@@ -1010,6 +1066,9 @@ public final class BoundedRootDemandCatalogGenerator {
         public Map<String, String> getRootPortById() { return rootPortById; }
         public int getProbeDiameterMm() { return probeDiameterMm; }
         public String getWindowFingerprint() { return windowFingerprint; }
+        public Set<String> getStructurallyUnroutableDemandIds() {
+            return structurallyUnroutableDemandIds;
+        }
     }
 
     private static final class State {

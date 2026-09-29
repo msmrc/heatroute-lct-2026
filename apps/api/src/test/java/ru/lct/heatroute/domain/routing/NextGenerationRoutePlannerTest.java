@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -119,7 +121,7 @@ class NextGenerationRoutePlannerTest {
 
         assertThat(execution.getOutcome())
                 .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.CATALOG_INCOMPLETE);
-        assertThat(execution.getReason()).startsWith("catalog_expansion_limit:");
+        assertThat(execution.getReason()).isEqualTo("empty_catalog");
         assertThat(execution.getResult()).isNull();
         assertThat(execution.getCatalogBuild().isComplete()).isFalse();
     }
@@ -157,6 +159,52 @@ class NextGenerationRoutePlannerTest {
         assertThat(execution.getResult().getVariants()).isNotEmpty().allMatch(RouteVariant::isValid);
         assertThat(execution.getResult().getVariants()).allSatisfy(variant ->
                 assertThat(variant.getConnectedDemandCount()).isEqualTo(17));
+    }
+
+    @Test
+    void roadsAndSocialRestrictionsProduceAnExactlyAcceptedPartialResult() throws Exception {
+        Path scenario = Path.of("datasets", "scenarios", "roads-kindergarten.geojson");
+        if (!Files.isRegularFile(scenario)) {
+            scenario = Path.of("..", "..", "datasets", "scenarios",
+                    "roads-kindergarten.geojson");
+        }
+        List<ImportedOfficialFeature> features = new OfficialDatasetRoutingTest()
+                .loadFeatures(scenario.toAbsolutePath().normalize());
+        TopologyAnalysis topology = new ExistingNetworkTopologyAnalyzer().analyze(features);
+        RoutingExecutionContext context = new RoutingExecutionContext(
+                UUID.fromString("00000000-0000-0000-0000-000000000239"),
+                "acac7a6885f53faa360becde85bcfea6571eb01c60bcf106da7b2c378918125b",
+                "heatroute-input-v2", OfficialGeoJsonInspector.BASELINE_INPUT_PROFILE);
+
+        NextGenerationRoutePlanner.Execution execution = planner().execute(
+                context, features, topology,
+                new OfficialRunParameters(null, null, true),
+                new InMemoryRoutingFeatureSource(features),
+                NextGenerationRoutePlanner.Settings.production());
+
+        assertThat(execution.getOutcome()).as(execution.getReason() + "\n"
+                        + "elapsed_ms=" + execution.getElapsedMillis() + "\n"
+                        + execution.getCatalogBuild().getCounters() + "\n"
+                        + rootDemandCoverage(execution) + "\n"
+                        + execution.getCatalogBuild().getRemainingWork() + "\n"
+                        + execution.getCatalogBuild().getTruncationReasons())
+                .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
+        assertThat(execution.getResult()).isNotNull();
+        assertThat(execution.getResult().getDemandCount()).isEqualTo(17);
+        long coveredDemands = execution.getCatalogBuild().getCounters()
+                .getOrDefault("demands_covered", 0L);
+        assertThat(execution.getResult().getVariants()).isNotEmpty()
+                .allMatch(RouteVariant::isValid)
+                .allSatisfy(variant ->
+                        assertThat(variant.getConnectedDemandCount())
+                                .isEqualTo(coveredDemands));
+        assertThat(coveredDemands).isPositive().isLessThan(17);
+        assertThat(execution.getReason()).isEqualTo(
+                "accepted_partial:" + coveredDemands + "/17");
+        assertThat(execution.getCatalogBuild().getCounters())
+                .containsEntry("demands_structurally_unroutable", 1L);
+        assertThat(execution.getCatalogBuild().getRemainingWork())
+                .contains("structurally-unroutable-demand:11");
     }
 
     private static Map<String, List<String>> rootDemandCoverage(

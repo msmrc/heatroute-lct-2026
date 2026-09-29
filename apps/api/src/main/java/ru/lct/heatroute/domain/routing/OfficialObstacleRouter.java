@@ -29,6 +29,7 @@ import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 public class OfficialObstacleRouter {
     private static final double NAVIGATION_MARGIN_M = 0.25;
     private static final double SPECIAL_CROSSING_PORTAL_MARGIN_M = 0.25;
+    private static final double SPECIAL_NAVIGATION_SUPPORT_CORRIDOR_M = 25.0;
     private static final double MINIMUM_PREFERENCE_FACTOR = 0.985;
     private static final int MAX_VERTICES_PER_OBSTACLE = 12;
     private static final int MAX_POCKET_VERTICES_PER_OBSTACLE = 64;
@@ -1449,7 +1450,15 @@ public class OfficialObstacleRouter {
         for (Constraint constraint : constraints.query(corridor)) {
             if (!constraint.rule().isForbidden()) {
                 addSpecialCrossingPortals(result, constraint, directLine, corridor);
-                if (constraint.blocked() == null) continue;
+                // Dense road layers used to contribute every nearby buffered polygon to the
+                // visibility graph.  Pair generation is quadratic, while distant road corners
+                // cannot improve a route around the direct corridor.  Retain the exact prepared
+                // support only for a narrow neighbourhood: this preserves shifted legal
+                // crossings when the direct portal is obstructed without rebuilding a street-map
+                // sized graph for every root/demand query.
+                addNearbySpecialNavigationSupport(result, constraint, directLine,
+                        expansionM, preparation);
+                continue;
             }
             if (!constraint.blocked().getEnvelopeInternal().intersects(corridor)
                     || !constraint.blocked().isWithinDistance(directLine, expansionM)) {
@@ -1483,6 +1492,23 @@ public class OfficialObstacleRouter {
             addOrthogonalOvershootDetourNodes(result, start, end, expansionM);
         }
         return deduplicate(result);
+    }
+
+    private void addNearbySpecialNavigationSupport(List<Coordinate> result,
+            Constraint constraint, LineString directLine, double expansionM,
+            NavigationObstaclePreparation preparation) {
+        if (constraint.blocked() == null
+                || !constraint.blocked().isWithinDistance(directLine,
+                        Math.min(expansionM, SPECIAL_NAVIGATION_SUPPORT_CORRIDOR_M))) {
+            return;
+        }
+        Coordinate[] coordinates = preparation.prepare(constraint).support();
+        int uniqueCount = coordinates.length > 1
+                && coordinates[0].equals2D(coordinates[coordinates.length - 1])
+                ? coordinates.length - 1 : coordinates.length;
+        for (int index = 0; index < uniqueCount; index++) {
+            result.add(new Coordinate(coordinates[index]));
+        }
     }
 
     private boolean endpointInsideNavigationPocket(

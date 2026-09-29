@@ -62,15 +62,20 @@ public final class BoundedCatalogNetworkStageFactory {
         Map<String, String> demandPorts = representedPorts(
                 generated.getDemandPortById(), availablePorts);
         List<String> uncoveredDemands = new ArrayList<>();
+        Set<String> structurallyUnroutable =
+                generated.getStructurallyUnroutableDemandIds();
         problem.getDemands().forEach(demand -> {
-            if (!demandPorts.containsKey(demand.getId())) {
+            if (!demandPorts.containsKey(demand.getId())
+                    && !structurallyUnroutable.contains(demand.getId())) {
                 uncoveredDemands.add(demand.getId());
             }
         });
-        if (!uncoveredDemands.isEmpty()) {
+        if (demandPorts.isEmpty()) {
             return new Preparation(generated, window, sectionAssembler, null,
-                    "uncovered_demands:" + String.join(",", uncoveredDemands));
+                    "no_routable_demands:" + String.join(",", uncoveredDemands));
         }
+        Set<String> excludedDemands = new LinkedHashSet<>(structurallyUnroutable);
+        excludedDemands.addAll(uncoveredDemands);
         Map<String, String> rootPorts = representedPorts(
                 generated.getRootPortById(), availablePorts);
         if (rootPorts.isEmpty()) {
@@ -84,7 +89,7 @@ public final class BoundedCatalogNetworkStageFactory {
                     candidateIdPrefix, strategy,
                     compilation -> nodeResolver.resolve(problem, compilation,
                             demandPorts, rootPorts),
-                    window, sectionAssembler);
+                    window, sectionAssembler, excludedDemands);
             return new Preparation(generated, window, sectionAssembler, stage, null);
         } catch (CandidateAssemblyIncompleteException exception) {
             return new Preparation(generated, window, sectionAssembler, null,

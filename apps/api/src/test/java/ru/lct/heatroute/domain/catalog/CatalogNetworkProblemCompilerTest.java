@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
@@ -117,6 +118,50 @@ class CatalogNetworkProblemCompilerTest {
         assertThat(compilation.getProblem().getNodes())
                 .filteredOn(NetworkConstraintProblem.Node::isAllowedRoot)
                 .singleElement();
+    }
+
+    @Test
+    void compilesAnExplicitlyDeclaredPartialDemandModelWithoutChangingTheSnapshot() {
+        RoutingProblemSnapshot problemSnapshot = problem(
+                List.of(demand("served", "1.5"), demand("uncovered", "2.5")));
+        CatalogFixture fixture = catalog(problemSnapshot,
+                List.of(raw("route", points(0, 0, 10_000, 0))),
+                List.of(ports("route", "root-port", "served-port")));
+
+        CatalogNetworkProblemCompiler.Compilation compilation = compiler.compile(
+                problemSnapshot, fixture.snapshot, Map.of("served", "served-port"),
+                Map.of("root", "root-port"), 3, Set.of("uncovered"));
+
+        assertThat(compilation.getDemandBindings()).extracting(
+                CatalogNetworkProblemCompiler.DemandBinding::getDemandId)
+                .containsExactly("served");
+        assertThat(compilation.getProblem().getTotalDemandUnits()).isEqualTo(1_500L);
+        assertThat(new CpSatNetworkOptimizer(new CpSatRuntime())
+                .solve(compilation.getProblem(), 5.0, 2026).getStatus())
+                .isEqualTo(CpSatNetworkOptimizer.Status.OPTIMAL);
+    }
+
+    @Test
+    void requiresEveryMissingDemandToBeExplicitlyAccountedFor() {
+        RoutingProblemSnapshot problemSnapshot = problem(
+                List.of(demand("served", "1"), demand("uncovered", "1")));
+        CatalogFixture fixture = catalog(problemSnapshot,
+                List.of(raw("route", points(0, 0, 10_000, 0))),
+                List.of(ports("route", "root-port", "served-port")));
+
+        assertThatThrownBy(() -> compiler.compile(problemSnapshot, fixture.snapshot,
+                Map.of("served", "served-port"), Map.of("root", "root-port"), 3))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Missing port for demand: uncovered");
+        assertThatThrownBy(() -> compiler.compile(problemSnapshot, fixture.snapshot,
+                Map.of(), Map.of("root", "root-port"), 3, Set.of("served", "uncovered")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("At least one demand must remain");
+        assertThatThrownBy(() -> compiler.compile(problemSnapshot, fixture.snapshot,
+                Map.of("served", "served-port"), Map.of("root", "root-port"), 3,
+                Set.of("unknown")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown excluded demand: unknown");
     }
 
     @Test

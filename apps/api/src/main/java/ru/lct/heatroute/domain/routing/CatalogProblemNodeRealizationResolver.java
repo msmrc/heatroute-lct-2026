@@ -34,6 +34,7 @@ public final class CatalogProblemNodeRealizationResolver {
         }
         Map<String, CatalogFrozenCandidateAssembler.NodeRealization> result = new LinkedHashMap<>();
         for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
+            if (!demandPorts.containsKey(demand.getId())) continue;
             String nodeId = requiredNode(nodeByPort, demandPorts.get(demand.getId()),
                     "demand " + demand.getId());
             put(result, nodeId, new CatalogFrozenCandidateAssembler.NodeRealization(
@@ -61,7 +62,7 @@ public final class CatalogProblemNodeRealizationResolver {
         problem.getDemands().forEach(demand -> expectedDemands.add(demand.getId()));
         Set<String> expectedRoots = new LinkedHashSet<>();
         problem.getRoots().forEach(root -> expectedRoots.add(root.getId()));
-        if (!demandPorts.keySet().equals(expectedDemands)) {
+        if (demandPorts.isEmpty() || !expectedDemands.containsAll(demandPorts.keySet())) {
             throw new IllegalArgumentException("Demand port owners differ from problem snapshot");
         }
         if (rootPorts.isEmpty() || !expectedRoots.containsAll(rootPorts.keySet())) {

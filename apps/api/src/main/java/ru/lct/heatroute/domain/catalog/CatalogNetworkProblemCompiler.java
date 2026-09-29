@@ -36,6 +36,14 @@ public final class CatalogNetworkProblemCompiler {
     public Compilation compile(RoutingProblemSnapshot problemSnapshot,
             RoutingCatalogSnapshot catalogSnapshot, Map<String, String> demandPortById,
             Map<String, String> rootPortById, int flowScaleDecimals) {
+        return compile(problemSnapshot, catalogSnapshot, demandPortById, rootPortById,
+                flowScaleDecimals, Set.of());
+    }
+
+    public Compilation compile(RoutingProblemSnapshot problemSnapshot,
+            RoutingCatalogSnapshot catalogSnapshot, Map<String, String> demandPortById,
+            Map<String, String> rootPortById, int flowScaleDecimals,
+            Collection<String> excludedDemandIds) {
         Objects.requireNonNull(problemSnapshot, "problemSnapshot");
         Objects.requireNonNull(catalogSnapshot, "catalogSnapshot");
         if (!catalogSnapshot.hasDeclaredPhysicalAssets()) {
@@ -53,6 +61,8 @@ public final class CatalogNetworkProblemCompiler {
         }
         Map<String, String> demandPorts = immutableRequiredMap(demandPortById, "demand port");
         Map<String, String> rootPorts = immutableRequiredMap(rootPortById, "root port");
+        Set<String> excludedDemands = immutableExcludedDemands(
+                problemSnapshot, excludedDemandIds);
 
         Topology topology = topology(catalogSnapshot);
         Map<String, NodeAccumulator> nodeData = new LinkedHashMap<>();
@@ -60,7 +70,7 @@ public final class CatalogNetworkProblemCompiler {
         Map<String, DemandBinding> demandBindings = new LinkedHashMap<>();
         Map<String, String> rootNodeById = new LinkedHashMap<>();
         bindDemands(problemSnapshot, demandPorts, topology, nodeData,
-                demandBindings, flowScaleDecimals);
+                demandBindings, flowScaleDecimals, excludedDemands);
         bindRoots(problemSnapshot, rootPorts, topology, nodeData, rootNodeById);
 
         List<NetworkConstraintProblem.Asset> modelAssets = new ArrayList<>();
@@ -236,9 +246,10 @@ public final class CatalogNetworkProblemCompiler {
 
     private static void bindDemands(RoutingProblemSnapshot snapshot, Map<String, String> ports,
             Topology topology, Map<String, NodeAccumulator> nodes,
-            Map<String, DemandBinding> bindings, int scale) {
+            Map<String, DemandBinding> bindings, int scale, Set<String> excludedDemandIds) {
         Set<String> expected = new LinkedHashSet<>();
         for (RoutingProblemSnapshot.Demand demand : snapshot.getDemands()) {
+            if (excludedDemandIds.contains(demand.getId())) continue;
             expected.add(demand.getId());
             String portId = ports.get(demand.getId());
             if (portId == null) throw new IllegalArgumentException("Missing port for demand: " + demand.getId());
@@ -252,6 +263,26 @@ public final class CatalogNetworkProblemCompiler {
                     demand.getFlowTph(), demandUnits));
         }
         if (!ports.keySet().equals(expected)) throw new IllegalArgumentException("Demand port map IDs differ from snapshot");
+    }
+
+    private static Set<String> immutableExcludedDemands(RoutingProblemSnapshot snapshot,
+            Collection<String> supplied) {
+        if (supplied == null) throw new IllegalArgumentException(
+                "Excluded demand collection is required");
+        Set<String> known = snapshot.getDemands().stream().map(RoutingProblemSnapshot.Demand::getId)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        Set<String> result = new LinkedHashSet<>();
+        for (String id : supplied) {
+            String required = required(id, "excluded demand");
+            if (!known.contains(required)) {
+                throw new IllegalArgumentException("Unknown excluded demand: " + required);
+            }
+            result.add(required);
+        }
+        if (result.size() >= known.size()) {
+            throw new IllegalArgumentException("At least one demand must remain in the model");
+        }
+        return Collections.unmodifiableSet(result);
     }
 
     private static void bindRoots(RoutingProblemSnapshot snapshot, Map<String, String> ports,

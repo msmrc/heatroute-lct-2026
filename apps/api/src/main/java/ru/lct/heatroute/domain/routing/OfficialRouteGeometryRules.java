@@ -439,7 +439,11 @@ public class OfficialRouteGeometryRules {
             addDistinctEgress(result, wall.egress);
         }
         return result.isEmpty()
-                ? straightBoundaryEgresses(containing, features, diameter, connectionPoint, clearance, traversal, true)
+                ? straightBoundaryEgresses(containing, features, diameter, connectionPoint,
+                        clearance, traversal, true).stream()
+                        .map(egress -> new NormalEgress(
+                                egress.oksId, egress.start, egress.exit, true))
+                        .collect(Collectors.toList())
                 : result;
     }
 
@@ -1428,6 +1432,7 @@ public class OfficialRouteGeometryRules {
         String oksId() { return oksId; }
         Coordinate start() { return new Coordinate(start); }
         Coordinate exit() { return new Coordinate(exit); }
+        boolean isAlternative() { return alternative; }
         Set<String> terminalExemptionIds() { return Set.of(oksId); }
 
         /** ТЗ §2.2: льгота финального ввода относится только к своему ОКС, остальные запреты сохраняются. */

@@ -52,8 +52,10 @@ final class CorridorTerminalRouter {
         RoutePath best = null;
         RoutePath straightAlternative = null;
         double rejectedShortestM = Double.POSITIVE_INFINITY;
-        List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
-                diameter, point, port, HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M, RouteTraversal.REVERSED);
+        List<OfficialRouteGeometryRules.NormalEgress> egresses = controlEgresses(
+                environment.normalEgressCandidates(diameter, point, port,
+                        HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M,
+                        RouteTraversal.REVERSED));
         for (OfficialRouteGeometryRules.NormalEgress egress : egresses) {
             if (Thread.currentThread().isInterrupted()) throw new CancellationException("Corridor terminal cancelled");
             Coordinate exit = egress.exit();
@@ -143,8 +145,10 @@ final class CorridorTerminalRouter {
         // Контроль запускается один раз, без replay/cache; fallback не получает владение входами.
         RoutePath original = includeFallback ? route(id, new Coordinate(start), new Coordinate(end), diameter) : null;
         ensureActive();
-        List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
-                diameter, start, end, HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M, RouteTraversal.REVERSED);
+        List<OfficialRouteGeometryRules.NormalEgress> egresses = controlEgresses(
+                environment.normalEgressCandidates(diameter, start, end,
+                        HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M,
+                        RouteTraversal.REVERSED));
         RoutePath control = checkedControl(original, start, end, diameter, egresses);
         List<RoutePath> candidates = new ArrayList<>();
         if (egresses.isEmpty()) addFreeSpaceAlternatives(candidates, start, end, diameter, clearance);
@@ -190,6 +194,15 @@ final class CorridorTerminalRouter {
         }
         ensureActive();
         return diverseSelection(control, candidates);
+    }
+
+    /** Shared corridor seeds stay on the proven nearest-wall fast path when it exists. */
+    private static List<OfficialRouteGeometryRules.NormalEgress> controlEgresses(
+            List<OfficialRouteGeometryRules.NormalEgress> egresses) {
+        List<OfficialRouteGeometryRules.NormalEgress> preferred = egresses.stream()
+                .filter(egress -> !egress.isAlternative())
+                .collect(Collectors.toList());
+        return preferred.isEmpty() ? egresses : preferred;
     }
 
     /** Для точки вне ОКС нет нормального префикса: весь L/Z-путь проверяется без endpoint-исключений. */

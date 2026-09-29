@@ -98,6 +98,9 @@ final class OrthogonalCorridorNetworkBuilder {
                 Coordinate target = new Coordinate(terminal.point.x + 200 * Math.cos(angle), terminal.point.y + 200 * Math.sin(angle));
                 List<OfficialRouteGeometryRules.NormalEgress> egresses = environment.normalEgressCandidates(
                         diameter, terminal.point, target, HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M, RouteTraversal.REVERSED);
+                List<OfficialRouteGeometryRules.NormalEgress> preferred = egresses.stream()
+                        .filter(egress -> !egress.isAlternative()).collect(Collectors.toList());
+                if (!preferred.isEmpty()) egresses = preferred;
                 for (int i = 0; i < Math.min(16, egresses.size()); i++) {
                     Coordinate start = egresses.get(i).start(), exit = egresses.get(i).exit();
                     if (start.distance(exit) > 0.01) axes.add(Math.atan2(exit.y - start.y, exit.x - start.x));

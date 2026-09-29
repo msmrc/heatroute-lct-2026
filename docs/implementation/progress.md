@@ -10,8 +10,8 @@ visibility cache с двумя focused test classes. Последний prefligh
 CATALOG_INCOMPLETE/result=null. Это не новое измерение и не время построения полной сети.
 В рамках публикации тесты и дополнительные проверки не запускались по условиям задачи;
 VPS не развёртывался, N/R-гейты не закрываются. Подробности:
-[NEXTGEN_LAZY_VISIBILITY_EXPERIMENT.md](NEXTGEN_LAZY_VISIBILITY_EXPERIMENT.md) и
-[NEXTGEN_SEGMENT_QUERY_EXPERIMENT.md](NEXTGEN_SEGMENT_QUERY_EXPERIMENT.md).
+[LAZY_VISIBILITY_EXPERIMENT.md](LAZY_VISIBILITY_EXPERIMENT.md) и
+[SEGMENT_QUERY_EXPERIMENT.md](SEGMENT_QUERY_EXPERIMENT.md).
 
 ## 2026-09-29 — routing hot-path optimization: local fast gate, benchmark pending
 

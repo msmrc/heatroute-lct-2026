@@ -179,7 +179,7 @@ class AdaptiveCatalogNetworkSearchTest {
                 List.of(new RouteCoordinate(0, 0), new RouteCoordinate(20, 0)),
                 List.of(), BigDecimal.ONE, diameter);
         FrozenNetworkCandidate candidate = new FrozenNetworkCandidate(
-                "candidate-" + diameter, "nextgen", List.of(
+                "candidate-" + diameter, "heatroute", List.of(
                         new RouteNode("root", "new_chamber", new RouteCoordinate(0, 0),
                                 true, true, 0, null),
                         new RouteNode("demand:one", "demand_connection",

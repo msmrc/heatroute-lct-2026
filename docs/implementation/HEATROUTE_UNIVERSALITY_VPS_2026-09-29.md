@@ -1,16 +1,21 @@
-# NextGen v6 universality check on the production VPS
+# HeatRoute v6 universality check on the production VPS
 
 Date: 2026-09-29 (Europe/Moscow)
 
-Production algorithm: `nextgen-network-6`
+Production build recorded during the run: 6
 
-Code commit: `8d9d2fc`
+Production release commit: `789e3f7`
+
+Current production algorithm: `heatroute-network-6`. The seven non-control dataset outcomes below
+were measured on commit `8d9d2fc` under the historical label `nextgen-network-6`; the control case
+was rerun after promotion and rename. The rename/refactor did not change the v6 planning core, but
+historical run identifiers and timings remain explicitly attributed to the build that produced them.
 
 Production health after deployment: `UP`
 
 ## What was verified
 
-Eight supplied GeoJSON files were imported or re-used on the production VPS and processed sequentially through the production API without competing calculation jobs. The accepted control case was run twice with distinct run and job identifiers. The repeated result is therefore a second calculation, not an HTTP response-cache hit.
+Eight supplied GeoJSON files were imported or re-used on the production VPS and processed sequentially without competing calculation jobs. After promotion to `heatroute-network-6`, the accepted control case was run twice again with distinct run and job identifiers. The repeated result is therefore a second calculation, not an HTTP response-cache hit.
 
 Universality is interpreted strictly: the service accepts inputs of different size and layer composition, publishes a network only when every mandatory demand is connected and the engineering validator accepts the result, and otherwise returns a typed diagnostic. Version 6 adds a structural preflight which detects a mandatory terminal that is inside a forbidden clearance and has no legal normal egress before expensive path and master-problem searches begin.
 
@@ -18,7 +23,7 @@ Universality is interpreted strictly: the service accepts inputs of different si
 
 | Supplied dataset | Input size | Demand | VPS duration | Outcome | Diagnostic |
 |---|---:|---:|---:|---|---|
-| `Датасет скорректированный.geojson` | 144 features | 17 | 19.017 s cold; 15.918 s repeated | completed, 17/17 | balanced variant valid; 0 validation issues; 2,170.113 m |
+| `Датасет скорректированный.geojson` | 144 features | 17 | 19.137 s cold; 15.381 s repeated | completed, 17/17 | balanced variant valid; 0 validation, engineering or sizing issues; 2,170.113 m |
 | `official-plus-likhacheva-network.geojson` | 160 features | 17 | 107.735 s | rejected | `proven_master_infeasible`; exact master found no compatible complete combination in the generated catalogue |
 | `heatroute-competition-roads-kindergarten.geojson` | 239 features | 17 | 0.296 s | rejected at preflight | `structurally_unroutable_demands:11` |
 | `neighbor-kozhukhovo.geojson` | 411 features | 188 | 0.307 s | rejected at preflight | API returned the complete deterministic list of structurally isolated demands |
@@ -29,16 +34,18 @@ Universality is interpreted strictly: the service accepts inputs of different si
 
 The accepted control runs used different identifiers:
 
-- cold run `9609f9ed-a455-42f8-8cbb-8adf8d0ea992`, job `d9da9a22-6f93-4495-93f8-f8613e3f69df`;
-- repeated run `32df0407-22a4-42b2-8426-2bb88be8d46e`, job `08d100ab-031a-4919-8481-ef44a3aa414e`.
+- cold run `6615e7de-492d-41da-94a5-df3796de1b9e`, job `2843b0fd-9913-4b19-b3e4-1f97aa107d42`;
+- repeated run `ef342726-448f-4bbb-bd9b-3ade16589e1f`, job `07092b39-479a-4451-b84f-89e209b01e1b`.
 
-The repeated run started at `2026-09-29T17:34:37.131866Z` and completed at `2026-09-29T17:34:53.050040Z`. The result contains all 17 mandatory connections, is marked valid, has zero validation issues, and has total network length 2,170.113 m.
+The repeated run started at `2026-09-29T18:16:25.742523Z` and completed at `2026-09-29T18:16:41.123330Z`. The result contains all 17 mandatory connections, is marked valid, has zero validation, engineering and sizing issues, and has total network length 2,170.113 m.
+Canonical sorted result JSON is byte-identical between the cold and repeated promoted runs:
+SHA-256 `1793e0857d306f0b1592e85d760c0a7f9a73d4c91100144c3b95fc66526470d43`.
 
 ## Performance change from v5
 
 | Dataset | v5 | v6 | Effect |
 |---|---:|---:|---:|
-| Control, repeated | 16.105 s | 15.918 s | accepted result preserved |
+| Control, repeated | 16.105 s | 15.381 s | accepted result preserved |
 | Likhacheva network | 127.666 s | 107.735 s | 15.6% less time; exact rejection preserved |
 | Roads + kindergarten | 113.956 s | 0.296 s | about 385x faster diagnosis |
 | Kozhukhovo | 130.054 s | 0.307 s | about 424x faster diagnosis |
@@ -52,7 +59,7 @@ The large speedups are not produced by weakening validation or accepting partial
 
 The complete Maven test suite passed on the final v6 code before production deployment:
 
-- tests run: 2,485;
+- tests run: 2,488;
 - failures: 0;
 - errors: 0;
 - skipped: 3;
@@ -62,7 +69,7 @@ Focused regression tests cover the new structural fail-fast path, deterministic 
 
 ## Honest boundary and next work
 
-The production evidence proves a 15.918-second repeated end-to-end calculation for the accepted 17-demand control dataset and sub-three-second classification for five structurally incompatible datasets. It does not prove that every arbitrary municipal GeoJSON is solvable. The extended Likhacheva case still requires 107.735 seconds to prove that the exact master problem has no complete compatible selection in the current catalogue; broader candidate generation remains the main universality frontier.
+The production evidence proves a 15.381-second repeated end-to-end calculation for the accepted 17-demand control dataset and sub-three-second classification for five structurally incompatible datasets. It does not prove that every arbitrary municipal GeoJSON is solvable. The extended Likhacheva case still requires 107.735 seconds to prove that the exact master problem has no complete compatible selection in the current catalogue; broader candidate generation remains the main universality frontier.
 
 The supplied DWG file is outside the current production import contract, which accepts GeoJSON. Native CAD intake should be implemented as a deterministic, versioned DWG-to-normalized-GeoJSON conversion and validation stage instead of embedding an opaque CAD parser in the routing core.
 

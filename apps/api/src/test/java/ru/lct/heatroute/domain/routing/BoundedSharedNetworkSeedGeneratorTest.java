@@ -73,7 +73,7 @@ class BoundedSharedNetworkSeedGeneratorTest {
                         "new_tie_in_chamber", true, 0, "new", null));
         RoutingProblemSnapshot problem = new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000094"),
-                "source-shared", "extended", "nextgen-1", "official", "rules-1",
+                "source-shared", "extended", "heatroute-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
                 demands, List.of(nearerNew, existing));
 
@@ -111,7 +111,7 @@ class BoundedSharedNetworkSeedGeneratorTest {
                         List.of(), measured);
         RoutingProblemSnapshot problem = new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000093"),
-                "source-shared", "extended", "nextgen-1", "official", "rules-1",
+                "source-shared", "extended", "heatroute-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
                 demands, List.of(unprovenNearby, unprovenSecond, provenFarther));
 
@@ -151,7 +151,7 @@ class BoundedSharedNetworkSeedGeneratorTest {
                         "root", new CatalogMetricPoint(0, 0), List.of(), realization);
         return new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000092"),
-                "source-shared", "extended", "nextgen-1", "official", "rules-1",
+                "source-shared", "extended", "heatroute-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
                 demands, List.of(root));
     }

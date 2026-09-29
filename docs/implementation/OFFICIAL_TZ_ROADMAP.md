@@ -6,8 +6,8 @@
 снят по решению пользователя, локальные правки формы маршрута исключены. Основание:
 исторические 104 focused tests PASS и isolated execute 29,712366036 с с неполным результатом.
 Повторных тестов/замеров в этой публикации нет; готовность полной сети и N/R-гейты не заявляются.
-Scope/evidence: [NEXTGEN_LAZY_VISIBILITY_EXPERIMENT.md](NEXTGEN_LAZY_VISIBILITY_EXPERIMENT.md),
-[NEXTGEN_SEGMENT_QUERY_EXPERIMENT.md](NEXTGEN_SEGMENT_QUERY_EXPERIMENT.md).
+Scope/evidence: [LAZY_VISIBILITY_EXPERIMENT.md](LAZY_VISIBILITY_EXPERIMENT.md),
+[SEGMENT_QUERY_EXPERIMENT.md](SEGMENT_QUERY_EXPERIMENT.md).
 
 ## 2026-09-29 — hot-path performance work: R3 differential, R5 fast gate
 

@@ -52,7 +52,7 @@ exact2505, оба17/17, exit0/noOOM; ещё−6,59% к R13 в одном зап�
 
 - Перед изменениями выполнены `git fetch origin` и обычное объединение `origin/master`.
   Зафиксирован baseline `052dedb466e653efc6ffb69c32b67177664bf38f` (remote `33eae27`).
-- Прочитан `docs/implementation/NEXTGEN_SOLVER_MANIFEST.md`: новый CP-SAT pipeline ещё
+- Прочитан `docs/implementation/NETWORK_SOLVER_MANIFEST.md`: новый CP-SAT pipeline ещё
   не допущен в `stable`. Здесь ускоряются общие геометрические вычисления, инженерные
   ограничения и выбор маршрута не ослабляются.
 - Конкурсный файл `datasets/official/lct-2026.geojson`, SHA-256

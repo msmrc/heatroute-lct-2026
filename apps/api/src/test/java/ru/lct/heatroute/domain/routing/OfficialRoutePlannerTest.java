@@ -31,7 +31,7 @@ class OfficialRoutePlannerTest {
     private final OfficialRouteGeometryRules geometryRules = new OfficialRouteGeometryRules(
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
     private final OfficialPipeCatalog pipeCatalog = new OfficialPipeCatalog();
-    private final OfficialRoutePlanner planner = planner(RoutePlannerTuning.stable());
+    private final OfficialRoutePlanner planner = planner(RoutePlannerTuning.fixture());
 
     private OfficialRoutePlanner planner(RoutePlannerTuning tuning) {
         return new OfficialRoutePlanner(
@@ -76,30 +76,8 @@ class OfficialRoutePlannerTest {
         assertThat(shared.getNodes()).filteredOn(RouteNode::isChamber).hasSize(2);
         assertThat(shared.isValid()).isTrue();
         assertThat(result.getPreferredVariantId()).isEqualTo("balanced");
-        assertThat(result.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
+        assertThat(result.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.FIXTURE_ALGORITHM_VERSION);
         assertThat(shared.getEngineeringIssues()).isEmpty();
-    }
-
-    @Test
-    void legacyExperimentalTuningUsesThePrimaryAlgorithm() throws Exception {
-        List<ImportedOfficialFeature> features = List.of(
-                feature("heat_network", "network", "LINESTRING (0 -100, 0 100)", "{}"),
-                feature("restriction", "shared-oks",
-                        "POLYGON ((95 -20, 110 -20, 110 30, 95 30, 95 -20))",
-                        "{\"restriction_type\":\"oks\"}"),
-                feature("oks_connection_point", "cp-a", "POINT (100 0)", "{\"flow_tph\":5}"),
-                feature("oks_connection_point", "cp-b", "POINT (100 10)", "{\"flow_tph\":7}"));
-        TopologyAnalysis topology = topology(List.of(
-                candidate("cp-a", "network", 100),
-                candidate("cp-b", "network", 100)));
-
-        OfficialCalculationResult result = planner(RoutePlannerTuning.expertExperimental())
-                .plan(features, topology);
-
-        assertThat(result.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
-        JsonNode legacyResult = objectMapper.valueToTree(result);
-        JsonNode primaryResult = objectMapper.valueToTree(planner.plan(features, topology));
-        assertThat(legacyResult).isEqualTo(primaryResult);
     }
 
     @Test

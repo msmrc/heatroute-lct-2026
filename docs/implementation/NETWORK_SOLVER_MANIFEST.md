@@ -1,4 +1,4 @@
-# Next-generation solver dependency and runtime manifest
+# HeatRoute solver dependency and runtime manifest
 
 **Stage:** N01/N02 foundations / N03 catalog and physical assets / N04 port slice / N05 master / N06 proof store.
 **Date:** 2026-09-28.
@@ -99,7 +99,7 @@ evidence paths are directed to `E:\job\.tooling`; the container uses
   coincident connection points stay distinct, and topology tie-ins become exact roots using the
   existing support incidence/ray/diameter oracle. The normal calculation adapter passes import ID,
   source hash, contract version and profile without changing the stable planner implementation.
-- `NextGenerationRoutePlanner` now owns an internal production-shaped execution path without
+- The then-current `NextGenerationRoutePlanner` owns an internal production-shaped execution path without
   registering a second routing adapter. One monotonic budget covers deterministic bounded-window
   loading, initial catalog generation, CP-SAT refinement and frozen evaluation. The selected
   existing-network target is exempt only for its legal endpoint contact. Accepted exact networks
@@ -206,4 +206,4 @@ with the earlier2554.766262-second baseline, elapsed time is42.67% lower (1.7441
 This includes R14 angular cones and R15 dead initial-window removal; neither
 isolated attribution nor repeatability is established. The finalized-portfolio
 phase did not improve versus R13. API/db remain available for the user-requested
-browser view on local port5175. No nextgen registration/promotion follows.
+browser view on local port 5175. No nextgen registration/promotion follows.

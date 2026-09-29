@@ -59,7 +59,7 @@ run `85145def-e99c-43b7-925e-42c9fb70d6fd`, job `6b39bc2e-c356-4940-8d1f-b1199af
 Изолированный локальный build context содержал код `65762b1` плюс фикс source103, позднее
 зафиксированный как `170a7b6`. Образ `heatroute-api:axis-shift-103-local` имеет digest
 `sha256:98aefddc5d743337b46069dd778e754037442c33fd82b4ba8bc17bead82963f6`.
-Позднее интегрированные nextgen-коммиты не входили в измеренный образ. Фикс отправлен в master
+Позднее интегрированные коммиты network solver не входили в измеренный образ. Фикс отправлен в master
 с сохранением чужой истории; первоначальная вершина отправки — `2990dd4`.
 
 Java 11 Docker package с `-DskipTests` завершён успешно; production и test sources скомпилированы.
@@ -69,7 +69,7 @@ Docker сообщает 18 CPU и 12 257 394 688 bytes RAM; лимит CPU/па�
 
 Общая readiness имеет отдельную ошибку `cp_sat: unavailable`, контейнер unhealthy. Stable
 CP-SAT не использует и данный job завершился успешно. Причина capability-ошибки не
-диагностирована; packaged nextgen readiness/production PASS из этого прогона не следуют.
+диагностирована; packaged solver readiness/production PASS из этого прогона не следуют.
 Source103 не объявляется production PASS, глобальным оптимумом или закрытием R/G/N.
 Старые результаты source102 сохранены, повторные расчёты автоматически не запускались.
 

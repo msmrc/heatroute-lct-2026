@@ -2,8 +2,7 @@ package ru.lct.heatroute.domain.routing;
 
 /** Test-only configuration for the retired planner regression fixture. */
 final class RoutePlannerTuning {
-    static final String STABLE_ALGORITHM_VERSION = "global-tree-103";
-    static final String EXPERIMENTAL_ALGORITHM_VERSION = STABLE_ALGORITHM_VERSION;
+    static final String FIXTURE_ALGORITHM_VERSION = "routing-regression-fixture-1";
 
     private final String algorithmVersion;
     private final double engineeringEgressExtraM;
@@ -30,19 +29,15 @@ final class RoutePlannerTuning {
         this.engineeringZoneRadiusM = engineeringZoneRadiusM;
     }
 
-    static RoutePlannerTuning stable() {
+    static RoutePlannerTuning fixture() {
         return new RoutePlannerTuning(
-                STABLE_ALGORITHM_VERSION,
+                FIXTURE_ALGORITHM_VERSION,
                 HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M,
                 8,
                 5,
                 4,
                 2,
                 120.0);
-    }
-
-    static RoutePlannerTuning expertExperimental() {
-        return stable();
     }
 
     String getAlgorithmVersion() { return algorithmVersion; }

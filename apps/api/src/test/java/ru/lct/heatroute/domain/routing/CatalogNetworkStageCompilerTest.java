@@ -49,7 +49,7 @@ class CatalogNetworkStageCompilerTest {
         CatalogBuildResult build = build(problem, "catalog-1");
         AdaptiveCatalogNetworkSearch.Stage stage = compiler.compile(
                 problem, build, Map.of("one", "d-port"), Map.of("root", "root-port"), 3,
-                "frozen-evaluator-1", "network", "nextgen",
+                "frozen-evaluator-1", "network", "heatroute",
                 compilation -> realizations(compilation), List.of(), edge -> List.of());
         AcceptedSolutionArchive archive = new AcceptedSolutionArchive(3);
         AdaptiveCatalogNetworkSearch search = new AdaptiveCatalogNetworkSearch(
@@ -99,7 +99,7 @@ class CatalogNetworkStageCompilerTest {
                         problem, features,
                         BoundedRootDemandCatalogGenerator.Options.bounded(
                                 Duration.ofSeconds(10), 8, 32, 4, 4),
-                        3, "frozen-evaluator-1", "generated-network", "nextgen-bounded");
+                        3, "frozen-evaluator-1", "generated-network", "heatroute-bounded");
         AdaptiveCatalogNetworkSearch.Stage stage = prepared.getStage().orElseThrow();
         CatalogEdgeSectionAssemblerFactory.PreparedAssembler sectionAssembler =
                 prepared.getSectionAssembler();
@@ -114,7 +114,7 @@ class CatalogNetworkStageCompilerTest {
 
         assertThat(result.getOutcome()).as(result.getReason())
                 .isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
-        assertThat(result.getAccepted().getStrategy()).isEqualTo("nextgen-bounded");
+        assertThat(result.getAccepted().getStrategy()).isEqualTo("heatroute-bounded");
         assertThat(router.getPrepareCalls()).isEqualTo(1);
         assertThat(prepared.getFeatureWindow().size()).isEqualTo(1);
         assertThat(sectionAssembler.getAssemblyCalls()).isEqualTo(1);
@@ -140,7 +140,7 @@ class CatalogNetworkStageCompilerTest {
                 problem, build,
                 Map.of("east", "east-port", "north", "north-port"),
                 Map.of("root", "root-port"), 3,
-                "frozen-evaluator-1", "shared-network", "nextgen",
+                "frozen-evaluator-1", "shared-network", "heatroute",
                 compilation -> resolver.resolve(problem, compilation,
                         Map.of("east", "east-port", "north", "north-port"),
                         Map.of("root", "root-port")),
@@ -184,7 +184,7 @@ class CatalogNetworkStageCompilerTest {
 
         assertThatThrownBy(() -> compiler.compile(problem, build,
                 Map.of("one", "d-port"), Map.of("root", "root-port"), 3,
-                "frozen-evaluator-1", "network", "nextgen",
+                "frozen-evaluator-1", "network", "heatroute",
                 compilation -> Map.of(), List.of(), edge -> List.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("another problem/rule scope");
@@ -194,7 +194,7 @@ class CatalogNetworkStageCompilerTest {
     void refusesToInventMissingRootNodeSemantics() {
         RoutingProblemSnapshot unresolved = new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000002"),
-                "source-2", "extended", "nextgen-1", "official", "rules-1",
+                "source-2", "extended", "heatroute-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
                 List.of(new RoutingProblemSnapshot.Demand(
                         "one", BigDecimal.ONE, new CatalogMetricPoint(20_000, 0), "connection-one")),
@@ -224,7 +224,7 @@ class CatalogNetworkStageCompilerTest {
     void keepsAnEmptyBoundedCatalogAsIncompletePreparationWithoutBuildingAMaster() {
         RoutingProblemSnapshot coincident = new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000003"),
-                "source-3", "extended", "nextgen-1", "official", "rules-1",
+                "source-3", "extended", "heatroute-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
                 List.of(new RoutingProblemSnapshot.Demand(
                         "one", BigDecimal.ONE, new CatalogMetricPoint(0, 0), null)),
@@ -244,7 +244,7 @@ class CatalogNetworkStageCompilerTest {
                         coincident, List.of(),
                         BoundedRootDemandCatalogGenerator.Options.bounded(
                                 Duration.ofSeconds(10), 8, 32, 4, 4),
-                        3, "frozen-evaluator-1", "network", "nextgen-bounded");
+                        3, "frozen-evaluator-1", "network", "heatroute-bounded");
 
         assertThat(preparation.getStage()).isEmpty();
         assertThat(preparation.getStageIncompleteReason()).contains("empty_catalog");
@@ -347,7 +347,7 @@ class CatalogNetworkStageCompilerTest {
     private RoutingProblemSnapshot problem() {
         return new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000001"),
-                "source-1", "extended", "nextgen-1", "official", "rules-1",
+                "source-1", "extended", "heatroute-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
                 List.of(new RoutingProblemSnapshot.Demand(
                         "one", BigDecimal.ONE, new CatalogMetricPoint(20_000, 0), "connection-one")),
@@ -360,7 +360,7 @@ class CatalogNetworkStageCompilerTest {
     private RoutingProblemSnapshot sharedProblem() {
         return new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000004"),
-                "source-4", "extended", "nextgen-1", "official", "rules-1",
+                "source-4", "extended", "heatroute-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(),
                 List.of(
                         new RoutingProblemSnapshot.Demand(

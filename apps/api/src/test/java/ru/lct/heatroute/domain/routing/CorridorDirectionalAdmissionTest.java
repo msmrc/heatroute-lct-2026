@@ -107,7 +107,7 @@ class CorridorDirectionalAdmissionTest {
             OfficialRoutingEnvironment environment, List<LineString> avoidance) {
         if (start.distance(port) <= 0.01) return null;
         OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgressTowards(
-                diameter, start, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED)
+                diameter, start, port, HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M, RouteTraversal.REVERSED)
                 .orElse(null);
         if (egress == null) return router.find(start, port, diameter, environment, Set.of(),
                 RoutePreference.ENGINEERING, avoidance, RouteTraversal.REVERSED);

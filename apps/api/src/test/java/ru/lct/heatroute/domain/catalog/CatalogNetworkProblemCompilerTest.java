@@ -201,7 +201,7 @@ class CatalogNetworkProblemCompilerTest {
 
     private RoutingProblemSnapshot problem(List<RoutingProblemSnapshot.Demand> demands) {
         return new RoutingProblemSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000001"),
-                "source-1", "extended", "nextgen-1", "official", "rules-1", "cost-1",
+                "source-1", "extended", "heatroute-1", "official", "rules-1", "cost-1",
                 "import-version-1", OfficialRunParameters.defaults(), demands,
                 List.of(new RoutingProblemSnapshot.RootCandidate(
                         "root", new CatalogMetricPoint(0, 0), List.of())));

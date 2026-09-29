@@ -51,7 +51,7 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
 public class OfficialRoutePlanner {
     private static final int MAX_FINAL_SIZING_GEOMETRY_PASSES = 24;
     private static final Logger LOGGER = LoggerFactory.getLogger(OfficialRoutePlanner.class);
-    public static final String ALGORITHM_VERSION = RoutePlannerTuning.STABLE_ALGORITHM_VERSION;
+    public static final String ALGORITHM_VERSION = RoutePlannerTuning.FIXTURE_ALGORITHM_VERSION;
     private static final double MIN_EDGE_LENGTH_M = 0.01;
     private static final double LENGTH_EPSILON_M = 1e-9;
     private static final double DIGITIZED_JUNCTION_ALIGNMENT_TOLERANCE_DEGREES = 0.5;
@@ -113,7 +113,7 @@ public class OfficialRoutePlanner {
                 reconstructor,
                 economicsCalculator,
                 depthPlanner,
-                RoutePlannerTuning.stable());
+                RoutePlannerTuning.fixture());
     }
 
     OfficialRoutePlanner(

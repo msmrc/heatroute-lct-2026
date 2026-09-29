@@ -122,11 +122,11 @@ JSON Schema проверяет форму отдельных features. `Official
 
 ## Контрольный production witness
 
-Run `32df0407-22a4-42b2-8426-2bb88be8d46e` от 29.09.2026:
+Run `ef342726-448f-4bbb-bd9b-3ade16589e1f` от 29.09.2026:
 
 - сборка алгоритма 6;
 - 17 из 17 точек подключены;
-- 15,918 с между `created_at` и `completed_at` повторного run; cold run — 19,017 с;
+- 15,381 с между `created_at` и `completed_at` повторного run; cold run — 19,137 с;
 - 2 170,113 м новой сети;
 - 300 092 048,85 ₽;
 - validation / engineering / sizing issues: 0 / 0 / 0.

@@ -201,7 +201,7 @@ class BoundedRootDemandCatalogGeneratorTest {
             List<RoutingProblemSnapshot.RootCandidate> roots) {
         return new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000091"),
-                "source-bounded", "extended", "nextgen-1", "official", "rules-1",
+                "source-bounded", "extended", "heatroute-1", "official", "rules-1",
                 "cost-1", "feature-source-1", OfficialRunParameters.defaults(), demands, roots);
     }
 

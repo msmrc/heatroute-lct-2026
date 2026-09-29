@@ -41,7 +41,7 @@ class AcceptedSolutionArchiveTest {
     @Test
     void rejectsAnAcceptedObjectWithoutRankableExactEconomics() {
         AcceptedNetworkSolution incomplete = new AcceptedNetworkSolution(
-                "incomplete", "nextgen", nodes(0), edges(0), connections(),
+                "incomplete", "heatroute", nodes(0), edges(0), connections(),
                 BigDecimal.TEN, economics(false, null, null), geometryHash(0));
 
         assertThatThrownBy(() -> new AcceptedSolutionArchive(1).add(incomplete))
@@ -53,7 +53,7 @@ class AcceptedSolutionArchiveTest {
         AcceptedSolutionArchive archive = new AcceptedSolutionArchive(2);
         AcceptedNetworkSolution original = solution("original", 0, "1.0", "100");
         AcceptedNetworkSolution forcedCollision = new AcceptedNetworkSolution(
-                "collision", "nextgen", nodes(10_000), edges(10_000), connections(),
+                "collision", "heatroute", nodes(10_000), edges(10_000), connections(),
                 BigDecimal.TEN, economics(true, "0.5", "90"), original.getGeometryHash());
         archive.add(original);
 
@@ -62,7 +62,7 @@ class AcceptedSolutionArchiveTest {
     }
 
     private AcceptedNetworkSolution solution(String id, long offsetMm, String score, String cost) {
-        return new AcceptedNetworkSolution(id, "nextgen", nodes(offsetMm), edges(offsetMm), connections(),
+        return new AcceptedNetworkSolution(id, "heatroute", nodes(offsetMm), edges(offsetMm), connections(),
                 BigDecimal.TEN, economics(true, score, cost), geometryHash(offsetMm));
     }
 

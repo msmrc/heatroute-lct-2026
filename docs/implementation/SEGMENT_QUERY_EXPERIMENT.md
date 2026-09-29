@@ -1,4 +1,4 @@
-# NEXTGEN: reuse of segment-query preparation — 29 September 2026
+# HeatRoute: reuse of segment-query preparation, 29 September 2026
 
 ## Decision and scope
 
@@ -10,7 +10,7 @@ The holder is lazy, call-local and not thread-shared. A fresh call observes chan
 
 Implementation: `PreparedSegmentIntersection.Query` / `intersectsPrepared` and the narrow
 `OfficialRouteGeometryRules.segmentAllowed` / `Constraint.intersectsBlocked` integration.
-This is shared geometry code used by NEXTGEN, not a replacement planner or public profile switch.
+This is shared geometry code used by HeatRoute, not a replacement planner or public switch.
 Source104/105 route-shape changes and the postponed wall-frame prototype are excluded from the
 isolated experiment. At measurement time nothing was committed, pushed, deployed or restarted.
 The user later authorized publishing this optimization together with lazy visibility to master,
@@ -19,14 +19,14 @@ measurements accompany that publication; no VPS deployment is included.
 
 ## Authorized final-state checks
 
-One focused Java 11 test gate followed by one official NEXTGEN execute; no retry or extra execute.
+One focused Java 11 test gate followed by one HeatRoute execute; no retry or extra execute.
 The disposable container overlays only the two production classes above, the new test class and
 the unchanged official probe on immutable R15 image
 `sha256:93f7c195352d5aa9f3a922217b8d144f6b1d0d2ffd9a791beec795695dff720d`.
 Thus this evidence is not a test of the entire dirty checkout or source104/105 integration.
 
 **55 tests, zero failures, errors or skips:** PreparedSegmentIntersectionTest (29),
-PreparedSegmentQueryTest (6), OfficialRouteGeometryRulesTest (8), NextGenerationRoutePlannerTest (2),
+PreparedSegmentQueryTest (6), OfficialRouteGeometryRulesTest (8), HeatRoutePlannerTest (2),
 BoundedRootDemandCatalogGeneratorTest (5), FrozenNetworkEvaluatorTest (5).
 New cases cover JTS/legacy equivalence, holes/multipart/tangencies/extremes, exactly one endpoint
 preparation across indexed targets, fresh preparation after mutation, fallback, cancellation and
@@ -38,7 +38,7 @@ No complete project test/build, lint/typecheck, API or browser smoke was perform
 Both use the same 633,402-byte official dataset, SHA256
 `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`,
 144 features (56 core, 88 restriction window), 17 demand points and the same snapshot hash.
-The real `NextGenerationRoutePlanner` is invoked directly with `Settings.initial()`, 90 s overall
+The then-current `NextGenerationRoutePlanner` is invoked directly with `Settings.initial()`, 90 s overall
 and 30 s catalog budgets, depth disabled, seed 2026. The DTO's stable label does not select the
 planner in this direct harness. Limits: 2 CPU, 3 GiB container, Java heap 128–2048 MiB, JFR profile.
 Both are cold isolated planner calls, not API job duration or time to a successfully built network.

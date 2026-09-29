@@ -301,7 +301,7 @@ class CorridorRetainedTerminalApproachesTest {
         List<Coordinate> points = new ArrayList<>(f.points);
         points.set(0, new Coordinate(10, 10));
         List<OfficialRouteGeometryRules.NormalEgress> real = rules.normalEgressCandidates(f.features, 50,
-                points.get(0), points.get(1), RoutePlannerTuning.stable().getEngineeringEgressExtraM());
+                points.get(0), points.get(1), HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M);
         OfficialRouteGeometryRules.NormalEgress matching = real.stream().filter(e -> e.exit().x < 0).findFirst().orElseThrow();
         OfficialRouteGeometryRules.NormalEgress other = real.stream().filter(e -> e.exit().x >= 0).findFirst().orElseThrow();
         AtomicInteger inspected = new AtomicInteger();

@@ -40,10 +40,20 @@ chmod 600 "/opt/heatroute/backups/heatroute-${timestamp}-${previous_sha}.dump"
 git fetch origin master
 git merge --ff-only origin/master
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml config --quiet
+docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml \
+  run --rm --no-deps db sh -lc \
+  'PGPASSWORD="$POSTGRES_PASSWORD" psql -h db -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+    -v ON_ERROR_STOP=1 -c "select 1" >/dev/null'
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml build --pull
 docker compose --env-file .env.vps -f compose.yaml -f compose.vps.yaml \
   up -d --remove-orphans --wait --wait-timeout 300
 ```
+
+The preflight TCP query is mandatory for an existing database volume. Changing
+`POSTGRES_PASSWORD` in `.env.vps` does not rotate the password already stored for the PostgreSQL
+role. If this query fails, stop before recreating containers, keep the previous application
+running, and explicitly reconcile the role secret during a maintenance window. Never print the
+secret or pass it as a literal command-line argument.
 
 ## Verification
 

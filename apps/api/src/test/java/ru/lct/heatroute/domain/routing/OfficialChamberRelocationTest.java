@@ -253,7 +253,7 @@ class OfficialChamberRelocationTest {
         Coordinate connection = c(1, 10), chamber = c(-10, 10);
         OfficialRouteGeometryRules.NormalEgress egress = rules.normalEgressCandidates(
                 features, 50, connection, chamber,
-                RoutePlannerTuning.stable().getEngineeringEgressExtraM()).stream()
+                HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M).stream()
                 .findFirst().orElseThrow();
         OfficialRoutePlanner.Demand demand = new OfficialRoutePlanner.Demand(
                 "one", "one", connection, BigDecimal.ONE, egress);

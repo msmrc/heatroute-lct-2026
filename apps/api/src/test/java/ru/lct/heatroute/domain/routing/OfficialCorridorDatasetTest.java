@@ -239,7 +239,7 @@ class OfficialCorridorDatasetTest {
     static RoutePath terminalRoute(OfficialObstacleRouter router, OfficialRoutingEnvironment environment,
             Coordinate point, Coordinate port, int diameter, List<LineString> avoidance) {
         OfficialRouteGeometryRules.NormalEgress egress = environment.normalEgressTowards(diameter,
-                point, port, RoutePlannerTuning.stable().getEngineeringEgressExtraM(), RouteTraversal.REVERSED).orElse(null);
+                point, port, HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M, RouteTraversal.REVERSED).orElse(null);
         RoutePath path = egress == null
                 ? router.find(point, port, diameter, environment, Set.of(), RoutePreference.ENGINEERING, avoidance, RouteTraversal.REVERSED)
                 : router.findAfter(egress.start(), egress.exit(), port, diameter,

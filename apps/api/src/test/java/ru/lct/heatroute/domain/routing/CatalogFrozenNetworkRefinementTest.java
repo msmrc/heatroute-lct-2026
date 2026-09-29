@@ -209,7 +209,7 @@ class CatalogFrozenNetworkRefinementTest {
                 BigDecimal.valueOf(master.getFlowUnits().get("pipe-two")),
                 master.getDiameterMm().get("pipe-two"));
         FrozenNetworkCandidate candidate = new FrozenNetworkCandidate(
-                "candidate-two-edges", "nextgen", List.of(
+                "candidate-two-edges", "heatroute", List.of(
                         new RouteNode("root", "new_branch_chamber", new RouteCoordinate(0, 0),
                                 true, true, 0, null),
                         new RouteNode("demand:one", "demand_connection",
@@ -240,7 +240,7 @@ class CatalogFrozenNetworkRefinementTest {
         }
         RouteEdge edge = new RouteEdge("edge", "root", "demand:one", length,
                 coordinates, List.of(), flow, diameter);
-        return new FrozenNetworkCandidate("candidate", "nextgen", List.of(
+        return new FrozenNetworkCandidate("candidate", "heatroute", List.of(
                 new RouteNode("root", "new_chamber", new RouteCoordinate(0, 0),
                         true, true, 0, null),
                 new RouteNode("demand:one", "demand_connection", new RouteCoordinate(20, 0),

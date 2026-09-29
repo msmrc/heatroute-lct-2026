@@ -140,7 +140,7 @@ class CatalogNodeConfigurationCompilerTest {
             List<RoutingProblemSnapshot.RootCandidate> roots) {
         return new RoutingProblemSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000005"),
-                "source", "extended", "nextgen-1",
+                "source", "extended", "heatroute-1",
                 "official", "rules-1", "cost-1", "features-1",
                 OfficialRunParameters.defaults(), demands, roots);
     }

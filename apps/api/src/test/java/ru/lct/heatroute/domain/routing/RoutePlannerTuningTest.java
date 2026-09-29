@@ -6,23 +6,16 @@ import org.junit.jupiter.api.Test;
 
 class RoutePlannerTuningTest {
     @Test
-    void legacyFactoryUsesThePrimaryVersionAndBudgets() {
-        RoutePlannerTuning stable = RoutePlannerTuning.stable();
-        RoutePlannerTuning experimental = RoutePlannerTuning.expertExperimental();
+    void fixtureUsesTheExpectedVersionAndBudgets() {
+        RoutePlannerTuning fixture = RoutePlannerTuning.fixture();
 
-        assertThat(stable.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.STABLE_ALGORITHM_VERSION);
-        assertThat(experimental.getAlgorithmVersion()).isEqualTo(stable.getAlgorithmVersion());
-        assertThat(experimental.getEngineeringEgressExtraM())
-                .isEqualTo(stable.getEngineeringEgressExtraM());
-        assertThat(experimental.getEngineeringZoneRadiusM())
-                .isEqualTo(stable.getEngineeringZoneRadiusM());
-        assertThat(experimental.getMaximumEngineeringZoneDemands())
-                .isEqualTo(stable.getMaximumEngineeringZoneDemands());
-        assertThat(experimental.getMaximumEngineeringZoneRebuilds())
-                .isEqualTo(stable.getMaximumEngineeringZoneRebuilds());
-        assertThat(experimental.getMaximumGlobalEngineeringRepairs())
-                .isEqualTo(stable.getMaximumGlobalEngineeringRepairs());
-        assertThat(experimental.getMaximumEngineeringEgressCandidates())
-                .isEqualTo(stable.getMaximumEngineeringEgressCandidates());
+        assertThat(fixture.getAlgorithmVersion()).isEqualTo(RoutePlannerTuning.FIXTURE_ALGORITHM_VERSION);
+        assertThat(fixture.getEngineeringEgressExtraM())
+                .isEqualTo(HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M);
+        assertThat(fixture.getEngineeringZoneRadiusM()).isEqualTo(120.0);
+        assertThat(fixture.getMaximumEngineeringZoneDemands()).isEqualTo(4);
+        assertThat(fixture.getMaximumEngineeringZoneRebuilds()).isEqualTo(2);
+        assertThat(fixture.getMaximumGlobalEngineeringRepairs()).isEqualTo(8);
+        assertThat(fixture.getMaximumEngineeringEgressCandidates()).isEqualTo(5);
     }
 }

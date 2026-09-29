@@ -40,7 +40,7 @@ class CatalogFrozenCandidateAssemblerTest {
         CpSatNetworkOptimizer.Result solved = solve(fixture.compilation);
 
         CatalogFrozenCandidateAssembler.Assembly assembly = assembler.assembleDetailed(
-                "candidate", "nextgen", problem,
+                "candidate", "heatroute", problem,
                 fixture.catalog, fixture.compilation, solved,
                 Map.of(
                         "root-port", node("existing_root", true, "root"),
@@ -83,7 +83,7 @@ class CatalogFrozenCandidateAssemblerTest {
                         points(10_000, 0, 20_000, 0))));
         CpSatNetworkOptimizer.Result solved = solve(fixture.compilation);
 
-        FrozenNetworkCandidate candidate = assembler.assemble("candidate", "nextgen", problem,
+        FrozenNetworkCandidate candidate = assembler.assemble("candidate", "heatroute", problem,
                 fixture.catalog, fixture.compilation, solved,
                 Map.of(
                         "root-port", node("existing_root", true, "root"),
@@ -107,14 +107,14 @@ class CatalogFrozenCandidateAssemblerTest {
                 points(0, 0, 10_000, 0))));
         CpSatNetworkOptimizer.Result solved = solve(fixture.compilation);
 
-        assertThatThrownBy(() -> assembler.assemble("candidate", "nextgen", problem,
+        assertThatThrownBy(() -> assembler.assemble("candidate", "heatroute", problem,
                 fixture.catalog, fixture.compilation, solved,
                 Map.of("root-port", node("existing_root", true, "root")),
                 List.of(), edge -> List.of()))
                 .isInstanceOf(CandidateAssemblyIncompleteException.class)
                 .hasMessageContaining("Missing explicit node realization");
 
-        FrozenNetworkCandidate candidate = assembler.assemble("candidate", "nextgen", problem,
+        FrozenNetworkCandidate candidate = assembler.assemble("candidate", "heatroute", problem,
                 fixture.catalog, fixture.compilation, solved,
                 Map.of(
                         "root-port", node("existing_root", true, "root"),
@@ -163,7 +163,7 @@ class CatalogFrozenCandidateAssemblerTest {
 
     private RoutingProblemSnapshot problem(List<RoutingProblemSnapshot.Demand> demands) {
         return new RoutingProblemSnapshot(UUID.fromString("00000000-0000-0000-0000-000000000001"),
-                "source-1", "extended", "nextgen-1", "official", "rules-1", "cost-1",
+                "source-1", "extended", "heatroute-1", "official", "rules-1", "cost-1",
                 "import-version-1", OfficialRunParameters.defaults(), demands,
                 List.of(new RoutingProblemSnapshot.RootCandidate(
                         "root", new CatalogMetricPoint(0, 0), List.of())));

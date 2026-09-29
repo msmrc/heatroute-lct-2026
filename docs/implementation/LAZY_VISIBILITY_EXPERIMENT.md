@@ -1,4 +1,4 @@
-# NEXTGEN: ленивый локальный кеш видимости — 29 сентября 2026
+# HeatRoute: ленивый локальный кеш видимости, 29 сентября 2026
 
 ## Изменение и границы
 
@@ -9,7 +9,7 @@
 Индексирование пар, состояния 0/1/2, раздельность forward/reverse для road/tram и общий массив
 для ненаправленных проверок сохранены. Таблица принадлежит одному однопоточному поиску.
 
-Общий маршрутизатор используется NEXTGEN; публичные профили, инженерные правила, бюджеты,
+Общий маршрутизатор используется HeatRoute; инженерные правила, бюджеты,
 очерёдность обхода и финальная валидация не менялись. Предыдущая оптимизация segment-query
 сохранена. Source104/105-правки формы сети не включены в изолированный эксперимент.
 Отложенный wall-frame не возобновлялся. На момент замера изменения оставались локальными.
@@ -31,7 +31,7 @@
 - OfficialRouteGeometryRulesTest — 8; PagedVisibilityValuesTest — 5;
 - OfficialObstacleRouterSearchTest — 22; SearchPriorityTest — 12; FallbackTest — 6;
 - OfficialVisibilityMemoDirectionTest — 4;
-- NextGenerationRoutePlannerTest — 2; BoundedRootDemandCatalogGeneratorTest — 5;
+- HeatRoutePlannerTest — 2; BoundedRootDemandCatalogGeneratorTest — 5;
 - FrozenNetworkEvaluatorTest — 5.
 
 Новые случаи сравнивают хранение с обычным массивом на размерах 0/1/4095/4096/4097/8192/8193:
@@ -42,7 +42,7 @@
 
 ## Единственный конкурсный execute
 
-После PASS выполнен один реальный `NextGenerationRoutePlanner.execute`, не public stable alias.
+После PASS выполнен один реальный `HeatRoutePlanner.execute`.
 Сравнение с предыдущим segment-query запуском: тот же input SHA256
 `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`, 633402 байта,
 144 объекта (56 core / 88 window), 17 demand points. Совпали топология, snapshot hash,
@@ -91,7 +91,7 @@ TLAB выросло 11130529656 → 11378601456 байт (+2.23%). Малые о
 
 Изолированная база: immutable R15 image
 `sha256:93f7c195352d5aa9f3a922217b8d144f6b1d0d2ffd9a791beec795695dff720d` плюс снимок
-ровно четырёх main-классов, двух тестов и неизменного `NextgenOfficialProbe.java`.
+ровно четырёх main-классов, двух тестов и неизменного planner probe.
 
 - База сравнения: `.tooling/nextgen-segment-query-20260929/evidence/`.
 - Первая ошибка: `.tooling/nextgen-lazy-visibility-20260929/evidence/` и `snapshot/`.

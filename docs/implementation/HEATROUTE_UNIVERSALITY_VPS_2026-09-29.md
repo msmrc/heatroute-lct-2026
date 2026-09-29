@@ -1,13 +1,31 @@
 # HeatRoute v6 universality check on the production VPS
 
-> **Статус `heatroute-network-7` на 29.09: VPS replay pending.** Локально подготовлены
-> прямые косые terminal-egress кандидаты по дополнительному разъяснению 29.09,
-> консервативный structural reject, расчёт ДУ отдельной ветви по её собственному расходу и
-> один bounded portfolio restart после `INFEASIBLE_IN_CATALOG`. Доступные локальные gates:
-> geometry/egress 96/96, catalog/search 46/46, web 33 Vitest + 37 script tests — PASS.
-> Ни одна строка v6 ниже не является результатом v7. Production deploy, повторный прогон
-> всех переданных GeoJSON, новые времена и скриншоты должны быть зафиксированы отдельно
-> после фактического VPS replay.
+> **Статус `heatroute-network-7` на 29.09: production deploy и контрольный расчёт PASS,
+> расширенная matrix выполняется.** Финальный VPS HEAD
+> `0b3f29aa122511d52242c2bdb4f89239783cd5f1`, сервисы healthy. Контрольный run
+> `e4b557bb-dff0-4bd2-8aac-ea5674d59726` завершён за **29,018 с**: 17/17,
+> `valid=true`, все issue arrays пусты, 2 170,113 м. Реализованы прямые косые
+> terminal-egress кандидаты по разъяснению 29.09, консервативный structural reject,
+> per-demand ДУ и bounded portfolio restart. В routine search ограничено 16 лучей;
+> плотные 72 используются только как no-normal fallback, shared corridor сначала берёт
+> предпочтительные нормали. Локальные gates: geometry/egress 96/96, catalog/search 46/46,
+> web 33 Vitest + 37 script tests — PASS. Остальные GeoJSON ещё прогоняются
+> последовательно (Kozhukhovo running), поэтому строки v6 ниже остаются историческими и
+> не являются результатами v7.
+
+## HeatRoute v7 production control evidence
+
+| Dataset | Run | VPS duration | Outcome |
+|---|---|---:|---|
+| `Датасет скорректированный.geojson` | `e4b557bb-dff0-4bd2-8aac-ea5674d59726` | 29.018 s | completed, valid, 17/17; all issue arrays empty; 2,170.113 m |
+
+UI evidence:
+
+- `output/playwright/universality/v7-2026-09-29/final-v7-corrected-17-of-17-ui-wide.png`;
+- `output/playwright/universality/v7-2026-09-29/final-v7-corrected-17-of-17-ui.png`.
+
+Полная v7-матрица и сравнение остальных входов будут добавлены только после фактического
+завершения соответствующих VPS runs; текущий результат не является заявлением об их исходе.
 
 Date: 2026-09-29 (Europe/Moscow)
 

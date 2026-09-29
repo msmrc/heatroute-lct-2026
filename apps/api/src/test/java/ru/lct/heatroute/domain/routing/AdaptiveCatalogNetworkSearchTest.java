@@ -197,6 +197,23 @@ class AdaptiveCatalogNetworkSearchTest {
     }
 
     @Test
+    void portfolioRestartMayAddAPreviouslyUncoveredTerminal() {
+        AdaptiveCatalogNetworkSearch.Stage initial = disconnectedStage(
+                "catalog-disconnected", 1, "frozen-evaluator-1");
+        AdaptiveCatalogNetworkSearch.Stage expanded = disconnectedStageWithAdditionalTerminal();
+
+        AdaptiveCatalogNetworkSearch.Result result = search.solve(initial,
+                new ConflictStore(), new AcceptedSolutionArchive(3),
+                (current, request, remainingNanos) -> request.getExpansionNumber() == 1
+                        ? AdaptiveCatalogNetworkSearch.Expansion.restarted(expanded)
+                        : AdaptiveCatalogNetworkSearch.Expansion.exhausted("portfolio_exhausted"),
+                settings());
+
+        assertThat(result.getOutcome()).isNotEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ERROR);
+        assertThat(result.getExpansions()).isEqualTo(1);
+    }
+
+    @Test
     void portfolioRestartCannotChangeFrozenCheckerScope() {
         AdaptiveCatalogNetworkSearch.Stage initial = disconnectedStage(
                 "catalog-disconnected", 1, "frozen-evaluator-1");
@@ -284,6 +301,27 @@ class AdaptiveCatalogNetworkSearchTest {
                         List.of(option(50)))), List.of());
         CatalogIdentity identity = CatalogIdentity.fromProblem(catalog.getSourceSnapshotHash(),
                 catalog.getRuleId(), catalog.getRuleVersion(), checkerVersion,
+                catalog.getCatalogHash(), problem);
+        return new AdaptiveCatalogNetworkSearch.Stage(build, problem, identity,
+                master -> { throw new AssertionError("Disconnected master must be infeasible"); });
+    }
+
+    private AdaptiveCatalogNetworkSearch.Stage disconnectedStageWithAdditionalTerminal() {
+        RoutingCatalogSnapshot catalog = new RoutingCatalogSnapshot(
+                "source-1", "official", "rules-1", "catalog-added-terminal", List.of(), List.of());
+        CatalogBuildResult build = new CatalogBuildResult(catalog,
+                Map.of("disconnected", 1L), Map.of("network_generation", false),
+                List.of("connected-network"), List.of());
+        NetworkConstraintProblem problem = new NetworkConstraintProblem(List.of(
+                new NetworkConstraintProblem.Node("root", true, 0),
+                new NetworkConstraintProblem.Node("terminal", false, 1),
+                new NetworkConstraintProblem.Node("terminal-2", false, 2),
+                new NetworkConstraintProblem.Node("dead-end", false, 0)),
+                List.of(new NetworkConstraintProblem.Asset(
+                        "disconnected-pipe", "root", "dead-end", 0,
+                        List.of(option(50)))), List.of());
+        CatalogIdentity identity = CatalogIdentity.fromProblem(catalog.getSourceSnapshotHash(),
+                catalog.getRuleId(), catalog.getRuleVersion(), "frozen-evaluator-1",
                 catalog.getCatalogHash(), problem);
         return new AdaptiveCatalogNetworkSearch.Stage(build, problem, identity,
                 master -> { throw new AssertionError("Disconnected master must be infeasible"); });

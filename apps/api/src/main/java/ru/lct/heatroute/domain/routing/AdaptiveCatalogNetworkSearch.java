@@ -195,24 +195,17 @@ public final class AdaptiveCatalogNetworkSearch {
 
     private static void validateBoundaryNodeSemantics(NetworkConstraintProblem before,
             NetworkConstraintProblem after) {
-        List<String> beforeNodes = boundaryNodeSignatures(before);
-        List<String> afterNodes = boundaryNodeSignatures(after);
-        if (!beforeNodes.equals(afterNodes)) {
-            throw new IllegalArgumentException("root or terminal semantics changed");
-        }
-    }
-
-    private static List<String> boundaryNodeSignatures(NetworkConstraintProblem problem) {
-        List<String> result = new ArrayList<>();
-        for (NetworkConstraintProblem.Node node : problem.getNodes()) {
+        for (NetworkConstraintProblem.Node node : before.getNodes()) {
             if (!node.isAllowedRoot() && !node.isTerminal()) continue;
-            result.add(node.getId() + "\u0000" + node.isAllowedRoot()
-                    + "\u0000" + node.isTerminal()
-                    + "\u0000" + node.getDemandUnits()
-                    + "\u0000" + node.isConfigurationRequired());
+            NetworkConstraintProblem.Node retained = after.node(node.getId());
+            if (retained == null
+                    || retained.isAllowedRoot() != node.isAllowedRoot()
+                    || retained.isTerminal() != node.isTerminal()
+                    || retained.getDemandUnits() != node.getDemandUnits()
+                    || retained.isConfigurationRequired() != node.isConfigurationRequired()) {
+                throw new IllegalArgumentException("root or terminal semantics changed");
+            }
         }
-        result.sort(String::compareTo);
-        return List.copyOf(result);
     }
 
     private static void validateProblemPreservation(NetworkConstraintProblem before,

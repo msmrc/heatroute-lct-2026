@@ -12,7 +12,7 @@ import ru.lct.heatroute.domain.constraints.OfficialConstraintCatalog;
 import ru.lct.heatroute.domain.constraints.OfficialCrossingGeometry;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
 
-/** Регрессии по правилам ввода из материалов эксперта от 25.09.2026; не новая редакция СП. */
+/** Геометрические safety-регрессии ввода с приоритетом письменного уточнения 29.09.2026. */
 class BuildingNormalEgressRegressionTest {
     private final OfficialRouteGeometryRules rules = new OfficialRouteGeometryRules(
             new OfficialConstraintCatalog(), new OfficialCrossingGeometry());
@@ -79,17 +79,18 @@ class BuildingNormalEgressRegressionTest {
     }
 
     @Test
-    void finalValidationRejectsOppositeCollinearDirection() throws Exception {
+    void finalValidationDoesNotMakeNearestWallAnAbsoluteGeometricProhibition() throws Exception {
         var features = List.of(building("own", "POLYGON ((0 0, 20 0, 20 20, 0 20, 0 0))"));
-        assertThat(issues(features, new Coordinate(40, 8), new Coordinate(2, 8))).isNotEmpty();
+        // Выбор ближней границы остаётся политикой поиска; прямой дальний ввод не запрещён геометрией.
+        assertThat(issues(features, new Coordinate(40, 8), new Coordinate(2, 8))).isEmpty();
     }
 
     @Test
-    void finalValidationRejectsEarlyTurnAndAcceptsFullNormal() throws Exception {
+    void finalValidationRejectsEarlyTurnAndAcceptsFullStraightLegs() throws Exception {
         var features = List.of(building("own", "POLYGON ((0 0, 20 0, 20 20, 0 20, 0 0))"));
         assertThat(issues(features, new Coordinate(-0.25, 8), new Coordinate(2, 8))).isNotEmpty();
         assertThat(issues(features, new Coordinate(-10, 8), new Coordinate(2, 8))).isEmpty();
-        assertThat(issues(features, new Coordinate(-10, 9), new Coordinate(2, 8))).isNotEmpty();
+        assertThat(issues(features, new Coordinate(-10, 9), new Coordinate(2, 8))).isEmpty();
     }
 
     @Test
@@ -120,9 +121,9 @@ class BuildingNormalEgressRegressionTest {
     }
 
     @Test
-    void endpointRoundingCannotBypassNormalOwnedByDeclaredDemandNode() throws Exception {
+    void endpointRoundingCannotBypassClearanceOwnedByDeclaredDemandNode() throws Exception {
         var features = List.of(building("own", "POLYGON ((0 0, 20 0, 20 20, 0 20, 0 0))"));
-        var coordinates = List.of(new RouteCoordinate(-20, 10), new RouteCoordinate(-0.001, 8));
+        var coordinates = List.of(new RouteCoordinate(-1, 10), new RouteCoordinate(-0.001, 8));
         var edge = new RouteEdge("edge", "root", "demand",
                 coordinates.get(0).toCoordinate().distance(coordinates.get(1).toCoordinate()),
                 coordinates, List.of(), null, 50);
@@ -157,8 +158,9 @@ class BuildingNormalEgressRegressionTest {
                 mapper.createObjectNode(), new WKTReader().read("POINT (0.0004 8)"));
         var features = List.of(
                 building("own", "POLYGON ((0.0004 0, 20 0, 20 20, 0.0004 20, 0.0004 0))"), demand);
-        assertThat(validateRoundedWallInput(features, new RouteCoordinate(-20, 10)))
+        assertThat(validateRoundedWallInput(features, new RouteCoordinate(-1, 10)))
                 .extracting(RouteValidationIssue::getCode).contains("OKS_NORMAL_EGRESS_VIOLATION");
+        assertThat(validateRoundedWallInput(features, new RouteCoordinate(-20, 10))).isEmpty();
         assertThat(validateRoundedWallInput(features, new RouteCoordinate(-20, 8))).isEmpty();
     }
 

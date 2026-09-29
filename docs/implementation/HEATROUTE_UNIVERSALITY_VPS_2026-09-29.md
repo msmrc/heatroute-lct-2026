@@ -1,5 +1,14 @@
 # HeatRoute v6 universality check on the production VPS
 
+> **Статус `heatroute-network-7` на 29.09: VPS replay pending.** Локально подготовлены
+> прямые косые terminal-egress кандидаты по дополнительному разъяснению 29.09,
+> консервативный structural reject, расчёт ДУ отдельной ветви по её собственному расходу и
+> один bounded portfolio restart после `INFEASIBLE_IN_CATALOG`. Доступные локальные gates:
+> geometry/egress 96/96, catalog/search 46/46, web 33 Vitest + 37 script tests — PASS.
+> Ни одна строка v6 ниже не является результатом v7. Production deploy, повторный прогон
+> всех переданных GeoJSON, новые времена и скриншоты должны быть зафиксированы отдельно
+> после фактического VPS replay.
+
 Date: 2026-09-29 (Europe/Moscow)
 
 Production build recorded during the run: 6

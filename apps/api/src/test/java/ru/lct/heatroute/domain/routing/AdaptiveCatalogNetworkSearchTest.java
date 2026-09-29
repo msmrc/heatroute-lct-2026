@@ -20,6 +20,7 @@ import ru.lct.heatroute.domain.economics.OfficialVariantEconomicsCalculator;
 import ru.lct.heatroute.domain.engineering.OfficialEconomics;
 import ru.lct.heatroute.domain.engineering.OfficialPipeCatalog;
 import ru.lct.heatroute.domain.optimization.CatalogIdentity;
+import ru.lct.heatroute.domain.optimization.ConflictExplanation;
 import ru.lct.heatroute.domain.optimization.ConflictStore;
 import ru.lct.heatroute.domain.optimization.CpSatNetworkOptimizer;
 import ru.lct.heatroute.domain.optimization.CpSatRuntime;
@@ -147,6 +148,101 @@ class AdaptiveCatalogNetworkSearchTest {
         assertThat(incomplete.getAccepted()).isSameAs(archive.best()).isNotNull();
     }
 
+    @Test
+    void provenInfeasibleIncompleteCatalogCanRestartWithIndependentPortfolioStage() {
+        AdaptiveCatalogNetworkSearch.Stage initial = disconnectedStage(
+                "catalog-disconnected", 1, "frozen-evaluator-1");
+        AdaptiveCatalogNetworkSearch.Stage alternative = stage(
+                "catalog-alternative", List.of(option(50)), true);
+        AtomicInteger calls = new AtomicInteger();
+
+        AdaptiveCatalogNetworkSearch.Result result = search.solve(initial,
+                new ConflictStore(), new AcceptedSolutionArchive(3),
+                (current, request, remainingNanos) -> {
+                    calls.incrementAndGet();
+                    assertThat(current).isSameAs(initial);
+                    assertThat(request.getRefinementOutcome()).isEqualTo(
+                            ru.lct.heatroute.domain.optimization.CpSatNetworkRefinement.Outcome
+                                    .INFEASIBLE_IN_CATALOG);
+                    assertThat(request.getReason()).isEqualTo("proven_master_infeasible");
+                    assertThat(remainingNanos).isPositive();
+                    return AdaptiveCatalogNetworkSearch.Expansion.restarted(alternative);
+                }, settings());
+
+        assertThat(result.getOutcome()).isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
+        assertThat(result.getAccepted()).isNotNull();
+        assertThat(result.getExpansions()).isEqualTo(1);
+        assertThat(result.getRefinementRuns()).isEqualTo(2);
+        assertThat(result.getFinalCatalogHash()).isEqualTo(
+                alternative.getCatalog().getCatalogHash());
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void portfolioRestartCannotChangeTerminalDemandSemantics() {
+        AdaptiveCatalogNetworkSearch.Stage initial = disconnectedStage(
+                "catalog-disconnected", 1, "frozen-evaluator-1");
+        AdaptiveCatalogNetworkSearch.Stage changed = disconnectedStage(
+                "catalog-other-demand", 2, "frozen-evaluator-1");
+
+        AdaptiveCatalogNetworkSearch.Result result = search.solve(initial,
+                new ConflictStore(), new AcceptedSolutionArchive(3),
+                (current, request, remainingNanos) ->
+                        AdaptiveCatalogNetworkSearch.Expansion.restarted(changed), settings());
+
+        assertThat(result.getOutcome()).isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ERROR);
+        assertThat(result.getReason()).contains("invalid_catalog_restart")
+                .contains("root or terminal semantics changed");
+        assertThat(result.getExpansions()).isZero();
+    }
+
+    @Test
+    void portfolioRestartCannotChangeFrozenCheckerScope() {
+        AdaptiveCatalogNetworkSearch.Stage initial = disconnectedStage(
+                "catalog-disconnected", 1, "frozen-evaluator-1");
+        AdaptiveCatalogNetworkSearch.Stage changed = disconnectedStage(
+                "catalog-other-checker", 1, "frozen-evaluator-2");
+
+        AdaptiveCatalogNetworkSearch.Result result = search.solve(initial,
+                new ConflictStore(), new AcceptedSolutionArchive(3),
+                (current, request, remainingNanos) ->
+                        AdaptiveCatalogNetworkSearch.Expansion.restarted(changed), settings());
+
+        assertThat(result.getOutcome()).isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ERROR);
+        assertThat(result.getReason()).contains("invalid_catalog_restart")
+                .contains("source, rule or checker scope changed");
+    }
+
+    @Test
+    void portfolioRestartDoesNotApplyFullAssignmentProofFromPreviousCatalog() {
+        AdaptiveCatalogNetworkSearch.Stage initial = disconnectedStage(
+                "catalog-disconnected", 1, "frozen-evaluator-1");
+        AdaptiveCatalogNetworkSearch.Stage alternative = stage(
+                "catalog-alternative", List.of(option(50)), true);
+        ConflictStore conflicts = new ConflictStore();
+        conflicts.add(new ConflictExplanation(
+                "exact_engineering", initial.getIdentity().getRuleId(),
+                initial.getIdentity().getRuleVersion(),
+                initial.getIdentity().getSourceSnapshotHash(),
+                initial.getIdentity().getCatalogHash(),
+                List.of(
+                        NetworkConstraintProblem.DecisionLiteral.root("root", true),
+                        NetworkConstraintProblem.DecisionLiteral.asset(
+                                "disconnected-pipe", true),
+                        NetworkConstraintProblem.DecisionLiteral.diameter(
+                                "disconnected-pipe", 50, true)),
+                List.of("geometry:old-catalog"), "old_assignment_rejected",
+                initial.getIdentity().getCheckerVersion(),
+                ConflictExplanation.ProofScope.FULL_CATALOG_ASSIGNMENT));
+
+        AdaptiveCatalogNetworkSearch.Result result = search.solve(initial, conflicts,
+                new AcceptedSolutionArchive(3), (current, request, remainingNanos) ->
+                        AdaptiveCatalogNetworkSearch.Expansion.restarted(alternative), settings());
+
+        assertThat(conflicts.activeFor(alternative.getIdentity())).isEmpty();
+        assertThat(result.getOutcome()).isEqualTo(AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED);
+    }
+
     private AdaptiveCatalogNetworkSearch.Stage stage(String version,
             List<NetworkConstraintProblem.DiameterOption> options, boolean complete) {
         return stage(version, options, complete, 0);
@@ -170,6 +266,27 @@ class AdaptiveCatalogNetworkSearchTest {
                 catalog.getCatalogHash(), problem);
         return new AdaptiveCatalogNetworkSearch.Stage(build, problem, identity,
                 master -> assembly(master));
+    }
+
+    private AdaptiveCatalogNetworkSearch.Stage disconnectedStage(String version,
+            long demandUnits, String checkerVersion) {
+        RoutingCatalogSnapshot catalog = new RoutingCatalogSnapshot(
+                "source-1", "official", "rules-1", version, List.of(), List.of());
+        CatalogBuildResult build = new CatalogBuildResult(catalog,
+                Map.of("disconnected", 1L), Map.of("network_generation", false),
+                List.of("connected-network"), List.of());
+        NetworkConstraintProblem problem = new NetworkConstraintProblem(List.of(
+                new NetworkConstraintProblem.Node("root", true, 0),
+                new NetworkConstraintProblem.Node("terminal", false, demandUnits),
+                new NetworkConstraintProblem.Node("dead-end", false, 0)),
+                List.of(new NetworkConstraintProblem.Asset(
+                        "disconnected-pipe", "root", "dead-end", 0,
+                        List.of(option(50)))), List.of());
+        CatalogIdentity identity = CatalogIdentity.fromProblem(catalog.getSourceSnapshotHash(),
+                catalog.getRuleId(), catalog.getRuleVersion(), checkerVersion,
+                catalog.getCatalogHash(), problem);
+        return new AdaptiveCatalogNetworkSearch.Stage(build, problem, identity,
+                master -> { throw new AssertionError("Disconnected master must be infeasible"); });
     }
 
     private CatalogFrozenCandidateAssembler.Assembly assembly(

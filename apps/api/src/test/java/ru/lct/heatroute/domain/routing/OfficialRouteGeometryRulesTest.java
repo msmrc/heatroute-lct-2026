@@ -83,13 +83,16 @@ class OfficialRouteGeometryRulesTest {
                     List<OfficialRouteGeometryRules.NormalEgress> expected = rules.normalEgressCandidates(
                             sample.features, diameter, sample.start, target, 0);
                     assertThat(expected).as(sample.name() + " nearest walls, DU " + diameter)
-                            .hasSize(sample.walls.size());
-                    expected.forEach(egress -> assertNormalInvariant(sample, diameter, egress));
+                            .hasSizeBetween(sample.walls.size(), sample.walls.size() + 16);
+                    List<OfficialRouteGeometryRules.NormalEgress> preferred = expected.subList(0, sample.walls.size());
+                    preferred.forEach(egress -> assertNormalInvariant(sample, diameter, egress));
                     for (Coordinate wall : sample.walls) {
                         assertThat(expected).anySatisfy(egress -> assertThat(egress.exit().distance(
                                 expectedExit(sample.start, wall, exteriorApproachM(diameter)))).isLessThan(1e-7));
                     }
-                    assertThat(expected).extracting(egress -> egress.exit().distance(target)).isSorted();
+                    assertThat(preferred).extracting(egress -> egress.exit().distance(target)).isSorted();
+                    assertThat(expected.subList(sample.walls.size(), expected.size()))
+                            .extracting(egress -> egress.exit().distance(target)).isSorted();
                     for (List<ImportedOfficialFeature> permutation : permutations) {
                         assertSameEgress(Optional.of(expected.get(0)),
                                 rules.normalEgressTowards(permutation, diameter, sample.start, target));

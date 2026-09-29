@@ -292,8 +292,9 @@ public class OfficialRouteValidator {
                     route.getCoordinateN(0),
                     route.getCoordinateN(route.getNumPoints() - 1));
             OfficialRouteGeometryRules.NormalEgress egress = "demand_connection".equals(downstream.getNodeType())
-                    ? validationNormalEgress(features, diameter, connectionPoint,
-                            route.getCoordinateN(route.getNumPoints() - 2), normalEgresses)
+                    ? geometryRules.checkedTerminalEgress(features, diameter, connectionPoint,
+                            route.getCoordinateN(route.getNumPoints() - 1),
+                            route.getCoordinateN(route.getNumPoints() - 2)).orElse(null)
                     : null;
             if (egress == null) {
                 issues.addAll(geometryRules.validate(edge, route, allConstraints));
@@ -320,19 +321,6 @@ public class OfficialRouteValidator {
         issues.sort(Comparator.comparing(RouteValidationIssue::getCode)
                 .thenComparing(issue -> issue.getSubjectId() == null ? "" : issue.getSubjectId()));
         return issues;
-    }
-
-    /** Цель сортирует полный набор padded-нормалей; mandatory check отдельно использует raw-нормали. */
-    private OfficialRouteGeometryRules.NormalEgress validationNormalEgress(
-            List<ImportedOfficialFeature> features, int diameter, Coordinate point,
-            Coordinate target, PreparedNormalEgressMemo normalEgresses) {
-        if (normalEgresses == null) {
-            return geometryRules.normalEgressTowards(features, diameter, point, target, RouteTraversal.REVERSED)
-                    .orElse(null);
-        }
-        return geometryRules.sortNormalEgressesForTarget(
-                normalEgresses.prepare(features, diameter, point, RouteTraversal.REVERSED), target)
-                .stream().findFirst().orElse(null);
     }
 
     private void validateRootsAndCycles(

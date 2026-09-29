@@ -18,8 +18,10 @@ import ru.lct.heatroute.domain.optimization.CpSatNetworkRefinement;
 import ru.lct.heatroute.domain.optimization.NetworkConstraintProblem;
 
 /**
- * Shared-deadline outer loop for strictly additive catalog expansion. Existing exact solutions and
- * versioned conflict proofs survive between stages; incompatible expansion is rejected explicitly.
+ * Shared-deadline outer loop for catalog expansion. The usual transition is strictly additive.
+ * A bounded portfolio may also restart from an independently generated catalog for the same
+ * immutable source/rule/checker scope. Exact solutions and versioned conflict proofs survive
+ * between stages; incompatible transitions are rejected explicitly.
  */
 public final class AdaptiveCatalogNetworkSearch {
     private final CatalogFrozenNetworkRefinement refinement;
@@ -116,10 +118,17 @@ public final class AdaptiveCatalogNetworkSearch {
             }
             Stage next = expansion.getStage();
             try {
-                validateAdditiveExpansion(stage, next);
+                if (expansion.getTransition() == Expansion.Transition.RESTART) {
+                    validatePortfolioRestart(stage, next);
+                } else {
+                    validateAdditiveExpansion(stage, next);
+                }
             } catch (RuntimeException exception) {
                 return ended(stage, archive, expansions, refinementRuns, Outcome.ERROR,
-                        "non_monotonic_catalog_expansion:" + exception.getMessage());
+                        (expansion.getTransition() == Expansion.Transition.RESTART
+                                ? "invalid_catalog_restart:"
+                                : "non_monotonic_catalog_expansion:")
+                                + exception.getMessage());
             }
             stage = next;
             expansions++;
@@ -160,6 +169,50 @@ public final class AdaptiveCatalogNetworkSearch {
             throw new IllegalArgumentException("master decision domain is not additive");
         }
         validateProblemPreservation(previous.getProblem(), next.getProblem());
+    }
+
+    /**
+     * Validates a non-additive fallback stage. A restart is allowed to replace generated
+     * geometry, assets and chamber configurations, but never the imported task or the mandatory
+     * root/terminal semantics. Catalog-scoped cuts are filtered by {@link ConflictStore}; an
+     * accepted result still has to pass the same frozen exact evaluator.
+     */
+    private static void validatePortfolioRestart(Stage previous, Stage next) {
+        CatalogIdentity beforeIdentity = previous.getIdentity();
+        CatalogIdentity afterIdentity = next.getIdentity();
+        if (!beforeIdentity.getSourceSnapshotHash().equals(afterIdentity.getSourceSnapshotHash())
+                || !beforeIdentity.getRuleId().equals(afterIdentity.getRuleId())
+                || !beforeIdentity.getRuleVersion().equals(afterIdentity.getRuleVersion())
+                || !beforeIdentity.getCheckerVersion().equals(
+                        afterIdentity.getCheckerVersion())) {
+            throw new IllegalArgumentException("source, rule or checker scope changed");
+        }
+        if (beforeIdentity.getCatalogHash().equals(afterIdentity.getCatalogHash())) {
+            throw new IllegalArgumentException("catalog hash did not change");
+        }
+        validateBoundaryNodeSemantics(previous.getProblem(), next.getProblem());
+    }
+
+    private static void validateBoundaryNodeSemantics(NetworkConstraintProblem before,
+            NetworkConstraintProblem after) {
+        List<String> beforeNodes = boundaryNodeSignatures(before);
+        List<String> afterNodes = boundaryNodeSignatures(after);
+        if (!beforeNodes.equals(afterNodes)) {
+            throw new IllegalArgumentException("root or terminal semantics changed");
+        }
+    }
+
+    private static List<String> boundaryNodeSignatures(NetworkConstraintProblem problem) {
+        List<String> result = new ArrayList<>();
+        for (NetworkConstraintProblem.Node node : problem.getNodes()) {
+            if (!node.isAllowedRoot() && !node.isTerminal()) continue;
+            result.add(node.getId() + "\u0000" + node.isAllowedRoot()
+                    + "\u0000" + node.isTerminal()
+                    + "\u0000" + node.getDemandUnits()
+                    + "\u0000" + node.isConfigurationRequired());
+        }
+        result.sort(String::compareTo);
+        return List.copyOf(result);
     }
 
     private static void validateProblemPreservation(NetworkConstraintProblem before,
@@ -317,23 +370,39 @@ public final class AdaptiveCatalogNetworkSearch {
     public static final class Expansion {
         private final Stage stage;
         private final String reason;
+        private final Transition transition;
 
-        private Expansion(Stage stage, String reason) {
+        private Expansion(Stage stage, String reason, Transition transition) {
             this.stage = stage;
             this.reason = required(reason);
+            this.transition = transition;
         }
 
         public static Expansion expanded(Stage stage) {
-            return new Expansion(Objects.requireNonNull(stage, "stage"), "catalog_expanded");
+            return new Expansion(Objects.requireNonNull(stage, "stage"), "catalog_expanded",
+                    Transition.ADDITIVE);
+        }
+
+        /**
+         * Tries another deterministic catalog strategy for the same imported task. Unlike
+         * {@link #expanded(Stage)}, generated assets may be replaced, so catalog-scoped proofs
+         * cannot leak into the alternative stage.
+         */
+        public static Expansion restarted(Stage stage) {
+            return new Expansion(Objects.requireNonNull(stage, "stage"), "catalog_restarted",
+                    Transition.RESTART);
         }
 
         public static Expansion exhausted(String reason) {
-            return new Expansion(null, reason);
+            return new Expansion(null, reason, null);
         }
 
         public boolean hasStage() { return stage != null; }
         public Stage getStage() { return stage; }
         public String getReason() { return reason; }
+        public Transition getTransition() { return transition; }
+
+        public enum Transition { ADDITIVE, RESTART }
     }
 
     public static final class Settings {

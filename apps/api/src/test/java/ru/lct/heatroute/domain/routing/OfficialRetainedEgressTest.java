@@ -119,12 +119,12 @@ class OfficialRetainedEgressTest {
     }
 
     @Test
-    void bothFinalizationPoliciesRequireLegalNormalsInsteadOfAShorterTargetRay() {
+    void bothFinalizationPoliciesKeepValidRoutesWithoutForbiddingAStraightObliqueInput() {
         List<ImportedOfficialFeature> features = features(0);
         RouteEdge original = edge(points(0, -20, -10, -20, 10, -10, 10, 10, 10));
         RouteEdge targetRay = edge(points(0, -20, -10, 10, 10));
         assertThat(rules.validateMandatoryEgress(targetRay, rules.line(coordinates(targetRay)), features, 50))
-                .extracting(RouteValidationIssue::getCode).containsExactly("OKS_NORMAL_EGRESS_VIOLATION");
+                .isEmpty();
         RegressionRoutePlannerFixture planner = new OfficialDatasetRoutingTest().planner();
         RegressionRoutePlannerFixture.VariantDraft draft = new RegressionRoutePlannerFixture.VariantDraft(
                 nodes(coordinates(original)), List.of(original),
@@ -137,10 +137,10 @@ class OfficialRetainedEgressTest {
                     environment, TerminalApproachPolicy.PRESERVE_VALID);
             assertAccepted(previous, features, depth);
             assertAccepted(retained, features, depth);
-            // Обе политики обязаны отвергнуть короткий диагональный луч на корень; равные длины допустимы.
+            // Нормаль — предпочтение исторического поиска, не обязательный угол финального ввода.
             for (RouteVariant result : List.of(previous, retained)) {
                 assertThat(result.getTotalLengthM().doubleValue())
-                        .isGreaterThan(rules.line(coordinates(targetRay)).getLength());
+                        .isGreaterThanOrEqualTo(rules.line(coordinates(targetRay)).getLength());
             }
             assertThat(retained.getEdges().get(0).getCoordinates()).usingRecursiveComparison()
                     .isEqualTo(original.getCoordinates());

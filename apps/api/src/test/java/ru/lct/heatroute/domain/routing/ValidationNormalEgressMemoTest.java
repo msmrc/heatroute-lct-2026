@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
@@ -39,8 +40,11 @@ class ValidationNormalEgressMemoTest {
 
         fixture.building.getMetricGeometry().apply((CoordinateFilter) coordinate -> coordinate.x -= 10);
         fixture.building.getMetricGeometry().geometryChanged();
+        // После уточнения 29.09 смена ближайшей стены не делает фактический прямой ввод незаконным.
+        assertThat(assertSameIssues(validator, session, fixture)).isEmpty();
+        fixture.features.add(restriction("blocking", "park", -20, 8, -18, 12));
         assertThat(assertSameIssues(validator, session, fixture))
-                .extracting(RouteValidationIssue::getCode).contains("OKS_NORMAL_EGRESS_VIOLATION");
+                .extracting(RouteValidationIssue::getCode).contains("FORBIDDEN_CLEARANCE_VIOLATION");
 
         fixture.features.add(restriction("remote", "park", 300, 0, 320, 20));
         assertSameIssues(validator, session, fixture);
@@ -72,13 +76,13 @@ class ValidationNormalEgressMemoTest {
 
     @Test
     void customGeometryRuleHooksRemainOnStandaloneValidationPath() {
-        AtomicInteger paddedCalls = new AtomicInteger();
+        AtomicInteger actualLegChecks = new AtomicInteger();
         OfficialRouteGeometryRules custom = new OfficialRouteGeometryRules(
                 new OfficialConstraintCatalog(), new OfficialCrossingGeometry()) {
-            @Override List<NormalEgress> prepareNormalEgresses(List<ImportedOfficialFeature> features,
-                    int diameter, Coordinate point, RouteTraversal traversal) {
-                paddedCalls.incrementAndGet();
-                return super.prepareNormalEgresses(features, diameter, point, traversal);
+            @Override Optional<NormalEgress> checkedTerminalEgress(List<ImportedOfficialFeature> features,
+                    int diameter, Coordinate point, Coordinate endpoint, Coordinate adjacent) {
+                actualLegChecks.incrementAndGet();
+                return super.checkedTerminalEgress(features, diameter, point, endpoint, adjacent);
             }
         };
         Fixture fixture = new Fixture();
@@ -88,7 +92,7 @@ class ValidationNormalEgressMemoTest {
                 fixture.nodes, List.of(fixture.edge), fixture.features);
 
         assertThat(session).usingRecursiveComparison().isEqualTo(standalone);
-        assertThat(paddedCalls.get()).isGreaterThanOrEqualTo(2);
+        assertThat(actualLegChecks.get()).isGreaterThanOrEqualTo(2);
     }
 
     @Test

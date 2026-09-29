@@ -79,7 +79,7 @@ public final class BoundedRootDemandCatalogGenerator {
         int probeDiameter = probe.diameterMm;
         OfficialRoutingEnvironment environment = featureWindow.environment();
         Set<String> structurallyUnroutableDemands = structurallyUnroutableDemands(
-                problem, environment, probeDiameter);
+                problem, environment);
         if (!structurallyUnroutableDemands.isEmpty()) {
             return structurallyIncomplete(problem, features, windowFingerprint, probeDiameter,
                     structurallyUnroutableDemands, started);
@@ -160,7 +160,7 @@ public final class BoundedRootDemandCatalogGenerator {
             attemptedPairs.add(pair.key());
             state.pairsAttempted++;
             PairRoutes routes = routes(pair.root, pair.demand,
-                    probeDiameter, environment, options, state, true, true, true);
+                    environment, options, state, true, true, true);
             record(pair, routes, generated, remaining, truncations);
             if (!routes.paths.isEmpty()) coveredDemands.add(pair.demand.getId());
             if (state.routeCalls >= options.maxRouteCalls) {
@@ -191,7 +191,7 @@ public final class BoundedRootDemandCatalogGenerator {
                     }
                     state.recoveryAttempts++;
                     PairRoutes routes = routes(pair.root, pair.demand,
-                            probeDiameter, environment, options, state, false, true, true);
+                            environment, options, state, false, true, true);
                     record(pair, routes, generated, remaining, truncations);
                     if (!routes.paths.isEmpty()) {
                         coveredDemands.add(demand.getId());
@@ -215,7 +215,8 @@ public final class BoundedRootDemandCatalogGenerator {
         // removes hundreds of redundant searches while keeping the exact root-ray rules.
         for (GeneratedPath path : generated) {
             RoutingProblemSnapshot.RootCandidate root = rootsById.get(path.rootId);
-            if (root == null || !validRootApproach(root, path.points, probeDiameter)) continue;
+            if (root == null || path.checkedDiameter == null
+                    || !validRootApproach(root, path.points, path.checkedDiameter)) continue;
             normalRootDemands.add(path.demandId);
             if (usableNormalRoots.add(path.rootId)) {
                 usableNormalRootCapacity = Math.addExact(
@@ -251,7 +252,7 @@ public final class BoundedRootDemandCatalogGenerator {
                 attemptedNormalPairs.add(pair.key());
                 state.normalSeedAttempts++;
                 PairRoutes routes = routes(pair.root, pair.demand,
-                        probeDiameter, environment, options, state, true, true, true);
+                        environment, options, state, true, true, true);
                 generated.addAll(routes.paths);
                 truncations.addAll(routes.truncationReasons);
                 if (!routes.paths.isEmpty()) {
@@ -304,7 +305,7 @@ public final class BoundedRootDemandCatalogGenerator {
                     attempted = true;
                     state.normalSeedAttempts++;
                     PairRoutes routes = routes(pair.root, pair.demand,
-                            probeDiameter, environment, options, state,
+                            environment, options, state,
                             true, true, true);
                     generated.addAll(routes.paths);
                     truncations.addAll(routes.truncationReasons);
@@ -408,7 +409,7 @@ public final class BoundedRootDemandCatalogGenerator {
             String id = "path:" + sha256(List.of(
                     path.getRootId(), path.getDemandId(), path.getPhysicalContext(), signature));
             generated.add(new GeneratedPath(id, path.getRootId(),
-                    path.getDemandId(), path.getPhysicalContext(), path.getPoints()));
+                    path.getDemandId(), path.getPhysicalContext(), path.getPoints(), null));
         }
         coveredDemands.addAll(sharedCoveredDemands);
         normalRootDemands.addAll(sharedCoveredDemands);
@@ -443,7 +444,7 @@ public final class BoundedRootDemandCatalogGenerator {
                 if (!canAttemptPair(state, options, truncations)) break;
                 state.pairsAttempted++;
                 PairRoutes routes = routes(pair.root, pair.demand,
-                        probeDiameter, environment, options, state, false, true, false);
+                        environment, options, state, false, true, false);
                 record(pair, routes, generated, remaining, truncations);
                 if (state.routeCalls >= options.maxRouteCalls
                         && (state.pairsAttempted < totalPairs || !routes.diversityCovered)) {
@@ -463,7 +464,7 @@ public final class BoundedRootDemandCatalogGenerator {
         if (probe.flowExceedsCatalog) remaining.add("flow-exceeds-pipe-catalog");
 
         List<GeneratedPath> uniqueGenerated = distinctGenerated(generated);
-        Compiled compiled = compile(problem, uniqueGenerated, windowFingerprint, probeDiameter);
+        Compiled compiled = compile(problem, uniqueGenerated, windowFingerprint);
         Map<String, Long> counters = new LinkedHashMap<>();
         counters.put("features", (long) features.size());
         counters.put("pairs_total", totalPairs);
@@ -510,7 +511,7 @@ public final class BoundedRootDemandCatalogGenerator {
                 .collect(Collectors.toMap(RoutingProblemSnapshot.RootCandidate::getId,
                         root -> "root-port:" + root.getId(),
                         (left, right) -> left, LinkedHashMap::new));
-        Compiled compiled = compile(problem, List.of(), windowFingerprint, probeDiameter);
+        Compiled compiled = compile(problem, List.of(), windowFingerprint);
         List<String> remaining = structurallyUnroutableDemands.stream()
                 .sorted().map(id -> "structurally-unroutable-demand:" + id)
                 .collect(Collectors.toCollection(ArrayList::new));
@@ -551,25 +552,20 @@ public final class BoundedRootDemandCatalogGenerator {
                 windowFingerprint, structurallyUnroutableDemands);
     }
 
+    /**
+     * Доказанный отказ не зависит от поисковой нормали и ДУ общего предполагаемого ствола.
+     * По уточнению 29.09 прямой ввод ОКС может быть наклонным; отсутствие найденного выхода
+     * оставляет потребителя поиску, а не превращает его в структурно невозможный.
+     */
     private static Set<String> structurallyUnroutableDemands(
-            RoutingProblemSnapshot problem, OfficialRoutingEnvironment environment,
-            int probeDiameter) {
-        if (problem.getRoots().isEmpty()) return Set.of();
-        RoutingProblemSnapshot.RootCandidate target = problem.getRoots().get(0);
-        Coordinate targetPoint = coordinate(target.getLocation());
-        Set<String> result = new LinkedHashSet<>();
-        for (RoutingProblemSnapshot.Demand demand : problem.getDemands()) {
-            Coordinate terminal = coordinate(demand.getLocation());
-            if (!environment.normalEgressCandidates(probeDiameter, terminal, targetPoint,
-                            HeatRouteEngineeringRules.ENGINEERING_EGRESS_EXTRA_M,
-                            RouteTraversal.REVERSED).isEmpty()) {
-                continue;
-            }
-            if (environment.pointInsideForbiddenClearance(probeDiameter, terminal)) {
-                result.add(demand.getId());
-            }
-        }
-        return Collections.unmodifiableSet(result);
+            RoutingProblemSnapshot problem, OfficialRoutingEnvironment environment) {
+        TerminalFeasibility.Partition<RoutingProblemSnapshot.Demand> partition =
+                new TerminalFeasibility().partition(problem.getDemands(),
+                        demand -> coordinate(demand.getLocation()), environment);
+        Set<String> blocked = partition.blocked().keySet().stream()
+                .map(RoutingProblemSnapshot.Demand::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return Collections.unmodifiableSet(blocked);
     }
 
     private static long sharedSeedReserveNanos(Options options, int demandCount) {
@@ -737,10 +733,13 @@ public final class BoundedRootDemandCatalogGenerator {
     }
 
     private PairRoutes routes(RoutingProblemSnapshot.RootCandidate root,
-            RoutingProblemSnapshot.Demand demand, int diameter,
+            RoutingProblemSnapshot.Demand demand,
             OfficialRoutingEnvironment environment, Options options, State state,
             boolean coverageOnly, boolean enforceRootApproach,
             boolean firstPathOnly) {
+        // This independent path carries only this terminal's flow. Shared segments receive
+        // their actual downstream flow and mandatory geometry checks in the exact evaluator.
+        int diameter = probeDiameter(demand.getFlowTph()).diameterMm;
         Coordinate terminal = coordinate(demand.getLocation());
         Coordinate target = coordinate(root.getLocation());
         Set<String> rootExemptions = root.getRealization() == null
@@ -842,7 +841,7 @@ public final class BoundedRootDemandCatalogGenerator {
                         || !canRoute(options, state))) break;
             }
         }
-        return generatedRoutes(root, demand, paths, fullyEnumerated, truncations);
+        return generatedRoutes(root, demand, paths, diameter, fullyEnumerated, truncations);
     }
 
     private PairRoutes rootConstrainedRoutes(
@@ -892,13 +891,13 @@ public final class BoundedRootDemandCatalogGenerator {
                 }
             }
         }
-        return generatedRoutes(root, demand, paths, false, truncations);
+        return generatedRoutes(root, demand, paths, diameter, false, truncations);
     }
 
     private static PairRoutes generatedRoutes(
             RoutingProblemSnapshot.RootCandidate root,
             RoutingProblemSnapshot.Demand demand,
-            List<RoutePath> paths, boolean fullyEnumerated,
+            List<RoutePath> paths, int checkedDiameter, boolean fullyEnumerated,
             Set<String> truncations) {
         List<GeneratedPath> result = new ArrayList<>(paths.size());
         for (RoutePath terminalToRoot : paths) {
@@ -908,14 +907,14 @@ public final class BoundedRootDemandCatalogGenerator {
             String signature = pointSignature(points);
             String id = "path:" + sha256(List.of(root.getId(), demand.getId(), signature));
             result.add(new GeneratedPath(id, root.getId(), demand.getId(),
-                    "surface:new:path:" + id, points));
+                    "surface:new:path:" + id, points, checkedDiameter));
         }
         result.sort(Comparator.comparing(path -> path.id));
         return new PairRoutes(result, fullyEnumerated, truncations);
     }
 
     private Compiled compile(RoutingProblemSnapshot problem, List<GeneratedPath> generated,
-            String windowFingerprint, int probeDiameter) {
+            String windowFingerprint) {
         if (generated.isEmpty()) {
             RoutingCatalogSnapshot empty = new RoutingCatalogSnapshot(problem.getSnapshotHash(),
                     problem.getRuleId(), problem.getRuleVersion(),
@@ -940,21 +939,25 @@ public final class BoundedRootDemandCatalogGenerator {
                     "checked_path", null, null, 0, path.points.size() - 1);
             String context = "network=" + path.physicalContext
                     + ";root=" + path.rootId + ";demand=" + path.demandId;
-            PathAdmissionCertificate certificate = new PathAdmissionCertificate(
-                    PathAdmissionCertificate.Level.COMPLETE_PHYSICAL_PATH,
-                    PathAdmissionCertificate.Status.VERIFIED_ALLOWED,
-                    problem.getRuleId(), problem.getRuleVersion(), problem.getSnapshotHash(),
-                    probeDiameter, PathAdmissionCertificate.Direction.FORWARD, context,
-                    List.of(section.getSignature()), List.of("official_obstacle_router"),
-                    GENERATOR_ID + "-" + GENERATOR_VERSION,
-                    "bounded route passed the official obstacle router");
+            // A shared seed was checked with its per-edge diameter profile, not at one uniform
+            // DU. Absence of a whole-path certificate means UNCHECKED, never forbidden; the
+            // exact evaluator still sizes and checks the assembled candidate before acceptance.
+            List<PathAdmissionCertificate> certificates = path.checkedDiameter == null ? List.of()
+                    : List.of(new PathAdmissionCertificate(
+                            PathAdmissionCertificate.Level.COMPLETE_PHYSICAL_PATH,
+                            PathAdmissionCertificate.Status.VERIFIED_ALLOWED,
+                            problem.getRuleId(), problem.getRuleVersion(), problem.getSnapshotHash(),
+                            path.checkedDiameter, PathAdmissionCertificate.Direction.FORWARD, context,
+                            List.of(section.getSignature()), List.of("official_obstacle_router"),
+                            GENERATOR_ID + "-" + GENERATOR_VERSION,
+                            "bounded route passed the official obstacle router"));
             options.add(new DirectedPathOption(path.id,
                     "root-port:" + path.rootId, "demand-port:" + path.demandId,
                     PathAdmissionCertificate.Direction.FORWARD, context, path.points,
                     physical.path(path.id).getPhysicalAssetIds(), List.of(section),
                     firstBendDistance(path.points), lastBendDistance(path.points),
                     new DirectedPathOption.Provenance(GENERATOR_ID, GENERATOR_VERSION,
-                            problem.getSnapshotHash(), windowFingerprint), List.of(certificate)));
+                            problem.getSnapshotHash(), windowFingerprint), certificates));
         }
         RoutingCatalogSnapshot catalog = new RoutingCatalogSnapshot(problem.getSnapshotHash(),
                 problem.getRuleId(), problem.getRuleVersion(),
@@ -967,10 +970,14 @@ public final class BoundedRootDemandCatalogGenerator {
         java.math.BigDecimal total = problem.getDemands().stream()
                 .map(RoutingProblemSnapshot.Demand::getFlowTph)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-        if (total.signum() <= 0) {
+        return probeDiameter(total);
+    }
+
+    private ProbeDiameter probeDiameter(java.math.BigDecimal flow) {
+        if (flow.signum() <= 0) {
             return new ProbeDiameter(pipes.entries().get(0).getDiameter(), false);
         }
-        java.util.Optional<PipeCatalogEntry> matched = pipes.minimumForFlow(total);
+        java.util.Optional<PipeCatalogEntry> matched = pipes.minimumForFlow(flow);
         return matched.map(entry -> new ProbeDiameter(entry.getDiameter(), false))
                 .orElseGet(() -> new ProbeDiameter(
                         pipes.entries().get(pipes.entries().size() - 1).getDiameter(), true));
@@ -1224,15 +1231,18 @@ public final class BoundedRootDemandCatalogGenerator {
         private final String demandId;
         private final String physicalContext;
         private final List<CatalogMetricPoint> points;
+        // Null for a shared path: its per-edge profile is not a uniform-DU path certificate.
+        private final Integer checkedDiameter;
 
         private GeneratedPath(String id, String rootId, String demandId,
-                String physicalContext, List<CatalogMetricPoint> points) {
+                String physicalContext, List<CatalogMetricPoint> points, Integer checkedDiameter) {
             this.id = id;
             this.rootId = rootId;
             this.demandId = demandId;
             this.physicalContext = Objects.requireNonNull(
                     physicalContext, "physicalContext");
             this.points = points;
+            this.checkedDiameter = checkedDiameter;
         }
     }
 

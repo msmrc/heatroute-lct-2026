@@ -15,6 +15,7 @@ import ru.lct.heatroute.domain.catalog.RoutingProblemFactory;
 import ru.lct.heatroute.domain.catalog.RoutingProblemSnapshot;
 import ru.lct.heatroute.domain.optimization.ConflictStore;
 import ru.lct.heatroute.domain.optimization.CpSatNetworkOptimizer;
+import ru.lct.heatroute.domain.optimization.CpSatNetworkRefinement;
 import ru.lct.heatroute.domain.optimization.CpSatRuntime;
 import ru.lct.heatroute.domain.run.OfficialRunParameters;
 import ru.lct.heatroute.domain.topology.ImportedOfficialFeature;
@@ -26,9 +27,11 @@ import ru.lct.heatroute.domain.topology.TopologyAnalysis;
  */
 @Component
 public final class HeatRoutePlanner {
-    public static final String VERSION = "heatroute-network-6";
+    public static final String VERSION = "heatroute-network-7";
     public static final String CHECKER_VERSION = "frozen-network-evaluator-1";
     private static final int FLOW_SCALE_DECIMALS = 3;
+    private static final long MIN_PORTFOLIO_CATALOG_NANOS = TimeUnit.SECONDS.toNanos(8);
+    private static final long MAX_PORTFOLIO_CATALOG_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     private final RoutingProblemFactory problemFactory;
     private final RoutingFeatureWindowLoader featureWindowLoader;
@@ -100,13 +103,13 @@ public final class HeatRoutePlanner {
                         settings.finalReserveNanos, TimeUnit.NANOSECONDS,
                         refinementBudget, TimeUnit.NANOSECONDS,
                         settings.evaluationReserveNanos, TimeUnit.NANOSECONDS,
-                        0, settings.maxRefinementIterations, settings.randomSeed);
+                         1, settings.maxRefinementIterations, settings.randomSeed);
         ConflictStore conflicts = new ConflictStore(settings.maxConflicts);
         AcceptedSolutionArchive archive = new AcceptedSolutionArchive(settings.archiveCapacity);
         AdaptiveCatalogNetworkSearch.Result solved = search.solve(
                 prepared.getStage().orElseThrow(), conflicts, archive,
-                (current, request, budget) -> AdaptiveCatalogNetworkSearch.Expansion.exhausted(
-                        "targeted_catalog_expansion_not_implemented"),
+                (current, request, budget) -> portfolioExpansion(
+                        problem, features, current, request, budget, settings),
                 searchSettings);
         if (solved.getOutcome() != AdaptiveCatalogNetworkSearch.Outcome.ACCEPTED) {
             return Execution.ended(problem, build, features.size(), elapsedMillis(started),
@@ -116,6 +119,49 @@ public final class HeatRoutePlanner {
                 context.getInputProfile(), problem.getDemands().size(), archive.snapshot());
         return Execution.ended(problem, build, features.size(), elapsedMillis(started),
                 solved, conflicts.size(), archive.size(), result);
+    }
+
+    /**
+     * После доказанной несовместимости первого каталога пробует более широкий независимый
+     * портфель, оставляя фиксированный резерв точной модели и итоговому валидатору.
+     */
+    private AdaptiveCatalogNetworkSearch.Expansion portfolioExpansion(
+            RoutingProblemSnapshot problem, List<ImportedOfficialFeature> features,
+            AdaptiveCatalogNetworkSearch.Stage current,
+            AdaptiveCatalogNetworkSearch.ExpansionRequest request,
+            long remainingNanos, Settings settings) {
+        if (request.getRefinementOutcome()
+                != CpSatNetworkRefinement.Outcome.INFEASIBLE_IN_CATALOG) {
+            return AdaptiveCatalogNetworkSearch.Expansion.exhausted(
+                    "portfolio_not_applicable:" + request.getRefinementOutcome());
+        }
+        long catalogBudget = Math.min(MAX_PORTFOLIO_CATALOG_NANOS,
+                remainingNanos - settings.perCatalogBudgetNanos);
+        if (catalogBudget < MIN_PORTFOLIO_CATALOG_NANOS) {
+            return AdaptiveCatalogNetworkSearch.Expansion.exhausted(
+                    "portfolio_budget_exhausted");
+        }
+        BoundedRootDemandCatalogGenerator.Options richer =
+                BoundedRootDemandCatalogGenerator.Options.bounded(
+                        duration(catalogBudget), doubled(settings.maxPairs),
+                        doubled(settings.maxRouteCalls),
+                        doubled(settings.maxPathsPerPair),
+                        doubled(settings.maxEgressCandidates));
+        BoundedCatalogNetworkStageFactory.Preparation alternative = stageFactory.prepare(
+                problem, features, richer, FLOW_SCALE_DECIMALS, CHECKER_VERSION,
+                "heatroute", "engineering");
+        if (alternative.getStage().isEmpty()) {
+            return AdaptiveCatalogNetworkSearch.Expansion.exhausted(
+                    "portfolio_stage_incomplete:"
+                            + alternative.getStageIncompleteReason().orElse("unknown"));
+        }
+        AdaptiveCatalogNetworkSearch.Stage stage = alternative.getStage().orElseThrow();
+        if (stage.getCatalog().getCatalogHash().equals(
+                current.getCatalog().getCatalogHash())) {
+            return AdaptiveCatalogNetworkSearch.Expansion.exhausted(
+                    "portfolio_catalog_unchanged");
+        }
+        return AdaptiveCatalogNetworkSearch.Expansion.restarted(stage);
     }
 
     private OfficialCalculationResult assembleResult(String inputProfile, int demandCount,
@@ -147,6 +193,10 @@ public final class HeatRoutePlanner {
 
     private static long elapsedMillis(long started) {
         return Math.max(0L, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+    }
+
+    private static int doubled(int value) {
+        return value > Integer.MAX_VALUE / 2 ? Integer.MAX_VALUE : value * 2;
     }
 
     private static long saturatingAdd(long left, long right) {
@@ -208,9 +258,9 @@ public final class HeatRoutePlanner {
 
         /** Production competition budget shared by catalog generation and exact refinement. */
         public static Settings production() {
-            return bounded(Duration.ofSeconds(150), Duration.ofSeconds(105),
-                    Duration.ofSeconds(5), Duration.ofSeconds(45),
-                    Duration.ofSeconds(5), 256, 1_024, 3, 8,
+            return bounded(Duration.ofSeconds(150), Duration.ofSeconds(75),
+                    Duration.ofSeconds(5), Duration.ofSeconds(20),
+                    Duration.ofSeconds(4), 256, 1_024, 3, 8,
                     128, 2026, 10_000, 8);
         }
 

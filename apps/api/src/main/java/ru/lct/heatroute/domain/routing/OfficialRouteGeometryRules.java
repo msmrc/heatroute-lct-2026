@@ -42,6 +42,8 @@ public class OfficialRouteGeometryRules {
     private static final double CLEARANCE_BOUNDARY_EPSILON_M = 1e-6;
     private static final double TIE_IN_CONTACT_M = 0.05;
     private static final double ROUTE_AVOIDANCE_BUFFER_M = 0.20 - CLEARANCE_BOUNDARY_EPSILON_M;
+    private static final int STRAIGHT_EGRESS_DIRECTION_COUNT = 72;
+    private static final int MAX_ALTERNATIVE_STRAIGHT_EGRESSES = 16;
     private static final Set<String> UTILITY_TYPES = Set.of(
             "gas_pipeline", "power_cable", "heat_network");
     private static final Comparator<Constraint> CONSTRAINT_ORDER = Comparator
@@ -237,7 +239,7 @@ public class OfficialRouteGeometryRules {
         return result;
     }
 
-    /** Ближайший допустимый прямой выход по нормали с полным наружным отступом до поворота. */
+    /** Ближайший проверенный прямой выход: нормали первыми, затем ограниченный набор иных лучей. */
     Optional<NormalEgress> normalEgress(
             List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint) {
         return nearestLegalNormalEgresses(features, diameter, connectionPoint, RouteTraversal.AS_GIVEN).stream()
@@ -314,26 +316,92 @@ public class OfficialRouteGeometryRules {
                 nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal));
     }
 
-    /** Добавляет только поисковый запас к уже проверенным исходным нормалям, сохраняя их порядок. */
+    /** Сохраняет ближайшие вводы первыми и добавляет до 16 проверенных альтернатив разных направлений. */
     List<NormalEgress> padPreparedNormalEgresses(
             List<ImportedOfficialFeature> features, int diameter, RouteTraversal traversal,
             List<NormalEgress> nearest) {
         Objects.requireNonNull(traversal, "Route traversal is required");
-        return nearest.stream()
+        List<NormalEgress> result = nearest.stream()
                 .map(egress -> withNavigationMargin(egress, features, diameter, traversal))
                 .collect(Collectors.toCollection(ArrayList::new));
+        if (nearest.isEmpty()) return result;
+        Coordinate point = nearest.get(0).start();
+        double clearance = axisClearance.axisClearanceM("oks", diameter, null).doubleValue();
+        List<NormalEgress> alternatives = straightBoundaryEgresses(
+                containingOksFeatures(features, diameter, point), features, diameter, point, clearance, traversal, false);
+        // Разные стороны здания важнее множества почти одинаковых лучей у одной ближайшей стены.
+        alternatives.sort(Comparator.comparingDouble((NormalEgress exit) -> Math.atan2(
+                        exit.exit.y - point.y, exit.exit.x - point.x))
+                .thenComparing(NormalEgress::oksId)
+                .thenComparingDouble(exit -> exit.exit.x).thenComparingDouble(exit -> exit.exit.y));
+        int count = Math.min(MAX_ALTERNATIVE_STRAIGHT_EGRESSES, alternatives.size());
+        for (int index = 0; index < count; index++) {
+            NormalEgress candidate = alternatives.get(index * alternatives.size() / count);
+            NormalEgress alternative = new NormalEgress(candidate.oksId, candidate.start, candidate.exit, true);
+            addDistinctEgress(result, withNavigationMargin(alternative, features, diameter, traversal));
+        }
+        return result;
     }
 
     /** Применяет единственную target-зависимую часть исходного упорядочивания к полной подготовке. */
     List<NormalEgress> sortNormalEgressesForTarget(List<NormalEgress> prepared, Coordinate target) {
         List<NormalEgress> result = new ArrayList<>(prepared);
-        result.sort(Comparator.comparingDouble((NormalEgress exit) -> exit.exit().distance(target))
+        result.sort(Comparator.comparingInt((NormalEgress exit) -> exit.alternative ? 1 : 0)
+                .thenComparingDouble(exit -> exit.exit().distance(target))
                 .thenComparing(NormalEgress::oksId)
                 .thenComparingDouble(exit -> exit.exit().x).thenComparingDouble(exit -> exit.exit().y));
         return result;
     }
 
-    /** Исходные ближайшие допустимые нормали для mandatory validation, без navigation margin. */
+    /**
+     * Письменное уточнение 29.09 не требует 90° к стене. Проверяем конечный набор лучей:
+     * ближайший слой нужен для первого выбора, полный набор — для поисковых альтернатив.
+     * Исчерпание лучей не доказывает no-route.
+     */
+    private List<NormalEgress> straightBoundaryEgresses(List<ImportedOfficialFeature> containing,
+            List<ImportedOfficialFeature> features, int diameter, Coordinate point,
+            double clearance, RouteTraversal traversal, boolean nearestOnly) {
+        List<WallEgress> candidates = new ArrayList<>();
+        for (ImportedOfficialFeature feature : containing) {
+            Geometry footprint = feature.getMetricGeometry();
+            Geometry boundary = footprint.getBoundary();
+            Envelope bounds = footprint.getEnvelopeInternal();
+            double reach = Math.hypot(bounds.getWidth(), bounds.getHeight()) + 4 * clearance + 1;
+            for (int direction = 0; direction < STRAIGHT_EGRESS_DIRECTION_COUNT; direction++) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new java.util.concurrent.CancellationException("Straight egress preparation cancelled");
+                }
+                double angle = 2 * Math.PI * direction / STRAIGHT_EGRESS_DIRECTION_COUNT;
+                Coordinate towards = new Coordinate(point.x + reach * Math.cos(angle),
+                        point.y + reach * Math.sin(angle));
+                Coordinate wall = null;
+                for (Coordinate intersection : boundary.intersection(line(List.of(point, towards))).getCoordinates()) {
+                    if (wall == null || point.distance(intersection) < point.distance(wall)) wall = intersection;
+                }
+                if (wall == null) continue;
+                Coordinate exit = wallNormals.firstClearancePoint(footprint, wall, towards, clearance);
+                if (exit == null) continue;
+                NormalEgress candidate = new NormalEgress(feature.getFeatureId(), point, exit);
+                if (terminalLegAllowed(candidate, features, diameter, traversal)) {
+                    candidates.add(new WallEgress(candidate, point.distance(wall)));
+                }
+            }
+        }
+        candidates.sort(Comparator.comparingDouble((WallEgress exit) -> exit.wallDistanceM)
+                .thenComparing(exit -> exit.egress.oksId())
+                .thenComparingDouble(exit -> exit.egress.exit().x)
+                .thenComparingDouble(exit -> exit.egress.exit().y));
+        List<NormalEgress> result = new ArrayList<>();
+        if (candidates.isEmpty()) return result;
+        double nearest = candidates.get(0).wallDistanceM;
+        for (WallEgress candidate : candidates) {
+            if (nearestOnly && candidate.wallDistanceM > nearest + EPSILON_M) break;
+            addDistinctEgress(result, candidate.egress);
+        }
+        return result;
+    }
+
+    /** Исходные ближайшие допустимые поисковые вводы, без navigation margin. */
     List<NormalEgress> prepareNearestLegalNormalEgresses(
             List<ImportedOfficialFeature> features, int diameter, Coordinate connectionPoint, RouteTraversal traversal) {
         return nearestLegalNormalEgresses(features, diameter, connectionPoint, traversal);
@@ -364,7 +432,9 @@ public class OfficialRouteGeometryRules {
             nearestLegalDistance = Math.min(nearestLegalDistance, wall.wallDistanceM);
             addDistinctEgress(result, wall.egress);
         }
-        return result;
+        return result.isEmpty()
+                ? straightBoundaryEgresses(containing, features, diameter, connectionPoint, clearance, traversal, true)
+                : result;
     }
 
     /** Запас помогает поиску и округлению, но не отменяет допустимую ближайшую стену. */
@@ -375,7 +445,7 @@ public class OfficialRouteGeometryRules {
         Coordinate exit = new Coordinate(
                 required.start.x + (required.exit.x - required.start.x) * factor,
                 required.start.y + (required.exit.y - required.start.y) * factor);
-        NormalEgress preferred = new NormalEgress(required.oksId, required.start, exit);
+        NormalEgress preferred = new NormalEgress(required.oksId, required.start, exit, required.alternative);
         return terminalLegAllowed(preferred, features, diameter, traversal) ? preferred : required;
     }
 
@@ -491,7 +561,7 @@ public class OfficialRouteGeometryRules {
         return validateMandatoryEgress(edge, route, features, diameter, connectionPoint, null);
     }
 
-    /** Сессионный reuse заменяет только подготовку нормалей, не проверку фактического ввода. */
+    /** Фактический прямой ввод проверяется независимо от конечного каталога поисковых лучей. */
     List<RouteValidationIssue> validateMandatoryEgress(
             RouteEdge edge, LineString route, List<ImportedOfficialFeature> features,
             int diameter, Coordinate connectionPoint, PreparedNormalEgressMemo normalEgresses) {
@@ -513,35 +583,27 @@ public class OfficialRouteGeometryRules {
         Coordinate adjacent = route.getCoordinateN(route.getNumPoints() - 2);
         List<ImportedOfficialFeature> containing = containingOksFeatures(features, diameter, connectionPoint);
         if (containing.isEmpty()) return;
-        List<NormalEgress> expected = normalEgresses == null
-                ? nearestLegalNormalEgresses(features, diameter, connectionPoint, RouteTraversal.REVERSED)
-                : normalEgresses.prepareRawNearest(features, diameter, connectionPoint, RouteTraversal.REVERSED);
-        LineString actualLeg = line(List.of(endpoint, adjacent));
-        boolean valid = expected.stream().anyMatch(egress -> followsNormal(endpoint, adjacent, egress)
-                && containing.stream().filter(feature -> feature.getFeatureId().equals(egress.oksId))
-                        .allMatch(feature -> ownApproachAllowed(
-                                egress, actualLeg, feature.getMetricGeometry(), diameter)));
-        if (!valid) {
+        if (checkedTerminalEgress(features, diameter, connectionPoint, endpoint, adjacent).isEmpty()) {
             issues.add(issue(
                     "OKS_NORMAL_EGRESS_VIOLATION",
                     edge.getId(),
-                    "Route must use a nearest legal wall normal with the complete exterior approach"));
+                    "Route must use a legal straight terminal leg with the complete exterior approach"));
         }
     }
 
-    private boolean followsNormal(Coordinate endpoint, Coordinate adjacent, NormalEgress expected) {
-        double requiredLength = expected.start.distance(expected.exit);
-        double actualLength = endpoint.distance(adjacent);
-        double normalX = expected.exit.x - expected.start.x;
-        double normalY = expected.exit.y - expected.start.y;
-        double actualX = adjacent.x - endpoint.x;
-        double actualY = adjacent.y - endpoint.y;
-        double cross = Math.abs(normalX * actualY - normalY * actualX);
-        double alignmentTolerance = Math.max(
-                2 * EPSILON_M * actualLength, requiredLength * actualLength * 1e-4);
-        return actualLength + 2 * EPSILON_M >= requiredLength
-                && normalX * actualX + normalY * actualY > 0
-                && cross <= alignmentTolerance;
+    /** Льготу своего ОКС выдаёт проверка фактического ввода, а не наличие подходящего search candidate. */
+    Optional<NormalEgress> checkedTerminalEgress(List<ImportedOfficialFeature> features, int diameter,
+            Coordinate connectionPoint, Coordinate endpoint, Coordinate adjacent) {
+        if (endpoint.distance(connectionPoint) > 2 * EPSILON_M) return Optional.empty();
+        LineString actualLeg = line(List.of(endpoint, adjacent));
+        for (ImportedOfficialFeature feature : containingOksFeatures(features, diameter, connectionPoint)) {
+            NormalEgress egress = new NormalEgress(feature.getFeatureId(), connectionPoint, adjacent);
+            if (ownApproachAllowed(egress, actualLeg, feature.getMetricGeometry(), diameter)
+                    && terminalLegAllowed(egress, features, diameter, RouteTraversal.REVERSED)) {
+                return Optional.of(egress);
+            }
+        }
+        return Optional.empty();
     }
 
     List<Constraint> routeAvoidanceConstraints(List<LineString> routes) {
@@ -1344,11 +1406,17 @@ public class OfficialRouteGeometryRules {
         private final String oksId;
         private final Coordinate start;
         private final Coordinate exit;
+        private final boolean alternative;
 
         private NormalEgress(String oksId, Coordinate start, Coordinate exit) {
+            this(oksId, start, exit, false);
+        }
+
+        private NormalEgress(String oksId, Coordinate start, Coordinate exit, boolean alternative) {
             this.oksId = oksId;
             this.start = new Coordinate(start);
             this.exit = new Coordinate(exit);
+            this.alternative = alternative;
         }
 
         String oksId() { return oksId; }

@@ -81,7 +81,7 @@
 | Выбор вариантов | До 3 содержательно разных вариантов; те же роли/rank/preferred; прежний порядок при равенстве и прежние бюджеты улучшений |
 | source102 | Сохраняются приоритеты камер на нормали ОКС, улучшения поворотов и лимиты удорожания/удлинения, включая не накапливаемый коридор shortest относительно исходного минимума |
 | Деньги | Те же компоненты сметы, точность `BigDecimal`, complete-флаг; покрытие потребителей не заменяется отбрасыванием «невыгодных» |
-| API/сохранение | `SNAKE_CASE`, профили `stable` и legacy `expert_experimental`, defaults, чтение сохранённых parameters/results, строгая схема экспорта |
+| API/сохранение | `SNAKE_CASE`, единый контракт параметров расчёта, defaults, чтение сохранённых parameters/results, строгая схема экспорта |
 | Выполнение | Отмена, ошибки, таймауты, отсутствие утечек памяти/permit/connection; кэш не превращает исключение или отмену в `no_route` |
 
 Не менять числовые допуски, spacing, rounding и budgets ради скорости. В частности, source102 различает допуск 0,5° для коллинеарной оцифровки и нормализацию существующих измеренных осей камеры до 2,5°; второе не является разрешением отклонять новые лучи камеры.
@@ -96,8 +96,8 @@
 OfficialJobWorker
   → OfficialCalculationService.calculate
     → загрузка core + ExistingNetworkTopologyAnalyzer
-    → RoutingAlgorithmRegistry / StableRoutingAlgorithm
-      → OfficialRoutePlanner.plan
+    → HeatRouteRoutingAlgorithm
+      → HeatRoutePlanner.plan
         → independent / shared / spine-кандидаты
         → отбор и первичная финализация
         → финализация portfolio

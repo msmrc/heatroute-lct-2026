@@ -7,8 +7,8 @@ Production build recorded during the run: 6
 Production release commit: `789e3f7`
 
 Current production algorithm: `heatroute-network-6`. The seven non-control dataset outcomes below
-were measured on commit `8d9d2fc` under the historical label `nextgen-network-6`; the control case
-was rerun after promotion and rename. The rename/refactor did not change the v6 planning core, but
+were measured on commit `8d9d2fc` under the initial internal build label; the control case
+was rerun after the public rename. The rename/refactor did not change the v6 planning core, but
 historical run identifiers and timings remain explicitly attributed to the build that produced them.
 
 Production health after deployment: `UP`
@@ -83,7 +83,7 @@ Recommended continuation order:
 
 ## Evidence artifacts
 
-- `output/playwright/universality/vps-nextgen6-corrected-17-of-17.png` — accepted route map and production metrics;
-- `output/playwright/universality/vps-nextgen6-universality-matrix.png` — all supplied GeoJSON outcomes and timings;
-- `output/playwright/universality/vps-nextgen6-roads-kindergarten-fast-rejection.png` — readable structural diagnostic;
+- accepted-route screenshot with production metrics;
+- universality matrix with all supplied GeoJSON outcomes and timings;
+- readable structural-diagnostic screenshot for the roads-and-kindergarten case;
 - `output/playwright/universality/v6-data/` — downloaded production API responses and exported accepted GeoJSON (ignored build evidence, not source-controlled).

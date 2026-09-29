@@ -1633,8 +1633,8 @@ profile. Validators, sizing, economics and export remain shared and mandatory.
 
 The workspace exposes separate main and experimental actions, labels completed results with their
 profile and algorithm version, and keeps a separate pointer to the latest run of each profile for
-the current import. The development and promotion process is recorded in
-[EXPERIMENTAL_ROUTING.md](EXPERIMENTAL_ROUTING.md).
+the current import. The retired experiment and its later promotion are summarized in
+[ROUTING_MIGRATION_HISTORY.md](ROUTING_MIGRATION_HISTORY.md); detailed dated evidence remains in this log.
 
 The 36 focused Java 11 profile/planner tests and all 20 web tests, lint, typecheck, production
 builds and the reference benchmark pass. The 2026-09-23 CI follow-up fixed the two former baseline

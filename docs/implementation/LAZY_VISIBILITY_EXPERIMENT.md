@@ -93,11 +93,11 @@ TLAB выросло 11130529656 → 11378601456 байт (+2.23%). Малые о
 `sha256:93f7c195352d5aa9f3a922217b8d144f6b1d0d2ffd9a791beec795695dff720d` плюс снимок
 ровно четырёх main-классов, двух тестов и неизменного planner probe.
 
-- База сравнения: `.tooling/nextgen-segment-query-20260929/evidence/`.
-- Первая ошибка: `.tooling/nextgen-lazy-visibility-20260929/evidence/` и `snapshot/`.
+- База сравнения: архив доказательств segment-query.
+- Первая ошибка: архив доказательств lazy-visibility и его snapshot.
 - Успешный повтор: там же `evidence-retry1/` и `snapshot-retry1/`, SHA ledger, JUnit XML,
   result JSON, JFR, allocations JSON, metadata и container state сохранены.
-- Контейнер `heatroute-nextgen-lazy-visibility-r15-20260929-retry1`: exit 0, no OOM.
+- Контейнер успешного повтора: exit 0, no OOM.
 - HeatRoute, уровень «Проверка», граф/поколение недоступны (N/A), source fallback.
   Два помощника gpt-5.6-terra: тесты и изолированный runner/сравнение артефактов.
 

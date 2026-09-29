@@ -1756,7 +1756,8 @@ the latest main and experimental run independently for side-by-side inspection.
 
 The two profiles intentionally share the official validator, sizing, economics, depth and export
 gates. The experimental profile cannot relax acceptance rules and contains no fixture coordinates
-or IDs. Promotion rules and the comparison log are maintained in `EXPERIMENTAL_ROUTING.md`. This
+or IDs. The retired experiment and its promotion are summarized in
+`ROUTING_MIGRATION_HISTORY.md`; detailed dated evidence remains in this roadmap and `progress.md`. This
 closes only the experiment-isolation implementation slice; an official-dataset comparison and live
 Compose smoke are still required, and no R-stage or quality improvement is claimed.
 

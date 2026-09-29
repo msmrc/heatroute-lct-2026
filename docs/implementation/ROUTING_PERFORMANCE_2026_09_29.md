@@ -761,7 +761,7 @@ plan1531122 мс. Finalization остаётся основным этапом и
 ### Уточнение различий тестового и API-путей
 
 Read-only разбор `OfficialDatasetRoutingTest`, `OfficialCalculationService`,
-`StableRoutingAlgorithm`, `OfficialFeatureRepository`, `OfficialObstacleRouter` и
+адаптера расчёта, `OfficialFeatureRepository`, `OfficialObstacleRouter` и
 `OfficialRoutePlanner` отделил подтверждённые различия от гипотез о скорости.
 Сохранённый ответ `api-r13-2d-import.json` содержит
 `report.input_profile = baseline_input`: профиль совпадает с доменным тестом и не

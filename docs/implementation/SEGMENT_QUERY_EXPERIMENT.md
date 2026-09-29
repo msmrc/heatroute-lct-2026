@@ -38,7 +38,7 @@ No complete project test/build, lint/typecheck, API or browser smoke was perform
 Both use the same 633,402-byte official dataset, SHA256
 `cffb7133419d93fe364a53015a7d3ead289f671cbfaf6f4befe87f2a21914130`,
 144 features (56 core, 88 restriction window), 17 demand points and the same snapshot hash.
-The then-current `NextGenerationRoutePlanner` is invoked directly with `Settings.initial()`, 90 s overall
+The then-current planner prototype is invoked directly with its initial settings, 90 s overall
 and 30 s catalog budgets, depth disabled, seed 2026. The DTO's stable label does not select the
 planner in this direct harness. Limits: 2 CPU, 3 GiB container, Java heap 128–2048 MiB, JFR profile.
 Both are cold isolated planner calls, not API job duration or time to a successfully built network.
@@ -82,11 +82,11 @@ and JIT behavior differ between runs, so total allocation deltas cannot all be a
 
 ## Evidence and limitations
 
-- Baseline: `.tooling/nextgen-official-20260929/evidence/`.
-- This run: `.tooling/nextgen-segment-query-20260929/evidence/`, including `run.log`,
+- Baseline: archived official-run evidence directory.
+- This run: archived segment-query evidence directory, including `run.log`,
   `surefire-reports`, `result.json`, `snapshot-hashes.json`, `run-metadata.json`,
   `container-state.json`, JFR and `allocations.json`.
-- Container: `heatroute-nextgen-segment-query-r15-20260929`, exit 0, no OOM.
+- Container completed with exit 0 and no OOM.
 - Recorded execute UTC: 09:19:10.577591–09:19:43.436388, 2026-09-29; elapsed above uses the
   probe's monotonic timer (not subtraction of separate UTC sampling calls).
 - Code checked on HeatRoute at level Verification using source fallback; graph unavailable,
